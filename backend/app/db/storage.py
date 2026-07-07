@@ -39,6 +39,12 @@ def _conn() -> sqlite3.Connection:
     return conn
 
 
+# Public alias so tests / external callers can use the same accessor
+# as the internal module.
+def _connect() -> sqlite3.Connection:
+    return _conn()
+
+
 def init_db() -> None:
     # Run ordered migrations (idempotent; tracks schema_version internally).
     # The baseline migration records the current schema as-is.

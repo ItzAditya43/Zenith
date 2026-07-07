@@ -53,6 +53,27 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "video_frame_sample_seconds": 4,
     "video_max_frames": 8,
     "doc_chunk_chars": 6000,
+    # Auth (off by default — see Tier1 #8)
+    "auth_enabled": False,
+    "auth_shared_secret": "",
+    "cors_allow_origins": [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+    ],
+    # Operational
+    "log_level": "INFO",
+    "request_timeout_seconds": 600,
+    "prewarm_model_on_startup": False,
+    # RAG / long-term memory
+    "rag_enabled": True,
+    "rag_chunk_chars": 1200,
+    "rag_chunk_overlap": 200,
+    "rag_top_k": 5,
+    # Voice (Tier 3)
+    "voice_chunk_sentences": True,
+    # Attachments
+    "attachment_ttl_hours": 72,
 }
 
 
@@ -96,6 +117,19 @@ class Settings:
 
     def save(self) -> None:
         CONFIG_PATH.write_text(json.dumps(self._data, indent=2))
+
+    def reload(self) -> None:
+        """Re-read `config.json` from disk into memory.
+
+        Useful after the file was edited out-of-band (Settings UI,
+        tests with monkeypatched CORTEX_DATA_DIR, etc.)."""
+        self._data = _load()
+
+    def set(self, key: str, value: Any) -> None:
+        """Convenience: set one key and persist. Lets tests / callers
+        mutate a single field without rebuilding the whole patch dict."""
+        self._data[key] = value
+        self.save()
 
 
 settings = Settings()

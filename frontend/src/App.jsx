@@ -206,7 +206,7 @@ export default function App() {
           ))}
         </div>
 
-        <Composer onSend={handleSend} disabled={!activeId} />
+        <Composer onSend={handleSend} disabled={!activeId} conversationId={activeId} />
       </main>
 
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}

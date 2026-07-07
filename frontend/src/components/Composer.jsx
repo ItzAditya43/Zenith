@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 
 const KIND_ICON = { image: "🖼", video: "🎬", document: "📄", audio: "🎙", other: "📎" };
 
-export default function Composer({ onSend, disabled }) {
+export default function Composer({ onSend, disabled, conversationId = null }) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState([]); // [{id, filename, kind, uploading}]
   const [transcribing, setTranscribing] = useState(false);
@@ -16,7 +16,7 @@ export default function Composer({ onSend, disabled }) {
       const localId = `local-${Date.now()}-${file.name}`;
       setPending((p) => [...p, { id: localId, filename: file.name, kind: "other", uploading: true }]);
       try {
-        const result = await api.upload(file);
+        const result = await api.upload(file, conversationId);
         setPending((p) =>
           p.map((a) => (a.id === localId ? { ...result, uploading: false } : a))
         );

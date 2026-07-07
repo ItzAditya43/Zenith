@@ -47,9 +47,10 @@ export const api = {
       r.json()
     ),
 
-  upload: (file) => {
+  upload: (file, conversationId = null) => {
     const form = new FormData();
     form.append("file", file);
+    if (conversationId) form.append("conversation_id", conversationId);
     return request("/api/upload", { method: "POST", body: form }).then((r) => r.json());
   },
 

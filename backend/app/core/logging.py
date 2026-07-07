@@ -148,5 +148,93 @@ def configure_logging() -> logging.Logger:
     return logger
 
 
-def get_logger() -> logging.Logger:
-    return configure_logging()
+# Kwargs that stdlib `Logger._log` itself consumes from kwargs.
+_STDLIB_RESERVED = {"args", "exc_info", "exc_text", "stack_info"}
+
+# `LogRecord` attribute names that `makeRecord` refuses to overwrite via
+# `extra=`. We auto-rename these (e.g. `name` -> `event_name`) so callers
+# can still log a field called `name` and we don't silently drop it.
+_LOGRECORD_COLLISIONS = {
+    "name": "event_name",
+    "message": "event_message",
+    "asctime": "event_asctime",
+    "args": "event_args",
+}
+
+
+class BoundLogger:
+    """Thin shim that turns `log.info("evt", foo=1, bar="x")` into
+    a structured `extra={"foo": 1, "bar": "x"}` automatically.
+
+    The stdlib `Logger._log` rejects arbitrary kwargs; without this
+    wrapper every call site has to remember `extra={...}`. With it the
+    spec's "structured logging replaces bare print" goal is met without
+    ceremony at every emit.
+
+    The wrapped logger is the underlying stdlib logger, so any handler,
+    level, or formatter configured on the root `cortex` logger still
+    applies — only the call-site ergonomics change.
+    """
+
+    __slots__ = ("_log",)
+
+    def __init__(self, inner: logging.Logger) -> None:
+        self._log = inner
+
+    def _emit(self, level: int, msg: object, *args, **kwargs) -> None:
+        extra = kwargs.pop("extra", None) or {}
+        # Harvest any leftover kwargs as structured context.
+        for k, v in list(kwargs.items()):
+            if k in _STDLIB_RESERVED:
+                # Don't silently drop reserved kwargs; re-raise as a
+                # programmer error so misuse is caught early.
+                raise TypeError(
+                    f"log call passed reserved stdlib kwarg {k!r}; "
+                    f"use extra={{ {k!r}: ... }} or pick a different name"
+                )
+            # Auto-rename keys that would collide with LogRecord attrs
+            # so the structured context isn't silently dropped.
+            target_key = _LOGRECORD_COLLISIONS.get(k, k)
+            extra.setdefault(target_key, v)
+        self._log.log(level, msg, *args, extra=extra)
+
+    def debug(self, msg: object, *args, **kwargs) -> None:
+        self._emit(logging.DEBUG, msg, *args, **kwargs)
+
+    def info(self, msg: object, *args, **kwargs) -> None:
+        self._emit(logging.INFO, msg, *args, **kwargs)
+
+    def warning(self, msg: object, *args, **kwargs) -> None:
+        self._emit(logging.WARNING, msg, *args, **kwargs)
+
+    def error(self, msg: object, *args, **kwargs) -> None:
+        self._emit(logging.ERROR, msg, *args, **kwargs)
+
+    def exception(self, msg: object, *args, exc_info=True, **kwargs) -> None:
+        self._emit(logging.ERROR, msg, *args, exc_info=exc_info, **kwargs)
+
+    def critical(self, msg: object, *args, **kwargs) -> None:
+        self._emit(logging.CRITICAL, msg, *args, **kwargs)
+
+    # Pass-through attributes so `logger.name`, `logger.level`, etc. keep working.
+    @property
+    def name(self) -> str:
+        return self._log.name
+
+    @property
+    def level(self) -> int:
+        return self._log.level
+
+
+def get_logger(name: str | None = None):
+    """Return the configured JSONL logger, optionally namespaced.
+
+    `name` is treated as a `__name__`-style dotted suffix and joined to
+    the root "cortex" logger so different modules get distinct log
+    records (`logger="cortex.api.upload"`, etc.) without re-running
+    `configure_logging`. Returns a `BoundLogger` so callers can use
+    `log.info("evt", foo=1)` without manually wrapping `extra=...`."""
+    root = configure_logging()
+    if name:
+        return BoundLogger(root.getChild(name))
+    return BoundLogger(root)

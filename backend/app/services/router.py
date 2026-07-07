@@ -24,7 +24,16 @@ from app.services.ollama_client import OllamaClient, OllamaError
 _CODE_HINTS = re.compile(
     r"```|\bdef \w+\(|\bclass \w+\b|\bfunction\s*\(|\bimport \w+|\bconsole\.log\(|"
     r"\b(?:bug|stack trace|traceback|regex|compile error|segfault|null pointer|"
-    r"typescript|python|javascript|refactor this|write a script|write code)\b",
+    r"typescript|python|javascript|refactor this|write a script|write code|"
+    r"write a (?:sorting|searching|graph|dynamic[- ]programming|recursive|"
+    r"binary tree|linked list|hash|merge|quick|heap|bubble|insertion|"
+    r"selection|radix|counting|topological|bfs|dfs|dijkstra)a-z0-9' ]{0,40}?algorithm|"
+    r"write me a (?:sorting|searching|graph|recursive)?\s*(?:algorithm|function|method|class|program|script)|"
+    r"sorting algorithm|search algorithm|graph algorithm|"
+    r"implement a (?:sort|search|tree|graph|hash|queue|stack|linked[- ]list|binary)|"
+    r"code (?:a|an|the|this|that)|"
+    r"in (?:python|javascript|typescript|rust|go|java|c\+\+|c#|ruby|kotlin|swift)|"
+    r"algorithm)\b",
     re.IGNORECASE,
 )
 _REASONING_HINTS = re.compile(
@@ -133,6 +142,6 @@ class ModelRouter:
         return RouteDecision(
             model=fallback,
             role="general",
-            reason=f"No model tagged for '{role}' is installed — falling back to '{fallback}'.",
+            reason=f"No model tagged for '{role}' is installed — fallback to '{fallback}'.",
             installed_models=installed,
         )

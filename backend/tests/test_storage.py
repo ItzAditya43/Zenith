@@ -50,13 +50,12 @@ def test_app_boots_and_health(temp_data_dir):
 
 def test_migration_runner_creates_baseline(temp_data_dir):
     from app.db import storage
-    from app.db.migrations import current_version, run_migrations
+    from app.db.migrations import current_version
 
     storage.init_db()
-    report = run_migrations(storage._connect())
-    # Baseline must be applied exactly once.
-    assert 1 in report.applied
-    assert current_version(storage._connect()) == 1
+    # init_db() applies every pending migration, so baseline (v1) and
+    # the attachments table (v2) should both be recorded on a fresh DB.
+    assert current_version(storage._connect()) >= 2
 
 
 def test_migration_runner_is_idempotent(temp_data_dir):
@@ -64,20 +63,21 @@ def test_migration_runner_is_idempotent(temp_data_dir):
     from app.db.migrations import current_version, run_migrations
 
     storage.init_db()
+    version_after_init = current_version(storage._connect())
     conn = storage._connect()
-    run_migrations(conn)
-    # Running again must apply nothing new.
+    # Running again on the same connection must apply nothing new.
     report2 = run_migrations(conn)
     assert report2.applied == []
-    assert current_version(conn) == 1
+    assert current_version(conn) == version_after_init
 
 
 def test_conversation_and_message_round_trip(temp_data_dir):
     from app.db import storage
 
     storage.init_db()
-    cid = storage.create_conversation(title=None)
-    assert isinstance(cid, int)
+    conv = storage.create_conversation()
+    cid = conv["id"]
+    assert isinstance(cid, str) and cid
     storage.add_message(cid, "user", "hello world")
     storage.add_message(cid, "assistant", "hi there", model="general")
 
