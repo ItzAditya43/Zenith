@@ -154,6 +154,27 @@ class ModelRouter:
         history_last_model: str | None = None,
         context_chars: int = 0,
     ) -> RouteDecision:
+        # Tier 2 #1: try the embedding router first. If it produces a high-
+        # confidence semantic match, prefer that over the regex signal so
+        # nuanced prompts (e.g. "what does this Python error mean") route
+        # correctly even when the regex doesn't fire.
+        embedding_role = None
+        embedding_score = 0.0
+        if text and not has_image and not has_video:
+            try:
+                from app.services.embedding_router import EmbeddingRouter
+                er = EmbeddingRouter()
+                # Use the auto-classified embedding model from this router.
+                embed_model = self._match_capability(
+                    "embedding", await self.registry.models()
+                )
+                if embed_model:
+                    ranked = await er.rank(text, embed_model)
+                    if ranked:
+                        embedding_role, embedding_score = ranked[0]
+            except Exception as exc:
+                log.debug("embedding.router_unavailable", error=str(exc))
+
         installed = await self.registry.models()
         if not installed:
             raise OllamaError(
@@ -211,12 +232,28 @@ class ModelRouter:
         # --- soft preferences from the text itself ---
         role = "general"
         reason = "General conversation."
+        confidence = 0.9
         if text_hint == "code":
             role, reason = "code", "Message looks code-related."
         elif text_hint == "reasoning":
             role, reason = "reasoning", "Message asks for multi-step reasoning/math."
         elif text_hint == "small_fast":
             role, reason = "small_fast", "Short/simple message — using a fast small model."
+        # If regex is silent but the semantic router has a confident match,
+        # let the embedding pick the role. This is the "write me a Python
+        # helper" case that the regex misses.
+        elif (
+            not text_hint
+            and embedding_role
+            and embedding_score >= float(settings.get("router_confidence_threshold", 0.55))
+            and self._match_capability(embedding_role, installed)
+        ):
+            role = embedding_role
+            reason = (
+                f"Semantic match: your message is closest to other '{role}' prompts "
+                f"(score {embedding_score:.2f})."
+            )
+            confidence = float(embedding_score)
 
         # --- context-window-aware pick (Tier 2 #3) ---
         if has_long_document or context_chars:
