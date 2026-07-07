@@ -2,9 +2,17 @@
 the chat context. Kept intentionally simple (no vector DB / RAG) — chunks
 are truncated to `doc_chunk_chars` and, for longer docs, summarized first
 using the general model before being handed to the router's chosen model.
+
+Phase 4 additions:
+- OCR fallback for image-only / scanned PDFs (tesseract → text).
+- "Looks empty?" detection that triggers OCR even for normal PDFs.
+- Multi-document synthesis: each document's chunk is budgeted
+  proportionally and clearly labeled in the prompt.
 """
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
 from app.core.config import settings
@@ -30,7 +38,54 @@ def _extract_pdf(path: Path) -> str:
     pages = []
     for i, page in enumerate(reader.pages):
         pages.append(f"--- page {i + 1} ---\n{page.extract_text() or ''}")
-    return "\n".join(pages)
+    text = "\n".join(pages)
+    # Phase 4 #1: if extraction came back essentially empty (scanned PDF
+    # with no embedded text layer) and OCR is enabled, fall back to
+    # rendering pages and running tesseract.
+    if _looks_empty(text) and bool(settings.get("doc_ocr_fallback", True)):
+        ocr_text = _ocr_pdf(path)
+        if ocr_text.strip():
+            text = ocr_text
+    return text
+
+
+def _looks_empty(text: str) -> bool:
+    """Heuristic: < 50 visible chars per page on average means the PDF
+    is image-only (scanned). Real text is much denser than that."""
+    if not text:
+        return True
+    stripped = "".join(c for c in text if c.isalnum())
+    return len(stripped) < 50
+
+
+def _ocr_pdf(path: Path) -> str:
+    """Render each page to a temp PNG, run tesseract on each, concatenate.
+    Requires `pdftoppm` (poppler) and `tesseract` on PATH; if either is
+    missing we fall back to an empty string and let the caller show a
+    user-friendly error."""
+    if not shutil.which("tesseract") or not shutil.which("pdftoppm"):
+        return ""
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        try:
+            subprocess.run(
+                ["pdftoppm", "-r", "200", str(path), str(td / "page")],
+                check=True, capture_output=True, timeout=120,
+            )
+        except Exception:
+            return ""
+        out = []
+        for png in sorted(td.glob("page-*.png")):
+            try:
+                res = subprocess.run(
+                    ["tesseract", str(png), "-", "-l", "eng"],
+                    check=True, capture_output=True, timeout=60,
+                )
+                out.append(res.stdout.decode("utf-8", errors="ignore"))
+            except Exception:
+                continue
+        return "\n".join(out)
 
 
 def _extract_docx(path: Path) -> str:
@@ -53,3 +108,23 @@ def chunk_for_context(text: str) -> str:
     head = text[: limit // 2]
     tail = text[-limit // 2 :]
     return f"{head}\n\n... [document truncated, {len(text) - limit} chars omitted] ...\n\n{tail}"
+
+
+def synthesize_multi_doc(docs: list[dict]) -> str:
+    """Combine multiple documents into a single prompt block where each
+    document gets a proportional share of the budget and is clearly
+    labeled. `docs` is a list of {"name": str, "text": str}."""
+    if not docs:
+        return ""
+    if len(docs) == 1:
+        return f"[Document '{docs[0]['name']}']\n{chunk_for_context(docs[0]['text'])}"
+    per_doc_limit = settings.get("doc_chunk_chars", 6000) // max(1, len(docs))
+    parts = []
+    for d in docs:
+        chunked = chunk_for_context(d["text"]) if len(d["text"]) <= per_doc_limit * 2 else (
+            d["text"][: per_doc_limit // 2]
+            + f"\n\n... [truncated, {len(d['text']) - per_doc_limit} chars omitted] ...\n\n"
+            + d["text"][-per_doc_limit // 2 :]
+        )
+        parts.append(f"[Document '{d['name']}']\n{chunked}")
+    return "\n\n".join(parts)

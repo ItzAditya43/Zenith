@@ -10,13 +10,57 @@ from pathlib import Path
 from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-UPLOAD_DIR = DATA_DIR / "uploads"
-DB_PATH = DATA_DIR / "cortex.db"
-CONFIG_PATH = DATA_DIR / "config.json"
 
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+def _resolve_data_dir() -> Path:
+    """Resolve the data directory at access time so monkeypatched
+    `CORTEX_DATA_DIR` env vars in tests take effect."""
+    env = os.environ.get("CORTEX_DATA_DIR")
+    if env:
+        return Path(env)
+    return BASE_DIR / "data"
+
+
+def data_dir() -> Path:
+    d = _resolve_data_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def upload_dir() -> Path:
+    p = data_dir() / "uploads"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def db_path() -> Path:
+    return data_dir() / "cortex.db"
+
+
+def config_path() -> Path:
+    return data_dir() / "config.json"
+
+
+# Module-level constants — set at import time from the current env.
+# Most call sites can use the functions above for late binding. These
+# exist for `from app.core.config import DB_PATH` style imports.
+DB_PATH = db_path()
+CONFIG_PATH = config_path()
+UPLOAD_DIR = upload_dir()
+DATA_DIR = data_dir()
+
+
+def refresh_paths() -> None:
+    """Re-evaluate DB_PATH / DATA_DIR / etc. from the current
+    `CORTEX_DATA_DIR` env var. Useful for tests that set the env var
+    after config.py was first imported. Call this from the test fixture
+    right after `monkeypatch.setenv('CORTEX_DATA_DIR', ...)`."""
+    global DB_PATH, CONFIG_PATH, UPLOAD_DIR, DATA_DIR
+    DB_PATH = db_path()
+    CONFIG_PATH = config_path()
+    UPLOAD_DIR = upload_dir()
+    DATA_DIR = data_dir()
+
 
 DEFAULT_CONFIG: dict[str, Any] = {
     # --- Ollama ---
@@ -52,7 +96,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "whisper_compute_type": os.environ.get("WHISPER_COMPUTE_TYPE", "int8"),
     "tts_engine": os.environ.get("TTS_ENGINE", "piper"),  # "piper" | "pyttsx3"
     "piper_voice": os.environ.get("PIPER_VOICE", "en_US-lessac-medium"),
-    "piper_voices_dir": os.environ.get("PIPER_VOICES_DIR", str(DATA_DIR / "piper_voices")),
+    "piper_voices_dir": os.environ.get("PIPER_VOICES_DIR", str(data_dir() / "piper_voices")),
     # --- Streaming behaviour ---
     "sse_heartbeat_seconds": 15,
     "stream_idle_timeout_seconds": 120,
@@ -103,9 +147,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
 
 
 def _load() -> dict[str, Any]:
-    if CONFIG_PATH.exists():
+    cp = config_path()
+    if cp.exists():
         try:
-            stored = json.loads(CONFIG_PATH.read_text())
+            stored = json.loads(cp.read_text())
             merged = json.loads(json.dumps(DEFAULT_CONFIG))  # deep copy
             merged.update({k: v for k, v in stored.items() if k in merged})
             # deep-merge nested dicts so new default keys aren't lost on upgrade
@@ -141,7 +186,7 @@ class Settings:
         return self._data
 
     def save(self) -> None:
-        CONFIG_PATH.write_text(json.dumps(self._data, indent=2))
+        config_path().write_text(json.dumps(self._data, indent=2))
 
     def reload(self) -> None:
         """Re-read `config.json` from disk into memory.

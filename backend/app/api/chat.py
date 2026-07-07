@@ -25,6 +25,14 @@ async def list_conversations():
     return storage.list_conversations()
 
 
+@router.get("/conversations/search")
+async def search_conversations(q: str = ""):
+    """Full-text search across message content using SQLite FTS5. Used by
+    the sidebar search bar (Phase 6 #5). Falls back to a LIKE scan if
+    FTS5 isn't compiled in."""
+    return storage.search_conversations(q)
+
+
 @router.post("/conversations")
 async def create_conversation(body: ConversationCreate):
     return storage.create_conversation(body.title)
@@ -186,6 +194,25 @@ async def chat(body: ChatRequest, request: Request):
             body.conversation_id, "assistant", full_text,
             model=current_model, route_role=current_role, route_reason=current_reason,
         )
+        # Phase 5: index the assistant reply for cross-conversation memory.
+        try:
+            from app.services import rag_service
+            rag_service.index_message(body.conversation_id, "assistant", full_text)
+        except Exception as exc:
+            log.warning("chat.rag_index_failed", error=str(exc))
+
+        # Phase 6 #4: auto-generate a conversation title after the first
+        # assistant response (fire-and-forget — don't block the SSE close).
+        if not getattr(request.app.state, "_titled_for", None):
+            request.app.state._titled_for = set()
+        if body.conversation_id not in request.app.state._titled_for:
+            request.app.state._titled_for.add(body.conversation_id)
+            try:
+                from app.services.title_service import maybe_generate_title
+                maybe_generate_title(body.conversation_id, full_text)
+            except Exception as exc:
+                log.debug("chat.title_gen_failed", error=str(exc))
+
         yield _sse({"type": "done"})
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")

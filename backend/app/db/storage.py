@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 
-from app.core.config import DB_PATH
+from app.core.config import db_path as _db_path
 from app.db.migrations import run_migrations
 
 SCHEMA = """
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS messages (
 
 
 def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(_db_path()))
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -125,3 +125,51 @@ def delete_conversation(conversation_id: str) -> None:
     with _conn() as conn:
         conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
         conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+
+
+def search_conversations(q: str) -> list[dict]:
+    """Full-text search over message content. Returns distinct
+    conversations with the matching snippet and message count. Uses
+    SQLite FTS5 when available, falling back to a LIKE scan otherwise
+    (or when FTS5 returns no hits for a prefix/stemming mismatch)."""
+    if not q or not q.strip():
+        return []
+    term = q.strip()
+    with _conn() as conn:
+        # FTS5 path (prefix match so "tomato" finds "tomatoes").
+        try:
+            fts_query = term.replace('"', '""')
+            rows = conn.execute(
+                """
+                SELECT m.conversation_id, c.title, snippet(messages_fts, 0, '<mark>', '</mark>', '…', 12) AS snip,
+                       COUNT(*) AS hits, MAX(m.created_at) AS last_at
+                FROM messages_fts
+                JOIN messages m ON m.rowid = messages_fts.rowid
+                JOIN conversations c ON c.id = m.conversation_id
+                WHERE messages_fts MATCH ?
+                GROUP BY m.conversation_id
+                ORDER BY last_at DESC
+                LIMIT 50
+                """,
+                (fts_query,),
+            ).fetchall()
+            if rows:
+                return [dict(r) for r in rows]
+        except Exception:
+            pass
+        # Fallback: LIKE scan (also covers no-FTS5 builds and zero FTS hits).
+        like = f"%{term}%"
+        rows = conn.execute(
+            """
+            SELECT m.conversation_id, c.title, substr(m.content, 1, 200) AS snip,
+                   COUNT(*) AS hits, MAX(m.created_at) AS last_at
+            FROM messages m
+            JOIN conversations c ON c.id = m.conversation_id
+            WHERE m.content LIKE ?
+            GROUP BY m.conversation_id
+            ORDER BY last_at DESC
+            LIMIT 50
+            """,
+            (like,),
+        ).fetchall()
+        return [dict(r) for r in rows]

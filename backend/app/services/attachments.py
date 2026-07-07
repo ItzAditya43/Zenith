@@ -13,7 +13,11 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.core.config import DB_PATH, UPLOAD_DIR, settings
+from app.core.config import (
+    db_path as _db_path,
+    upload_dir as _upload_dir,
+    settings,
+)
 from app.core.logging import get_logger
 from app.services.document_service import SUPPORTED_EXTS as DOC_EXTS
 
@@ -81,7 +85,7 @@ def _sniff_mime(path: Path, fallback: str) -> str:
 
 
 def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(_db_path()))
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -105,7 +109,8 @@ def save_upload(
         raise AttachmentError(f"File too large ({len(data)} bytes; cap {cap}).")
 
     aid = str(uuid.uuid4())
-    dest = UPLOAD_DIR / f"{aid}_{Path(filename).name}"
+    upload_dir = _upload_dir()
+    dest = upload_dir / f"{aid}_{Path(filename).name}"
     dest.write_bytes(data)
 
     mime = _guess_mime(filename, declared_mime)

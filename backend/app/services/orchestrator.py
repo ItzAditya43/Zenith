@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import AsyncIterator
 
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.db import storage
 from app.services import attachments as att_service
 from app.services import document_service, vision_service, whisper_service
@@ -64,9 +65,10 @@ async def build_turn_context(attachment_ids: list[str]) -> TurnContext:
 
         elif att.kind == "document":
             raw = document_service.extract_text(att.path)
-            chunked = document_service.chunk_for_context(raw)
             ctx.has_long_document = len(raw) > settings.get("doc_chunk_chars", 6000)
-            ctx.text_parts.append(f"[Contents of document '{att.filename}']\n{chunked}")
+            # Defer to multi-doc synthesizer below (handles 1+ documents
+            # uniformly and labels each one for the model).
+            ctx.text_parts.append(f"__DOC__:{att.filename}\n{raw}")
             ctx.attachment_summaries.append({"id": aid, "kind": "document", "name": att.filename})
 
         elif att.kind == "audio":
@@ -82,9 +84,28 @@ def _build_messages(history: list[dict], user_text: str, ctx: TurnContext) -> li
     trimmed = history[-max_msgs:]
     messages = [{"role": m["role"], "content": m["content"]} for m in trimmed]
 
+    # Split out document parts (marked with __DOC__:name) and feed them
+    # through the multi-doc synthesizer so each is labeled and
+    # proportionally budgeted. Other text parts (transcripts, OCR results)
+    # join in as before.
+    doc_parts: list[dict] = []
+    other_parts: list[str] = []
+    for p in ctx.text_parts:
+        if p.startswith("__DOC__:"):
+            name, _, body = p.partition("\n")
+            doc_parts.append({"name": name[len("__DOC__:"):], "text": body})
+        else:
+            other_parts.append(p)
+
+    sections: list[str] = []
+    if doc_parts:
+        sections.append(document_service.synthesize_multi_doc(doc_parts))
+    if other_parts:
+        sections.append("\n\n".join(other_parts))
+
     full_user_text = user_text
-    if ctx.text_parts:
-        full_user_text = (user_text + "\n\n" + "\n\n".join(ctx.text_parts)).strip()
+    if sections:
+        full_user_text = (user_text + "\n\n" + "\n\n".join(sections)).strip()
     messages.append({"role": "user", "content": full_user_text})
     return messages
 
@@ -101,6 +122,32 @@ async def run_turn(
     ctx = await build_turn_context(attachment_ids)
     history = storage.get_messages(conversation_id)
     messages = _build_messages(history, user_text, ctx)
+
+    # Phase 5: if a document is attached, do a top-k retrieval against
+    # the RAG index and use those chunks instead of head+tail truncation
+    # so the model can answer questions about page 300, not just the
+    # first and last pages. Falls back to the truncate path if no
+    # embedding model is available.
+    if ctx.attachment_summaries:
+        try:
+            from app.services import rag_service
+            for att in ctx.attachment_summaries:
+                if att.get("kind") != "document":
+                    continue
+                chunks = rag_service.retrieve(
+                    user_text, source_id=att["id"],
+                )
+                if chunks:
+                    rendered = "\n\n".join(
+                        f"[From '{att['name']}']\n{c['text']}" for c in chunks
+                    )
+                    # Replace the raw doc text in messages[-1] with the
+                    # retrieved, top-k chunk(s).
+                    messages[-1]["content"] = (
+                        user_text + "\n\n" + rendered
+                    ).strip()
+        except Exception as exc:
+            log.warning("orchestrator.rag_failed", error=str(exc))
 
     # Heuristic: pass a rough char count of the conversation (truncated
     # to max_context_messages worth) so the router can prefer a

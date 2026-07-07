@@ -13,7 +13,7 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 
-from app.core.config import DB_PATH
+from app.core.config import db_path as _db_path
 from app.core.logging import get_logger
 
 log = get_logger(__name__)
@@ -66,10 +66,65 @@ def _attachments_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _fts5_index(conn: sqlite3.Connection) -> None:
+    """SQLite FTS5 virtual table over message content for fast
+    sidebar search. The Python `sqlite3` module doesn't always have FTS5
+    compiled in (e.g. some slim distros), so we probe first; if it's
+    missing we record the migration as applied but skip the index — the
+    search route falls back to a LIKE scan in that case."""
+    try:
+        conn.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5("
+            "content, content_rowid='rowid', tokenize='unicode61')"
+        )
+    except sqlite3.OperationalError as exc:
+        log.warning("migration.fts5_unavailable", error=str(exc))
+        # Tag the schema with a row that lets the app know FTS5 is off.
+        try:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT)"
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('fts5_available', '0')"
+            )
+        except Exception:
+            pass
+        return
+    # Record the success so the app can take the FTS path confidently.
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT)"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('fts5_available', '1')"
+        )
+    except Exception:
+        pass
+    # Triggers: separate execute calls so a single failure doesn't
+    # abort the whole migration. The triggers are pure indexing glue.
+    conn.execute(
+        """CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+            INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+        END;"""
+    )
+    conn.execute(
+        """CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+            DELETE FROM messages_fts WHERE rowid = old.rowid;
+        END;"""
+    )
+    conn.execute(
+        """CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+            DELETE FROM messages_fts WHERE rowid = old.rowid;
+            INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+        END;"""
+    )
+
+
 # Ordered list — never reorder, only append.
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "baseline", _baseline),
     (2, "attachments_table", _attachments_table),
+    (3, "fts5_index", _fts5_index),
 ]
 
 
@@ -126,7 +181,7 @@ def run_migrations(conn: sqlite3.Connection | None = None) -> MigrationReport:
     to the default `DB_PATH` is opened and closed. Tests pass their own
     connection to share state with the rest of the suite."""
     if conn is None:
-        own = sqlite3.connect(DB_PATH)
+        own = sqlite3.connect(str(_db_path()))
         own.row_factory = sqlite3.Row
         try:
             return _run_migrations_on(own)

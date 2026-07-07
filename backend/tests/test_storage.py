@@ -28,11 +28,12 @@ if str(BACKEND_ROOT) not in sys.path:
 def temp_data_dir(monkeypatch):
     d = tempfile.mkdtemp(prefix="cortex-test-")
     monkeypatch.setenv("CORTEX_DATA_DIR", d)
-    # Force settings to re-read from the new dir.
     from app.core import config as cfg
 
+    cfg.refresh_paths()
     cfg.settings.reload()
     yield Path(d)
+    cfg.refresh_paths()
     cfg.settings.reload()
 
 
