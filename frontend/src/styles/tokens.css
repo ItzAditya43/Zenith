@@ -1,0 +1,95 @@
+/*
+  Cortex design tokens.
+
+  Direction: "a local nervous system" — not a generic dark-mode SaaS chat.
+  Base is a graphite-indigo void (not pure black), because the whole product's
+  pitch is "your own compute, your own models" — it should feel like an
+  instrument panel, not a website. Three accent colors map 1:1 to the
+  router's capability buckets, so color becomes information: the user learns
+  to read "teal = general text", "violet = vision", "amber = voice/audio",
+  "coral = code" at a glance, across the badge, the ambient background, and
+  the composer state — one system, reused everywhere instead of decorative.
+*/
+
+:root {
+  /* Surface */
+  --bg-void: #0a0c12;
+  --bg-base: #0d1017;
+  --bg-panel: #12151f;
+  --bg-panel-raised: #171b28;
+  --bg-inset: #0a0c14;
+  --border-hairline: rgba(148, 163, 184, 0.09);
+  --border-soft: rgba(148, 163, 184, 0.16);
+
+  /* Text */
+  --text-primary: #e8eaf2;
+  --text-secondary: #9aa3b8;
+  --text-tertiary: #626b81;
+  --text-on-accent: #06090f;
+
+  /* Signal colors — one per router capability bucket */
+  --signal-general: #4dd9c0;   /* teal    */
+  --signal-vision: #8b7fe8;    /* violet  */
+  --signal-code: #ef8b6f;      /* coral   */
+  --signal-voice: #e8b23d;     /* amber   */
+  --signal-reasoning: #6fb1ef; /* sky     */
+  --signal-danger: #ef6f6f;
+
+  --signal-general-dim: rgba(77, 217, 192, 0.14);
+  --signal-vision-dim: rgba(139, 127, 232, 0.14);
+  --signal-code-dim: rgba(239, 139, 111, 0.14);
+  --signal-voice-dim: rgba(232, 178, 61, 0.14);
+  --signal-reasoning-dim: rgba(111, 177, 239, 0.14);
+
+  /* Type */
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8375rem;
+  --text-base: 0.9375rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.875rem;
+
+  /* Space */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius — soft but not pill-shaped; instrument-panel rather than bubbly */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 999px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+
+  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}
+
+/* helper: capability -> signal color, used via data-role attribute */
+[data-role="general"]    { --signal: var(--signal-general); --signal-dim: var(--signal-general-dim); }
+[data-role="vision"]     { --signal: var(--signal-vision); --signal-dim: var(--signal-vision-dim); }
+[data-role="code"]       { --signal: var(--signal-code); --signal-dim: var(--signal-code-dim); }
+[data-role="small_fast"] { --signal: var(--signal-general); --signal-dim: var(--signal-general-dim); }
+[data-role="reasoning"]  { --signal: var(--signal-reasoning); --signal-dim: var(--signal-reasoning-dim); }
+[data-role="voice"]      { --signal: var(--signal-voice); --signal-dim: var(--signal-voice-dim); }
