@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.storage import init_db
 from app.services.attachments import sweep_orphans
+from app.services.ollama_client import OllamaClient
 
 log = get_logger(__name__)
 
@@ -42,6 +43,17 @@ async def lifespan(app: FastAPI):
     # Track the last model used in this process so the router can be
     # "sticky" — see ModelRouter.decide() and the /api/route/preview docstring.
     app.state.last_route_model = None
+    # Phase 7 #4 — optionally pre-load the configured general model on
+    # startup to cut first-turn latency. Off by default on low-VRAM setups.
+    if bool(settings.get("prewarm_general_model", False)):
+        general_model = settings.get("fallback_model", "general")
+        if general_model and not general_model.endswith("Model"):
+            try:
+                client = OllamaClient()
+                await asyncio.to_thread(client.estimate_context_window, general_model)
+                log.info("prewarm.started", model=general_model)
+            except Exception as exc:
+                log.warning("prewarm.failed", model=general_model, error=str(exc))
     try:
         yield
     finally:

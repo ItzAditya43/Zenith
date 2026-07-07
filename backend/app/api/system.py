@@ -15,6 +15,7 @@ import time
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -24,6 +25,11 @@ from app.services.router import ModelRegistry, ModelRouter
 
 log = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["system"])
+
+# Phase 7 #5 — low-churn endpoints get a short Cache-Control so the browser
+# doesn't re-fetch on every navigation. Busted on config/model change via the
+# existing 15s TTL cache + /api/models/refresh.
+_CACHE_MAX_AGE = int(settings.get("static_cache_seconds", 15))
 
 
 async def _ollama_status(client: OllamaClient) -> dict:
@@ -132,7 +138,7 @@ async def models():
         roles = [role for role, kws in keywords.items() if any(kw in lname for kw in kws)]
         roles += [role for role, override in overrides.items() if override == name and role not in roles]
         enriched.append({**m, "roles": roles})
-    return enriched
+    return JSONResponse(enriched, headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
 
 
 @router.post("/models/refresh")
@@ -146,7 +152,7 @@ async def models_refresh():
 
 @router.get("/config")
 async def get_config():
-    return dict(settings.all())
+    return JSONResponse(dict(settings.all()), headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
 
 
 @router.patch("/config")

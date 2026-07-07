@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.rate_limit import conversation_lock
 from app.db import storage
 from app.models.schemas import ChatRequest, ConversationCreate, ConversationRename
 from app.services.ollama_client import OllamaClient, OllamaError
@@ -73,6 +74,9 @@ async def chat(body: ChatRequest, request: Request):
     Plus an SSE comment frame `:heartbeat` is emitted every
     `sse_heartbeat_seconds` so reverse proxies with idle timeouts don't
     kill long-running streams.
+
+    A per-conversation lock (Tier 7 #2) serializes turns so spamming send
+    can't fan out into N concurrent Ollama streams and OOM the host.
     """
     # Sticky-routing signal: pull the last model used in *this* conversation
     # so the next turn can be served by the same model when nothing forces
@@ -215,7 +219,16 @@ async def chat(body: ChatRequest, request: Request):
 
         yield _sse({"type": "done"})
 
-    return StreamingResponse(event_gen(), media_type="text/event-stream")
+    async def guarded_gen():
+        # Tier 7 #2 — serialize turns per conversation.
+        try:
+            async with conversation_lock(body.conversation_id):
+                async for ev in event_gen():
+                    yield ev
+        except TimeoutError as exc:
+            yield _sse({"type": "error", "message": str(exc)})
+
+    return StreamingResponse(guarded_gen(), media_type="text/event-stream")
 
 
 async def _pick_fallback(request: Request, current_model: str) -> str | None:
