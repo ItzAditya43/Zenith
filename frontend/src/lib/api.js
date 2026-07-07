@@ -33,6 +33,8 @@ export const api = {
     }),
   deleteConversation: (id) => request(`/api/conversations/${id}`, { method: "DELETE" }),
   getMessages: (id) => request(`/api/conversations/${id}/messages`).then((r) => r.json()),
+  searchConversations: (query) =>
+    request(`/api/conversations/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
 
   listModels: () => request("/api/models").then((r) => r.json()),
   getConfig: () => request("/api/config").then((r) => r.json()),
@@ -62,21 +64,38 @@ export const api = {
 
   speakUrl: () => `${BASE}/api/voice/speak`,
 
+  listVoices: () => request("/api/voice/voices").then((r) => r.json()),
+
   /**
    * Streams a chat turn via SSE. Calls `onEvent({type, ...})` for every
-   * server-sent event: "route" | "token" | "done" | "error".
+   * server-sent event: "route" | "token" | "downgrade" | "done" | "error".
+   *
+   * Resilience contract (Tier 1 #7):
+   *   - If `reader.read()` throws (network drop, sleep, abort) we surface
+   *     a final `error` event so the UI can mark the bubble as interrupted
+   *     rather than leaving it stuck in "streaming".
+   *   - An `AbortError` from the caller's `signal` is treated as a clean
+   *     cancellation — no error event, the bubble just stops where it is.
    */
   async streamChat({ conversationId, message, attachmentIds }, onEvent, signal) {
-    const res = await fetch(`${BASE}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversation_id: conversationId,
-        message,
-        attachment_ids: attachmentIds,
-      }),
-      signal,
-    });
+    let res;
+    try {
+      res = await fetch(`${BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          message,
+          attachment_ids: attachmentIds,
+        }),
+        signal,
+      });
+    } catch (err) {
+      // Network/AbortError path. Don't conflate user-cancel with a real error.
+      if (err && err.name === "AbortError") return;
+      onEvent({ type: "error", message: `Network error: ${err.message || err}` });
+      return;
+    }
     if (!res.ok || !res.body) {
       let detail = res.statusText;
       try {
@@ -89,21 +108,26 @@ export const api = {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop();
-      for (const part of parts) {
-        const line = part.trim();
-        if (!line.startsWith("data:")) continue;
-        try {
-          onEvent(JSON.parse(line.slice(5).trim()));
-        } catch (_) {
-          /* ignore malformed chunk */
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop();
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data:")) continue;
+          try {
+            onEvent(JSON.parse(line.slice(5).trim()));
+          } catch (_) {
+            /* ignore malformed chunk */
+          }
         }
       }
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+      onEvent({ type: "error", message: `Stream interrupted: ${err.message || err}` });
     }
   },
 };

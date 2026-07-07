@@ -1,26 +1,67 @@
+"""Pydantic models for request/response bodies.
+
+Adding `model_config = ConfigDict(extra="forbid")` makes the API strict
+about unknown fields (returns 422 instead of silently ignoring them).
+Enums + `Field` constraints on numeric ranges give us a 422 instead of
+silently accepting garbage values (e.g. `whisper_model_size = "garbage"`).
+"""
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class ChatRequest(BaseModel):
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ChatRequest(StrictModel):
     conversation_id: str
     message: str
     attachment_ids: list[str] = []  # ids returned by /api/upload
 
 
-class ConversationCreate(BaseModel):
+class ConversationCreate(StrictModel):
     title: str = "New chat"
 
 
-class ConversationRename(BaseModel):
-    title: str
+class ConversationRename(StrictModel):
+    title: str = Field(min_length=1, max_length=200)
 
 
-class ConfigPatch(BaseModel):
-    ollama_host: str | None = None
-    model_overrides: dict[str, str | None] | None = None
-    capability_keywords: dict[str, list[str]] | None = None
-    whisper_model_size: str | None = None
-    tts_engine: str | None = None
-    piper_voice: str | None = None
+WhisperModelSize = Literal["tiny", "base", "small", "medium", "large-v1", "large-v2", "large-v3"]
+TtsEngine = Literal["piper", "pyttsx3"]
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
+
+
+class ConfigPatch(StrictModel):
+    """All fields are optional; only the ones the caller actually
+    sends get applied. Unknown fields are rejected (extra='forbid')."""
+
+    ollama_host: Optional[str] = Field(default=None, min_length=1, max_length=500)
+    model_overrides: Optional[dict[str, Optional[str]]] = None
+    capability_keywords: Optional[dict[str, list[str]]] = None
+    whisper_model_size: Optional[WhisperModelSize] = None
+    tts_engine: Optional[TtsEngine] = None
+    piper_voice: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    fallback_model: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    auth_enabled: Optional[bool] = None
+    auth_shared_secret: Optional[str] = None
+    cors_allow_origins: Optional[list[str]] = None
+    rag_enabled: Optional[bool] = None
+    rag_chunk_chars: Optional[int] = Field(default=None, ge=200, le=20_000)
+    rag_chunk_overlap: Optional[int] = Field(default=None, ge=0, le=5_000)
+    rag_top_k: Optional[int] = Field(default=None, ge=1, le=20)
+    doc_ocr_fallback: Optional[bool] = None
+    video_scene_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    router_confidence_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    log_level: Optional[LogLevel] = None
+    request_timeout_seconds: Optional[int] = Field(default=None, ge=5, le=7200)
+    prewarm_model_on_startup: Optional[bool] = None
+    sse_heartbeat_seconds: Optional[int] = Field(default=None, ge=0, le=120)
+    upload_max_bytes: Optional[int] = Field(default=None, ge=1_024, le=5 * 1024 * 1024 * 1024)
+    max_context_messages: Optional[int] = Field(default=None, ge=1, le=200)
+    attachment_ttl_hours: Optional[int] = Field(default=None, ge=1, le=24 * 30)
+    voice_chunk_sentences: Optional[bool] = None
+    ui_experimental: Optional[bool] = None

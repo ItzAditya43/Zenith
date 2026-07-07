@@ -18,6 +18,7 @@ export default function App() {
   const [connectionError, setConnectionError] = useState(null);
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
+  const abortRef = useRef(null);
 
   useEffect(() => {
     api
@@ -53,6 +54,8 @@ export default function App() {
   };
 
   const handleDelete = async (id) => {
+    // Tier 6 #16 — confirm before destroying history.
+    if (!window.confirm("Delete this conversation? This can't be undone.")) return;
     await api.deleteConversation(id);
     const remaining = conversations.filter((c) => c.id !== id);
     setConversations(remaining);
@@ -65,7 +68,7 @@ export default function App() {
   const playReply = async (text) => {
     try {
       setStatus("speaking");
-      setAudioAndPlay(text);
+      await setAudioAndPlay(text);
     } catch {
       setStatus("idle");
     }
@@ -90,6 +93,21 @@ export default function App() {
     }
   };
 
+  const handleStop = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setStatus("idle");
+    setMessages((m) =>
+      m.map((msg) => (msg.streaming ? { ...msg, streaming: false, interrupted: true } : msg))
+    );
+  };
+
   const handleSend = async (text, attachmentIds) => {
     if (!activeId) return;
     const userMsg = { id: `local-${Date.now()}`, role: "user", content: text, attachments: [] };
@@ -105,6 +123,11 @@ export default function App() {
     setStatus("thinking");
     setConnectionError(null);
 
+    // Cancel any in-flight stream before starting a new one (Tier 1 #7).
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     let fullText = "";
     await api.streamChat(
       { conversationId: activeId, message: text, attachmentIds },
@@ -114,7 +137,25 @@ export default function App() {
           setMessages((m) =>
             m.map((msg) =>
               msg.id === assistantMsg.id
-                ? { ...msg, model: event.model, route_role: event.role, route_reason: event.reason }
+                ? {
+                    ...msg,
+                    model: event.model,
+                    route_role: event.role,
+                    route_reason: event.reason,
+                    confidence: event.confidence,
+                  }
+                : msg
+            )
+          );
+        } else if (event.type === "downgrade") {
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantMsg.id
+                ? {
+                    ...msg,
+                    model: event.to,
+                    route_reason: `Original model '${event.from}' failed mid-stream — downgraded to '${event.to}'.`,
+                  }
                 : msg
             )
           );
@@ -138,16 +179,45 @@ export default function App() {
         } else if (event.type === "error") {
           setConnectionError(event.message);
           setStatus("idle");
+          // Tier 1 #7: never leave the bubble stuck in "streaming" — mark it
+          // interrupted so MessageBubble can show a retry affordance.
           setMessages((m) =>
             m.map((msg) =>
               msg.id === assistantMsg.id
-                ? { ...msg, streaming: false, content: `⚠ ${event.message}` }
+                ? {
+                    ...msg,
+                    streaming: false,
+                    interrupted: true,
+                    interrupted_reason: event.message,
+                    content: msg.content || `⚠ ${event.message}`,
+                  }
                 : msg
             )
           );
         }
-      }
+      },
+      controller.signal
     );
+    if (abortRef.current === controller) abortRef.current = null;
+  };
+
+  const handleRetry = async (msg) => {
+    // Find the user turn immediately before the interrupted assistant turn
+    // and resend it.
+    const idx = messages.findIndex((m) => m.id === msg.id);
+    if (idx < 0) return;
+    let userText = "";
+    const attachments = [];
+    for (let i = idx - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "user") {
+        userText = messages[i].content;
+        break;
+      }
+    }
+    if (!userText) return;
+    // Drop the failed assistant message so the retry produces a clean chain.
+    setMessages((m) => m.filter((mm) => mm.id !== msg.id));
+    await handleSend(userText, attachments);
   };
 
   const activeConversation = useMemo(
@@ -202,11 +272,17 @@ export default function App() {
             </div>
           )}
           {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+            <MessageBubble key={m.id} message={m} onRetry={handleRetry} />
           ))}
         </div>
 
-        <Composer onSend={handleSend} disabled={!activeId} conversationId={activeId} />
+        <Composer
+          onSend={handleSend}
+          onStop={handleStop}
+          disabled={!activeId}
+          conversationId={activeId}
+          isStreaming={status === "thinking"}
+        />
       </main>
 
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}

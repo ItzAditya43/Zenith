@@ -93,6 +93,7 @@ async def run_turn(
     conversation_id: str,
     user_text: str,
     attachment_ids: list[str],
+    history_last_model: str | None = None,
 ) -> tuple[RouteDecision, AsyncIterator[str]]:
     """Returns the routing decision plus an async generator of reply tokens.
     The caller (API route) is responsible for streaming tokens to the client
@@ -101,12 +102,19 @@ async def run_turn(
     history = storage.get_messages(conversation_id)
     messages = _build_messages(history, user_text, ctx)
 
+    # Heuristic: pass a rough char count of the conversation (truncated
+    # to max_context_messages worth) so the router can prefer a
+    # larger-context model when needed.
+    context_chars = sum(len(m["content"]) for m in messages)
+
     router = ModelRouter()
     decision = await router.decide(
         text=user_text,
         has_image=ctx.has_image,
         has_video=ctx.has_video,
         has_long_document=ctx.has_long_document,
+        history_last_model=history_last_model,
+        context_chars=context_chars,
     )
 
     storage.add_message(

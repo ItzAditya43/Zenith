@@ -19,6 +19,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_CONFIG: dict[str, Any] = {
+    # --- Ollama ---
     "ollama_host": os.environ.get("OLLAMA_HOST", "http://localhost:11434"),
     # Capability keywords used to auto-classify models pulled from
     # `GET /api/tags`. First matching keyword wins. Order matters.
@@ -41,39 +42,63 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "small_fast": None,
         "general": None,
     },
-    # STT / TTS
+    # Fallback when the chosen model fails mid-stream (Tier 1 #5).
+    # Resolved by capability role: a role name (e.g. "general") or an
+    # exact model name. Default role-based fallback.
+    "fallback_model": os.environ.get("CORTEX_FALLBACK_MODEL", "general"),
+    # --- STT / TTS ---
     "whisper_model_size": os.environ.get("WHISPER_MODEL_SIZE", "small"),
     "whisper_device": os.environ.get("WHISPER_DEVICE", "cpu"),
     "whisper_compute_type": os.environ.get("WHISPER_COMPUTE_TYPE", "int8"),
     "tts_engine": os.environ.get("TTS_ENGINE", "piper"),  # "piper" | "pyttsx3"
     "piper_voice": os.environ.get("PIPER_VOICE", "en_US-lessac-medium"),
     "piper_voices_dir": os.environ.get("PIPER_VOICES_DIR", str(DATA_DIR / "piper_voices")),
-    # Router behaviour
+    # --- Streaming behaviour ---
+    "sse_heartbeat_seconds": 15,
+    "stream_idle_timeout_seconds": 120,
+    # --- Attachments ---
+    "upload_orphan_ttl_seconds": 24 * 3600,
+    "upload_sweep_interval_seconds": 30 * 60,
+    "upload_max_bytes": 200 * 1024 * 1024,
+    # --- Router ---
     "max_context_messages": 24,
-    "video_frame_sample_seconds": 4,
-    "video_max_frames": 8,
-    "doc_chunk_chars": 6000,
-    # Auth (off by default — see Tier1 #8)
+    "default_context_window": 8192,
+    "router_confidence_threshold": 0.55,
+    "router_show_confidence": True,
+    # --- Auth (off by default — see Tier1 #8) ---
     "auth_enabled": False,
     "auth_shared_secret": "",
     "cors_allow_origins": [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:8000",
+        "http://127.0.0.1:8000",
     ],
-    # Operational
+    # --- Operational ---
     "log_level": "INFO",
     "request_timeout_seconds": 600,
     "prewarm_model_on_startup": False,
-    # RAG / long-term memory
+    # --- RAG / long-term memory ---
     "rag_enabled": True,
     "rag_chunk_chars": 1200,
     "rag_chunk_overlap": 200,
     "rag_top_k": 5,
-    # Voice (Tier 3)
+    "rag_embedding_model": "",  # blank => use the auto-classified "embedding" role
+    # --- Voice (Tier 3) ---
     "voice_chunk_sentences": True,
-    # Attachments
+    # --- Document OCR fallback (Tier 4) ---
+    "doc_ocr_fallback": False,  # off by default — requires tesseract
+    "doc_ocr_min_text_chars": 40,
+    # --- Multimodal (Tier 4) ---
+    "video_frame_sample_seconds": 4,
+    "video_max_frames": 8,
+    "video_scene_threshold": 0.3,
+    # --- Document chunking ---
+    "doc_chunk_chars": 6000,
+    # --- Attachment TTL (also drives the sweeper) ---
     "attachment_ttl_hours": 72,
+    # --- Frontend / experimental ---
+    "ui_experimental": False,
 }
 
 
@@ -85,7 +110,7 @@ def _load() -> dict[str, Any]:
             merged.update({k: v for k, v in stored.items() if k in merged})
             # deep-merge nested dicts so new default keys aren't lost on upgrade
             for key in ("capability_keywords", "model_overrides"):
-                if key in stored:
+                if key in stored and isinstance(stored[key], dict):
                     merged[key] = {**merged[key], **stored[key]}
             return merged
         except Exception:
