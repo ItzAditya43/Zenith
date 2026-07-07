@@ -612,14 +612,259 @@
   color: var(--signal, var(--text-tertiary));
 }
 
-/* ============ Responsive ============ */
+/* ============ Sidebar search (Tier 6 #5) ============ */
+.sidebar-search-wrap {
+  position: relative;
+  margin-bottom: var(--space-3);
+}
+.sidebar-search {
+  width: 100%;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  outline: none;
+  transition: border-color var(--dur-fast);
+}
+.sidebar-search:focus {
+  border-color: var(--signal-general);
+}
+.sidebar-search::placeholder {
+  color: var(--text-tertiary);
+}
+.sidebar-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  font-size: 1.1em;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.sidebar-search-clear:hover {
+  color: var(--text-primary);
+}
+.search-results-label {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  padding: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+/* ============ Message actions (Tier 6 #1, #2) ============ */
+.msg-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+.msg-row:hover .msg-actions {
+  opacity: 1;
+}
+.msg-actions button {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-fast), background var(--dur-fast);
+}
+.msg-actions button:hover {
+  color: var(--text-primary);
+  background: var(--bg-panel-raised);
+}
+
+.msg-interrupted {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--signal-danger);
+}
+.msg-retry-btn {
+  border: 1px solid var(--signal-danger);
+  color: var(--signal-danger);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  transition: background var(--dur-fast);
+}
+.msg-retry-btn:hover {
+  background: rgba(239, 111, 111, 0.1);
+}
+
+/* ============ Message editing (Tier 6 #1) ============ */
+.msg-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.msg-edit-input {
+  width: 100%;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  resize: vertical;
+}
+.msg-edit-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.msg-edit-actions button {
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  color: var(--text-primary);
+  transition: background var(--dur-fast);
+}
+.msg-edit-actions button:first-child {
+  background: var(--signal-general);
+  color: var(--text-on-accent);
+  border-color: var(--signal-general);
+}
+.msg-edit-actions button:hover {
+  background: var(--bg-panel-raised);
+}
+
+/* ============ Model badge popover (Tier 6 #14) ============ */
+.model-badge {
+  position: relative;
+}
+.model-badge-info {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+  font-size: 0.65rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.model-badge-info:hover {
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+}
+.model-badge-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 200px;
+  max-width: 300px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: var(--space-3);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.model-badge-popover-reason {
+  margin: 0 0 var(--space-2);
+}
+.model-badge-popover-row {
+  margin: 0;
+}
+.model-badge-popover-row code {
+  background: var(--bg-inset);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+/* ============ Stop button (Tier 6 #3) ============ */
+.stop-btn {
+  background: var(--signal-danger) !important;
+  color: var(--text-on-accent) !important;
+  font-size: 0.85em;
+}
+.stop-btn:hover {
+  transform: scale(1.05);
+}
+
+/* ============ Drag-drop overlay (Tier 6 #7) ============ */
+.composer-dragging {
+  position: relative;
+}
+.composer-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 8, 13, 0.7);
+  border: 2px dashed var(--signal-general);
+  border-radius: var(--radius-lg);
+  color: var(--signal-general);
+  font-size: var(--text-md);
+  font-weight: 500;
+  pointer-events: none;
+}
+
+/* ============ Theme toggle (Tier 6 #10) ============ */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.theme-toggle {
+  font-size: var(--text-sm);
+  padding: var(--space-2);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  transition: all var(--dur-fast);
+  line-height: 1;
+}
+.theme-toggle:hover {
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+}
+
+/* ============ Responsive (Tier 6 #8) ============ */
 @media (max-width: 720px) {
   .sidebar {
     position: fixed;
     z-index: 5;
     height: 100vh;
+    transform: translateX(-100%);
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+  .sidebar:not(.sidebar-collapsed) {
+    transform: translateX(0);
+  }
+  .mobile-menu-btn {
+    display: grid;
   }
   .msg-bubble {
     max-width: 88vw;
   }
+}
+
+.mobile-menu-btn {
+  display: none;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 1.2em;
+  flex-shrink: 0;
+  transition: background var(--dur-fast);
+}
+.mobile-menu-btn:hover {
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
 }

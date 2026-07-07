@@ -33,8 +33,14 @@ export const api = {
     }),
   deleteConversation: (id) => request(`/api/conversations/${id}`, { method: "DELETE" }),
   getMessages: (id) => request(`/api/conversations/${id}/messages`).then((r) => r.json()),
+  setTitle: (id, title) =>
+    request(`/api/conversations/${id}/title`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    }).then((r) => r.json()),
   searchConversations: (query) =>
-    request(`/api/conversations/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
+    request(`/api/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
 
   listModels: () => request("/api/models").then((r) => r.json()),
   getConfig: () => request("/api/config").then((r) => r.json()),

@@ -1,13 +1,31 @@
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { useState } from "react";
 import ModelBadge from "./ModelBadge";
+import MarkdownRenderer from "./MarkdownRenderer";
 
 const KIND_ICON = { image: "🖼", video: "🎬", document: "📄", audio: "🎙" };
 
-export default function MessageBubble({ message }) {
+export default function MessageBubble({ message, onRetry, onRegenerate, onEdit }) {
   const isUser = message.role === "user";
+  const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(message.content || "");
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content || "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard may be blocked */
+    }
+  };
+
+  const saveEdit = () => {
+    setEditing(false);
+    if (editText.trim() && editText !== message.content) {
+      onEdit?.(message, editText.trim());
+    }
+  };
 
   return (
     <div className={`msg-row ${isUser ? "msg-row-user" : "msg-row-assistant"}`}>
@@ -26,40 +44,55 @@ export default function MessageBubble({ message }) {
           </div>
         )}
 
-        <div className="msg-content">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code({ inline, className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || "");
-                if (inline) {
-                  return (
-                    <code className="inline-code" {...props}>
-                      {children}
-                    </code>
-                  );
-                }
-                return (
-                  <SyntaxHighlighter
-                    style={atomDark}
-                    language={match?.[1] || "text"}
-                    PreTag="div"
-                    customStyle={{
-                      borderRadius: "var(--radius-md)",
-                      fontSize: "var(--text-sm)",
-                      margin: "var(--space-2) 0",
-                    }}
-                  >
-                    {String(children).replace(/\n$/, "")}
-                  </SyntaxHighlighter>
-                );
-              },
-            }}
-          >
-            {message.content || (message.streaming ? "" : "")}
-          </ReactMarkdown>
-          {message.streaming && <span className="cursor-blink" data-role={message.route_role} />}
-        </div>
+        {editing ? (
+          <div className="msg-edit">
+            <textarea
+              className="msg-edit-input"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              rows={4}
+              autoFocus
+            />
+            <div className="msg-edit-actions">
+              <button onClick={saveEdit}>Save</button>
+              <button onClick={() => setEditing(false)}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div className="msg-content">
+            <MarkdownRenderer content={message.content} />
+            {message.streaming && <span className="cursor-blink" data-role={message.route_role} />}
+          </div>
+        )}
+
+        {message.interrupted && (
+          <div className="msg-interrupted">
+            ⚠ {message.interrupted_reason || "Interrupted"}
+            {onRetry && (
+              <button className="msg-retry-btn" onClick={() => onRetry(message)}>
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+
+        {!message.streaming && !editing && (
+          <div className="msg-actions">
+            <button onClick={copy} title="Copy">
+              {copied ? "✓ Copied" : "⧉ Copy"}
+            </button>
+            {isUser && onEdit && (
+              <button onClick={() => setEditing(true)} title="Edit & resend">
+                ✎ Edit
+              </button>
+            )}
+            {!isUser && onRegenerate && (
+              <button onClick={() => onRegenerate(message)} title="Regenerate response">
+                ↻ Regenerate
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

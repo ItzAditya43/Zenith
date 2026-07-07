@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import AmbientField from "./components/AmbientField";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Composer from "./components/Composer";
 import MessageBubble from "./components/MessageBubble";
 import SettingsPanel from "./components/SettingsPanel";
 import { api } from "./lib/api";
+
+// Tier 6 #13 — three.js is heavy; load the ambient background lazily.
+const AmbientField = lazy(() => import("./components/AmbientField"));
 
 export default function App() {
   const [conversations, setConversations] = useState([]);
@@ -16,9 +18,20 @@ export default function App() {
   const [activeRole, setActiveRole] = useState("general");
   const [voiceReplyEnabled, setVoiceReplyEnabled] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("cortex-theme") || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+  );
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
   const abortRef = useRef(null);
+  const titleTimerRef = useRef(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("cortex-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     api
@@ -40,8 +53,27 @@ export default function App() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  // Keyboard shortcuts (Tier 6 #6)
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        document.getElementById("sidebar-search")?.focus();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        // Send is handled in Composer; this is a no-op placeholder for focus.
+      } else if (e.key === "Escape") {
+        setSettingsOpen(false);
+        setSearchResults(null);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const selectConversation = async (id) => {
     setActiveId(id);
+    setSearchResults(null);
     const msgs = await api.getMessages(id);
     setMessages(msgs);
   };
@@ -108,9 +140,36 @@ export default function App() {
     );
   };
 
-  const handleSend = async (text, attachmentIds) => {
+  const maybeGenerateTitle = (convId, firstUserText) => {
+    // Tier 6 #4 — auto-title after first user message.
+    if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
+    titleTimerRef.current = setTimeout(async () => {
+      try {
+        const { title } = await api.setTitle(convId, firstUserText);
+        if (title) {
+          setConversations((cs) => cs.map((c) => (c.id === convId ? { ...c, title } : c)));
+        }
+      } catch {
+        /* title is best-effort */
+      }
+    }, 1200);
+  };
+
+  const handleSend = async (text, attachmentIds, editContext = null) => {
     if (!activeId) return;
-    const userMsg = { id: `local-${Date.now()}`, role: "user", content: text, attachments: [] };
+    let history = messages;
+    if (editContext) {
+      // Drop the edited user message + everything after it, then re-send.
+      const idx = messages.findIndex((m) => m.id === editContext.messageId);
+      history = messages.slice(0, idx);
+      setMessages(history);
+    }
+    const userMsg = {
+      id: `local-${Date.now()}`,
+      role: "user",
+      content: text,
+      attachments: [],
+    };
     const assistantMsg = {
       id: `local-assistant-${Date.now()}`,
       role: "assistant",
@@ -127,6 +186,12 @@ export default function App() {
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+
+    // Auto-title on first user message of a fresh conversation.
+    const conv = conversations.find((c) => c.id === activeId);
+    if (conv && (conv.title === "New chat" || !conv.title)) {
+      maybeGenerateTitle(activeId, text);
+    }
 
     let fullText = "";
     await api.streamChat(
@@ -176,6 +241,10 @@ export default function App() {
           } else {
             setStatus("idle");
           }
+          // Tier 6 #15 — notify when tab is backgrounded.
+          if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+            new Notification("Cortex", { body: "Response ready" });
+          }
         } else if (event.type === "error") {
           setConnectionError(event.message);
           setStatus("idle");
@@ -220,6 +289,40 @@ export default function App() {
     await handleSend(userText, attachments);
   };
 
+  const handleRegenerate = async (msg) => {
+    // Regenerate the assistant response for the user turn before it.
+    const idx = messages.findIndex((m) => m.id === msg.id);
+    if (idx < 0) return;
+    let userText = "";
+    for (let i = idx - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "user") {
+        userText = messages[i].content;
+        break;
+      }
+    }
+    if (!userText) return;
+    setMessages((m) => m.filter((mm) => mm.id !== msg.id));
+    await handleSend(userText, []);
+  };
+
+  const handleEdit = async (msg, newText) => {
+    await handleSend(newText, [], { messageId: msg.id });
+  };
+
+  const runSearch = async (q) => {
+    setSearchQuery(q);
+    if (!q.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    try {
+      const results = await api.searchConversations(q);
+      setSearchResults(results);
+    } catch {
+      setSearchResults([]);
+    }
+  };
+
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeId),
     [conversations, activeId]
@@ -227,8 +330,9 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <AmbientField status={status} role={activeRole} />
-      <audio ref={audioRef} hidden />
+      <Suspense fallback={null}>
+        <AmbientField status={status} role={activeRole} />
+      </Suspense>
 
       <Sidebar
         conversations={conversations}
@@ -239,18 +343,37 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+        searchQuery={searchQuery}
+        onSearch={runSearch}
+        searchResults={searchResults}
       />
 
       <main className="chat-main">
         <header className="chat-header">
-          <h1>{activeConversation?.title || "Cortex"}</h1>
           <button
-            className={`voice-toggle ${voiceReplyEnabled ? "voice-toggle-on" : ""}`}
-            onClick={() => setVoiceReplyEnabled((v) => !v)}
-            title="Speak replies aloud"
+            className="mobile-menu-btn"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            title="Toggle sidebar"
           >
-            {voiceReplyEnabled ? "🔊 Voice on" : "🔈 Voice off"}
+            ☰
           </button>
+          <h1>{activeConversation?.title || "Cortex"}</h1>
+          <div className="header-actions">
+            <button
+              className="theme-toggle"
+              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+              title="Toggle theme"
+            >
+              {theme === "dark" ? "🌙" : "☀️"}
+            </button>
+            <button
+              className={`voice-toggle ${voiceReplyEnabled ? "voice-toggle-on" : ""}`}
+              onClick={() => setVoiceReplyEnabled((v) => !v)}
+              title="Speak replies aloud"
+            >
+              {voiceReplyEnabled ? "🔊 Voice on" : "🔈 Voice off"}
+            </button>
+          </div>
         </header>
 
         {connectionError && (
@@ -272,7 +395,13 @@ export default function App() {
             </div>
           )}
           {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} onRetry={handleRetry} />
+            <MessageBubble
+              key={m.id}
+              message={m}
+              onRetry={handleRetry}
+              onRegenerate={handleRegenerate}
+              onEdit={handleEdit}
+            />
           ))}
         </div>
 

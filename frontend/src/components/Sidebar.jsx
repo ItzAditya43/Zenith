@@ -7,7 +7,13 @@ export default function Sidebar({
   onOpenSettings,
   collapsed,
   onToggleCollapse,
+  searchQuery,
+  onSearch,
+  searchResults,
 }) {
+  const showSearchResults = searchResults !== null;
+  const list = showSearchResults ? searchResults : conversations;
+
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
       <div className="sidebar-header">
@@ -25,15 +31,40 @@ export default function Sidebar({
         {!collapsed && <span>New chat</span>}
       </button>
 
+      {!collapsed && (
+        <div className="sidebar-search-wrap">
+          <input
+            id="sidebar-search"
+            className="sidebar-search"
+            type="search"
+            placeholder="Search conversations…  (⌘K)"
+            value={searchQuery}
+            onChange={(e) => onSearch(e.target.value)}
+          />
+          {showSearchResults && (
+            <button className="sidebar-search-clear" onClick={() => onSearch("")} title="Clear">
+              ×
+            </button>
+          )}
+        </div>
+      )}
+
       <nav className="conversation-list">
-        {conversations.map((c) => (
+        {showSearchResults && (
+          <p className="search-results-label">
+            {searchResults.length} result{searchResults.length === 1 ? "" : "s"}
+          </p>
+        )}
+        {list.map((c) => (
           <div
             key={c.id}
             className={`conversation-item ${c.id === activeId ? "conversation-item-active" : ""}`}
             onClick={() => onSelect(c.id)}
           >
-            <span className="conversation-title">{collapsed ? c.title[0]?.toUpperCase() : c.title}</span>
-            {!collapsed && (
+            <span className="conversation-title">
+              {collapsed ? c.title[0]?.toUpperCase() : c.title}
+            </span>
+            {!collapsed && !showSearchResults && (
               <button
                 className="conversation-delete"
                 onClick={(e) => {
@@ -47,8 +78,10 @@ export default function Sidebar({
             )}
           </div>
         ))}
-        {conversations.length === 0 && !collapsed && (
-          <p className="conversation-empty">No conversations yet — start one above.</p>
+        {list.length === 0 && !collapsed && (
+          <p className="conversation-empty">
+            {showSearchResults ? "No matches." : "No conversations yet — start one above."}
+          </p>
         )}
       </nav>
 

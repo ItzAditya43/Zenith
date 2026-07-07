@@ -37,6 +37,9 @@ export default function AmbientField({ status = "idle", role = "general" }) {
     const width = mount.clientWidth;
     const height = mount.clientHeight;
 
+    // Tier 6 #12 — respect reduced-motion preference.
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 100);
     camera.position.z = 18;
@@ -45,6 +48,12 @@ export default function AmbientField({ status = "idle", role = "general" }) {
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mount.appendChild(renderer.domElement);
+    // Tier 6 #11 — fade in on first paint instead of a blank void.
+    renderer.domElement.style.opacity = "0";
+    renderer.domElement.style.transition = "opacity 0.8s ease";
+    requestAnimationFrame(() => {
+      renderer.domElement.style.opacity = "1";
+    });
 
     // --- nodes ---
     const positions = new Float32Array(NODE_COUNT * 3);
@@ -123,20 +132,22 @@ export default function AmbientField({ status = "idle", role = "general" }) {
       lineMaterial.opacity = 0.04 + activity * 0.05;
       material.size = 0.16 + activity * 0.05;
 
-      const posAttr = geometry.attributes.position;
-      for (let i = 0; i < NODE_COUNT; i++) {
-        const idx = i * 3;
-        const speed = speeds[i] * (0.4 + activity * 0.8);
-        posAttr.array[idx] = basePositions[idx] + Math.sin(t * speed + i) * 0.6;
-        posAttr.array[idx + 1] = basePositions[idx + 1] + Math.cos(t * speed * 0.8 + i) * 0.6;
-        posAttr.array[idx + 2] = basePositions[idx + 2] + Math.sin(t * speed * 0.6 + i * 2) * 0.4;
-      }
-      posAttr.needsUpdate = true;
+      if (!reduceMotion) {
+        const posAttr = geometry.attributes.position;
+        for (let i = 0; i < NODE_COUNT; i++) {
+          const idx = i * 3;
+          const speed = speeds[i] * (0.4 + activity * 0.8);
+          posAttr.array[idx] = basePositions[idx] + Math.sin(t * speed + i) * 0.6;
+          posAttr.array[idx + 1] = basePositions[idx + 1] + Math.cos(t * speed * 0.8 + i) * 0.6;
+          posAttr.array[idx + 2] = basePositions[idx + 2] + Math.sin(t * speed * 0.6 + i * 2) * 0.4;
+        }
+        posAttr.needsUpdate = true;
 
-      points.rotation.y = t * 0.015;
-      lines.rotation.y = t * 0.015;
-      points.rotation.x = Math.sin(t * 0.05) * 0.05;
-      lines.rotation.x = points.rotation.x;
+        points.rotation.y = t * 0.015;
+        lines.rotation.y = t * 0.015;
+        points.rotation.x = Math.sin(t * 0.05) * 0.05;
+        lines.rotation.x = points.rotation.x;
+      }
 
       renderer.render(scene, camera);
       raf = requestAnimationFrame(animate);
