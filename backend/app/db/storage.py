@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 
 from app.core.config import DB_PATH
+from app.db.migrations import run_migrations
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS conversations (
@@ -39,8 +40,9 @@ def _conn() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    with _conn() as conn:
-        conn.executescript(SCHEMA)
+    # Run ordered migrations (idempotent; tracks schema_version internally).
+    # The baseline migration records the current schema as-is.
+    run_migrations()
 
 
 def create_conversation(title: str = "New chat") -> dict:
