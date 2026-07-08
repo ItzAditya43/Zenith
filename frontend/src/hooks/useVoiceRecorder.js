@@ -1,19 +1,58 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Wraps the MediaRecorder API into start()/stop() -> Promise<Blob>.
  * Kept as a hook (not baked into Composer) so voice input can be reused
  * anywhere — e.g. a future "voice memo" attachment button.
+ *
+ * Robustness notes:
+ *  - Permission is requested lazily on the first start() (browsers require a
+ *    user gesture), and the resulting stream is reused for subsequent
+ *    recordings so we don't re-prompt the user every time.
+ *  - start() rejects with a friendly Error on denial / no device so the UI
+ *    can surface it inline instead of throwing.
+ *  - The stream's tracks are always stopped on stop()/cancel() so the mic
+ *    indicator turns off and the browser can reclaim the device.
  */
 export function useVoiceRecorder() {
   const [recording, setRecording] = useState(false);
+  const [error, setError] = useState(null);
+  const [supported] = useState(
+    () => typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia
+  );
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
 
   const start = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    streamRef.current = stream;
+    if (!supported) {
+      const err = new Error("Microphone is not supported in this browser.");
+      setError(err);
+      throw err;
+    }
+    if (recording) return;
+    setError(null);
+    try {
+      // Reuse an existing live stream if we have one; otherwise request access.
+      if (!streamRef.current || streamRef.current.getTracks().every((t) => !t.enabled)) {
+        streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+    } catch (err) {
+      let message = "Couldn't access the microphone.";
+      if (err && err.name === "NotAllowedError") {
+        message =
+          "Microphone permission was denied. Enable it in your browser's site settings, then try again.";
+      } else if (err && err.name === "NotFoundError") {
+        message = "No microphone was found on this device.";
+      } else if (err && err.message) {
+        message = err.message;
+      }
+      const friendly = new Error(message);
+      setError(friendly);
+      throw friendly;
+    }
+
+    const stream = streamRef.current;
     const recorder = new MediaRecorder(stream);
     chunksRef.current = [];
     recorder.ondataavailable = (e) => {
@@ -22,27 +61,43 @@ export function useVoiceRecorder() {
     mediaRecorderRef.current = recorder;
     recorder.start();
     setRecording(true);
-  }, []);
+  }, [recording, supported]);
 
   const stop = useCallback(() => {
     return new Promise((resolve) => {
       const recorder = mediaRecorderRef.current;
-      if (!recorder) return resolve(null);
+      if (!recorder) {
+        setRecording(false);
+        return resolve(null);
+      }
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        // Release the mic so the OS indicator turns off between recordings.
         streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
         setRecording(false);
         resolve(blob);
       };
-      recorder.stop();
+      if (recorder.state !== "inactive") recorder.stop();
+      else recorder.onstop();
     });
   }, []);
 
   const cancel = useCallback(() => {
-    mediaRecorderRef.current?.stop();
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") recorder.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    chunksRef.current = [];
     setRecording(false);
   }, []);
 
-  return { recording, start, stop, cancel };
+  // Clean up the stream if the component unmounts mid-recording.
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  return { recording, error, supported, start, stop, cancel };
 }

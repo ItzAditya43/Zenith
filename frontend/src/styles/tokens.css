@@ -4,11 +4,15 @@
   Direction: "a local nervous system" — not a generic dark-mode SaaS chat.
   Base is a graphite-indigo void (not pure black), because the whole product's
   pitch is "your own compute, your own models" — it should feel like an
-  instrument panel, not a website. Three accent colors map 1:1 to the
-  router's capability buckets, so color becomes information: the user learns
-  to read "teal = general text", "violet = vision", "amber = voice/audio",
+  instrument panel, not a website. Accent colors map 1:1 to the router's
+  capability buckets, so color becomes information: the user learns to read
+  "teal = general text", "violet = vision", "amber = voice/audio",
   "coral = code" at a glance, across the badge, the ambient background, and
   the composer state — one system, reused everywhere instead of decorative.
+
+  A parallel [data-theme="light"] block re-skins the same token names so the
+  whole UI flips between dark and light from a single source of truth. The
+  toggle in App.jsx flips data-theme on <html>.
 */
 
 :root {
@@ -20,6 +24,11 @@
   --bg-inset: #0a0c14;
   --border-hairline: rgba(148, 163, 184, 0.09);
   --border-soft: rgba(148, 163, 184, 0.16);
+
+  /* Glass (sidebar / settings / floating surfaces) */
+  --glass-bg: rgba(18, 21, 31, 0.72);
+  --glass-border: rgba(148, 163, 184, 0.16);
+  --glass-blur: 22px;
 
   /* Text */
   --text-primary: #e8eaf2;
@@ -66,16 +75,59 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
+  --radius-xl: 24px;
   --radius-full: 999px;
 
   /* Motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --dur-fast: 120ms;
   --dur-base: 220ms;
   --dur-slow: 420ms;
 
   --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.35);
   --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 0 1px var(--border-soft), 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* ============ Light theme ============
+   Re-maps the same token names to a luminous, paper-like palette so every
+   component that reads tokens re-skins automatically — no per-component
+   overrides needed. */
+[data-theme="light"] {
+  --bg-void: #e7ebf2;
+  --bg-base: #f3f5fa;
+  --bg-panel: #ffffff;
+  --bg-panel-raised: #eef1f7;
+  --bg-inset: #f1f4f9;
+  --border-hairline: rgba(15, 23, 42, 0.07);
+  --border-soft: rgba(15, 23, 42, 0.12);
+
+  --glass-bg: rgba(255, 255, 255, 0.74);
+  --glass-border: rgba(15, 23, 42, 0.10);
+  --glass-blur: 18px;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-on-accent: #06121a;
+
+  --signal-general: #0fb89c;
+  --signal-vision: #6d5fe0;
+  --signal-code: #e2643f;
+  --signal-voice: #c98a14;
+  --signal-reasoning: #2f86d6;
+  --signal-danger: #d64545;
+
+  --signal-general-dim: rgba(15, 184, 156, 0.12);
+  --signal-vision-dim: rgba(109, 95, 224, 0.12);
+  --signal-code-dim: rgba(226, 100, 63, 0.12);
+  --signal-voice-dim: rgba(201, 138, 20, 0.14);
+  --signal-reasoning-dim: rgba(47, 134, 214, 0.12);
+
+  --shadow-panel: 0 8px 32px rgba(15, 23, 42, 0.08);
+  --shadow-float: 0 24px 60px rgba(15, 23, 42, 0.14);
+  --shadow-glow: 0 0 0 1px var(--border-soft), 0 10px 30px rgba(15, 23, 42, 0.10);
 }
 
 @media (prefers-reduced-motion: reduce) {

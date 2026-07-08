@@ -2,9 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps for python-magic and ffmpeg (used by attachment + video services)
+# System deps: libmagic1 is used by app/services/attachments.py for MIME
+# sniffing. ffmpeg was previously installed for video frame extraction but
+# that feature is not implemented, so it has been removed to slim the image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libmagic1 ffmpeg \
+    libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

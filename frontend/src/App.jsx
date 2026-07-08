@@ -53,16 +53,20 @@ export default function App() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  // Keyboard shortcuts (Tier 6 #6)
+  // Keyboard shortcuts (Tier 6 #6) — skip when typing in inputs
   useEffect(() => {
     const handler = (e) => {
+      const tag = e.target.tagName;
+      const isInput = tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable;
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        if (isInput) return; // let native Cmd+K (e.g. in sidebar search) pass through
         e.preventDefault();
         document.getElementById("sidebar-search")?.focus();
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         // Send is handled in Composer; this is a no-op placeholder for focus.
       } else if (e.key === "Escape") {
+        if (isInput) return; // let inputs handle Escape themselves (blur, etc.)
         setSettingsOpen(false);
         setSearchResults(null);
       }
@@ -331,7 +335,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <Suspense fallback={null}>
-        <AmbientField status={status} role={activeRole} />
+        <AmbientField status={status} role={activeRole} theme={theme} />
       </Suspense>
 
       <Sidebar
@@ -360,11 +364,17 @@ export default function App() {
           <h1>{activeConversation?.title || "Cortex"}</h1>
           <div className="header-actions">
             <button
-              className="theme-toggle"
+              className={`theme-toggle ${theme === "light" ? "theme-toggle-light" : ""}`}
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
               title="Toggle theme"
+              role="switch"
+              aria-checked={theme === "light"}
             >
-              {theme === "dark" ? "🌙" : "☀️"}
+              <span className="theme-toggle-track">
+                <span className="theme-toggle-thumb">
+                  {theme === "dark" ? "🌙" : "☀️"}
+                </span>
+              </span>
             </button>
             <button
               className={`voice-toggle ${voiceReplyEnabled ? "voice-toggle-on" : ""}`}
@@ -414,7 +424,15 @@ export default function App() {
         />
       </main>
 
-      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsPanel
+          onClose={() => setSettingsOpen(false)}
+          theme={theme}
+          onThemeChange={setTheme}
+          voiceReplyEnabled={voiceReplyEnabled}
+          onVoiceReplyChange={setVoiceReplyEnabled}
+        />
+      )}
     </div>
   );
 }

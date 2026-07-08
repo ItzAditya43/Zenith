@@ -21,6 +21,8 @@ from app.services import document_service, vision_service, whisper_service
 from app.services.ollama_client import OllamaClient
 from app.services.router import ModelRouter, RouteDecision
 
+log = get_logger(__name__)
+
 
 class TurnContext:
     """Everything gathered from attachments for a single user turn."""

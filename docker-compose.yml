@@ -1,25 +1,17 @@
+# NOTE: This stack assumes Ollama is already running on the host
+# (e.g. `ollama serve`) and reachable at host.docker.internal:11434.
+# Running a second Ollama inside Docker collides on port 11434 with a
+# native Ollama and makes the stack hang at startup. If you prefer a
+# fully containerized Ollama, stop the host Ollama first and uncomment
+# the `ollama` service + its `depends_on` block below.
 services:
-  ollama:
-    image: ollama/ollama:latest
-    container_name: cortex-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: cortex-backend
     environment:
-      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_HOST=http://host.docker.internal:11434
       - CORTEX_DATA_DIR=/data
       - AUTH_ENABLED=${AUTH_ENABLED:-false}
       - AUTH_SHARED_SECRET=${AUTH_SHARED_SECRET:-}
@@ -28,9 +20,8 @@ services:
       - "8420:8420"
     volumes:
       - backend-data:/data
-    depends_on:
-      ollama:
-        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   frontend:
@@ -47,5 +38,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  ollama-data:
   backend-data:

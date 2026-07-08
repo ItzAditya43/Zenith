@@ -24,13 +24,13 @@ const ROLE_COLORS = {
 
 const NODE_COUNT = 90;
 
-export default function AmbientField({ status = "idle", role = "general" }) {
+export default function AmbientField({ status = "idle", role = "general", theme = "dark" }) {
   const mountRef = useRef(null);
-  const stateRef = useRef({ status, role });
+  const stateRef = useRef({ status, role, theme });
 
   useEffect(() => {
-    stateRef.current = { status, role };
-  }, [status, role]);
+    stateRef.current = { status, role, theme };
+  }, [status, role, theme]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -120,16 +120,19 @@ export default function AmbientField({ status = "idle", role = "general" }) {
 
     const animate = () => {
       const t = clock.getElapsedTime();
-      const { status: liveStatus, role: liveRole } = stateRef.current;
+      const { status: liveStatus, role: liveRole, theme: liveTheme } = stateRef.current;
       targetColor.set(ROLE_COLORS[liveRole] ?? ROLE_COLORS.general);
       currentColor.lerp(targetColor, 0.04);
       material.color.copy(currentColor);
       lineMaterial.color.copy(currentColor);
 
+      // Additive blending reads great on the dark void but washes out on a
+      // light background, so dim the whole field in light mode.
+      const themeScale = liveTheme === "light" ? 0.4 : 1;
       const activity = liveStatus === "thinking" ? 1 : liveStatus === "speaking" ? 0.7 : 0.25;
-      const pulse = 0.45 + activity * (0.3 + 0.25 * Math.sin(t * (liveStatus === "thinking" ? 4 : 1.4)));
+      const pulse = (0.45 + activity * (0.3 + 0.25 * Math.sin(t * (liveStatus === "thinking" ? 4 : 1.4)))) * themeScale;
       material.opacity = pulse;
-      lineMaterial.opacity = 0.04 + activity * 0.05;
+      lineMaterial.opacity = (0.04 + activity * 0.05) * themeScale;
       material.size = 0.16 + activity * 0.05;
 
       if (!reduceMotion) {

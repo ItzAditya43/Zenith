@@ -9,9 +9,15 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
   const [pending, setPending] = useState([]); // [{id, filename, kind, uploading}]
   const [transcribing, setTranscribing] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [micError, setMicError] = useState(null);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
-  const { recording, start, stop, cancel } = useVoiceRecorder();
+  const { recording, error: recorderError, supported, start, stop, cancel } = useVoiceRecorder();
+
+  // Surface recorder errors inline (replaces the old alert()).
+  useEffect(() => {
+    if (recorderError) setMicError(recorderError.message);
+  }, [recorderError]);
 
   // Auto-grow textarea (Tier 6 #9)
   useEffect(() => {
@@ -20,6 +26,20 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 200) + "px";
   }, [text]);
+
+  const transcribeAndInsert = async (blob) => {
+    if (!blob) return;
+    setTranscribing(true);
+    setMicError(null);
+    try {
+      const result = await api.transcribe(blob);
+      setText((t) => (t ? `${t} ${result.text}` : result.text));
+    } catch (err) {
+      setMicError(`Transcription failed: ${err.message}`);
+    } finally {
+      setTranscribing(false);
+    }
+  };
 
   const handleFiles = async (files) => {
     for (const file of files) {
@@ -55,55 +75,49 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
     }
   };
 
-  const handleMicClick = async () => {
-    if (recording) {
-      setTranscribing(true);
-      const blob = await stop();
-      try {
-        const result = await api.transcribe(blob);
-        setText((t) => (t ? `${t} ${result.text}` : result.text));
-      } catch (err) {
-        alert(`Transcription failed: ${err.message}`);
-      } finally {
-        setTranscribing(false);
-      }
-    } else {
-      try {
-        await start();
-      } catch (err) {
-        alert("Couldn't access microphone: " + err.message);
-      }
-    }
-  };
-
-  // Push-to-talk: hold mic button (Tier 3 #4)
+  // --- Microphone: push-to-talk (hold) is the primary interaction. ---
+  // We deliberately do NOT also bind onClick to start/stop — doing both made
+  // a single click start a recording, stop it, then start a second orphaned
+  // recording. Hold = record, release = transcribe. A plain click toggles
+  // record on/off for trackpad/touch users.
   const handleMicDown = async (e) => {
     e.preventDefault();
     if (recording) return;
+    setMicError(null);
     try {
       await start();
-    } catch (err) {
-      alert("Couldn't access microphone: " + err.message);
-    }
-  };
-  const handleMicUp = async (e) => {
-    e.preventDefault();
-    if (!recording) return;
-    setTranscribing(true);
-    const blob = await stop();
-    try {
-      const result = await api.transcribe(blob);
-      setText((t) => (t ? `${t} ${result.text}` : result.text));
-    } catch (err) {
-      alert(`Transcription failed: ${err.message}`);
-    } finally {
-      setTranscribing(false);
+    } catch {
+      /* error is surfaced via recorderError -> micError */
     }
   };
 
-  // Spacebar hold to talk when composer has focus (Tier 3 #4)
+  const handleMicUp = async (e) => {
+    e.preventDefault();
+    if (!recording) return;
+    const blob = await stop();
+    await transcribeAndInsert(blob);
+  };
+
+  const handleMicClick = async () => {
+    // Only treat as a toggle if the pointer didn't already do a down/up cycle
+    // (i.e. a genuine click without drag). Guard against double-triggering.
+    if (recording) {
+      const blob = await stop();
+      await transcribeAndInsert(blob);
+    } else {
+      setMicError(null);
+      try {
+        await start();
+      } catch {
+        /* surfaced via micError */
+      }
+    }
+  };
+
+  // Spacebar hold-to-talk when the composer area is focused but the textarea
+  // is not (Tier 3 #4).
   const handleComposerKeyDown = (e) => {
-    if (e.code === "Space" && e.target === textareaRef.current && !recording) {
+    if (e.code === "Space" && e.target !== textareaRef.current && !recording) {
       e.preventDefault();
       handleMicDown(e);
     }
@@ -114,6 +128,12 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
       handleMicUp(e);
     }
   };
+
+  const micTitle = !supported
+    ? "Microphone not supported"
+    : recording
+    ? "Release to stop (hold to talk)"
+    : "Voice input — hold to talk, click to toggle";
 
   return (
     <div
@@ -132,6 +152,16 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
       onKeyUp={handleComposerKeyUp}
     >
       {dragging && <div className="composer-drop-overlay">Drop files to attach</div>}
+
+      {micError && (
+        <div className="composer-mic-error" role="alert">
+          <span>{micError}</span>
+          <button onClick={() => setMicError(null)} title="Dismiss">
+            ×
+          </button>
+        </div>
+      )}
+
       {pending.length > 0 && (
         <div className="composer-attachments">
           {pending.map((a) => (
@@ -169,7 +199,7 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
           className="composer-input"
           placeholder={
             recording
-              ? "Recording… release to stop"
+              ? "Listening… release to stop"
               : transcribing
               ? "Transcribing…"
               : "Message Cortex — attach files, or hold the mic to talk"
@@ -192,7 +222,8 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
             onMouseUp={handleMicUp}
             onMouseLeave={() => recording && handleMicUp({ preventDefault() {} })}
             onClick={handleMicClick}
-            title={recording ? "Release to stop (hold to talk)" : "Voice input (hold)"}
+            disabled={!supported}
+            title={micTitle}
           >
             {recording ? "◼" : "🎙"}
           </button>
