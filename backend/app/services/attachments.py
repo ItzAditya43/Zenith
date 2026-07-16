@@ -6,15 +6,13 @@ the actual bytes live under `data/uploads/`.
 from __future__ import annotations
 
 import mimetypes
-import shutil
-import sqlite3
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 from app.core.config import (
-    db_path as _db_path,
     upload_dir as _upload_dir,
     settings,
 )
@@ -84,10 +82,19 @@ def _sniff_mime(path: Path, fallback: str) -> str:
     return fallback
 
 
-def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(_db_path()))
-    conn.row_factory = sqlite3.Row
-    return conn
+@contextmanager
+def _conn():
+    """One transaction per call: commits (or rolls back) and closes.
+    Same WAL/busy_timeout setup as app.db.storage — both modules share
+    the one SQLite file."""
+    from app.db.storage import _connect
+
+    conn = _connect()
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def save_upload(

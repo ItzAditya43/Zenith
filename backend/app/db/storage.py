@@ -6,7 +6,7 @@ import json
 import sqlite3
 import time
 import uuid
-from pathlib import Path
+from contextlib import contextmanager
 
 from app.core.config import db_path as _db_path
 from app.db.migrations import run_migrations
@@ -33,16 +33,28 @@ CREATE TABLE IF NOT EXISTS messages (
 """
 
 
-def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(_db_path()))
+# Public accessor for tests / external callers. Caller owns the
+# connection (and must close it).
+def _connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(str(_db_path()), timeout=10)
     conn.row_factory = sqlite3.Row
+    # WAL lets a reader (e.g. history fetch mid-stream) coexist with a
+    # writer (message insert / orphan sweeper) without "database is locked".
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=10000")
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
-# Public alias so tests / external callers can use the same accessor
-# as the internal module.
-def _connect() -> sqlite3.Connection:
-    return _conn()
+@contextmanager
+def _conn():
+    """One transaction per call: commits (or rolls back) and closes."""
+    conn = _connect()
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_db() -> None:

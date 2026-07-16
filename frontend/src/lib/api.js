@@ -40,7 +40,7 @@ export const api = {
       body: JSON.stringify({ title }),
     }).then((r) => r.json()),
   searchConversations: (query) =>
-    request(`/api/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
+    request(`/api/conversations/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
 
   listModels: () => request("/api/models").then((r) => r.json()),
   getConfig: () => request("/api/config").then((r) => r.json()),

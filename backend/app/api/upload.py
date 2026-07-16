@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, Form, HTTPException, UploadFile
 
 from app.services import attachments as att_service
 from app.core.logging import get_logger
@@ -14,7 +14,7 @@ MAX_FILE_BYTES = 200 * 1024 * 1024  # 200MB, generous for local video clips
 
 
 @router.post("/upload")
-async def upload(file: UploadFile, conversation_id: str | None = None):
+async def upload(file: UploadFile, conversation_id: str | None = Form(None)):
     """Persist a multipart upload.
 
     `conversation_id` is optional; if the client knows the active

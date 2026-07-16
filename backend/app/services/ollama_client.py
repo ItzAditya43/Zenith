@@ -123,7 +123,11 @@ class OllamaClient:
                     async for line in resp.aiter_lines():
                         if not line.strip():
                             continue
-                        chunk = json.loads(line)
+                        try:
+                            chunk = json.loads(line)
+                        except json.JSONDecodeError:
+                            log.warning("ollama.bad_stream_line", line=line[:120])
+                            continue
                         if chunk.get("done"):
                             break
                         piece = chunk.get("message", {}).get("content", "")
@@ -150,6 +154,25 @@ class OllamaClient:
         async for piece in self.chat_stream(model, messages, images_b64, options):
             out.append(piece)
         return "".join(out)
+
+    async def preload(self, model: str) -> None:
+        """Ask Ollama to load `model` into memory without generating
+        anything (empty prompt on /api/generate is Ollama's documented
+        load-only call). Used by the startup prewarm."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                resp = await client.post(
+                    f"{self.host}/api/generate", json={"model": model, "prompt": ""}
+                )
+                resp.raise_for_status()
+            except httpx.ConnectError as exc:
+                raise OllamaError(
+                    f"Can't reach Ollama at {self.host}. Is `ollama serve` running?"
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                raise OllamaError(
+                    f"Ollama returned {exc.response.status_code} preloading '{model}'."
+                ) from exc
 
     async def embeddings(self, model: str, text: str) -> list[float]:
         async with httpx.AsyncClient(timeout=30) as client:

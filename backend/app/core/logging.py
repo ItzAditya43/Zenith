@@ -152,14 +152,18 @@ def configure_logging() -> logging.Logger:
 _STDLIB_RESERVED = {"args", "exc_info", "exc_text", "stack_info"}
 
 # `LogRecord` attribute names that `makeRecord` refuses to overwrite via
-# `extra=`. We auto-rename these (e.g. `name` -> `event_name`) so callers
-# can still log a field called `name` and we don't silently drop it.
-_LOGRECORD_COLLISIONS = {
-    "name": "event_name",
-    "message": "event_message",
-    "asctime": "event_asctime",
-    "args": "event_args",
-}
+# `extra=` (it raises KeyError). Derived from a real LogRecord so the set
+# stays complete across Python versions — `filename`, `module`, `process`,
+# etc. are all reserved, not just `name`/`message`. Colliding keys are
+# auto-renamed to `event_<key>` so callers can still log a field called
+# `filename` and the app doesn't 500 on a log call.
+_LOGRECORD_RESERVED = set(
+    vars(logging.LogRecord("x", logging.INFO, "x", 0, "x", (), None))
+) | {"message", "asctime"}
+
+
+def _collision_safe(key: str) -> str:
+    return f"event_{key}" if key in _LOGRECORD_RESERVED else key
 
 
 class BoundLogger:
@@ -194,8 +198,7 @@ class BoundLogger:
                 )
             # Auto-rename keys that would collide with LogRecord attrs
             # so the structured context isn't silently dropped.
-            target_key = _LOGRECORD_COLLISIONS.get(k, k)
-            extra.setdefault(target_key, v)
+            extra.setdefault(_collision_safe(k), v)
         self._log.log(level, msg, *args, extra=extra)
 
     def debug(self, msg: object, *args, **kwargs) -> None:

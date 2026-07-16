@@ -14,7 +14,9 @@ from app.services.ollama_client import OllamaClient, OllamaError
 log = get_logger(__name__)
 
 
-async def _do_generate(conversation_id: str, first_reply: str) -> None:
+async def generate_title(seed_text: str) -> str | None:
+    """Ask a small model for a ≤5-word title based on `seed_text`.
+    Returns None on any failure (no models, Ollama down, junk output)."""
     try:
         client = OllamaClient()
         # Use the smallest "fast" model if available, else the general
@@ -35,11 +37,11 @@ async def _do_generate(conversation_id: str, first_reply: str) -> None:
         if not model and installed:
             model = installed[0]
         if not model:
-            return
+            return None
         prompt = (
             "Generate a short conversation title (max 5 words, no quotes, no trailing punctuation) "
-            "that captures the topic of the following assistant reply. Reply with ONLY the title:\n\n"
-            + first_reply[:500]
+            "that captures the topic of the following text. Reply with ONLY the title:\n\n"
+            + seed_text[:500]
         )
         out = await client.chat(model, [{"role": "user", "content": prompt}])
         title = (out or "").strip().splitlines()[0].strip().strip("\"'`")
@@ -48,9 +50,17 @@ async def _do_generate(conversation_id: str, first_reply: str) -> None:
         if len(words) > 5:
             title = " ".join(words[:5])
         if 1 <= len(title) <= 60:
-            storage.rename_conversation(conversation_id, title)
+            return title
+        return None
     except (OllamaError, Exception) as exc:
         log.debug("title.generate_failed", error=str(exc))
+        return None
+
+
+async def _do_generate(conversation_id: str, first_reply: str) -> None:
+    title = await generate_title(first_reply)
+    if title:
+        storage.rename_conversation(conversation_id, title)
 
 
 def maybe_generate_title(conversation_id: str, first_reply: str) -> None:
