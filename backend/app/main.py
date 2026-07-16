@@ -35,6 +35,32 @@ async def _orphan_sweeper(interval_seconds: int) -> None:
         raise
 
 
+async def _prewarm() -> None:
+    """Load the general-role model into Ollama's memory so the first turn
+    doesn't pay the multi-second cold-load cost. Best-effort, off the
+    startup critical path (runs as a background task)."""
+    try:
+        from app.services.router import ModelRegistry, ModelRouter
+
+        registry = ModelRegistry()
+        installed = await registry.models()
+        cfg = settings.get("fallback_model", "general")
+        # `fallback_model` is either an exact installed name or a role.
+        if cfg in installed:
+            model = cfg
+        else:
+            model = ModelRouter(registry=registry)._match_capability(  # noqa: SLF001
+                cfg or "general", installed
+            )
+        if not model:
+            log.info("prewarm.skipped", reason="no matching model installed")
+            return
+        await OllamaClient().preload(model)
+        log.info("prewarm.done", model=model)
+    except Exception as exc:
+        log.warning("prewarm.failed", error=str(exc))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -45,15 +71,8 @@ async def lifespan(app: FastAPI):
     app.state.last_route_model = None
     # Phase 7 #4 — optionally pre-load the configured general model on
     # startup to cut first-turn latency. Off by default on low-VRAM setups.
-    if bool(settings.get("prewarm_general_model", False)):
-        general_model = settings.get("fallback_model", "general")
-        if general_model and not general_model.endswith("Model"):
-            try:
-                client = OllamaClient()
-                await asyncio.to_thread(client.estimate_context_window, general_model)
-                log.info("prewarm.started", model=general_model)
-            except Exception as exc:
-                log.warning("prewarm.failed", model=general_model, error=str(exc))
+    if bool(settings.get("prewarm_model_on_startup", False)):
+        asyncio.create_task(_prewarm())
     try:
         yield
     finally:

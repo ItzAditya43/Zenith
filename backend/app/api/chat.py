@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 from typing import Any, AsyncIterator
 
 from fastapi import APIRouter, HTTPException, Request
@@ -48,6 +47,18 @@ async def conversation_messages(conversation_id: str):
 async def rename_conversation(conversation_id: str, body: ConversationRename):
     storage.rename_conversation(conversation_id, body.title)
     return {"ok": True}
+
+
+@router.post("/conversations/{conversation_id}/title")
+async def generate_title(conversation_id: str, body: ConversationRename):
+    """Generate a short title from seed text (the first user message) and
+    persist it. Returns {"title": null} when generation fails — the client
+    treats the title as best-effort."""
+    from app.services.title_service import generate_title as _gen
+    title = await _gen(body.title)
+    if title:
+        storage.rename_conversation(conversation_id, title)
+    return {"title": title}
 
 
 @router.delete("/conversations/{conversation_id}")
@@ -122,18 +133,18 @@ async def chat(body: ChatRequest, request: Request):
         except Exception:
             pass
 
-        last_emit = time.time()
         collected: list[str] = []
         try:
-            async for piece in stream:
+            async for piece in _with_heartbeat(stream, heartbeat):
+                # A None from the wrapper means the model has been silent
+                # for `heartbeat` seconds — emit a comment frame so proxies
+                # with idle timeouts don't kill the connection during
+                # prompt eval / model load.
+                if piece is None:
+                    yield ":heartbeat\n\n"
+                    continue
                 collected.append(piece)
                 yield _sse({"type": "token", "text": piece})
-                # Heartbeat: emit a comment frame if the loop has been
-                # quiet for a while, so the connection doesn't idle out.
-                now = time.time()
-                if heartbeat > 0 and (now - last_emit) > heartbeat:
-                    yield ":heartbeat\n\n"
-                    last_emit = now
         except OllamaError as exc:
             # Mid-stream failure on the chosen model — try the configured
             # fallback once before giving up (Tier 1 #5).
@@ -163,14 +174,12 @@ async def chat(body: ChatRequest, request: Request):
                             fallback,
                             [m for m in history if m["role"] in {"user", "assistant"}][-int(settings.get("max_context_messages", 24)):],
                         )
-                        last_emit = time.time()
-                        async for piece in retry_stream:
+                        async for piece in _with_heartbeat(retry_stream, heartbeat):
+                            if piece is None:
+                                yield ":heartbeat\n\n"
+                                continue
                             collected.append(piece)
                             yield _sse({"type": "token", "text": piece})
-                            now = time.time()
-                            if heartbeat > 0 and (now - last_emit) > heartbeat:
-                                yield ":heartbeat\n\n"
-                                last_emit = now
                         # Promote the fallback as the "real" model for
                         # the persisted message.
                         current_model = fallback
@@ -266,3 +275,26 @@ async def _pick_fallback(request: Request, current_model: str) -> str | None:
 
 def _sse(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload)}\n\n"
+
+
+async def _with_heartbeat(stream: AsyncIterator[str], interval: float) -> AsyncIterator[str | None]:
+    """Re-yields `stream`, interleaving a `None` whenever `interval` seconds
+    pass without a token (the caller turns that into an SSE comment frame).
+
+    The pending read is kept alive across heartbeat ticks (asyncio.wait,
+    not wait_for) — cancelling `__anext__` on timeout would tear down the
+    underlying Ollama stream."""
+    it = stream.__aiter__()
+    pending: asyncio.Future | None = None
+    while True:
+        if pending is None:
+            pending = asyncio.ensure_future(it.__anext__())
+        done, _ = await asyncio.wait({pending}, timeout=interval if interval > 0 else None)
+        if not done:
+            yield None
+            continue
+        task, pending = pending, None
+        try:
+            yield task.result()
+        except StopAsyncIteration:
+            return
