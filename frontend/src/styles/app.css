@@ -748,6 +748,23 @@
   width: 100%;
   cursor: pointer;
 }
+.settings-textarea {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+  width: 100%;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.settings-textarea:focus {
+  border-color: var(--signal-general);
+  box-shadow: 0 0 0 3px var(--signal-general-dim);
+}
 
 .settings-btn-primary {
   background: var(--signal-general);

@@ -21,11 +21,57 @@ from app.services.ollama_client import OllamaClient, OllamaError
 
 log = get_logger(__name__)
 
-# Use the same connection the storage layer uses so migrations and FTS see
-# the same data. We re-import lazily to dodge the circular import in tests.
-def _conn():
-    from app.db.storage import get_conn
-    return get_conn()
+# One persistent connection for the RAG tables. sqlite-vec (when present)
+# must be loaded per-connection, so reusing one avoids re-loading the
+# extension on every call. check_same_thread=False because callers hop
+# between the event loop and asyncio.to_thread workers; SQLite serializes
+# writes internally and we're single-user.
+_CONN: sqlite3.Connection | None = None
+
+
+def _conn() -> sqlite3.Connection:
+    global _CONN
+    if _CONN is None:
+        from app.core.config import db_path
+        conn = sqlite3.connect(str(db_path()), timeout=10, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=10000")
+        try:
+            import sqlite_vec
+            conn.enable_load_extension(True)
+            conn.load_extension(sqlite_vec.loadable_path())
+            conn.enable_load_extension(False)
+        except Exception as exc:
+            log.info("rag.vec_unavailable", error=str(exc))
+        _CONN = conn
+    return _CONN
+
+
+def reset_conn() -> None:
+    """Close and drop the cached connection (tests switch CORTEX_DATA_DIR)."""
+    global _CONN
+    if _CONN is not None:
+        try:
+            _CONN.close()
+        except Exception:
+            pass
+        _CONN = None
+
+
+def _embed_sync(model: str, text: str) -> list[float] | None:
+    """Blocking embedding call, safe from both sync and async contexts.
+    Runs the coroutine in a private loop; when we're already inside a
+    running loop (asyncio.run would raise), callers must invoke the whole
+    RAG function via asyncio.to_thread — then this path is fine."""
+    import asyncio
+    try:
+        return asyncio.run(OllamaClient().embeddings(model, text))
+    except RuntimeError:
+        log.warning("rag.embed_called_from_event_loop")
+        return None
+    except Exception as exc:
+        log.debug("rag.embed_failed", error=str(exc))
+        return None
 
 
 def _ensure_table() -> None:
@@ -52,8 +98,6 @@ def _ensure_table() -> None:
     )
     cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source_kind, source_id)")
     try:
-        import sqlite_vec
-        # Embedding dim: try the configured embedder, fall back to 384.
         dim = _probe_dim()
         if dim:
             cur.execute(
@@ -62,6 +106,7 @@ def _ensure_table() -> None:
             )
     except Exception as exc:
         log.info("rag.vec_unavailable", error=str(exc))
+    conn.commit()
 
 
 _DIM_CACHE: int | None = None
@@ -115,21 +160,8 @@ def index_document(uuid: str, text: str, conversation_id: str | None = None) -> 
     embed_model = _resolve_embed_model()
     vectors: list[list[float]] = []
     if embed_model:
-        client = OllamaClient()
         for chunk in chunks:
-            try:
-                v = client._client_sync_embed(embed_model, chunk) if False else None  # type: ignore
-            except Exception:
-                v = None
-            if v is None:
-                # async call from sync context: spin a tiny loop
-                import asyncio
-                try:
-                    v = asyncio.run(client.embeddings(embed_model, chunk))
-                except Exception as exc:
-                    log.warning("rag.embed_failed", error=str(exc))
-                    v = None
-            vectors.append(v or [])
+            vectors.append(_embed_sync(embed_model, chunk) or [])
 
     cur = conn.cursor()
     # Wipe previous chunks for this source so re-uploads stay consistent.
@@ -143,15 +175,12 @@ def index_document(uuid: str, text: str, conversation_id: str | None = None) -> 
         cid = cur.lastrowid
         if i < len(vectors) and vectors[i]:
             try:
-                import sqlite_vec
-                conn.enable_load_extension(True)
-                conn.load_extension(sqlite_vec.loadable_path())
                 cur.execute(
                     "INSERT INTO vec_chunks (chunk_id, embedding) VALUES (?, ?)",
                     (cid, _vec_blob(vectors[i])),
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                log.debug("rag.vec_insert_failed", error=str(exc))
     conn.commit()
     return len(chunks)
 
@@ -185,97 +214,103 @@ def _resolve_embed_model() -> str | None:
     return None
 
 
-def retrieve(query: str, source_id: str | None = None, top_k: int | None = None) -> list[dict[str, Any]]:
-    """Return the top-k most relevant chunks for `query`. If `source_id` is
-    given, scope the search to one document. Falls back to a LIKE query
-    when sqlite-vec is unavailable."""
+def retrieve(
+    query: str,
+    source_id: str | None = None,
+    top_k: int | None = None,
+    source_kind: str | None = None,
+    exclude_conversation_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return the top-k most relevant chunks for `query`. `source_id`
+    scopes to one document; `source_kind`/`exclude_conversation_id` power
+    cross-conversation recall (past-message chunks, minus the current
+    conversation). Falls back to a LIKE query when sqlite-vec is
+    unavailable. Blocking — call via asyncio.to_thread from async code."""
     if not bool(settings.get("rag_enabled", True)):
         return []
     _ensure_table()
     top_k = top_k or int(settings.get("rag_top_k", 4))
+    filters = _Filters(source_id, source_kind, exclude_conversation_id)
 
     embed_model = _resolve_embed_model()
     if embed_model:
-        try:
-            import asyncio
-            client = OllamaClient()
-            qvec = asyncio.run(client.embeddings(embed_model, query))
-            return _retrieve_vec(qvec, source_id, top_k)
-        except (OllamaError, Exception) as exc:
-            log.debug("rag.vec_query_failed", error=str(exc))
-    return _retrieve_fallback(query, source_id, top_k)
+        qvec = _embed_sync(embed_model, query)
+        if qvec:
+            hits = _retrieve_vec(qvec, filters, top_k)
+            if hits:
+                return hits
+    return _retrieve_fallback(query, filters, top_k)
 
 
-def _retrieve_vec(qvec: list[float], source_id: str | None, top_k: int) -> list[dict]:
+class _Filters:
+    """Shared WHERE-clause builder for the vec and lexical paths."""
+
+    def __init__(self, source_id: str | None, source_kind: str | None,
+                 exclude_conversation_id: str | None) -> None:
+        self.clauses: list[str] = []
+        self.params: list[Any] = []
+        if source_id:
+            self.clauses.append("chunks.source_id = ?")
+            self.params.append(source_id)
+        if source_kind:
+            self.clauses.append("chunks.source_kind = ?")
+            self.params.append(source_kind)
+        if exclude_conversation_id:
+            self.clauses.append(
+                "(chunks.conversation_id IS NULL OR chunks.conversation_id != ?)"
+            )
+            self.params.append(exclude_conversation_id)
+
+
+def _retrieve_vec(qvec: list[float], filters: _Filters, top_k: int) -> list[dict]:
     if not qvec:
         return []
+    where = (" AND " + " AND ".join(filters.clauses)) if filters.clauses else ""
     try:
-        import sqlite_vec
-        conn = _conn()
-        conn.enable_load_extension(True)
-        conn.load_extension(sqlite_vec.loadable_path())
-        cur = conn.cursor()
-        if source_id:
-            cur.execute(
-                """
-                SELECT chunks.id, chunks.text, chunks.source_id, chunks.conversation_id,
-                       vec_distance_cosine(vec_chunks.embedding, ?) AS d
-                FROM vec_chunks
-                INNER JOIN chunks ON chunks.id = vec_chunks.chunk_id
-                WHERE chunks.source_id = ?
-                ORDER BY d ASC
-                LIMIT ?
-                """,
-                (_vec_blob(qvec), source_id, top_k),
-            )
-        else:
-            cur.execute(
-                """
-                SELECT chunks.id, chunks.text, chunks.source_id, chunks.conversation_id,
-                       vec_distance_cosine(vec_chunks.embedding, ?) AS d
-                FROM vec_chunks
-                INNER JOIN chunks ON chunks.id = vec_chunks.chunk_id
-                ORDER BY d ASC
-                LIMIT ?
-                """,
-                (_vec_blob(qvec), top_k),
-            )
+        cur = _conn().cursor()
+        cur.execute(
+            f"""
+            SELECT chunks.id, chunks.text, chunks.source_id, chunks.conversation_id,
+                   vec_distance_cosine(vec_chunks.embedding, ?) AS d
+            FROM vec_chunks
+            INNER JOIN chunks ON chunks.id = vec_chunks.chunk_id
+            WHERE 1=1{where}
+            ORDER BY d ASC
+            LIMIT ?
+            """,
+            (_vec_blob(qvec), *filters.params, top_k),
+        )
         return [
-            {
-                "text": r[1],
-                "source_id": r[2],
-                "conversation_id": r[3],
-                "score": float(r[4]),
-            }
+            {"text": r[1], "source_id": r[2], "conversation_id": r[3], "score": float(r[4])}
             for r in cur.fetchall()
         ]
     except Exception as exc:
         log.warning("rag.vec_query_fallback", error=str(exc))
-        return _retrieve_fallback("", source_id, top_k)
+        return []
 
 
-def _retrieve_fallback(query: str, source_id: str | None, top_k: int) -> list[dict]:
-    """Cheap lexical fallback: pick chunks containing any query word."""
+def _retrieve_fallback(query: str, filters: _Filters, top_k: int) -> list[dict]:
+    """Cheap lexical fallback: rank chunks by how many query words they
+    contain (recent first as tiebreak)."""
     if not query.strip():
         return []
     tokens = [t for t in re.split(r"\W+", query.lower()) if len(t) > 2][:8]
     if not tokens:
         return []
-    conn = _conn()
-    cur = conn.cursor()
-    where_parts = [" OR ".join(["chunks.text LIKE ?"] * len(tokens))]
+    like_score = " + ".join(["(chunks.text LIKE ?)"] * len(tokens))
     params: list[Any] = [f"%{t}%" for t in tokens]
-    if source_id:
-        where_parts.append("chunks.source_id = ?")
-        params.append(source_id)
+    where = (" AND " + " AND ".join(filters.clauses)) if filters.clauses else ""
     sql = (
-        "SELECT chunks.text, chunks.source_id, chunks.conversation_id "
-        "FROM chunks WHERE " + " AND ".join(where_parts) + " LIMIT ?"
+        f"SELECT * FROM ("
+        f"  SELECT chunks.text, chunks.source_id, chunks.conversation_id,"
+        f"         ({like_score}) AS s, chunks.created_at AS ca"
+        f"  FROM chunks WHERE 1=1{where}"
+        f") WHERE s > 0 ORDER BY s DESC, ca DESC LIMIT ?"
     )
-    params.append(top_k)
-    cur.execute(sql, params)
+    cur = _conn().cursor()
+    cur.execute(sql, (*params, *filters.params, top_k))
     return [
-        {"text": r[0], "source_id": r[1], "conversation_id": r[2], "score": 0.0}
+        {"text": r[0], "source_id": r[1], "conversation_id": r[2], "score": float(r[3])}
         for r in cur.fetchall()
     ]
 

@@ -14,6 +14,7 @@ const ROLE_LABEL = {
 const SECTIONS = [
   { id: "appearance", label: "Appearance", icon: "◐" },
   { id: "connection", label: "Connection", icon: "⚡" },
+  { id: "memory", label: "Memory & persona", icon: "◆" },
   { id: "routing", label: "Model routing", icon: "⇄" },
   { id: "models", label: "Installed models", icon: "▦" },
   { id: "voice", label: "Voice & audio", icon: "🎙" },
@@ -26,6 +27,22 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
   const [host, setHost] = useState("");
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState("appearance");
+  const [memories, setMemories] = useState([]);
+  const [memoriesError, setMemoriesError] = useState(null);
+  const [newMemory, setNewMemory] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [promptSaving, setPromptSaving] = useState(false);
+  const [promptSaved, setPromptSaved] = useState(false);
+
+  const refreshMemories = () => {
+    api
+      .listMemories()
+      .then((m) => {
+        setMemories(m);
+        setMemoriesError(null);
+      })
+      .catch((err) => setMemoriesError(err.message));
+  };
 
   const refreshModels = () => {
     api
@@ -41,9 +58,59 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
     api.getConfig().then((c) => {
       setConfig(c);
       setHost(c.ollama_host);
+      setSystemPrompt(c.system_prompt || "");
     });
     refreshModels();
+    refreshMemories();
   }, []);
+
+  const saveSystemPrompt = async () => {
+    setPromptSaving(true);
+    const updated = await api.patchConfig({ system_prompt: systemPrompt });
+    setConfig(updated);
+    setPromptSaving(false);
+    setPromptSaved(true);
+    setTimeout(() => setPromptSaved(false), 1500);
+  };
+
+  const toggleMemoryEnabled = async (checked) => {
+    const updated = await api.patchConfig({ memory_enabled: checked });
+    setConfig(updated);
+  };
+
+  const toggleRecallEnabled = async (checked) => {
+    const updated = await api.patchConfig({ recall_enabled: checked });
+    setConfig(updated);
+  };
+
+  const addMemory = async () => {
+    const text = newMemory.trim();
+    if (!text) return;
+    try {
+      await api.addMemory(text);
+      setNewMemory("");
+      refreshMemories();
+    } catch (err) {
+      setMemoriesError(err.message);
+    }
+  };
+
+  const toggleMemory = async (id, enabled) => {
+    setMemories((ms) => ms.map((m) => (m.id === id ? { ...m, enabled: enabled ? 1 : 0 } : m)));
+    await api.toggleMemory(id, enabled);
+  };
+
+  const deleteMemory = async (id) => {
+    setMemories((ms) => ms.filter((m) => m.id !== id));
+    await api.deleteMemory(id);
+  };
+
+  const clearAllMemories = async () => {
+    if (!window.confirm("Forget everything Cortex has learned about you? This can't be undone."))
+      return;
+    await api.clearMemories();
+    refreshMemories();
+  };
 
   const saveHost = async () => {
     setSaving(true);
@@ -176,6 +243,117 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
                     </p>
                   )}
                 </div>
+              </section>
+            )}
+
+            {activeSection === "memory" && (
+              <section className="settings-section">
+                <h3 className="settings-section-title">Persona</h3>
+                <p className="settings-section-desc">
+                  Standing instructions sent with every message — tone, role, how you want
+                  Cortex to behave. Applies regardless of which model the router picks.
+                </p>
+                <div className="setting-row setting-row-stack">
+                  <textarea
+                    className="settings-textarea"
+                    rows={4}
+                    placeholder="e.g. Be terse. Prefer metric units. I'm a backend engineer, skip basic explanations."
+                    value={systemPrompt}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                  />
+                  <div className="settings-row">
+                    <button className="settings-btn-primary" onClick={saveSystemPrompt} disabled={promptSaving}>
+                      {promptSaving ? "Saving…" : promptSaved ? "Saved ✓" : "Save"}
+                    </button>
+                  </div>
+                </div>
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  Long-term memory
+                </h3>
+                <p className="settings-section-desc">
+                  Cortex quietly picks up durable facts from what you say ("uses fish shell",
+                  "allergic to peanuts") and recalls them in future chats. Nothing leaves your
+                  machine.
+                </p>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Remember facts automatically</span>
+                    <span className="setting-hint">Extracts durable facts from your messages.</span>
+                  </div>
+                  <button
+                    className={`switch ${config?.memory_enabled ? "switch-on" : ""}`}
+                    onClick={() => toggleMemoryEnabled(!config?.memory_enabled)}
+                    role="switch"
+                    aria-checked={!!config?.memory_enabled}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Recall past conversations</span>
+                    <span className="setting-hint">
+                      Surfaces relevant excerpts from other chats when they seem relevant.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${config?.recall_enabled ? "switch-on" : ""}`}
+                    onClick={() => toggleRecallEnabled(!config?.recall_enabled)}
+                    role="switch"
+                    aria-checked={!!config?.recall_enabled}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+
+                <div className="settings-row" style={{ marginTop: "1rem" }}>
+                  <input
+                    className="settings-input"
+                    placeholder="Add a memory manually…"
+                    value={newMemory}
+                    onChange={(e) => setNewMemory(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addMemory()}
+                  />
+                  <button className="settings-btn-primary" onClick={addMemory}>
+                    Add
+                  </button>
+                </div>
+                {memoriesError && <p className="settings-error">{memoriesError}</p>}
+
+                <ul className="model-list" style={{ marginTop: "0.75rem" }}>
+                  {memories.map((m) => (
+                    <li key={m.id} style={{ opacity: m.enabled ? 1 : 0.45 }}>
+                      <span className="model-name" style={{ flex: 1 }}>
+                        {m.content}
+                      </span>
+                      <span className="settings-row" style={{ gap: "0.5rem" }}>
+                        <button
+                          className="text-btn"
+                          onClick={() => toggleMemory(m.id, !m.enabled)}
+                          title={m.enabled ? "Disable" : "Enable"}
+                        >
+                          {m.enabled ? "On" : "Off"}
+                        </button>
+                        <button className="icon-btn" onClick={() => deleteMemory(m.id)} title="Forget">
+                          ×
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                  {memories.length === 0 && !memoriesError && (
+                    <li className="model-empty">Nothing remembered yet.</li>
+                  )}
+                </ul>
+                {memories.length > 0 && (
+                  <div className="settings-row" style={{ marginTop: "0.5rem" }}>
+                    <button className="text-btn" onClick={clearAllMemories}>
+                      Forget everything
+                    </button>
+                  </div>
+                )}
               </section>
             )}
 

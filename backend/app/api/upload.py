@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Form, HTTPException, UploadFile
@@ -38,6 +39,11 @@ async def upload(file: UploadFile, conversation_id: str | None = Form(None)):
         log.warning("upload_rejected", filename=file.filename, error=str(exc))
         raise HTTPException(status_code=400, detail=str(exc))
 
+    # Index documents into the RAG store in the background so "what's on
+    # page 300" works via retrieval instead of head+tail truncation.
+    if att.kind == "document":
+        asyncio.create_task(_index_document(att, conversation_id))
+
     log.info(
         "upload_saved",
         attachment_id=att.id,
@@ -53,3 +59,18 @@ async def upload(file: UploadFile, conversation_id: str | None = Form(None)):
         "mime_type": att.mime_type,
         "size": len(data),
     }
+
+
+async def _index_document(att, conversation_id: str | None) -> None:
+    """Best-effort background chunk+embed of an uploaded document."""
+    try:
+        from app.services import document_service, rag_service
+
+        text = await asyncio.to_thread(document_service.extract_text, att.path)
+        if text and text.strip():
+            n = await asyncio.to_thread(
+                rag_service.index_document, att.id, text, conversation_id
+            )
+            log.info("upload_indexed", attachment_id=att.id, chunks=n)
+    except Exception as exc:
+        log.warning("upload_index_failed", attachment_id=att.id, error=str(exc))

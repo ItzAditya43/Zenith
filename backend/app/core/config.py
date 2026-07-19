@@ -122,6 +122,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "log_level": "INFO",
     "request_timeout_seconds": 600,
     "prewarm_model_on_startup": False,
+    # --- Personal assistant / memory ---
+    "memory_enabled": True,          # extract + inject long-term user facts
+    "memory_max_items": 200,
+    "system_prompt": "",             # user persona / standing instructions
+    "recall_enabled": True,          # cross-conversation retrieval
+    "recall_top_k": 3,
     # --- RAG / long-term memory ---
     "rag_enabled": True,
     "rag_chunk_chars": 1200,
