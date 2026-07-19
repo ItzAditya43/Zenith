@@ -58,6 +58,11 @@ export const api = {
   deleteMemory: (id) => request(`/api/memories/${id}`, { method: "DELETE" }),
   clearMemories: () => request("/api/memories", { method: "DELETE" }),
 
+  approveToolCall: (id) => request(`/api/agent/tool-calls/${id}/approve`, { method: "POST" }),
+  denyToolCall: (id) => request(`/api/agent/tool-calls/${id}/deny`, { method: "POST" }),
+  listToolCalls: (conversationId) =>
+    request(`/api/agent/tool-calls?conversation_id=${encodeURIComponent(conversationId)}`).then((r) => r.json()),
+
   listModels: () => request("/api/models").then((r) => r.json()),
   getConfig: () => request("/api/config").then((r) => r.json()),
   patchConfig: (patch) =>
@@ -99,7 +104,7 @@ export const api = {
    *   - An `AbortError` from the caller's `signal` is treated as a clean
    *     cancellation — no error event, the bubble just stops where it is.
    */
-  async streamChat({ conversationId, message, attachmentIds, webSearch = false }, onEvent, signal) {
+  async streamChat({ conversationId, message, attachmentIds, webSearch = false, agentMode = false }, onEvent, signal) {
     let res;
     try {
       res = await fetch(`${BASE}/api/chat`, {
@@ -110,6 +115,7 @@ export const api = {
           message,
           attachment_ids: attachmentIds,
           web_search: webSearch,
+          agent_mode_on: agentMode,
         }),
         signal,
       });

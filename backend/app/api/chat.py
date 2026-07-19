@@ -89,7 +89,24 @@ async def chat(body: ChatRequest, request: Request):
 
     A per-conversation lock (Tier 7 #2) serializes turns so spamming send
     can't fan out into N concurrent Ollama streams and OOM the host.
+
+    When `agent_mode_on` is set and agent tool use is enabled server-side,
+    the turn is instead driven by `agent_service.run_agent_turn` — a
+    multi-step tool loop (bash/files/web) — and the stream additionally
+    carries `tool_call` / `tool_pending` / `tool_result` / `tool_denied`
+    events. See `_agent_event_gen` below.
     """
+    if body.agent_mode_on and bool(settings.get("agent_enabled", False)):
+        async def agent_guarded_gen():
+            try:
+                async with conversation_lock(body.conversation_id):
+                    async for ev in _agent_event_gen(body, request):
+                        yield ev
+            except TimeoutError as exc:
+                yield _sse({"type": "error", "message": str(exc)})
+
+        return StreamingResponse(agent_guarded_gen(), media_type="text/event-stream")
+
     # Sticky-routing signal: pull the last model used in *this* conversation
     # so the next turn can be served by the same model when nothing forces
     # a re-route. Falls back to the per-process last model (set below).
@@ -254,6 +271,69 @@ async def chat(body: ChatRequest, request: Request):
             yield _sse({"type": "error", "message": str(exc)})
 
     return StreamingResponse(guarded_gen(), media_type="text/event-stream")
+
+
+async def _agent_event_gen(body: ChatRequest, request: Request) -> AsyncIterator[str]:
+    """Drives an agent-mode turn: consumes agent_service.run_agent_turn's
+    structured events, forwards them as SSE, and — on `done` — persists
+    the final assistant message and runs the same post-turn housekeeping
+    (RAG indexing, memory extraction, auto-title) as the normal path."""
+    from app.services import agent_service
+
+    history_last_model = None
+    try:
+        last_msgs = storage.get_messages(body.conversation_id)
+        for m in reversed(last_msgs):
+            if m.get("model"):
+                history_last_model = m["model"]
+                break
+    except Exception:
+        history_last_model = getattr(request.app.state, "last_route_model", None)
+
+    try:
+        async for ev in agent_service.run_agent_turn(
+            body.conversation_id, body.message, body.attachment_ids,
+            history_last_model=history_last_model,
+        ):
+            etype = ev.get("type")
+            if etype == "done":
+                full_text = ev["full_text"]
+                if not full_text.strip():
+                    yield _sse({"type": "error", "message": "Empty response."})
+                    return
+                storage.add_message(
+                    body.conversation_id, "assistant", full_text,
+                    model=ev.get("model"), route_role=ev.get("role"), route_reason=ev.get("reason"),
+                )
+                try:
+                    from app.services import rag_service
+                    await asyncio.to_thread(
+                        rag_service.index_message, body.conversation_id, "assistant", full_text
+                    )
+                except Exception as exc:
+                    log.warning("chat.agent_rag_index_failed", error=str(exc))
+                try:
+                    from app.services import memory_service
+                    asyncio.create_task(
+                        memory_service.extract_from_text(body.message, body.conversation_id)
+                    )
+                except Exception as exc:
+                    log.debug("chat.agent_memory_extract_spawn_failed", error=str(exc))
+                if not getattr(request.app.state, "_titled_for", None):
+                    request.app.state._titled_for = set()
+                if body.conversation_id not in request.app.state._titled_for:
+                    request.app.state._titled_for.add(body.conversation_id)
+                    try:
+                        from app.services.title_service import maybe_generate_title
+                        maybe_generate_title(body.conversation_id, full_text)
+                    except Exception as exc:
+                        log.debug("chat.agent_title_gen_failed", error=str(exc))
+                yield _sse({"type": "done"})
+            else:
+                yield _sse(ev)
+    except Exception as exc:
+        log.error("chat.agent_turn_failed", error=str(exc))
+        yield _sse({"type": "error", "message": str(exc)})
 
 
 async def _pick_fallback(request: Request, current_model: str) -> str | None:

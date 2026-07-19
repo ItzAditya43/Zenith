@@ -459,6 +459,117 @@
   color: var(--signal-general);
   background: var(--signal-general-dim);
 }
+.agent-toggle-btn.is-active {
+  color: var(--signal-danger, #e5484d);
+  background: var(--signal-danger-dim, rgba(229, 72, 77, 0.12));
+}
+
+/* ============ Agent tool-call cards ============ */
+.tool-calls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+.tool-call-card {
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  overflow: hidden;
+  font-size: var(--text-xs);
+}
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  color: var(--text-secondary);
+}
+.tool-call-icon {
+  flex-shrink: 0;
+}
+.tool-call-name {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.tool-call-summary {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+.tool-call-status-chip {
+  flex-shrink: 0;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.tool-call-status-running,
+.tool-call-status-approving {
+  background: var(--signal-general-dim);
+  color: var(--signal-general);
+}
+.tool-call-status-pending {
+  background: rgba(229, 160, 13, 0.15);
+  color: #e5a00d;
+}
+.tool-call-status-done {
+  background: var(--signal-voice-dim, rgba(80, 200, 120, 0.15));
+  color: var(--signal-voice, #50c878);
+}
+.tool-call-status-denied {
+  background: var(--signal-danger-dim, rgba(229, 72, 77, 0.12));
+  color: var(--signal-danger, #e5484d);
+}
+.tool-call-body {
+  padding: 0 var(--space-3) var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.tool-call-args,
+.tool-call-result {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+  color: var(--text-secondary);
+}
+.tool-call-actions {
+  display: flex;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
+}
+.tool-call-approve-btn,
+.tool-call-deny-btn {
+  flex: 1;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: var(--text-xs);
+}
+.tool-call-approve-btn {
+  background: var(--signal-voice, #50c878);
+  color: #05170c;
+}
+.tool-call-deny-btn {
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+}
 @keyframes pulse-mic {
   0%, 100% { box-shadow: 0 0 0 0 var(--signal-voice-dim); }
   50% { box-shadow: 0 0 0 6px transparent; }
@@ -792,6 +903,16 @@
 .settings-textarea:focus {
   border-color: var(--signal-general);
   box-shadow: 0 0 0 3px var(--signal-general-dim);
+}
+.settings-hint-note {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-hairline);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  line-height: 1.5;
 }
 
 .settings-btn-primary {
