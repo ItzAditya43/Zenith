@@ -159,7 +159,7 @@ export default function App() {
     }, 1200);
   };
 
-  const handleSend = async (text, attachmentIds, editContext = null) => {
+  const handleSend = async (text, attachmentIds, editContext = null, webSearch = false) => {
     if (!activeId) return;
     let history = messages;
     if (editContext) {
@@ -199,7 +199,7 @@ export default function App() {
 
     let fullText = "";
     await api.streamChat(
-      { conversationId: activeId, message: text, attachmentIds },
+      { conversationId: activeId, message: text, attachmentIds, webSearch },
       (event) => {
         if (event.type === "route") {
           setActiveRole(event.role);
@@ -227,6 +227,10 @@ export default function App() {
                   }
                 : msg
             )
+          );
+        } else if (event.type === "sources") {
+          setMessages((m) =>
+            m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, sources: event.sources } : msg))
           );
         } else if (event.type === "token") {
           fullText += event.text;

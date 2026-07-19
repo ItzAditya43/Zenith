@@ -150,18 +150,74 @@ async def _build_system_context(conversation_id: str, user_text: str) -> str:
     return "\n\n".join(parts)
 
 
+async def _gather_web_context(user_text: str, web_search: bool) -> tuple[str, list[dict]]:
+    """Fetches any URLs pasted in the message (always) plus, if
+    `web_search` is on, the top DuckDuckGo results for the message text.
+    Returns (context_section, sources) where `sources` is what the API
+    layer emits as a `sources` SSE event for the UI to render as
+    citations. Best-effort throughout — network failures degrade to "no
+    web context" rather than failing the turn."""
+    from app.services import web_service
+
+    max_urls = int(settings.get("web_fetch_max_urls_per_turn", 3))
+    urls = web_service.extract_urls(user_text, limit=max_urls) if max_urls > 0 else []
+
+    search_results: list[dict] = []
+    if web_search:
+        try:
+            search_results = await web_service.search(user_text)
+        except Exception as exc:
+            log.warning("orchestrator.web_search_failed", error=str(exc))
+
+    # Fetch pasted URLs plus (if searching) the top search results not
+    # already covered by a pasted URL, all concurrently.
+    search_urls = [r["url"] for r in search_results if r["url"] not in urls]
+    to_fetch = urls + search_urls
+    if not to_fetch:
+        return "", []
+
+    pages = await asyncio.gather(
+        *(web_service.fetch_url(u) for u in to_fetch), return_exceptions=True
+    )
+
+    sections: list[str] = []
+    sources: list[dict] = []
+    snippet_by_url = {r["url"]: r.get("snippet", "") for r in search_results}
+    for url, page in zip(to_fetch, pages):
+        if isinstance(page, Exception) or not page:
+            # Fall back to the search snippet so a failed fetch doesn't
+            # silently drop a result the user can see was found.
+            if url in snippet_by_url and snippet_by_url[url]:
+                sections.append(f"[{url}]\n{snippet_by_url[url]}")
+                sources.append({"url": url, "title": url})
+            continue
+        sections.append(f"[{page['title']}]({page['url']})\n{page['text']}")
+        sources.append({"url": page["url"], "title": page["title"]})
+
+    if not sections:
+        return "", []
+    header = "Web content fetched for this turn (cite naturally, don't dump raw URLs):\n\n"
+    return header + "\n\n---\n\n".join(sections), sources
+
+
 async def run_turn(
     conversation_id: str,
     user_text: str,
     attachment_ids: list[str],
     history_last_model: str | None = None,
-) -> tuple[RouteDecision, AsyncIterator[str]]:
-    """Returns the routing decision plus an async generator of reply tokens.
-    The caller (API route) is responsible for streaming tokens to the client
-    and persisting the final assembled text."""
+    web_search: bool = False,
+) -> tuple[RouteDecision, AsyncIterator[str], list[dict]]:
+    """Returns the routing decision, an async generator of reply tokens,
+    and a list of web sources used (possibly empty). The caller (API
+    route) is responsible for streaming tokens to the client and
+    persisting the final assembled text."""
     ctx = await build_turn_context(attachment_ids)
     history = storage.get_messages(conversation_id)
     messages = _build_messages(history, user_text, ctx)
+
+    web_section, web_sources = await _gather_web_context(user_text, web_search)
+    if web_section:
+        messages[-1]["content"] = (messages[-1]["content"] + "\n\n" + web_section).strip()
 
     # Phase 5: if a document is attached, do a top-k retrieval against
     # the RAG index and use those chunks instead of head+tail truncation
@@ -226,4 +282,4 @@ async def run_turn(
     stream = client.chat_stream(
         decision.model, messages, images_b64=ctx.images_b64 or None
     )
-    return decision, stream
+    return decision, stream, web_sources

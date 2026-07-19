@@ -20,6 +20,7 @@ class ChatRequest(StrictModel):
     conversation_id: str
     message: str
     attachment_ids: list[str] = []  # ids returned by /api/upload
+    web_search: bool = False  # composer "Search" toggle
 
 
 class ConversationCreate(StrictModel):
@@ -70,6 +71,10 @@ class ConfigPatch(StrictModel):
     system_prompt: Optional[str] = Field(default=None, max_length=8000)
     recall_enabled: Optional[bool] = None
     recall_top_k: Optional[int] = Field(default=None, ge=1, le=10)
+    web_search_max_results: Optional[int] = Field(default=None, ge=1, le=10)
+    web_fetch_max_chars: Optional[int] = Field(default=None, ge=500, le=20_000)
+    web_fetch_timeout_seconds: Optional[int] = Field(default=None, ge=2, le=60)
+    web_fetch_max_urls_per_turn: Optional[int] = Field(default=None, ge=0, le=10)
 
 
 class MemoryCreate(StrictModel):
