@@ -210,9 +210,21 @@ async def chat(body: ChatRequest, request: Request):
         # Phase 5: index the assistant reply for cross-conversation memory.
         try:
             from app.services import rag_service
-            rag_service.index_message(body.conversation_id, "assistant", full_text)
+            await asyncio.to_thread(
+                rag_service.index_message, body.conversation_id, "assistant", full_text
+            )
         except Exception as exc:
             log.warning("chat.rag_index_failed", error=str(exc))
+
+        # Long-term memory: extract durable facts from the user's message
+        # in the background (small model, fire-and-forget).
+        try:
+            from app.services import memory_service
+            asyncio.create_task(
+                memory_service.extract_from_text(body.message, body.conversation_id)
+            )
+        except Exception as exc:
+            log.debug("chat.memory_extract_spawn_failed", error=str(exc))
 
         # Phase 6 #4: auto-generate a conversation title after the first
         # assistant response (fire-and-forget — don't block the SSE close).

@@ -65,3 +65,17 @@ class ConfigPatch(StrictModel):
     attachment_ttl_hours: Optional[int] = Field(default=None, ge=1, le=24 * 30)
     voice_chunk_sentences: Optional[bool] = None
     ui_experimental: Optional[bool] = None
+    memory_enabled: Optional[bool] = None
+    memory_max_items: Optional[int] = Field(default=None, ge=10, le=2000)
+    system_prompt: Optional[str] = Field(default=None, max_length=8000)
+    recall_enabled: Optional[bool] = None
+    recall_top_k: Optional[int] = Field(default=None, ge=1, le=10)
+
+
+class MemoryCreate(StrictModel):
+    content: str = Field(min_length=1, max_length=300)
+    category: str = Field(default="fact", max_length=40)
+
+
+class MemoryToggle(StrictModel):
+    enabled: bool

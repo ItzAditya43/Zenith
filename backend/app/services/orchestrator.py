@@ -11,6 +11,7 @@ list of chat messages, so routes stay thin.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import AsyncIterator
 
 from app.core.config import settings
@@ -112,6 +113,43 @@ def _build_messages(history: list[dict], user_text: str, ctx: TurnContext) -> li
     return messages
 
 
+async def _build_system_context(conversation_id: str, user_text: str) -> str:
+    """Compose the system message: user-configured persona/system prompt,
+    long-term memories, and recall of relevant past-conversation excerpts.
+    Any failing section is skipped."""
+    parts: list[str] = []
+    custom = (settings.get("system_prompt") or "").strip()
+    if custom:
+        parts.append(custom)
+    try:
+        from app.services import memory_service
+        block = await asyncio.to_thread(memory_service.memory_block)
+        if block:
+            parts.append(block)
+    except Exception as exc:
+        log.debug("orchestrator.memory_block_failed", error=str(exc))
+    if bool(settings.get("recall_enabled", True)) and len(user_text.strip()) >= 12:
+        try:
+            from app.services import rag_service
+            hits = await asyncio.to_thread(
+                rag_service.retrieve,
+                user_text,
+                None,
+                int(settings.get("recall_top_k", 3)),
+                "message",
+                conversation_id,
+            )
+            if hits:
+                rendered = "\n".join(f"- {h['text'][:400]}" for h in hits)
+                parts.append(
+                    "Possibly relevant excerpts from your past conversations "
+                    "with this user (ignore if not relevant):\n" + rendered
+                )
+        except Exception as exc:
+            log.debug("orchestrator.recall_failed", error=str(exc))
+    return "\n\n".join(parts)
+
+
 async def run_turn(
     conversation_id: str,
     user_text: str,
@@ -151,6 +189,13 @@ async def run_turn(
         except Exception as exc:
             log.warning("orchestrator.rag_failed", error=str(exc))
 
+    # Personal-assistant context: system prompt + long-term memories +
+    # recall of relevant excerpts from *other* conversations. All
+    # best-effort — a failure here must never block the turn.
+    system_text = await _build_system_context(conversation_id, user_text)
+    if system_text:
+        messages.insert(0, {"role": "system", "content": system_text})
+
     # Heuristic: pass a rough char count of the conversation (truncated
     # to max_context_messages worth) so the router can prefer a
     # larger-context model when needed.
@@ -169,6 +214,13 @@ async def run_turn(
     storage.add_message(
         conversation_id, "user", user_text, attachments=ctx.attachment_summaries
     )
+    # Index the user turn for cross-conversation recall (assistant replies
+    # are indexed by the API layer once fully streamed).
+    try:
+        from app.services import rag_service
+        await asyncio.to_thread(rag_service.index_message, conversation_id, "user", user_text)
+    except Exception as exc:
+        log.debug("orchestrator.index_user_failed", error=str(exc))
 
     client = OllamaClient()
     stream = client.chat_stream(

@@ -42,6 +42,22 @@ export const api = {
   searchConversations: (query) =>
     request(`/api/conversations/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
 
+  listMemories: () => request("/api/memories").then((r) => r.json()),
+  addMemory: (content, category = "fact") =>
+    request("/api/memories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, category }),
+    }).then((r) => r.json()),
+  toggleMemory: (id, enabled) =>
+    request(`/api/memories/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }),
+  deleteMemory: (id) => request(`/api/memories/${id}`, { method: "DELETE" }),
+  clearMemories: () => request("/api/memories", { method: "DELETE" }),
+
   listModels: () => request("/api/models").then((r) => r.json()),
   getConfig: () => request("/api/config").then((r) => r.json()),
   patchConfig: (patch) =>

@@ -120,11 +120,33 @@ def _fts5_index(conn: sqlite3.Connection) -> None:
     )
 
 
+def _memories_table(conn: sqlite3.Connection) -> None:
+    """Long-term user memory: small, durable facts extracted from chats
+    ("prefers metric units", "works on a project called cortex") that get
+    injected into the system prompt of every turn."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS memories (
+            id TEXT PRIMARY KEY,
+            content TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'fact',
+            source_conversation_id TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_content
+            ON memories(content);
+        """
+    )
+
+
 # Ordered list — never reorder, only append.
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "baseline", _baseline),
     (2, "attachments_table", _attachments_table),
     (3, "fts5_index", _fts5_index),
+    (4, "memories_table", _memories_table),
 ]
 
 
