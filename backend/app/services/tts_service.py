@@ -39,6 +39,7 @@ _CACHE_LOCK = RLock()
 
 
 def _piper_voice_paths() -> tuple[Path, Path] | None:
+    global _VOICE_CACHE_TS
     voice = settings.get("piper_voice")
     with _CACHE_LOCK:
         now = time.time()
@@ -57,6 +58,7 @@ def _piper_voice_paths() -> tuple[Path, Path] | None:
 
 def refresh_voice_cache() -> None:
     """Drop the cache. Call this when a new voice is added/removed."""
+    global _VOICE_CACHE_TS
     with _CACHE_LOCK:
         _VOICE_CACHE.clear()
         _VOICE_CACHE_TS = 0.0
