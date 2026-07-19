@@ -79,6 +79,7 @@ async def chat(body: ChatRequest, request: Request):
     Server-Sent Events stream. Each event is a JSON line of one of:
       {"type": "route", "model": ..., "role": ..., "reason": ...}
       {"type": "sources", "sources": [{"url":..., "title":...}, ...]}
+      {"type": "tool_call"/"tool_pending"/"tool_result"/"tool_denied", ...}  (agent/research modes)
       {"type": "token", "text": ...}
       {"type": "downgrade", "from": ..., "to": ..., "reason": ...}
       {"type": "done"}
@@ -106,6 +107,17 @@ async def chat(body: ChatRequest, request: Request):
                 yield _sse({"type": "error", "message": str(exc)})
 
         return StreamingResponse(agent_guarded_gen(), media_type="text/event-stream")
+
+    if body.deep_research:
+        async def research_guarded_gen():
+            try:
+                async with conversation_lock(body.conversation_id):
+                    async for ev in _research_event_gen(body, request):
+                        yield ev
+            except TimeoutError as exc:
+                yield _sse({"type": "error", "message": str(exc)})
+
+        return StreamingResponse(research_guarded_gen(), media_type="text/event-stream")
 
     # Sticky-routing signal: pull the last model used in *this* conversation
     # so the next turn can be served by the same model when nothing forces
@@ -333,6 +345,68 @@ async def _agent_event_gen(body: ChatRequest, request: Request) -> AsyncIterator
                 yield _sse(ev)
     except Exception as exc:
         log.error("chat.agent_turn_failed", error=str(exc))
+        yield _sse({"type": "error", "message": str(exc)})
+
+
+async def _research_event_gen(body: ChatRequest, request: Request) -> AsyncIterator[str]:
+    """Same shape as _agent_event_gen but drives research_service's
+    web-only loop — no tool_pending/tool_denied ever happens here since
+    web_search/fetch_url don't need approval."""
+    from app.services import research_service
+
+    history_last_model = None
+    try:
+        last_msgs = storage.get_messages(body.conversation_id)
+        for m in reversed(last_msgs):
+            if m.get("model"):
+                history_last_model = m["model"]
+                break
+    except Exception:
+        history_last_model = getattr(request.app.state, "last_route_model", None)
+
+    try:
+        async for ev in research_service.run_deep_research(
+            body.conversation_id, body.message, body.attachment_ids,
+            history_last_model=history_last_model,
+        ):
+            etype = ev.get("type")
+            if etype == "done":
+                full_text = ev["full_text"]
+                if not full_text.strip():
+                    yield _sse({"type": "error", "message": "Empty response."})
+                    return
+                storage.add_message(
+                    body.conversation_id, "assistant", full_text,
+                    model=ev.get("model"), route_role=ev.get("role"), route_reason=ev.get("reason"),
+                )
+                try:
+                    from app.services import rag_service
+                    await asyncio.to_thread(
+                        rag_service.index_message, body.conversation_id, "assistant", full_text
+                    )
+                except Exception as exc:
+                    log.warning("chat.research_rag_index_failed", error=str(exc))
+                try:
+                    from app.services import memory_service
+                    asyncio.create_task(
+                        memory_service.extract_from_text(body.message, body.conversation_id)
+                    )
+                except Exception as exc:
+                    log.debug("chat.research_memory_extract_spawn_failed", error=str(exc))
+                if not getattr(request.app.state, "_titled_for", None):
+                    request.app.state._titled_for = set()
+                if body.conversation_id not in request.app.state._titled_for:
+                    request.app.state._titled_for.add(body.conversation_id)
+                    try:
+                        from app.services.title_service import maybe_generate_title
+                        maybe_generate_title(body.conversation_id, full_text)
+                    except Exception as exc:
+                        log.debug("chat.research_title_gen_failed", error=str(exc))
+                yield _sse({"type": "done"})
+            else:
+                yield _sse(ev)
+    except Exception as exc:
+        log.error("chat.research_turn_failed", error=str(exc))
         yield _sse({"type": "error", "message": str(exc)})
 
 

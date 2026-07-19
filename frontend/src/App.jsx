@@ -193,7 +193,14 @@ export default function App() {
     }, 1200);
   };
 
-  const handleSend = async (text, attachmentIds, editContext = null, webSearch = false, agentMode = false) => {
+  const handleSend = async (
+    text,
+    attachmentIds,
+    editContext = null,
+    webSearch = false,
+    agentMode = false,
+    deepResearch = false
+  ) => {
     if (!activeId) return;
     let history = messages;
     if (editContext) {
@@ -233,7 +240,7 @@ export default function App() {
 
     let fullText = "";
     await api.streamChat(
-      { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode },
+      { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode, deepResearch },
       (event) => {
         if (event.type === "route") {
           setActiveRole(event.role);
