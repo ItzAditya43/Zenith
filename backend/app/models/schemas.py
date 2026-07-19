@@ -21,6 +21,7 @@ class ChatRequest(StrictModel):
     message: str
     attachment_ids: list[str] = []  # ids returned by /api/upload
     web_search: bool = False  # composer "Search" toggle
+    agent_mode_on: bool = False  # composer "Agent" toggle
 
 
 class ConversationCreate(StrictModel):
@@ -75,6 +76,12 @@ class ConfigPatch(StrictModel):
     web_fetch_max_chars: Optional[int] = Field(default=None, ge=500, le=20_000)
     web_fetch_timeout_seconds: Optional[int] = Field(default=None, ge=2, le=60)
     web_fetch_max_urls_per_turn: Optional[int] = Field(default=None, ge=0, le=10)
+    agent_enabled: Optional[bool] = None
+    agent_mode: Optional[Literal["manual", "semi", "full"]] = None
+    agent_max_iterations: Optional[int] = Field(default=None, ge=1, le=25)
+    agent_command_timeout_seconds: Optional[int] = Field(default=None, ge=5, le=600)
+    agent_output_max_chars: Optional[int] = Field(default=None, ge=500, le=20_000)
+    agent_approval_timeout_seconds: Optional[int] = Field(default=None, ge=30, le=3600)
 
 
 class MemoryCreate(StrictModel):

@@ -15,6 +15,7 @@ const SECTIONS = [
   { id: "appearance", label: "Appearance", icon: "◐" },
   { id: "connection", label: "Connection", icon: "⚡" },
   { id: "memory", label: "Memory & persona", icon: "◆" },
+  { id: "agent", label: "Agent tools", icon: "🤖" },
   { id: "routing", label: "Model routing", icon: "⇄" },
   { id: "models", label: "Installed models", icon: "▦" },
   { id: "voice", label: "Voice & audio", icon: "🎙" },
@@ -80,6 +81,16 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
 
   const toggleRecallEnabled = async (checked) => {
     const updated = await api.patchConfig({ recall_enabled: checked });
+    setConfig(updated);
+  };
+
+  const toggleAgentEnabled = async (checked) => {
+    const updated = await api.patchConfig({ agent_enabled: checked });
+    setConfig(updated);
+  };
+
+  const setAgentMode = async (mode) => {
+    const updated = await api.patchConfig({ agent_mode: mode });
     setConfig(updated);
   };
 
@@ -354,6 +365,69 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
                     </button>
                   </div>
                 )}
+              </section>
+            )}
+
+            {activeSection === "agent" && (
+              <section className="settings-section">
+                <h3 className="settings-section-title">Agent tools</h3>
+                <p className="settings-section-desc">
+                  Off by default. When on, Cortex can run shell commands and read/write files
+                  across multiple steps to complete a request — not just answer from context.
+                  This runs with the same permissions as the backend process, on whatever
+                  filesystem it can see (the container's, unless you've bind-mounted your real
+                  host into docker-compose.yml). Only enable this if you understand what that
+                  means.
+                </p>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Enable agent tools</span>
+                    <span className="setting-hint">
+                      Master switch. Off = the 🤖 composer toggle does nothing.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${config?.agent_enabled ? "switch-on" : ""}`}
+                    onClick={() => toggleAgentEnabled(!config?.agent_enabled)}
+                    role="switch"
+                    aria-checked={!!config?.agent_enabled}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+
+                <div className="setting-row setting-row-stack">
+                  <label className="setting-label" htmlFor="agent-mode">
+                    Autonomy
+                  </label>
+                  <select
+                    id="agent-mode"
+                    className="settings-select"
+                    value={config?.agent_mode || "manual"}
+                    onChange={(e) => setAgentMode(e.target.value)}
+                    disabled={!config?.agent_enabled}
+                  >
+                    <option value="manual">Manual — approve every action</option>
+                    <option value="semi">Semi-auto — auto-run reads, confirm writes</option>
+                    <option value="full">Full-auto — no confirmation</option>
+                  </select>
+                  <span className="setting-hint">
+                    {config?.agent_mode === "full"
+                      ? "Nothing pauses for approval. Only as safe as your prompts."
+                      : config?.agent_mode === "semi"
+                      ? "Read-only calls (read/list/search) run immediately; writes and shell commands with side effects still ask first."
+                      : "Every tool call — even a plain file read — shows up in chat for you to approve or deny."}
+                  </span>
+                </div>
+
+                <p className="settings-hint-note">
+                  Small models (roughly under ~4B parameters) often skip the tool-calling
+                  protocol entirely and answer from guesswork instead of actually using a tool —
+                  this isn't a bug in Cortex, it's a real limitation of small local models. Pin
+                  the "general" role to a larger model in Model routing for agent turns to work
+                  reliably.
+                </p>
               </section>
             )}
 

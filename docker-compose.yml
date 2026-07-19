@@ -20,6 +20,21 @@ services:
       - "8420:8420"
     volumes:
       - backend-data:/data
+      # --- Agent tools (bash/file access), OFF by default ---
+      # Cortex's agent mode (Settings -> Agent tools) runs shell commands
+      # and reads/writes files wherever the backend process can see. With
+      # only the line above, that's just this container's own throwaway
+      # filesystem — the agent can `write_file` all day and never touch a
+      # real file of yours. If you want it to actually operate on your
+      # machine (edit a real project, read real notes), uncomment ONE of
+      # the lines below. This is a deliberate, conscious choice — a local
+      # model driving a shell against your home directory is real risk,
+      # not a formality. Start with the scoped mount; only use the second
+      # line if you've read Settings -> Agent tools and picked a mode you
+      # trust (Manual/Semi-auto pause for your approval; Full-auto does
+      # not).
+      # - ${HOME}/cortex-workspace:/workspace       # scoped: one folder only (recommended)
+      # - ${HOME}:/host-home                        # unrestricted: your whole home directory
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

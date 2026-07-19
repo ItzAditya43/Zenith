@@ -23,6 +23,7 @@ export default function App() {
   const [theme, setTheme] = useState(
     () => localStorage.getItem("cortex-theme") || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
   );
+  const [agentAvailable, setAgentAvailable] = useState(false);
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
   const abortRef = useRef(null);
@@ -32,6 +33,10 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("cortex-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    api.getConfig().then((c) => setAgentAvailable(!!c.agent_enabled)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api
@@ -144,6 +149,35 @@ export default function App() {
     );
   };
 
+  const setToolCallStatus = (toolCallId, status) => {
+    setMessages((m) =>
+      m.map((msg) => ({
+        ...msg,
+        toolCalls: (msg.toolCalls || []).map((tc) =>
+          tc.id === toolCallId ? { ...tc, status } : tc
+        ),
+      }))
+    );
+  };
+
+  const handleApproveTool = async (toolCallId) => {
+    setToolCallStatus(toolCallId, "approving");
+    try {
+      await api.approveToolCall(toolCallId);
+    } catch {
+      setToolCallStatus(toolCallId, "pending");
+    }
+  };
+
+  const handleDenyTool = async (toolCallId) => {
+    setToolCallStatus(toolCallId, "denied");
+    try {
+      await api.denyToolCall(toolCallId);
+    } catch {
+      /* the tool_denied SSE event, or the approval timeout, will settle it */
+    }
+  };
+
   const maybeGenerateTitle = (convId, firstUserText) => {
     // Tier 6 #4 — auto-title after first user message.
     if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
@@ -159,7 +193,7 @@ export default function App() {
     }, 1200);
   };
 
-  const handleSend = async (text, attachmentIds, editContext = null, webSearch = false) => {
+  const handleSend = async (text, attachmentIds, editContext = null, webSearch = false, agentMode = false) => {
     if (!activeId) return;
     let history = messages;
     if (editContext) {
@@ -199,7 +233,7 @@ export default function App() {
 
     let fullText = "";
     await api.streamChat(
-      { conversationId: activeId, message: text, attachmentIds, webSearch },
+      { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode },
       (event) => {
         if (event.type === "route") {
           setActiveRole(event.role);
@@ -231,6 +265,59 @@ export default function App() {
         } else if (event.type === "sources") {
           setMessages((m) =>
             m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, sources: event.sources } : msg))
+          );
+        } else if (event.type === "tool_call") {
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantMsg.id
+                ? {
+                    ...msg,
+                    toolCalls: [
+                      ...(msg.toolCalls || []),
+                      { id: event.id, tool: event.tool, args: event.args, risk: event.risk, status: "running" },
+                    ],
+                  }
+                : msg
+            )
+          );
+        } else if (event.type === "tool_pending") {
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantMsg.id
+                ? {
+                    ...msg,
+                    toolCalls: (msg.toolCalls || []).map((tc) =>
+                      tc.id === event.id ? { ...tc, status: "pending" } : tc
+                    ),
+                  }
+                : msg
+            )
+          );
+        } else if (event.type === "tool_result") {
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantMsg.id
+                ? {
+                    ...msg,
+                    toolCalls: (msg.toolCalls || []).map((tc) =>
+                      tc.id === event.id ? { ...tc, status: "done", result: event.result } : tc
+                    ),
+                  }
+                : msg
+            )
+          );
+        } else if (event.type === "tool_denied") {
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantMsg.id
+                ? {
+                    ...msg,
+                    toolCalls: (msg.toolCalls || []).map((tc) =>
+                      tc.id === event.id ? { ...tc, status: "denied" } : tc
+                    ),
+                  }
+                : msg
+            )
           );
         } else if (event.type === "token") {
           fullText += event.text;
@@ -415,6 +502,8 @@ export default function App() {
               onRetry={handleRetry}
               onRegenerate={handleRegenerate}
               onEdit={handleEdit}
+              onApproveTool={handleApproveTool}
+              onDenyTool={handleDenyTool}
             />
           ))}
         </div>
@@ -424,6 +513,7 @@ export default function App() {
           onStop={handleStop}
           disabled={!activeId}
           conversationId={activeId}
+          agentAvailable={agentAvailable}
           isStreaming={status === "thinking"}
         />
       </main>

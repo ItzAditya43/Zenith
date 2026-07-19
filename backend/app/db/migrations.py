@@ -141,12 +141,37 @@ def _memories_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _tool_calls_table(conn: sqlite3.Connection) -> None:
+    """Full audit trail for agent tool use: every bash/file/web call the
+    model makes, its args, approval status, and result. Nothing the agent
+    does is invisible — this table is what backs the Settings audit log
+    and the inline tool-call cards in the chat transcript."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS tool_calls (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            tool TEXT NOT NULL,
+            args TEXT NOT NULL,
+            risk TEXT NOT NULL DEFAULT 'safe',
+            status TEXT NOT NULL DEFAULT 'pending',
+            result TEXT,
+            created_at REAL NOT NULL,
+            resolved_at REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_tool_calls_conversation
+            ON tool_calls(conversation_id);
+        """
+    )
+
+
 # Ordered list — never reorder, only append.
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "baseline", _baseline),
     (2, "attachments_table", _attachments_table),
     (3, "fts5_index", _fts5_index),
     (4, "memories_table", _memories_table),
+    (5, "tool_calls_table", _tool_calls_table),
 ]
 
 

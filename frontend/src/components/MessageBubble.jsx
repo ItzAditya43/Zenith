@@ -3,8 +3,52 @@ import ModelBadge from "./ModelBadge";
 import MarkdownRenderer from "./MarkdownRenderer";
 
 const KIND_ICON = { image: "🖼", video: "🎬", document: "📄", audio: "🎙" };
+const TOOL_ICON = { bash: "⌨", read_file: "📖", write_file: "📝", list_dir: "📁", web_search: "🔍", fetch_url: "🌐" };
 
-export default function MessageBubble({ message, onRetry, onRegenerate, onEdit }) {
+function ToolCallCard({ call, onApprove, onDeny }) {
+  const [expanded, setExpanded] = useState(false);
+  const argsSummary =
+    call.args?.command || call.args?.path || call.args?.query || call.args?.url || "";
+
+  return (
+    <div className={`tool-call-card tool-call-${call.status}`}>
+      <button className="tool-call-header" onClick={() => setExpanded((v) => !v)}>
+        <span className="tool-call-icon">{TOOL_ICON[call.tool] || "🔧"}</span>
+        <span className="tool-call-name">{call.tool}</span>
+        <span className="tool-call-summary">{argsSummary}</span>
+        <span className={`tool-call-status-chip tool-call-status-${call.status}`}>
+          {{
+            running: "running…",
+            pending: "needs approval",
+            approving: "approving…",
+            done: "done",
+            denied: "denied",
+          }[call.status] || call.status}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="tool-call-body">
+          <pre className="tool-call-args">{JSON.stringify(call.args, null, 2)}</pre>
+          {call.result != null && <pre className="tool-call-result">{call.result}</pre>}
+        </div>
+      )}
+
+      {call.status === "pending" && (
+        <div className="tool-call-actions">
+          <button className="tool-call-approve-btn" onClick={() => onApprove?.(call.id)}>
+            ✓ Approve
+          </button>
+          <button className="tool-call-deny-btn" onClick={() => onDeny?.(call.id)}>
+            ✕ Deny
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function MessageBubble({ message, onRetry, onRegenerate, onEdit, onApproveTool, onDenyTool }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -40,6 +84,14 @@ export default function MessageBubble({ message, onRetry, onRegenerate, onEdit }
               <span className="msg-attachment-chip" key={a.id}>
                 {KIND_ICON[a.kind] || "📎"} {a.name}
               </span>
+            ))}
+          </div>
+        )}
+
+        {!isUser && message.toolCalls?.length > 0 && (
+          <div className="tool-calls">
+            {message.toolCalls.map((call) => (
+              <ToolCallCard key={call.id} call={call} onApprove={onApproveTool} onDeny={onDenyTool} />
             ))}
           </div>
         )}

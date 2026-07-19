@@ -4,13 +4,21 @@ import { api } from "../lib/api";
 
 const KIND_ICON = { image: "🖼", video: "🎬", document: "📄", audio: "🎙", other: "📎" };
 
-export default function Composer({ onSend, onStop, disabled, conversationId = null, isStreaming = false }) {
+export default function Composer({
+  onSend,
+  onStop,
+  disabled,
+  conversationId = null,
+  isStreaming = false,
+  agentAvailable = false,
+}) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState([]); // [{id, filename, kind, uploading}]
   const [transcribing, setTranscribing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [micError, setMicError] = useState(null);
   const [webSearch, setWebSearch] = useState(false);
+  const [agentMode, setAgentMode] = useState(false);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const { recording, error: recorderError, supported, start, stop, cancel } = useVoiceRecorder();
@@ -64,7 +72,7 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
     if (disabled) return;
     if (!text.trim() && pending.length === 0) return;
     if (pending.some((a) => a.uploading)) return;
-    onSend(text.trim(), pending.map((a) => a.id), null, webSearch);
+    onSend(text.trim(), pending.map((a) => a.id), null, webSearch, agentMode && agentAvailable);
     setText("");
     setPending([]);
   };
@@ -196,6 +204,20 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
         >
           🔍
         </button>
+        {agentAvailable && (
+          <button
+            className={`composer-icon-btn agent-toggle-btn ${agentMode ? "is-active" : ""}`}
+            onClick={() => setAgentMode((v) => !v)}
+            aria-pressed={agentMode}
+            title={
+              agentMode
+                ? "Agent mode on — Cortex can run commands and read/write files for this message"
+                : "Agent mode off — click to let Cortex take multi-step actions (bash/files/web)"
+            }
+          >
+            🤖
+          </button>
+        )}
         <input
           ref={fileInputRef}
           type="file"

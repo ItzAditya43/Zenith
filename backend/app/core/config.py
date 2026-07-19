@@ -122,6 +122,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "log_level": "INFO",
     "request_timeout_seconds": 600,
     "prewarm_model_on_startup": False,
+    # --- Agent tool use (bash/files/web) ---
+    "agent_enabled": False,          # master switch — off until you opt in
+    "agent_mode": "manual",          # "manual" | "semi" | "full"
+    "agent_max_iterations": 8,       # tool-call rounds before forcing a final answer
+    "agent_command_timeout_seconds": 60,
+    "agent_output_max_chars": 4000,  # cap per tool result fed back to the model
+    "agent_approval_timeout_seconds": 600,  # auto-deny if you don't respond
     # --- Web search / URL reading ---
     "web_search_max_results": 5,
     "web_fetch_max_chars": 4000,
