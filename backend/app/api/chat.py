@@ -78,6 +78,7 @@ async def chat(body: ChatRequest, request: Request):
     """
     Server-Sent Events stream. Each event is a JSON line of one of:
       {"type": "route", "model": ..., "role": ..., "reason": ...}
+      {"type": "sources", "sources": [{"url":..., "title":...}, ...]}
       {"type": "token", "text": ...}
       {"type": "downgrade", "from": ..., "to": ..., "reason": ...}
       {"type": "done"}
@@ -103,9 +104,10 @@ async def chat(body: ChatRequest, request: Request):
         history_last_model = getattr(request.app.state, "last_route_model", None)
 
     try:
-        decision, stream = await run_turn(
+        decision, stream, web_sources = await run_turn(
             body.conversation_id, body.message, body.attachment_ids,
             history_last_model=history_last_model,
+            web_search=body.web_search,
         )
     except OllamaError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
@@ -126,6 +128,8 @@ async def chat(body: ChatRequest, request: Request):
             "reason": current_reason,
             "confidence": decision.confidence,
         })
+        if web_sources:
+            yield _sse({"type": "sources", "sources": web_sources})
         # Stash on app state so the next /api/route/preview call (and the
         # next /api/chat) can be sticky.
         try:

@@ -122,6 +122,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "log_level": "INFO",
     "request_timeout_seconds": 600,
     "prewarm_model_on_startup": False,
+    # --- Web search / URL reading ---
+    "web_search_max_results": 5,
+    "web_fetch_max_chars": 4000,
+    "web_fetch_timeout_seconds": 8,
+    "web_fetch_max_urls_per_turn": 3,
     # --- Personal assistant / memory ---
     "memory_enabled": True,          # extract + inject long-term user facts
     "memory_max_items": 200,

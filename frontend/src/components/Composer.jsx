@@ -10,6 +10,7 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
   const [transcribing, setTranscribing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [micError, setMicError] = useState(null);
+  const [webSearch, setWebSearch] = useState(false);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const { recording, error: recorderError, supported, start, stop, cancel } = useVoiceRecorder();
@@ -63,7 +64,7 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
     if (disabled) return;
     if (!text.trim() && pending.length === 0) return;
     if (pending.some((a) => a.uploading)) return;
-    onSend(text.trim(), pending.map((a) => a.id));
+    onSend(text.trim(), pending.map((a) => a.id), null, webSearch);
     setText("");
     setPending([]);
   };
@@ -182,6 +183,18 @@ export default function Composer({ onSend, onStop, disabled, conversationId = nu
           title="Attach image, document, or video"
         >
           📎
+        </button>
+        <button
+          className={`composer-icon-btn search-toggle-btn ${webSearch ? "is-active" : ""}`}
+          onClick={() => setWebSearch((v) => !v)}
+          aria-pressed={webSearch}
+          title={
+            webSearch
+              ? "Web search on — Cortex will search the web for this message"
+              : "Web search off — click to search the web for this message"
+          }
+        >
+          🔍
         </button>
         <input
           ref={fileInputRef}

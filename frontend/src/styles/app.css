@@ -339,6 +339,30 @@
   color: var(--text-secondary);
 }
 
+.msg-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+.msg-source-chip {
+  font-size: var(--text-xs);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-secondary);
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+.msg-source-chip:hover {
+  color: var(--signal-general);
+  border-color: var(--signal-general);
+}
+
 /* ============ Model badge ============ */
 .model-badge {
   display: inline-flex;
@@ -430,6 +454,10 @@
   color: var(--signal-voice);
   background: var(--signal-voice-dim);
   animation: pulse-mic 1.4s ease-in-out infinite;
+}
+.search-toggle-btn.is-active {
+  color: var(--signal-general);
+  background: var(--signal-general-dim);
 }
 @keyframes pulse-mic {
   0%, 100% { box-shadow: 0 0 0 0 var(--signal-voice-dim); }

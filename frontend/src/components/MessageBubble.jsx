@@ -65,6 +65,23 @@ export default function MessageBubble({ message, onRetry, onRegenerate, onEdit }
           </div>
         )}
 
+        {!isUser && message.sources?.length > 0 && (
+          <div className="msg-sources">
+            {message.sources.map((s, i) => (
+              <a
+                key={s.url + i}
+                className="msg-source-chip"
+                href={s.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={s.url}
+              >
+                🌐 {s.title || s.url}
+              </a>
+            ))}
+          </div>
+        )}
+
         {message.interrupted && (
           <div className="msg-interrupted">
             ⚠ {message.interrupted_reason || "Interrupted"}
