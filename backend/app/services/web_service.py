@@ -20,6 +20,7 @@ can't blow up the context window or hang a turn.
 """
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any
 from urllib.parse import quote_plus, urlparse
@@ -116,6 +117,9 @@ async def fetch_url(url: str) -> dict[str, Any] | None:
             return await _fetch_github(url, max_chars)
         if host.endswith("reddit.com"):
             return await _fetch_reddit(url, max_chars)
+        yt_id = _youtube_video_id(url)
+        if yt_id:
+            return await _fetch_youtube(url, yt_id, max_chars)
         return await _fetch_generic(url, max_chars)
     except Exception as exc:
         log.warning("web.fetch_failed", url=url[:200], error=str(exc))
@@ -199,3 +203,55 @@ async def _fetch_reddit(url: str, max_chars: int) -> dict[str, Any] | None:
     except Exception as exc:
         log.debug("web.reddit_json_failed", url=url[:200], error=str(exc))
         return await _fetch_generic(url, max_chars)
+
+
+_YT_ID_RE = re.compile(
+    r"(?:youtube(?:-nocookie)?\.com/(?:watch\?v=|embed/|shorts/|v/)|youtu\.be/)"
+    r"([A-Za-z0-9_-]{11})"
+)
+
+
+def _youtube_video_id(url: str) -> str | None:
+    host = urlparse(url).netloc.lower()
+    if not (host.endswith("youtube.com") or host.endswith("youtu.be")
+            or host.endswith("youtube-nocookie.com")):
+        return None
+    m = _YT_ID_RE.search(url)
+    return m.group(1) if m else None
+
+
+async def _fetch_youtube(url: str, video_id: str, max_chars: int) -> dict[str, Any] | None:
+    """YouTube pages are almost entirely client-rendered, so scraping the
+    HTML gets nothing useful — instead pull the title via the keyless
+    oEmbed endpoint and the spoken content via the video's own
+    captions/auto-captions (youtube_transcript_api, also keyless).
+    Returns a title-only result (rather than None) if captions are off
+    for this video, so the model at least knows what was asked about."""
+    title = url
+    try:
+        async with await _client(timeout=6) as client:
+            resp = await client.get(
+                "https://www.youtube.com/oembed", params={"url": url, "format": "json"}
+            )
+            if resp.status_code == 200:
+                title = resp.json().get("title", url)
+    except Exception as exc:
+        log.debug("web.youtube_oembed_failed", video_id=video_id, error=str(exc))
+
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+
+        # The library is sync/blocking (does its own HTTP under the hood);
+        # run it off the event loop like the other sync SDK calls in this
+        # app (rag_service's embedding calls follow the same pattern).
+        snippets = await asyncio.to_thread(
+            lambda: list(YouTubeTranscriptApi().fetch(video_id))
+        )
+        text = " ".join(s.text for s in snippets).strip()
+        text = re.sub(r"\s+", " ", text)
+        if text:
+            return {"url": url, "title": title, "text": text[:max_chars]}
+    except Exception as exc:
+        log.info("web.youtube_transcript_unavailable", video_id=video_id, error=str(exc)[:200])
+
+    return {"url": url, "title": title, "text": f"(No captions available for this video: {title})"}
