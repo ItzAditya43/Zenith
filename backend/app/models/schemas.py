@@ -22,6 +22,7 @@ class ChatRequest(StrictModel):
     attachment_ids: list[str] = []  # ids returned by /api/upload
     web_search: bool = False  # composer "Search" toggle
     agent_mode_on: bool = False  # composer "Agent" toggle
+    deep_research: bool = False  # composer "Research" toggle
 
 
 class ConversationCreate(StrictModel):
@@ -82,6 +83,7 @@ class ConfigPatch(StrictModel):
     agent_command_timeout_seconds: Optional[int] = Field(default=None, ge=5, le=600)
     agent_output_max_chars: Optional[int] = Field(default=None, ge=500, le=20_000)
     agent_approval_timeout_seconds: Optional[int] = Field(default=None, ge=30, le=3600)
+    research_max_iterations: Optional[int] = Field(default=None, ge=2, le=30)
 
 
 class MemoryCreate(StrictModel):

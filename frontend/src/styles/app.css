@@ -463,6 +463,10 @@
   color: var(--signal-danger, #e5484d);
   background: var(--signal-danger-dim, rgba(229, 72, 77, 0.12));
 }
+.research-toggle-btn.is-active {
+  color: var(--signal-voice, #50c878);
+  background: var(--signal-voice-dim, rgba(80, 200, 120, 0.15));
+}
 
 /* ============ Agent tool-call cards ============ */
 .tool-calls {

@@ -19,6 +19,7 @@ export default function Composer({
   const [micError, setMicError] = useState(null);
   const [webSearch, setWebSearch] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
+  const [deepResearch, setDeepResearch] = useState(false);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const { recording, error: recorderError, supported, start, stop, cancel } = useVoiceRecorder();
@@ -72,7 +73,14 @@ export default function Composer({
     if (disabled) return;
     if (!text.trim() && pending.length === 0) return;
     if (pending.some((a) => a.uploading)) return;
-    onSend(text.trim(), pending.map((a) => a.id), null, webSearch, agentMode && agentAvailable);
+    onSend(
+      text.trim(),
+      pending.map((a) => a.id),
+      null,
+      webSearch,
+      agentMode && agentAvailable,
+      deepResearch
+    );
     setText("");
     setPending([]);
   };
@@ -194,7 +202,10 @@ export default function Composer({
         </button>
         <button
           className={`composer-icon-btn search-toggle-btn ${webSearch ? "is-active" : ""}`}
-          onClick={() => setWebSearch((v) => !v)}
+          onClick={() => {
+            setWebSearch((v) => !v);
+            if (!webSearch) setDeepResearch(false);
+          }}
           aria-pressed={webSearch}
           title={
             webSearch
@@ -203,6 +214,21 @@ export default function Composer({
           }
         >
           🔍
+        </button>
+        <button
+          className={`composer-icon-btn research-toggle-btn ${deepResearch ? "is-active" : ""}`}
+          onClick={() => {
+            setDeepResearch((v) => !v);
+            if (!deepResearch) setWebSearch(false);
+          }}
+          aria-pressed={deepResearch}
+          title={
+            deepResearch
+              ? "Deep Research on — Cortex will investigate this across multiple searches and write a report"
+              : "Deep Research off — click for a multi-step investigation instead of a quick answer"
+          }
+        >
+          🔬
         </button>
         {agentAvailable && (
           <button

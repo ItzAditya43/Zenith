@@ -104,7 +104,11 @@ export const api = {
    *   - An `AbortError` from the caller's `signal` is treated as a clean
    *     cancellation — no error event, the bubble just stops where it is.
    */
-  async streamChat({ conversationId, message, attachmentIds, webSearch = false, agentMode = false }, onEvent, signal) {
+  async streamChat(
+    { conversationId, message, attachmentIds, webSearch = false, agentMode = false, deepResearch = false },
+    onEvent,
+    signal
+  ) {
     let res;
     try {
       res = await fetch(`${BASE}/api/chat`, {
@@ -116,6 +120,7 @@ export const api = {
           attachment_ids: attachmentIds,
           web_search: webSearch,
           agent_mode_on: agentMode,
+          deep_research: deepResearch,
         }),
         signal,
       });
