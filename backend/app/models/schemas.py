@@ -23,6 +23,8 @@ class ChatRequest(StrictModel):
     web_search: bool = False  # composer "Search" toggle
     agent_mode_on: bool = False  # composer "Agent" toggle
     deep_research: bool = False  # composer "Research" toggle
+    edit_of: Optional[str] = None  # branching: id of the user message being replaced
+    regenerate_of: Optional[str] = None  # branching: assistant message id to regenerate
 
 
 class ConversationCreate(StrictModel):

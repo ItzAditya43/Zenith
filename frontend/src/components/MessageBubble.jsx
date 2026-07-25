@@ -48,7 +48,39 @@ function ToolCallCard({ call, onApprove, onDeny }) {
   );
 }
 
-export default function MessageBubble({ message, onRetry, onRegenerate, onEdit, onApproveTool, onDenyTool }) {
+function BranchSwitcher({ siblings, activeId, onSwitch }) {
+  if (!siblings || siblings.length < 2) return null;
+  const idx = siblings.findIndex((s) => s.id === activeId);
+  const pos = idx >= 0 ? idx : 0;
+  const go = (delta) => {
+    const next = siblings[(pos + delta + siblings.length) % siblings.length];
+    onSwitch?.(next.id);
+  };
+  return (
+    <div className="branch-switcher">
+      <button onClick={() => go(-1)} title="Previous version">
+        ‹
+      </button>
+      <span>
+        {pos + 1}/{siblings.length}
+      </span>
+      <button onClick={() => go(1)} title="Next version">
+        ›
+      </button>
+    </div>
+  );
+}
+
+export default function MessageBubble({
+  message,
+  onRetry,
+  onRegenerate,
+  onEdit,
+  onApproveTool,
+  onDenyTool,
+  siblings,
+  onSwitchBranch,
+}) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -146,20 +178,23 @@ export default function MessageBubble({ message, onRetry, onRegenerate, onEdit, 
         )}
 
         {!message.streaming && !editing && (
-          <div className="msg-actions">
-            <button onClick={copy} title="Copy">
-              {copied ? "✓ Copied" : "⧉ Copy"}
-            </button>
-            {isUser && onEdit && (
-              <button onClick={() => setEditing(true)} title="Edit & resend">
-                ✎ Edit
+          <div className="msg-actions-row">
+            <div className="msg-actions">
+              <button onClick={copy} title="Copy">
+                {copied ? "✓ Copied" : "⧉ Copy"}
               </button>
-            )}
-            {!isUser && onRegenerate && (
-              <button onClick={() => onRegenerate(message)} title="Regenerate response">
-                ↻ Regenerate
-              </button>
-            )}
+              {isUser && onEdit && (
+                <button onClick={() => setEditing(true)} title="Edit & resend">
+                  ✎ Edit
+                </button>
+              )}
+              {!isUser && onRegenerate && (
+                <button onClick={() => onRegenerate(message)} title="Regenerate response">
+                  ↻ Regenerate
+                </button>
+              )}
+            </div>
+            <BranchSwitcher siblings={siblings} activeId={message.id} onSwitch={onSwitchBranch} />
           </div>
         )}
       </div>

@@ -68,6 +68,20 @@ async def generate_title(conversation_id: str, body: ConversationRename):
     return {"title": title}
 
 
+@router.get("/conversations/{conversation_id}/branches")
+async def list_branches(conversation_id: str):
+    """Points in the tree with more than one version, keyed by parent_id
+    ("root" for the very first message). The UI uses this to know where
+    to render a "‹ 2/3 ›" switcher — most conversations have none."""
+    return storage.list_branch_points(conversation_id)
+
+
+@router.post("/conversations/{conversation_id}/messages/{message_id}/activate")
+async def activate_branch(conversation_id: str, message_id: str):
+    storage.set_active_branch(conversation_id, message_id)
+    return {"ok": True, "messages": storage.get_messages(conversation_id)}
+
+
 @router.patch("/conversations/{conversation_id}/persona")
 async def set_conversation_persona(conversation_id: str, body: ConversationPersonaSet):
     from app.services import persona_service
@@ -176,14 +190,46 @@ async def chat(body: ChatRequest, request: Request):
     except Exception:
         history_last_model = getattr(request.app.state, "last_route_model", None)
 
+    # Branching: an explicit edit-and-resend hides whatever was
+    # previously below the edited message's parent (the old edited
+    # message and anything after it) before the new user message gets
+    # created there. Resolved server-side from the edited message's own
+    # id — its parent may legitimately be None (editing the very first
+    # message), which is why the client sends *which message* rather
+    # than a parent that can't distinguish "root" from "not specified".
+    parent_message_id: str | None = None
+    parent_explicit = False
+    if body.edit_of:
+        edit_msg = storage.get_message(body.edit_of)
+        if not edit_msg:
+            raise HTTPException(404, "No such message to edit.")
+        parent_message_id = edit_msg.get("parent_id")
+        parent_explicit = True
+        if parent_message_id is None:
+            storage.deactivate_root(body.conversation_id)
+        else:
+            storage.deactivate_subtree(parent_message_id)
+    # Branching: a regenerate hides the old assistant sibling(s) under
+    # the user message it's replying to before generating a fresh one.
+    if body.regenerate_of:
+        regen_msg = storage.get_message(body.regenerate_of)
+        if not regen_msg or not regen_msg.get("parent_id"):
+            raise HTTPException(404, "No such message to regenerate.")
+        storage.deactivate_subtree(regen_msg["parent_id"])
+
     try:
-        decision, stream, web_sources = await run_turn(
+        decision, stream, web_sources, assistant_parent_id = await run_turn(
             body.conversation_id, body.message, body.attachment_ids,
             history_last_model=history_last_model,
             web_search=body.web_search,
+            parent_message_id=parent_message_id,
+            parent_explicit=parent_explicit,
+            regenerate_user_message_id=body.regenerate_of,
         )
     except OllamaError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
     heartbeat = int(settings.get("sse_heartbeat_seconds", 15))
 
@@ -283,6 +329,7 @@ async def chat(body: ChatRequest, request: Request):
         storage.add_message(
             body.conversation_id, "assistant", full_text,
             model=current_model, route_role=current_role, route_reason=current_reason,
+            parent_id=assistant_parent_id,
         )
         # Phase 5: index the assistant reply for cross-conversation memory.
         try:
@@ -360,6 +407,7 @@ async def _agent_event_gen(body: ChatRequest, request: Request) -> AsyncIterator
                 storage.add_message(
                     body.conversation_id, "assistant", full_text,
                     model=ev.get("model"), route_role=ev.get("role"), route_reason=ev.get("reason"),
+                    parent_id=ev.get("parent_id"),
                 )
                 try:
                     from app.services import rag_service
@@ -422,6 +470,7 @@ async def _research_event_gen(body: ChatRequest, request: Request) -> AsyncItera
                 storage.add_message(
                     body.conversation_id, "assistant", full_text,
                     model=ev.get("model"), route_role=ev.get("role"), route_reason=ev.get("reason"),
+                    parent_id=ev.get("parent_id"),
                 )
                 try:
                     from app.services import rag_service
