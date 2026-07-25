@@ -1,9 +1,57 @@
 import { useState } from "react";
 import ModelBadge from "./ModelBadge";
 import MarkdownRenderer from "./MarkdownRenderer";
+import { api } from "../lib/api";
 
 const KIND_ICON = { image: "🖼", video: "🎬", document: "📄", audio: "🎙" };
 const TOOL_ICON = { bash: "⌨", read_file: "📖", write_file: "📝", list_dir: "📁", web_search: "🔍", fetch_url: "🌐" };
+const EDITABLE_DOC_EXTS = [".txt", ".md", ".csv", ".json"];
+
+function DocumentChip({ attachment: a }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null); // { filename, download_url } | { error }
+  const editable = a.kind === "document" && EDITABLE_DOC_EXTS.some((ext) => a.name?.toLowerCase().endsWith(ext));
+
+  const handleEdit = async () => {
+    const instruction = window.prompt(`Edit "${a.name}" — describe the change:`);
+    if (!instruction || !instruction.trim()) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      const edited = await api.editDocument(a.id, instruction.trim());
+      setResult({ filename: edited.filename, download_url: edited.download_url });
+    } catch (err) {
+      setResult({ error: err.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="doc-chip-wrap">
+      <span className="msg-attachment-chip">
+        {KIND_ICON[a.kind] || "📎"} {a.name}
+        {editable && (
+          <button className="doc-chip-edit-btn" onClick={handleEdit} disabled={busy} title="Edit this document">
+            {busy ? "…" : "✎"}
+          </button>
+        )}
+      </span>
+      {result?.download_url && (
+        <a
+          className="doc-chip-result"
+          href={`${api.base}${result.download_url}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          download
+        >
+          ✓ {result.filename} — download
+        </a>
+      )}
+      {result?.error && <span className="doc-chip-result doc-chip-error">⚠ {result.error}</span>}
+    </div>
+  );
+}
 
 function ToolCallCard({ call, onApprove, onDeny }) {
   const [expanded, setExpanded] = useState(false);
@@ -113,9 +161,7 @@ export default function MessageBubble({
         {message.attachments?.length > 0 && (
           <div className="msg-attachments">
             {message.attachments.map((a) => (
-              <span className="msg-attachment-chip" key={a.id}>
-                {KIND_ICON[a.kind] || "📎"} {a.name}
-              </span>
+              <DocumentChip key={a.id} attachment={a} />
             ))}
           </div>
         )}

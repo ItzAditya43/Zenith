@@ -19,6 +19,41 @@ from app.core.config import settings
 
 SUPPORTED_EXTS = {".pdf", ".docx", ".txt", ".md", ".csv", ".json"}
 
+# Editing writes the full document back out, which only round-trips
+# losslessly for plain-text formats — .pdf/.docx have layout/formatting
+# extract_text() already throws away, so "editing" them would silently
+# discard everything but the text.
+EDITABLE_EXTS = {".txt", ".md", ".csv", ".json"}
+
+_EDIT_SYSTEM_PROMPT = """You are editing a document. Apply the user's instruction to the
+document below and output ONLY the complete edited document — no commentary, no preamble,
+no markdown code fences (unless the original document itself used them), no explanation of
+what you changed. Preserve everything the instruction doesn't ask you to change."""
+
+
+async def edit_document(text: str, instruction: str, model: str) -> str:
+    """Applies a natural-language edit instruction to a document's full
+    text using the given model and returns the complete edited text.
+    One shot, not agentic — for the common case of "fix the grammar" /
+    "add a section about X" / "reformat this as a table", not open-ended
+    multi-step editing (that's what agent mode's write_file is for)."""
+    from app.services.ollama_client import OllamaClient
+
+    client = OllamaClient()
+    prompt = f"{_EDIT_SYSTEM_PROMPT}\n\nInstruction: {instruction}\n\nDocument:\n{text}"
+    out = await client.chat(model, [{"role": "user", "content": prompt}])
+    edited = out.strip()
+    # Strip a markdown fence the model added despite instructions, if the
+    # original text didn't have one — common small-model habit.
+    if edited.startswith("```") and not text.strip().startswith("```"):
+        lines = edited.split("\n")
+        if lines[-1].strip() == "```":
+            lines = lines[1:-1]
+        else:
+            lines = lines[1:]
+        edited = "\n".join(lines).strip()
+    return edited
+
 
 def extract_text(path: Path) -> str:
     ext = path.suffix.lower()
