@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent, chat, documents, export, memory, system, upload, voice
+from app.api import agent, chat, documents, export, folders, memory, system, upload, voice
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.storage import init_db
@@ -32,6 +32,25 @@ async def _orphan_sweeper(interval_seconds: int) -> None:
             await asyncio.sleep(interval_seconds)
     except asyncio.CancelledError:
         log.info("upload.sweeper_stopped")
+        raise
+
+
+async def _folder_scanner(interval_seconds: int) -> None:
+    """Periodically re-scans all enabled watched folders. Same
+    fire-and-forget pattern as the orphan sweeper — a single bad folder
+    (deleted, permission error) is logged and skipped, never crashes
+    the loop."""
+    from app.services.folder_service import scan_all_enabled
+
+    try:
+        while True:
+            try:
+                await scan_all_enabled()
+            except Exception as exc:
+                log.warning("folder.scanner_error", error=str(exc))
+            await asyncio.sleep(interval_seconds)
+    except asyncio.CancelledError:
+        log.info("folder.scanner_stopped")
         raise
 
 
@@ -66,6 +85,8 @@ async def lifespan(app: FastAPI):
     init_db()
     interval = int(settings.get("upload_sweep_interval_seconds", 30 * 60))
     sweeper = asyncio.create_task(_orphan_sweeper(interval))
+    folder_interval = int(settings.get("folder_scan_interval_seconds", 600))
+    folder_scanner = asyncio.create_task(_folder_scanner(folder_interval))
     # Track the last model used in this process so the router can be
     # "sticky" — see ModelRouter.decide() and the /api/route/preview docstring.
     app.state.last_route_model = None
@@ -77,10 +98,12 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         sweeper.cancel()
-        try:
-            await sweeper
-        except asyncio.CancelledError:
-            pass
+        folder_scanner.cancel()
+        for task in (sweeper, folder_scanner):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(
@@ -164,6 +187,7 @@ app.include_router(memory.router)
 app.include_router(agent.router)
 app.include_router(export.router)
 app.include_router(documents.router)
+app.include_router(folders.router)
 app.include_router(upload.router)
 app.include_router(voice.router)
 app.include_router(system.router)

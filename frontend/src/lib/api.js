@@ -122,6 +122,22 @@ export const api = {
     }).then((r) => r.json()),
   attachmentDownloadUrl: (attachmentId) => `${BASE}/api/attachments/${attachmentId}/download`,
 
+  listFolders: () => request("/api/folders").then((r) => r.json()),
+  addFolder: (path, extensions = null) =>
+    request("/api/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, extensions }),
+    }).then((r) => r.json()),
+  toggleFolder: (id, enabled) =>
+    request(`/api/folders/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }),
+  removeFolder: (id) => request(`/api/folders/${id}`, { method: "DELETE" }),
+  scanFolderNow: (id) => request(`/api/folders/${id}/scan`, { method: "POST" }).then((r) => r.json()),
+
   listBranches: (conversationId) =>
     request(`/api/conversations/${conversationId}/branches`).then((r) => r.json()),
   activateBranch: (conversationId, messageId) =>

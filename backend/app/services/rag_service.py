@@ -146,10 +146,14 @@ def _hash_source(source_kind: str, source_id: str) -> str:
     return hashlib.sha1(f"{source_kind}::{source_id}".encode()).hexdigest()
 
 
-def index_document(uuid: str, text: str, conversation_id: str | None = None) -> int:
+def index_document(uuid: str, text: str, conversation_id: str | None = None,
+                    source_kind: str = "document") -> int:
     """Chunk + embed a document and persist it. Returns the number of
     chunks added. Falls back to a no-op (just storing the chunks) if
-    no embedding model is configured or the call fails."""
+    no embedding model is configured or the call fails. `source_kind`
+    defaults to "document" (uploaded attachments); folder_service passes
+    "folder" so watched-folder content and chat uploads stay in
+    separate, independently-queryable buckets."""
     if not bool(settings.get("rag_enabled", True)):
         return 0
     _ensure_table()
@@ -164,13 +168,13 @@ def index_document(uuid: str, text: str, conversation_id: str | None = None) -> 
             vectors.append(_embed_sync(embed_model, chunk) or [])
 
     cur = conn.cursor()
-    # Wipe previous chunks for this source so re-uploads stay consistent.
-    cur.execute("DELETE FROM chunks WHERE source_kind = 'document' AND source_id = ?", (uuid,))
+    # Wipe previous chunks for this source so re-uploads/re-scans stay consistent.
+    cur.execute("DELETE FROM chunks WHERE source_kind = ? AND source_id = ?", (source_kind, uuid))
     for i, chunk in enumerate(chunks):
         cur.execute(
             "INSERT INTO chunks (source_kind, source_id, conversation_id, chunk_index, text) "
             "VALUES (?, ?, ?, ?, ?)",
-            ("document", uuid, conversation_id, i, chunk),
+            (source_kind, uuid, conversation_id, i, chunk),
         )
         cid = cur.lastrowid
         if i < len(vectors) and vectors[i]:
@@ -183,6 +187,21 @@ def index_document(uuid: str, text: str, conversation_id: str | None = None) -> 
                 log.debug("rag.vec_insert_failed", error=str(exc))
     conn.commit()
     return len(chunks)
+
+
+def index_folder_file(path: str, text: str, folder_id: str) -> int:
+    """Chunk + embed one file from a watched folder. `path` is the
+    absolute filesystem path — stable across re-scans, so re-indexing a
+    changed file cleanly replaces its old chunks rather than duplicating
+    them (same DELETE-then-INSERT as index_document)."""
+    return index_document(path, text, conversation_id=None, source_kind="folder")
+
+
+def delete_folder_chunks(path: str) -> None:
+    """Removes a file's chunks — called when a watched file disappears
+    or its folder is removed, so stale content doesn't linger in recall."""
+    with _conn() as conn:
+        conn.execute("DELETE FROM chunks WHERE source_kind = 'folder' AND source_id = ?", (path,))
 
 
 def _vec_blob(vec: list[float]) -> bytes:

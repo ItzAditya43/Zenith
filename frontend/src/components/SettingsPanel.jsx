@@ -22,6 +22,7 @@ const SECTIONS = [
   { id: "models", label: "Installed models", icon: "▦" },
   { id: "voice", label: "Voice & audio", icon: "🎙" },
   { id: "data", label: "Data", icon: "⬇" },
+  { id: "folders", label: "Folders", icon: "📁" },
 ];
 
 export default function SettingsPanel({ onClose, theme, onThemeChange, voiceReplyEnabled, onVoiceReplyChange }) {
@@ -38,6 +39,10 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
   const [newPersonaIcon, setNewPersonaIcon] = useState("");
   const [newPersonaPrompt, setNewPersonaPrompt] = useState("");
   const [personasError, setPersonasError] = useState(null);
+  const [folders, setFolders] = useState([]);
+  const [foldersError, setFoldersError] = useState(null);
+  const [newFolderPath, setNewFolderPath] = useState("");
+  const [scanningFolder, setScanningFolder] = useState(null);
   const [newMemory, setNewMemory] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [promptSaving, setPromptSaving] = useState(false);
@@ -73,6 +78,16 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
       .catch((err) => setPersonasError(err.message));
   };
 
+  const refreshFolders = () => {
+    api
+      .listFolders()
+      .then((f) => {
+        setFolders(f);
+        setFoldersError(null);
+      })
+      .catch((err) => setFoldersError(err.message));
+  };
+
   useEffect(() => {
     api.getConfig().then((c) => {
       setConfig(c);
@@ -82,7 +97,46 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
     refreshModels();
     refreshMemories();
     refreshPersonas();
+    refreshFolders();
   }, []);
+
+  const addFolder = async () => {
+    if (!newFolderPath.trim()) return;
+    try {
+      await api.addFolder(newFolderPath.trim());
+      setNewFolderPath("");
+      refreshFolders();
+    } catch (err) {
+      setFoldersError(err.message);
+    }
+  };
+
+  const removeFolder = async (id) => {
+    await api.removeFolder(id);
+    refreshFolders();
+  };
+
+  const toggleFolder = async (id, enabled) => {
+    setFolders((fs) => fs.map((f) => (f.id === id ? { ...f, enabled: enabled ? 1 : 0 } : f)));
+    await api.toggleFolder(id, enabled);
+  };
+
+  const scanFolderNow = async (id) => {
+    setScanningFolder(id);
+    try {
+      const result = await api.scanFolderNow(id);
+      setFoldersError(
+        result.errors?.length
+          ? `Scanned ${result.scanned}, indexed ${result.indexed}, ${result.errors.length} error(s).`
+          : null
+      );
+      refreshFolders();
+    } catch (err) {
+      setFoldersError(err.message);
+    } finally {
+      setScanningFolder(null);
+    }
+  };
 
   const addPersona = async () => {
     if (!newPersonaName.trim() || !newPersonaPrompt.trim()) return;
@@ -712,6 +766,66 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
                     Download .zip
                   </a>
                 </div>
+              </section>
+            )}
+
+            {activeSection === "folders" && (
+              <section className="settings-section">
+                <h3 className="settings-section-title">Watched folders</h3>
+                <p className="settings-section-desc">
+                  Point Cortex at a folder and it periodically re-indexes matching files
+                  (.md/.txt/.py/.js/.ts/.json) so their content is recalled in chat automatically
+                  — no manual upload per file. Paths are resolved on the <em>backend</em>, which
+                  in the Docker deployment means the container's own filesystem unless you've
+                  added a host bind mount in docker-compose.yml.
+                </p>
+
+                <div className="settings-row">
+                  <input
+                    className="settings-input"
+                    placeholder="/path/to/notes"
+                    value={newFolderPath}
+                    onChange={(e) => setNewFolderPath(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addFolder()}
+                  />
+                  <button className="settings-btn-primary" onClick={addFolder}>
+                    Watch
+                  </button>
+                </div>
+                {foldersError && <p className="settings-error">{foldersError}</p>}
+
+                <ul className="model-list" style={{ marginTop: "0.75rem" }}>
+                  {folders.map((f) => (
+                    <li key={f.id} style={{ opacity: f.enabled ? 1 : 0.5 }}>
+                      <span className="model-name" style={{ flex: 1 }}>
+                        {f.path}
+                        <span className="setting-hint" style={{ display: "block" }}>
+                          {f.last_scanned_at
+                            ? `Last scanned ${new Date(f.last_scanned_at * 1000).toLocaleString()}`
+                            : "Not scanned yet"}
+                        </span>
+                      </span>
+                      <span className="settings-row" style={{ gap: "0.5rem" }}>
+                        <button
+                          className="text-btn"
+                          onClick={() => scanFolderNow(f.id)}
+                          disabled={scanningFolder === f.id}
+                        >
+                          {scanningFolder === f.id ? "Scanning…" : "Scan now"}
+                        </button>
+                        <button className="text-btn" onClick={() => toggleFolder(f.id, !f.enabled)}>
+                          {f.enabled ? "On" : "Off"}
+                        </button>
+                        <button className="icon-btn" onClick={() => removeFolder(f.id)} title="Stop watching">
+                          ×
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                  {folders.length === 0 && !foldersError && (
+                    <li className="model-empty">No folders watched yet.</li>
+                  )}
+                </ul>
               </section>
             )}
           </div>
