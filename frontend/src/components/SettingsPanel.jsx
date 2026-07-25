@@ -15,6 +15,7 @@ const SECTIONS = [
   { id: "appearance", label: "Appearance", icon: "◐" },
   { id: "connection", label: "Connection", icon: "⚡" },
   { id: "memory", label: "Memory & persona", icon: "◆" },
+  { id: "personas", label: "Personas", icon: "🎭" },
   { id: "agent", label: "Agent tools", icon: "🤖" },
   { id: "routing", label: "Model routing", icon: "⇄" },
   { id: "models", label: "Installed models", icon: "▦" },
@@ -30,6 +31,11 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
   const [activeSection, setActiveSection] = useState("appearance");
   const [memories, setMemories] = useState([]);
   const [memoriesError, setMemoriesError] = useState(null);
+  const [personas, setPersonas] = useState([]);
+  const [newPersonaName, setNewPersonaName] = useState("");
+  const [newPersonaIcon, setNewPersonaIcon] = useState("");
+  const [newPersonaPrompt, setNewPersonaPrompt] = useState("");
+  const [personasError, setPersonasError] = useState(null);
   const [newMemory, setNewMemory] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [promptSaving, setPromptSaving] = useState(false);
@@ -55,6 +61,16 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
       .catch((err) => setModelsError(err.message));
   };
 
+  const refreshPersonas = () => {
+    api
+      .listPersonas()
+      .then((p) => {
+        setPersonas(p);
+        setPersonasError(null);
+      })
+      .catch((err) => setPersonasError(err.message));
+  };
+
   useEffect(() => {
     api.getConfig().then((c) => {
       setConfig(c);
@@ -63,7 +79,26 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
     });
     refreshModels();
     refreshMemories();
+    refreshPersonas();
   }, []);
+
+  const addPersona = async () => {
+    if (!newPersonaName.trim() || !newPersonaPrompt.trim()) return;
+    try {
+      await api.createPersona(newPersonaName.trim(), newPersonaPrompt.trim(), newPersonaIcon.trim() || null);
+      setNewPersonaName("");
+      setNewPersonaIcon("");
+      setNewPersonaPrompt("");
+      refreshPersonas();
+    } catch (err) {
+      setPersonasError(err.message);
+    }
+  };
+
+  const deletePersona = async (id) => {
+    await api.deletePersona(id);
+    refreshPersonas();
+  };
 
   const saveSystemPrompt = async () => {
     setPromptSaving(true);
@@ -365,6 +400,66 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
                     </button>
                   </div>
                 )}
+              </section>
+            )}
+
+            {activeSection === "personas" && (
+              <section className="settings-section">
+                <h3 className="settings-section-title">Personas</h3>
+                <p className="settings-section-desc">
+                  Named system-prompt presets you can switch per conversation from the chat
+                  header — a persona overrides the global system prompt for that conversation
+                  only. Conversations without one keep using the global prompt.
+                </p>
+
+                <div className="setting-row setting-row-stack">
+                  <div className="settings-row">
+                    <input
+                      className="settings-input"
+                      style={{ flex: "0 0 60px" }}
+                      placeholder="🎭"
+                      value={newPersonaIcon}
+                      onChange={(e) => setNewPersonaIcon(e.target.value)}
+                      maxLength={4}
+                    />
+                    <input
+                      className="settings-input"
+                      placeholder="Name, e.g. Coding buddy"
+                      value={newPersonaName}
+                      onChange={(e) => setNewPersonaName(e.target.value)}
+                    />
+                  </div>
+                  <textarea
+                    className="settings-textarea"
+                    rows={3}
+                    placeholder="System prompt for this persona…"
+                    value={newPersonaPrompt}
+                    onChange={(e) => setNewPersonaPrompt(e.target.value)}
+                  />
+                  <div className="settings-row">
+                    <button className="settings-btn-primary" onClick={addPersona}>
+                      Add persona
+                    </button>
+                  </div>
+                </div>
+                {personasError && <p className="settings-error">{personasError}</p>}
+
+                <ul className="model-list" style={{ marginTop: "0.75rem" }}>
+                  {personas.map((p) => (
+                    <li key={p.id}>
+                      <span className="model-name" style={{ flex: 1 }}>
+                        {p.icon ? `${p.icon} ` : ""}
+                        {p.name}
+                      </span>
+                      <button className="icon-btn" onClick={() => deletePersona(p.id)} title="Delete">
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                  {personas.length === 0 && !personasError && (
+                    <li className="model-empty">No personas yet — add one above.</li>
+                  )}
+                </ul>
               </section>
             )}
 

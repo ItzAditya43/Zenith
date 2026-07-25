@@ -118,7 +118,18 @@ async def _build_system_context(conversation_id: str, user_text: str) -> str:
     long-term memories, and recall of relevant past-conversation excerpts.
     Any failing section is skipped."""
     parts: list[str] = []
-    custom = (settings.get("system_prompt") or "").strip()
+    persona_prompt = None
+    try:
+        from app.services import persona_service
+        persona_prompt = await asyncio.to_thread(
+            persona_service.get_conversation_persona_prompt, conversation_id
+        )
+    except Exception as exc:
+        log.debug("orchestrator.persona_lookup_failed", error=str(exc))
+    # A conversation-level persona overrides the one global system prompt
+    # rather than stacking with it — two standing instructions competing
+    # for priority would be more confusing than useful.
+    custom = persona_prompt or (settings.get("system_prompt") or "").strip()
     if custom:
         parts.append(custom)
     try:

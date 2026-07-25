@@ -42,6 +42,27 @@ export const api = {
   searchConversations: (query) =>
     request(`/api/conversations/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
 
+  listPersonas: () => request("/api/personas").then((r) => r.json()),
+  createPersona: (name, systemPrompt, icon = null) =>
+    request("/api/personas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, system_prompt: systemPrompt, icon }),
+    }).then((r) => r.json()),
+  updatePersona: (id, patch) =>
+    request(`/api/personas/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }),
+  deletePersona: (id) => request(`/api/personas/${id}`, { method: "DELETE" }),
+  setConversationPersona: (conversationId, personaId) =>
+    request(`/api/conversations/${conversationId}/persona`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ persona_id: personaId }),
+    }),
+
   listMemories: () => request("/api/memories").then((r) => r.json()),
   addMemory: (content, category = "fact") =>
     request("/api/memories", {
