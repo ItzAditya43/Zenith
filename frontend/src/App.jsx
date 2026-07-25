@@ -25,6 +25,7 @@ export default function App() {
   );
   const [agentAvailable, setAgentAvailable] = useState(false);
   const [personas, setPersonas] = useState([]);
+  const [branches, setBranches] = useState({});
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
   const abortRef = useRef(null);
@@ -94,11 +95,31 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  const refreshBranches = async (id) => {
+    try {
+      setBranches(await api.listBranches(id));
+    } catch {
+      /* branch switcher is a nice-to-have — a failed fetch just hides it */
+    }
+  };
+
   const selectConversation = async (id) => {
     setActiveId(id);
     setSearchResults(null);
     const msgs = await api.getMessages(id);
     setMessages(msgs);
+    refreshBranches(id);
+  };
+
+  const handleSwitchBranch = async (messageId) => {
+    if (!activeId) return;
+    try {
+      const result = await api.activateBranch(activeId, messageId);
+      setMessages(result.messages);
+      refreshBranches(activeId);
+    } catch {
+      /* best-effort */
+    }
   };
 
   const handleCreate = async () => {
@@ -213,31 +234,45 @@ export default function App() {
     editContext = null,
     webSearch = false,
     agentMode = false,
-    deepResearch = false
+    deepResearch = false,
+    regenerateOf = null
   ) => {
     if (!activeId) return;
-    let history = messages;
-    if (editContext) {
-      // Drop the edited user message + everything after it, then re-send.
-      const idx = messages.findIndex((m) => m.id === editContext.messageId);
-      history = messages.slice(0, idx);
-      setMessages(history);
+    const editOf = editContext?.messageId || null;
+
+    let assistantMsg;
+    if (regenerateOf) {
+      // No new user bubble — replace the target assistant reply in place.
+      assistantMsg = {
+        id: `local-assistant-${Date.now()}`,
+        role: "assistant",
+        content: "",
+        streaming: true,
+        model: null,
+        route_role: null,
+      };
+      setMessages((m) => m.map((msg) => (msg.id === regenerateOf ? assistantMsg : msg)));
+    } else {
+      const userMsg = { id: `local-${Date.now()}`, role: "user", content: text, attachments: [] };
+      assistantMsg = {
+        id: `local-assistant-${Date.now()}`,
+        role: "assistant",
+        content: "",
+        streaming: true,
+        model: null,
+        route_role: null,
+      };
+      if (editOf) {
+        // Optimistically drop the edited message + everything after it;
+        // the post-stream refetch below reconciles with server truth
+        // (branch structure, real ids) either way.
+        const idx = messages.findIndex((m) => m.id === editOf);
+        const base = idx >= 0 ? messages.slice(0, idx) : messages;
+        setMessages([...base, userMsg, assistantMsg]);
+      } else {
+        setMessages((m) => [...m, userMsg, assistantMsg]);
+      }
     }
-    const userMsg = {
-      id: `local-${Date.now()}`,
-      role: "user",
-      content: text,
-      attachments: [],
-    };
-    const assistantMsg = {
-      id: `local-assistant-${Date.now()}`,
-      role: "assistant",
-      content: "",
-      streaming: true,
-      model: null,
-      route_role: null,
-    };
-    setMessages((m) => [...m, userMsg, assistantMsg]);
     setStatus("thinking");
     setConnectionError(null);
 
@@ -248,13 +283,13 @@ export default function App() {
 
     // Auto-title on first user message of a fresh conversation.
     const conv = conversations.find((c) => c.id === activeId);
-    if (conv && (conv.title === "New chat" || !conv.title)) {
+    if (!regenerateOf && conv && (conv.title === "New chat" || !conv.title)) {
       maybeGenerateTitle(activeId, text);
     }
 
     let fullText = "";
     await api.streamChat(
-      { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode, deepResearch },
+      { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode, deepResearch, editOf, regenerateOf },
       (event) => {
         if (event.type === "route") {
           setActiveRole(event.role);
@@ -384,6 +419,18 @@ export default function App() {
       controller.signal
     );
     if (abortRef.current === controller) abortRef.current = null;
+
+    // Edit/regenerate change the branch structure server-side (hiding the
+    // old subtree, new parent_ids) — reconcile local state with the
+    // authoritative list rather than trust the optimistic splice above.
+    if (editOf || regenerateOf) {
+      try {
+        setMessages(await api.getMessages(activeId));
+        refreshBranches(activeId);
+      } catch {
+        /* keep optimistic state if the refetch itself fails */
+      }
+    }
   };
 
   const handleRetry = async (msg) => {
@@ -406,19 +453,10 @@ export default function App() {
   };
 
   const handleRegenerate = async (msg) => {
-    // Regenerate the assistant response for the user turn before it.
-    const idx = messages.findIndex((m) => m.id === msg.id);
-    if (idx < 0) return;
-    let userText = "";
-    for (let i = idx - 1; i >= 0; i -= 1) {
-      if (messages[i].role === "user") {
-        userText = messages[i].content;
-        break;
-      }
-    }
-    if (!userText) return;
-    setMessages((m) => m.filter((mm) => mm.id !== msg.id));
-    await handleSend(userText, []);
+    // Branch-aware regenerate: the backend hides the old reply and
+    // creates a fresh sibling under the same user message — the original
+    // is never lost, just switched away from (see the branch switcher).
+    await handleSend("", [], null, false, false, false, msg.id);
   };
 
   const handleEdit = async (msg, newText) => {
@@ -541,6 +579,8 @@ export default function App() {
               onEdit={handleEdit}
               onApproveTool={handleApproveTool}
               onDenyTool={handleDenyTool}
+              siblings={branches[m.parent_id || "root"]}
+              onSwitchBranch={handleSwitchBranch}
             />
           ))}
         </div>

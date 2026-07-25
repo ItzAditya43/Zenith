@@ -217,11 +217,36 @@ async def run_turn(
     attachment_ids: list[str],
     history_last_model: str | None = None,
     web_search: bool = False,
-) -> tuple[RouteDecision, AsyncIterator[str], list[dict]]:
+    parent_message_id: str | None = None,
+    parent_explicit: bool = False,
+    regenerate_user_message_id: str | None = None,
+) -> tuple[RouteDecision, AsyncIterator[str], list[dict], str]:
     """Returns the routing decision, an async generator of reply tokens,
-    and a list of web sources used (possibly empty). The caller (API
-    route) is responsible for streaming tokens to the client and
-    persisting the final assembled text."""
+    a list of web sources used (possibly empty), and the parent_id the
+    caller should persist the assistant reply under.
+
+    Branching (Settings has no toggle for this — it's implicit in how
+    the API is called):
+      - Normal send: `parent_explicit=False` -> auto-attaches under the
+        conversation's current last active message.
+      - Edit-and-resend: caller passes `parent_explicit=True` and the
+        resolved `parent_message_id` (which is legitimately `None` when
+        editing the very first message in a conversation — that's why
+        this needs its own flag rather than treating `None` as "not
+        specified"), and has already deactivated the old branch at that
+        point — this just creates a new user message there.
+      - Regenerate: caller passes `regenerate_user_message_id` instead
+        of a fresh user message; the existing user turn is reused
+        (no duplicate persisted) and only a new assistant sibling is
+        created under it.
+    """
+    if regenerate_user_message_id:
+        user_row = storage.get_message(regenerate_user_message_id)
+        if not user_row:
+            raise ValueError(f"No such message: {regenerate_user_message_id}")
+        user_text = user_row["content"]
+        attachment_ids = [a["id"] for a in user_row.get("attachments", [])]
+
     ctx = await build_turn_context(attachment_ids)
     history = storage.get_messages(conversation_id)
     messages = _build_messages(history, user_text, ctx)
@@ -278,19 +303,29 @@ async def run_turn(
         context_chars=context_chars,
     )
 
-    storage.add_message(
-        conversation_id, "user", user_text, attachments=ctx.attachment_summaries
-    )
-    # Index the user turn for cross-conversation recall (assistant replies
-    # are indexed by the API layer once fully streamed).
-    try:
-        from app.services import rag_service
-        await asyncio.to_thread(rag_service.index_message, conversation_id, "user", user_text)
-    except Exception as exc:
-        log.debug("orchestrator.index_user_failed", error=str(exc))
+    if regenerate_user_message_id:
+        # The user turn already exists — only a new assistant sibling is
+        # being created under it. Re-indexing/re-persisting it would
+        # duplicate history.
+        assistant_parent_id = regenerate_user_message_id
+    else:
+        parent_for_user = (
+            parent_message_id if parent_explicit
+            else storage.get_last_active_message_id(conversation_id)
+        )
+        new_user_msg = storage.add_message(
+            conversation_id, "user", user_text,
+            attachments=ctx.attachment_summaries, parent_id=parent_for_user,
+        )
+        assistant_parent_id = new_user_msg["id"]
+        try:
+            from app.services import rag_service
+            await asyncio.to_thread(rag_service.index_message, conversation_id, "user", user_text)
+        except Exception as exc:
+            log.debug("orchestrator.index_user_failed", error=str(exc))
 
     client = OllamaClient()
     stream = client.chat_stream(
         decision.model, messages, images_b64=ctx.images_b64 or None
     )
-    return decision, stream, web_sources
+    return decision, stream, web_sources, assistant_parent_id

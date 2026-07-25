@@ -82,18 +82,158 @@ def list_conversations() -> list[dict]:
         return [dict(r) for r in rows]
 
 
-def get_messages(conversation_id: str) -> list[dict]:
+def _row_to_message(r: sqlite3.Row) -> dict:
+    d = dict(r)
+    d["attachments"] = json.loads(d["attachments"]) if d["attachments"] else []
+    return d
+
+
+def get_messages(conversation_id: str, active_only: bool = True) -> list[dict]:
+    """Returns the conversation's messages in creation order. With
+    `active_only` (the default, and what every existing call site wants:
+    context-building, RAG indexing, title generation) this is the
+    *current branch* — edited-away or regenerated-over messages are
+    hidden. Pass `active_only=False` to see the full tree, e.g. for the
+    branch switcher."""
+    with _conn() as conn:
+        sql = "SELECT * FROM messages WHERE conversation_id = ?"
+        if active_only:
+            sql += " AND active = 1"
+        sql += " ORDER BY created_at ASC"
+        rows = conn.execute(sql, (conversation_id,)).fetchall()
+        return [_row_to_message(r) for r in rows]
+
+
+def get_message(message_id: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM messages WHERE id = ?", (message_id,)).fetchone()
+        return _row_to_message(row) if row else None
+
+
+def get_last_active_message_id(conversation_id: str) -> str | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM messages WHERE conversation_id = ? AND active = 1 "
+            "ORDER BY created_at DESC LIMIT 1",
+            (conversation_id,),
+        ).fetchone()
+        return row["id"] if row else None
+
+
+def get_siblings(conversation_id: str, parent_id: str | None) -> list[dict]:
+    """All versions of "the message at this point" — every message
+    sharing `parent_id`, active or not, oldest first. Length > 1 means
+    there's a branch here."""
+    with _conn() as conn:
+        if parent_id is None:
+            rows = conn.execute(
+                "SELECT * FROM messages WHERE conversation_id = ? AND parent_id IS NULL "
+                "ORDER BY created_at ASC",
+                (conversation_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM messages WHERE conversation_id = ? AND parent_id = ? "
+                "ORDER BY created_at ASC",
+                (conversation_id, parent_id),
+            ).fetchall()
+        return [_row_to_message(r) for r in rows]
+
+
+def list_branch_points(conversation_id: str) -> dict[str, list[dict]]:
+    """Every point in the tree with more than one version, keyed by
+    parent_id ("root" for top-of-conversation branches). Powers the
+    branch-switcher UI: it only needs to render at points that actually
+    branch."""
     with _conn() as conn:
         rows = conn.execute(
             "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
             (conversation_id,),
         ).fetchall()
-        out = []
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        d = _row_to_message(r)
+        key = d["parent_id"] or "root"
+        groups.setdefault(key, []).append(d)
+    return {k: v for k, v in groups.items() if len(v) > 1}
+
+
+def _deactivate_subtree(conn: sqlite3.Connection, root_parent_id: str) -> None:
+    """Hides an old branch: deactivates every message reachable from
+    `root_parent_id` (its children, their children, ...). Does not touch
+    `root_parent_id` itself — the caller decides that message's fate."""
+    frontier = [root_parent_id]
+    while frontier:
+        rows = conn.execute(
+            "SELECT id FROM messages WHERE parent_id IN ({})".format(
+                ",".join("?" * len(frontier))
+            ),
+            frontier,
+        ).fetchall()
+        ids = [r["id"] for r in rows]
+        if not ids:
+            return
+        conn.execute(
+            "UPDATE messages SET active = 0 WHERE id IN ({})".format(",".join("?" * len(ids))),
+            ids,
+        )
+        frontier = ids
+
+
+def deactivate_subtree(root_parent_id: str) -> None:
+    """Public wrapper: hides every message below `root_parent_id` (used
+    before creating a new branch there — edit-and-resend, regenerate)."""
+    with _conn() as conn:
+        _deactivate_subtree(conn, root_parent_id)
+
+
+def deactivate_root(conversation_id: str) -> None:
+    """Same idea as `deactivate_subtree`, for the special case of editing
+    the very first message in a conversation — there's no real parent_id
+    to pass (it's NULL), so root-level messages need their own path."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id FROM messages WHERE conversation_id = ? AND parent_id IS NULL",
+            (conversation_id,),
+        ).fetchall()
         for r in rows:
-            d = dict(r)
-            d["attachments"] = json.loads(d["attachments"]) if d["attachments"] else []
-            out.append(d)
-        return out
+            conn.execute("UPDATE messages SET active = 0 WHERE id = ?", (r["id"],))
+            _deactivate_subtree(conn, r["id"])
+
+
+def set_active_branch(conversation_id: str, message_id: str) -> None:
+    """Switches the current branch to `message_id`: activates it,
+    deactivates its siblings (and their whole subtrees), then restores
+    the continuation *below* it by walking forward and re-activating the
+    most-recently-created child at each level — i.e. resuming whatever
+    was last being viewed down that path, not just the single message."""
+    with _conn() as conn:
+        row = conn.execute("SELECT parent_id FROM messages WHERE id = ?", (message_id,)).fetchone()
+        if not row:
+            return
+        parent_id = row["parent_id"]
+        siblings = get_siblings(conversation_id, parent_id)
+        for sib in siblings:
+            if sib["id"] == message_id:
+                conn.execute("UPDATE messages SET active = 1 WHERE id = ?", (message_id,))
+            else:
+                conn.execute("UPDATE messages SET active = 0 WHERE id = ?", (sib["id"],))
+                _deactivate_subtree(conn, sib["id"])
+
+        current = message_id
+        while True:
+            children = conn.execute(
+                "SELECT id FROM messages WHERE parent_id = ? ORDER BY created_at DESC",
+                (current,),
+            ).fetchall()
+            if not children:
+                break
+            latest = children[0]["id"]
+            conn.execute("UPDATE messages SET active = 1 WHERE id = ?", (latest,))
+            for other in children[1:]:
+                conn.execute("UPDATE messages SET active = 0 WHERE id = ?", (other["id"],))
+                _deactivate_subtree(conn, other["id"])
+            current = latest
 
 
 def add_message(
@@ -104,16 +244,18 @@ def add_message(
     route_role: str | None = None,
     route_reason: str | None = None,
     attachments: list | None = None,
+    parent_id: str | None = None,
 ) -> dict:
     mid = str(uuid.uuid4())
     now = time.time()
     with _conn() as conn:
         conn.execute(
             """INSERT INTO messages
-               (id, conversation_id, role, content, model, route_role, route_reason, attachments, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (id, conversation_id, role, content, model, route_role, route_reason,
+                attachments, created_at, parent_id, active)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
             (mid, conversation_id, role, content, model, route_role, route_reason,
-             json.dumps(attachments or []), now),
+             json.dumps(attachments or []), now, parent_id),
         )
         conn.execute(
             "UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id)
@@ -121,7 +263,7 @@ def add_message(
     return {
         "id": mid, "conversation_id": conversation_id, "role": role, "content": content,
         "model": model, "route_role": route_role, "route_reason": route_reason,
-        "attachments": attachments or [], "created_at": now,
+        "attachments": attachments or [], "created_at": now, "parent_id": parent_id, "active": 1,
     }
 
 

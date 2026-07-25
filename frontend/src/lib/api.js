@@ -65,6 +65,13 @@ export const api = {
 
   exportUrl: (format) => `${BASE}/api/export/${format}`,
 
+  listBranches: (conversationId) =>
+    request(`/api/conversations/${conversationId}/branches`).then((r) => r.json()),
+  activateBranch: (conversationId, messageId) =>
+    request(`/api/conversations/${conversationId}/messages/${messageId}/activate`, {
+      method: "POST",
+    }).then((r) => r.json()),
+
   listMemories: () => request("/api/memories").then((r) => r.json()),
   addMemory: (content, category = "fact") =>
     request("/api/memories", {
@@ -128,7 +135,16 @@ export const api = {
    *     cancellation — no error event, the bubble just stops where it is.
    */
   async streamChat(
-    { conversationId, message, attachmentIds, webSearch = false, agentMode = false, deepResearch = false },
+    {
+      conversationId,
+      message,
+      attachmentIds,
+      webSearch = false,
+      agentMode = false,
+      deepResearch = false,
+      editOf = null,
+      regenerateOf = null,
+    },
     onEvent,
     signal
   ) {
@@ -144,6 +160,8 @@ export const api = {
           web_search: webSearch,
           agent_mode_on: agentMode,
           deep_research: deepResearch,
+          ...(editOf ? { edit_of: editOf } : {}),
+          ...(regenerateOf ? { regenerate_of: regenerateOf } : {}),
         }),
         signal,
       });

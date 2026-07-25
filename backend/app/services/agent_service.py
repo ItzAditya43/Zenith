@@ -318,7 +318,12 @@ async def run_agent_turn(
         text=user_text, has_image=ctx.has_image, has_video=ctx.has_video,
         has_long_document=ctx.has_long_document, history_last_model=history_last_model,
     )
-    storage.add_message(conversation_id, "user", user_text, attachments=ctx.attachment_summaries)
+    parent_for_user = storage.get_last_active_message_id(conversation_id)
+    user_msg = storage.add_message(
+        conversation_id, "user", user_text,
+        attachments=ctx.attachment_summaries, parent_id=parent_for_user,
+    )
+    assistant_parent_id = user_msg["id"]
 
     yield {"type": "route", "model": decision.model, "role": decision.role,
            "reason": decision.reason, "confidence": decision.confidence}
@@ -396,4 +401,4 @@ async def run_agent_turn(
         yield {"type": "token", "text": chunk}
 
     yield {"type": "done", "full_text": final_text, "model": decision.model,
-           "role": decision.role, "reason": decision.reason}
+           "role": decision.role, "reason": decision.reason, "parent_id": assistant_parent_id}
