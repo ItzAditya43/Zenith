@@ -153,7 +153,10 @@ export default function MessageBubble({
 
   return (
     <div className={`msg-row ${isUser ? "msg-row-user" : "msg-row-assistant"}`}>
-      <div className={`msg-bubble ${isUser ? "msg-bubble-user" : "msg-bubble-assistant"}`}>
+      <div
+        className={`msg-bubble ${isUser ? "msg-bubble-user" : "msg-bubble-assistant"}`}
+        data-role={!isUser ? message.route_role : undefined}
+      >
         {!isUser && message.model && (
           <ModelBadge model={message.model} role={message.route_role} reason={message.route_reason} />
         )}

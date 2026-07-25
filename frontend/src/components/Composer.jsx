@@ -4,6 +4,81 @@ import { api } from "../lib/api";
 
 const KIND_ICON = { image: "🖼", video: "🎬", document: "📄", audio: "🎙", other: "📎" };
 
+const MODES = [
+  { id: "off", icon: "💬", label: "Just chat", hint: "Answer from context — no search, no tools." },
+  { id: "search", icon: "🔍", label: "Web search", hint: "Search the web for this message." },
+  { id: "research", icon: "🔬", label: "Deep Research", hint: "Multi-step investigation and a written report, instead of a quick answer." },
+  { id: "agent", icon: "🤖", label: "Agent", hint: "Cortex can run commands and read/write files across multiple steps.", requires: "agentAvailable" },
+  { id: "council", icon: "👥", label: "Council", hint: "Ask all your configured models at once, compare the answers.", requires: "councilAvailable" },
+];
+
+function ModePicker({ mode, setMode, agentAvailable, councilAvailable }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const onEscape = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [open]);
+
+  const available = MODES.filter(
+    (m) => !m.requires || (m.requires === "agentAvailable" ? agentAvailable : councilAvailable)
+  );
+  const current = MODES.find((m) => m.id === mode) || MODES[0];
+
+  return (
+    <div className="mode-picker" ref={ref}>
+      <button
+        className={`mode-picker-btn ${mode !== "off" ? "is-active" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={current.hint}
+      >
+        <span aria-hidden="true">{current.icon}</span>
+        <span className="mode-picker-label">{current.label}</span>
+        <span className="mode-picker-caret" aria-hidden="true">
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && (
+        <ul className="mode-picker-menu" role="listbox">
+          {available.map((m) => (
+            <li key={m.id}>
+              <button
+                className={`mode-picker-option ${m.id === mode ? "is-selected" : ""}`}
+                role="option"
+                aria-selected={m.id === mode}
+                onClick={() => {
+                  setMode(m.id);
+                  setOpen(false);
+                }}
+              >
+                <span className="mode-picker-option-icon" aria-hidden="true">
+                  {m.icon}
+                </span>
+                <span>
+                  <span className="mode-picker-option-label">{m.label}</span>
+                  <span className="mode-picker-option-hint">{m.hint}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function Composer({
   onSend,
   onStop,
@@ -18,10 +93,7 @@ export default function Composer({
   const [transcribing, setTranscribing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [micError, setMicError] = useState(null);
-  const [webSearch, setWebSearch] = useState(false);
-  const [agentMode, setAgentMode] = useState(false);
-  const [deepResearch, setDeepResearch] = useState(false);
-  const [councilMode, setCouncilMode] = useState(false);
+  const [mode, setMode] = useState("off");
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const { recording, error: recorderError, supported, start, stop, cancel } = useVoiceRecorder();
@@ -79,11 +151,11 @@ export default function Composer({
       text.trim(),
       pending.map((a) => a.id),
       null,
-      webSearch,
-      agentMode && agentAvailable,
-      deepResearch,
+      mode === "search",
+      mode === "agent" && agentAvailable,
+      mode === "research",
       null,
-      councilMode && councilAvailable
+      mode === "council" && councilAvailable
     );
     setText("");
     setPending([]);
@@ -204,64 +276,12 @@ export default function Composer({
         >
           📎
         </button>
-        <button
-          className={`composer-icon-btn search-toggle-btn ${webSearch ? "is-active" : ""}`}
-          onClick={() => {
-            setWebSearch((v) => !v);
-            if (!webSearch) setDeepResearch(false);
-          }}
-          aria-pressed={webSearch}
-          title={
-            webSearch
-              ? "Web search on — Cortex will search the web for this message"
-              : "Web search off — click to search the web for this message"
-          }
-        >
-          🔍
-        </button>
-        <button
-          className={`composer-icon-btn research-toggle-btn ${deepResearch ? "is-active" : ""}`}
-          onClick={() => {
-            setDeepResearch((v) => !v);
-            if (!deepResearch) setWebSearch(false);
-          }}
-          aria-pressed={deepResearch}
-          title={
-            deepResearch
-              ? "Deep Research on — Cortex will investigate this across multiple searches and write a report"
-              : "Deep Research off — click for a multi-step investigation instead of a quick answer"
-          }
-        >
-          🔬
-        </button>
-        {agentAvailable && (
-          <button
-            className={`composer-icon-btn agent-toggle-btn ${agentMode ? "is-active" : ""}`}
-            onClick={() => setAgentMode((v) => !v)}
-            aria-pressed={agentMode}
-            title={
-              agentMode
-                ? "Agent mode on — Cortex can run commands and read/write files for this message"
-                : "Agent mode off — click to let Cortex take multi-step actions (bash/files/web)"
-            }
-          >
-            🤖
-          </button>
-        )}
-        {councilAvailable && (
-          <button
-            className={`composer-icon-btn council-toggle-btn ${councilMode ? "is-active" : ""}`}
-            onClick={() => setCouncilMode((v) => !v)}
-            aria-pressed={councilMode}
-            title={
-              councilMode
-                ? "Council on — your configured models will all answer this message"
-                : "Council off — click to ask all your configured models at once"
-            }
-          >
-            👥
-          </button>
-        )}
+        <ModePicker
+          mode={mode}
+          setMode={setMode}
+          agentAvailable={agentAvailable}
+          councilAvailable={councilAvailable}
+        />
         <input
           ref={fileInputRef}
           type="file"

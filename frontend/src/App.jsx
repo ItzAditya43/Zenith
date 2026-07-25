@@ -1,12 +1,9 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Composer from "./components/Composer";
 import MessageBubble from "./components/MessageBubble";
 import SettingsPanel from "./components/SettingsPanel";
 import { api } from "./lib/api";
-
-// Tier 6 #13 — three.js is heavy; load the ambient background lazily.
-const AmbientField = lazy(() => import("./components/AmbientField"));
 
 export default function App() {
   const [conversations, setConversations] = useState([]);
@@ -541,10 +538,6 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Suspense fallback={null}>
-        <AmbientField status={status} role={activeRole} theme={theme} />
-      </Suspense>
-
       <Sidebar
         conversations={conversations}
         activeId={activeId}
