@@ -481,6 +481,10 @@
   color: var(--signal-voice, #50c878);
   background: var(--signal-voice-dim, rgba(80, 200, 120, 0.15));
 }
+.council-toggle-btn.is-active {
+  color: var(--signal-reasoning, #a855f7);
+  background: var(--signal-reasoning-dim, rgba(168, 85, 247, 0.15));
+}
 
 /* ============ Agent tool-call cards ============ */
 .tool-calls {

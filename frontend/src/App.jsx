@@ -24,6 +24,7 @@ export default function App() {
     () => localStorage.getItem("cortex-theme") || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
   );
   const [agentAvailable, setAgentAvailable] = useState(false);
+  const [councilModels, setCouncilModels] = useState([]);
   const [personas, setPersonas] = useState([]);
   const [branches, setBranches] = useState({});
   const scrollRef = useRef(null);
@@ -37,7 +38,10 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    api.getConfig().then((c) => setAgentAvailable(!!c.agent_enabled)).catch(() => {});
+    api.getConfig().then((c) => {
+      setAgentAvailable(!!c.agent_enabled);
+      setCouncilModels(c.council_models || []);
+    }).catch(() => {});
     api.listPersonas().then(setPersonas).catch(() => {});
   }, []);
 
@@ -228,6 +232,57 @@ export default function App() {
     }, 1200);
   };
 
+  const handleCouncilSend = async (text, attachmentIds) => {
+    if (!activeId || councilModels.length < 2) return;
+    const userMsg = { id: `local-${Date.now()}`, role: "user", content: text, attachments: [] };
+    const assistantMsg = {
+      id: `local-assistant-${Date.now()}`,
+      role: "assistant",
+      content: `👥 Asking ${councilModels.length} models…`,
+      streaming: true,
+      model: null,
+      route_role: "council",
+    };
+    setMessages((m) => [...m, userMsg, assistantMsg]);
+    setStatus("thinking");
+    setConnectionError(null);
+
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const progress = {}; // model -> chars streamed so far
+    const renderProgress = () =>
+      councilModels.map((m) => `${m}: ${progress[m] || 0} chars`).join(" · ");
+
+    await api.streamCouncil(
+      { conversationId: activeId, message: text, attachmentIds, models: councilModels },
+      (event) => {
+        if (event.type === "council_token") {
+          progress[event.model] = (progress[event.model] || 0) + event.text.length;
+          setMessages((m) =>
+            m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, content: renderProgress() } : msg))
+          );
+        } else if (event.type === "council_error") {
+          progress[event.model] = `error: ${event.message}`;
+        } else if (event.type === "error") {
+          setConnectionError(event.message);
+          setStatus("idle");
+        }
+      },
+      controller.signal
+    );
+    if (abortRef.current === controller) abortRef.current = null;
+
+    try {
+      setMessages(await api.getMessages(activeId));
+      refreshBranches(activeId);
+    } catch {
+      /* best-effort reconciliation */
+    }
+    setStatus("idle");
+  };
+
   const handleSend = async (
     text,
     attachmentIds,
@@ -235,9 +290,11 @@ export default function App() {
     webSearch = false,
     agentMode = false,
     deepResearch = false,
-    regenerateOf = null
+    regenerateOf = null,
+    councilMode = false
   ) => {
     if (!activeId) return;
+    if (councilMode) return handleCouncilSend(text, attachmentIds);
     const editOf = editContext?.messageId || null;
 
     let assistantMsg;
@@ -591,13 +648,23 @@ export default function App() {
           disabled={!activeId}
           conversationId={activeId}
           agentAvailable={agentAvailable}
+          councilAvailable={councilModels.length >= 2}
           isStreaming={status === "thinking"}
         />
       </main>
 
       {settingsOpen && (
         <SettingsPanel
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => {
+            setSettingsOpen(false);
+            // Agent/council toggles in the composer depend on config set
+            // inside Settings — pick up anything changed this session.
+            api.getConfig().then((c) => {
+              setAgentAvailable(!!c.agent_enabled);
+              setCouncilModels(c.council_models || []);
+            }).catch(() => {});
+            api.listPersonas().then(setPersonas).catch(() => {});
+          }}
           theme={theme}
           onThemeChange={setTheme}
           voiceReplyEnabled={voiceReplyEnabled}

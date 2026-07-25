@@ -86,6 +86,7 @@ class ConfigPatch(StrictModel):
     agent_output_max_chars: Optional[int] = Field(default=None, ge=500, le=20_000)
     agent_approval_timeout_seconds: Optional[int] = Field(default=None, ge=30, le=3600)
     research_max_iterations: Optional[int] = Field(default=None, ge=2, le=30)
+    council_models: Optional[list[str]] = Field(default=None, max_length=6)
 
 
 class MemoryCreate(StrictModel):
@@ -111,3 +112,10 @@ class PersonaUpdate(StrictModel):
 
 class ConversationPersonaSet(StrictModel):
     persona_id: Optional[str] = None
+
+
+class CouncilRequest(StrictModel):
+    conversation_id: str
+    message: str
+    attachment_ids: list[str] = []
+    models: list[str] = Field(min_length=1, max_length=6)

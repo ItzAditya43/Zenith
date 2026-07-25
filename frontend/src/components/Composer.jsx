@@ -11,6 +11,7 @@ export default function Composer({
   conversationId = null,
   isStreaming = false,
   agentAvailable = false,
+  councilAvailable = false,
 }) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState([]); // [{id, filename, kind, uploading}]
@@ -20,6 +21,7 @@ export default function Composer({
   const [webSearch, setWebSearch] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
   const [deepResearch, setDeepResearch] = useState(false);
+  const [councilMode, setCouncilMode] = useState(false);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const { recording, error: recorderError, supported, start, stop, cancel } = useVoiceRecorder();
@@ -79,7 +81,9 @@ export default function Composer({
       null,
       webSearch,
       agentMode && agentAvailable,
-      deepResearch
+      deepResearch,
+      null,
+      councilMode && councilAvailable
     );
     setText("");
     setPending([]);
@@ -242,6 +246,20 @@ export default function Composer({
             }
           >
             🤖
+          </button>
+        )}
+        {councilAvailable && (
+          <button
+            className={`composer-icon-btn council-toggle-btn ${councilMode ? "is-active" : ""}`}
+            onClick={() => setCouncilMode((v) => !v)}
+            aria-pressed={councilMode}
+            title={
+              councilMode
+                ? "Council on — your configured models will all answer this message"
+                : "Council off — click to ask all your configured models at once"
+            }
+          >
+            👥
           </button>
         )}
         <input
