@@ -53,6 +53,13 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
   const [runningSchedule, setRunningSchedule] = useState(null);
   const [expandedSchedule, setExpandedSchedule] = useState(null);
   const [scheduleRuns, setScheduleRuns] = useState({});
+  const [mcpServers, setMcpServers] = useState([]);
+  const [mcpError, setMcpError] = useState(null);
+  const [newMcpName, setNewMcpName] = useState("");
+  const [newMcpCommand, setNewMcpCommand] = useState("");
+  const [newMcpArgs, setNewMcpArgs] = useState("");
+  const [mcpToolsChecking, setMcpToolsChecking] = useState(null);
+  const [mcpToolsResult, setMcpToolsResult] = useState({});
   const [newMemory, setNewMemory] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [promptSaving, setPromptSaving] = useState(false);
@@ -109,7 +116,54 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
     refreshPersonas();
     refreshFolders();
     refreshSchedules();
+    refreshMcpServers();
   }, []);
+
+  const refreshMcpServers = () => {
+    api
+      .listMcpServers()
+      .then((s) => {
+        setMcpServers(s);
+        setMcpError(null);
+      })
+      .catch((err) => setMcpError(err.message));
+  };
+
+  const addMcpServer = async () => {
+    if (!newMcpName.trim() || !newMcpCommand.trim()) return;
+    try {
+      const args = newMcpArgs.trim() ? newMcpArgs.trim().split(/\s+/) : [];
+      await api.addMcpServer(newMcpName.trim(), newMcpCommand.trim(), args);
+      setNewMcpName("");
+      setNewMcpCommand("");
+      setNewMcpArgs("");
+      refreshMcpServers();
+    } catch (err) {
+      setMcpError(err.message);
+    }
+  };
+
+  const removeMcpServer = async (id) => {
+    await api.removeMcpServer(id);
+    refreshMcpServers();
+  };
+
+  const toggleMcpServer = async (id, enabled) => {
+    setMcpServers((s) => s.map((x) => (x.id === id ? { ...x, enabled: enabled ? 1 : 0 } : x)));
+    await api.toggleMcpServer(id, enabled);
+  };
+
+  const checkMcpTools = async (id) => {
+    setMcpToolsChecking(id);
+    try {
+      const tools = await api.getMcpServerTools(id);
+      setMcpToolsResult((r) => ({ ...r, [id]: tools }));
+    } catch (err) {
+      setMcpToolsResult((r) => ({ ...r, [id]: { error: err.message } }));
+    } finally {
+      setMcpToolsChecking(null);
+    }
+  };
 
   const refreshSchedules = () => {
     api
@@ -650,6 +704,89 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
                   the "general" role to a larger model in Model routing for agent turns to work
                   reliably.
                 </p>
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  MCP servers
+                </h3>
+                <p className="settings-section-desc">
+                  Connect external MCP (Model Context Protocol) tool servers — email, calendar,
+                  Notion, whatever's published — instead of Cortex hand-building each
+                  integration. Runs as a local subprocess over stdio, same free-by-construction
+                  posture as everything else here. Their tools appear in agent mode's tool list
+                  automatically, prefixed <code>mcp__servername__</code>, and go through the same
+                  approval gate as bash/write_file (external tools are unknown behavior, so
+                  they're always classified risky).
+                </p>
+
+                <div className="settings-row">
+                  <input
+                    className="settings-input"
+                    placeholder="Name"
+                    value={newMcpName}
+                    onChange={(e) => setNewMcpName(e.target.value)}
+                    style={{ flex: "0 0 120px" }}
+                  />
+                  <input
+                    className="settings-input"
+                    placeholder="Command, e.g. npx or /path/to/python"
+                    value={newMcpCommand}
+                    onChange={(e) => setNewMcpCommand(e.target.value)}
+                  />
+                  <input
+                    className="settings-input"
+                    placeholder="Args (space-separated)"
+                    value={newMcpArgs}
+                    onChange={(e) => setNewMcpArgs(e.target.value)}
+                  />
+                  <button className="settings-btn-primary" onClick={addMcpServer}>
+                    Add
+                  </button>
+                </div>
+                {mcpError && <p className="settings-error">{mcpError}</p>}
+
+                <ul className="model-list" style={{ marginTop: "0.75rem" }}>
+                  {mcpServers.map((s) => (
+                    <li key={s.id} style={{ flexDirection: "column", alignItems: "stretch", opacity: s.enabled ? 1 : 0.5 }}>
+                      <div className="settings-row settings-row-space-between">
+                        <span className="model-name" style={{ flex: 1 }}>
+                          {s.name}
+                          <span className="setting-hint" style={{ display: "block", fontFamily: "var(--font-mono)" }}>
+                            {s.command} {s.args.join(" ")}
+                          </span>
+                        </span>
+                        <span className="settings-row" style={{ gap: "0.5rem" }}>
+                          <button className="text-btn" onClick={() => checkMcpTools(s.id)}>
+                            {mcpToolsChecking === s.id ? "Checking…" : "Test connection"}
+                          </button>
+                          <button className="text-btn" onClick={() => toggleMcpServer(s.id, !s.enabled)}>
+                            {s.enabled ? "On" : "Off"}
+                          </button>
+                          <button className="icon-btn" onClick={() => removeMcpServer(s.id)} title="Remove">
+                            ×
+                          </button>
+                        </span>
+                      </div>
+                      {mcpToolsResult[s.id] && (
+                        <div className="tool-call-body" style={{ padding: "0.5rem 0 0" }}>
+                          {mcpToolsResult[s.id].error ? (
+                            <span className="settings-error">{mcpToolsResult[s.id].error}</span>
+                          ) : mcpToolsResult[s.id].length === 0 ? (
+                            <span className="setting-hint">Connected, but no tools advertised.</span>
+                          ) : (
+                            mcpToolsResult[s.id].map((t) => (
+                              <pre key={t.name} className="tool-call-result" style={{ marginBottom: "0.3rem" }}>
+                                {t.name}: {t.description}
+                              </pre>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                  {mcpServers.length === 0 && !mcpError && (
+                    <li className="model-empty">No MCP servers configured.</li>
+                  )}
+                </ul>
               </section>
             )}
 

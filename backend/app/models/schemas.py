@@ -143,3 +143,14 @@ class ScheduleCreate(StrictModel):
 
 class ScheduleToggle(StrictModel):
     enabled: bool
+
+
+class MCPServerCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=60)
+    command: str = Field(min_length=1, max_length=500)
+    args: list[str] = []
+    env: dict[str, str] = {}
+
+
+class MCPServerToggle(StrictModel):
+    enabled: bool
