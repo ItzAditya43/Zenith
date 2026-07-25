@@ -90,6 +90,7 @@ class ConfigPatch(StrictModel):
     folder_scan_interval_seconds: Optional[int] = Field(default=None, ge=60, le=86400)
     folder_recall_enabled: Optional[bool] = None
     folder_recall_top_k: Optional[int] = Field(default=None, ge=1, le=10)
+    schedule_check_interval_seconds: Optional[int] = Field(default=None, ge=15, le=3600)
 
 
 class MemoryCreate(StrictModel):
@@ -130,4 +131,15 @@ class WatchedFolderCreate(StrictModel):
 
 
 class WatchedFolderToggle(StrictModel):
+    enabled: bool
+
+
+class ScheduleCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=100)
+    prompt: str = Field(min_length=1, max_length=4000)
+    mode: Literal["chat", "research"] = "chat"
+    interval_minutes: int = Field(ge=1, le=43200)
+
+
+class ScheduleToggle(StrictModel):
     enabled: bool

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent, chat, documents, export, folders, memory, system, upload, voice
+from app.api import agent, chat, documents, export, folders, memory, schedules, system, upload, voice
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.storage import init_db
@@ -54,6 +54,25 @@ async def _folder_scanner(interval_seconds: int) -> None:
         raise
 
 
+async def _schedule_runner(interval_seconds: int) -> None:
+    """Checks for due schedules and runs them. Same fire-and-forget
+    pattern as the orphan sweeper / folder scanner — one schedule
+    erroring never stops the loop; schedule_service.run_due_schedules
+    already isolates per-schedule failures into their run records."""
+    from app.services.schedule_service import run_due_schedules
+
+    try:
+        while True:
+            try:
+                await run_due_schedules()
+            except Exception as exc:
+                log.warning("schedule.runner_error", error=str(exc))
+            await asyncio.sleep(interval_seconds)
+    except asyncio.CancelledError:
+        log.info("schedule.runner_stopped")
+        raise
+
+
 async def _prewarm() -> None:
     """Load the general-role model into Ollama's memory so the first turn
     doesn't pay the multi-second cold-load cost. Best-effort, off the
@@ -87,6 +106,8 @@ async def lifespan(app: FastAPI):
     sweeper = asyncio.create_task(_orphan_sweeper(interval))
     folder_interval = int(settings.get("folder_scan_interval_seconds", 600))
     folder_scanner = asyncio.create_task(_folder_scanner(folder_interval))
+    schedule_interval = int(settings.get("schedule_check_interval_seconds", 60))
+    schedule_runner = asyncio.create_task(_schedule_runner(schedule_interval))
     # Track the last model used in this process so the router can be
     # "sticky" — see ModelRouter.decide() and the /api/route/preview docstring.
     app.state.last_route_model = None
@@ -99,7 +120,8 @@ async def lifespan(app: FastAPI):
     finally:
         sweeper.cancel()
         folder_scanner.cancel()
-        for task in (sweeper, folder_scanner):
+        schedule_runner.cancel()
+        for task in (sweeper, folder_scanner, schedule_runner):
             try:
                 await task
             except asyncio.CancelledError:
@@ -188,6 +210,7 @@ app.include_router(agent.router)
 app.include_router(export.router)
 app.include_router(documents.router)
 app.include_router(folders.router)
+app.include_router(schedules.router)
 app.include_router(upload.router)
 app.include_router(voice.router)
 app.include_router(system.router)

@@ -129,6 +129,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "agent_command_timeout_seconds": 60,
     "agent_output_max_chars": 4000,  # cap per tool result fed back to the model
     "agent_approval_timeout_seconds": 600,  # auto-deny if you don't respond
+    # --- Scheduled/recurring turns ---
+    "schedule_check_interval_seconds": 60,  # how often the scanner checks for due schedules
     # --- Folder watcher ---
     "folder_scan_interval_seconds": 600,  # 10 min between background re-scans
     "folder_recall_enabled": True,

@@ -23,6 +23,7 @@ const SECTIONS = [
   { id: "voice", label: "Voice & audio", icon: "🎙" },
   { id: "data", label: "Data", icon: "⬇" },
   { id: "folders", label: "Folders", icon: "📁" },
+  { id: "schedules", label: "Schedules", icon: "⏱" },
 ];
 
 export default function SettingsPanel({ onClose, theme, onThemeChange, voiceReplyEnabled, onVoiceReplyChange }) {
@@ -43,6 +44,15 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
   const [foldersError, setFoldersError] = useState(null);
   const [newFolderPath, setNewFolderPath] = useState("");
   const [scanningFolder, setScanningFolder] = useState(null);
+  const [schedules, setSchedules] = useState([]);
+  const [schedulesError, setSchedulesError] = useState(null);
+  const [newScheduleName, setNewScheduleName] = useState("");
+  const [newSchedulePrompt, setNewSchedulePrompt] = useState("");
+  const [newScheduleMode, setNewScheduleMode] = useState("chat");
+  const [newScheduleInterval, setNewScheduleInterval] = useState(1440);
+  const [runningSchedule, setRunningSchedule] = useState(null);
+  const [expandedSchedule, setExpandedSchedule] = useState(null);
+  const [scheduleRuns, setScheduleRuns] = useState({});
   const [newMemory, setNewMemory] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [promptSaving, setPromptSaving] = useState(false);
@@ -98,7 +108,68 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
     refreshMemories();
     refreshPersonas();
     refreshFolders();
+    refreshSchedules();
   }, []);
+
+  const refreshSchedules = () => {
+    api
+      .listSchedules()
+      .then((s) => {
+        setSchedules(s);
+        setSchedulesError(null);
+      })
+      .catch((err) => setSchedulesError(err.message));
+  };
+
+  const addSchedule = async () => {
+    if (!newScheduleName.trim() || !newSchedulePrompt.trim()) return;
+    try {
+      await api.createSchedule(newScheduleName.trim(), newSchedulePrompt.trim(), newScheduleMode, Number(newScheduleInterval));
+      setNewScheduleName("");
+      setNewSchedulePrompt("");
+      refreshSchedules();
+    } catch (err) {
+      setSchedulesError(err.message);
+    }
+  };
+
+  const deleteSchedule = async (id) => {
+    await api.deleteSchedule(id);
+    refreshSchedules();
+  };
+
+  const toggleSchedule = async (id, enabled) => {
+    setSchedules((s) => s.map((x) => (x.id === id ? { ...x, enabled: enabled ? 1 : 0 } : x)));
+    await api.toggleSchedule(id, enabled);
+  };
+
+  const runScheduleNow = async (id) => {
+    setRunningSchedule(id);
+    try {
+      await api.runScheduleNow(id);
+      refreshSchedules();
+      if (expandedSchedule === id) {
+        setScheduleRuns((r) => ({ ...r, [id]: undefined }));
+        toggleExpandSchedule(id, true);
+      }
+    } catch (err) {
+      setSchedulesError(err.message);
+    } finally {
+      setRunningSchedule(null);
+    }
+  };
+
+  const toggleExpandSchedule = async (id, forceOpen = false) => {
+    if (expandedSchedule === id && !forceOpen) {
+      setExpandedSchedule(null);
+      return;
+    }
+    setExpandedSchedule(id);
+    if (!scheduleRuns[id] || forceOpen) {
+      const runs = await api.listScheduleRuns(id);
+      setScheduleRuns((r) => ({ ...r, [id]: runs }));
+    }
+  };
 
   const addFolder = async () => {
     if (!newFolderPath.trim()) return;
@@ -824,6 +895,117 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
                   ))}
                   {folders.length === 0 && !foldersError && (
                     <li className="model-empty">No folders watched yet.</li>
+                  )}
+                </ul>
+              </section>
+            )}
+
+            {activeSection === "schedules" && (
+              <section className="settings-section">
+                <h3 className="settings-section-title">Scheduled turns</h3>
+                <p className="settings-section-desc">
+                  "Every morning, research X and summarize" without touching the keyboard. Each
+                  schedule gets its own conversation that keeps a running log across runs.
+                  Restricted to Chat and Deep Research modes — never Agent — since an unattended
+                  cron job running shell commands with nobody there to approve it is a real
+                  escalation, not a formality.
+                </p>
+
+                <div className="setting-row setting-row-stack">
+                  <div className="settings-row">
+                    <input
+                      className="settings-input"
+                      placeholder="Name, e.g. Morning brief"
+                      value={newScheduleName}
+                      onChange={(e) => setNewScheduleName(e.target.value)}
+                    />
+                    <select
+                      className="settings-select"
+                      style={{ flex: "0 0 140px" }}
+                      value={newScheduleMode}
+                      onChange={(e) => setNewScheduleMode(e.target.value)}
+                    >
+                      <option value="chat">Chat</option>
+                      <option value="research">Deep Research</option>
+                    </select>
+                  </div>
+                  <textarea
+                    className="settings-textarea"
+                    rows={2}
+                    placeholder="Prompt to run each time…"
+                    value={newSchedulePrompt}
+                    onChange={(e) => setNewSchedulePrompt(e.target.value)}
+                  />
+                  <div className="settings-row">
+                    <label className="setting-label" htmlFor="sched-interval" style={{ flexShrink: 0 }}>
+                      Every
+                    </label>
+                    <select
+                      id="sched-interval"
+                      className="settings-select"
+                      value={newScheduleInterval}
+                      onChange={(e) => setNewScheduleInterval(e.target.value)}
+                    >
+                      <option value={60}>hour</option>
+                      <option value={360}>6 hours</option>
+                      <option value={1440}>day</option>
+                      <option value={10080}>week</option>
+                    </select>
+                    <button className="settings-btn-primary" onClick={addSchedule}>
+                      Add schedule
+                    </button>
+                  </div>
+                </div>
+                {schedulesError && <p className="settings-error">{schedulesError}</p>}
+
+                <ul className="model-list" style={{ marginTop: "0.75rem" }}>
+                  {schedules.map((s) => (
+                    <li key={s.id} style={{ flexDirection: "column", alignItems: "stretch", opacity: s.enabled ? 1 : 0.5 }}>
+                      <div className="settings-row settings-row-space-between">
+                        <span className="model-name" style={{ flex: 1 }}>
+                          {s.name}
+                          <span className="setting-hint" style={{ display: "block" }}>
+                            {s.mode} · every {s.interval_minutes} min
+                            {s.last_run_at ? ` · last run ${new Date(s.last_run_at * 1000).toLocaleString()}` : " · never run"}
+                          </span>
+                        </span>
+                        <span className="settings-row" style={{ gap: "0.5rem" }}>
+                          <button
+                            className="text-btn"
+                            onClick={() => runScheduleNow(s.id)}
+                            disabled={runningSchedule === s.id}
+                          >
+                            {runningSchedule === s.id ? "Running…" : "Run now"}
+                          </button>
+                          <button className="text-btn" onClick={() => toggleExpandSchedule(s.id)}>
+                            History
+                          </button>
+                          <button className="text-btn" onClick={() => toggleSchedule(s.id, !s.enabled)}>
+                            {s.enabled ? "On" : "Off"}
+                          </button>
+                          <button className="icon-btn" onClick={() => deleteSchedule(s.id)} title="Delete">
+                            ×
+                          </button>
+                        </span>
+                      </div>
+                      {expandedSchedule === s.id && (
+                        <div className="tool-call-body" style={{ padding: "0.5rem 0 0" }}>
+                          {(scheduleRuns[s.id] || []).map((r) => (
+                            <pre key={r.id} className="tool-call-result" style={{ marginBottom: "0.4rem" }}>
+                              {new Date(r.started_at * 1000).toLocaleString()} — {r.status}
+                              {"\n"}
+                              {r.status === "error" ? r.error : r.summary}
+                            </pre>
+                          ))}
+                          {(scheduleRuns[s.id] || []).length === 0 && (
+                            <span className="setting-hint">No runs yet.</span>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                  {schedules.length === 0 && !schedulesError && (
+                    <li className="model-empty">No schedules yet.</li>
                   )}
                 </ul>
               </section>
