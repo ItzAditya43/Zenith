@@ -205,6 +205,20 @@
   background: var(--signal-voice-dim);
 }
 
+.persona-picker {
+  font-size: var(--text-xs);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  cursor: pointer;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  max-width: 160px;
+}
+
 .banner-error {
   display: flex;
   align-items: center;

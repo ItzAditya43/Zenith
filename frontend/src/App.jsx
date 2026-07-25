@@ -24,6 +24,7 @@ export default function App() {
     () => localStorage.getItem("cortex-theme") || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
   );
   const [agentAvailable, setAgentAvailable] = useState(false);
+  const [personas, setPersonas] = useState([]);
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
   const abortRef = useRef(null);
@@ -36,7 +37,20 @@ export default function App() {
 
   useEffect(() => {
     api.getConfig().then((c) => setAgentAvailable(!!c.agent_enabled)).catch(() => {});
+    api.listPersonas().then(setPersonas).catch(() => {});
   }, []);
+
+  const handlePersonaChange = async (personaId) => {
+    if (!activeId) return;
+    setConversations((cs) =>
+      cs.map((c) => (c.id === activeId ? { ...c, persona_id: personaId } : c))
+    );
+    try {
+      await api.setConversationPersona(activeId, personaId);
+    } catch {
+      /* best-effort — a failed persona switch isn't worth blocking on */
+    }
+  };
 
   useEffect(() => {
     api
@@ -461,6 +475,22 @@ export default function App() {
           </button>
           <h1>{activeConversation?.title || "Cortex"}</h1>
           <div className="header-actions">
+            {personas.length > 0 && (
+              <select
+                className="persona-picker"
+                value={activeConversation?.persona_id || ""}
+                onChange={(e) => handlePersonaChange(e.target.value || null)}
+                title="Persona for this conversation"
+              >
+                <option value="">No persona</option>
+                {personas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.icon ? `${p.icon} ` : ""}
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               className={`theme-toggle ${theme === "light" ? "theme-toggle-light" : ""}`}
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}

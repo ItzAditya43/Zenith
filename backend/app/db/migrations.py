@@ -165,6 +165,118 @@ def _tool_calls_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _personas_table(conn: sqlite3.Connection) -> None:
+    """Named, switchable system-prompt presets ("coding buddy", "blunt
+    editor") — an alternative to the one global system prompt. A
+    conversation with persona_id set uses that persona's prompt instead
+    of the global one."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS personas (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            icon TEXT,
+            system_prompt TEXT NOT NULL,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+    cur = conn.cursor()
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(conversations)").fetchall()]
+    if "persona_id" not in cols:
+        cur.execute("ALTER TABLE conversations ADD COLUMN persona_id TEXT")
+
+
+def _message_branching(conn: sqlite3.Connection) -> None:
+    """`parent_id` + `branch_root_id` let a conversation hold multiple
+    branches: editing or regenerating a message creates a sibling under
+    the same parent instead of overwriting history. `active` marks which
+    sibling is currently shown in the linear view."""
+    cur = conn.cursor()
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(messages)").fetchall()]
+    if "parent_id" not in cols:
+        cur.execute("ALTER TABLE messages ADD COLUMN parent_id TEXT")
+    if "active" not in cols:
+        cur.execute("ALTER TABLE messages ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id)")
+
+
+def _watched_folders_table(conn: sqlite3.Connection) -> None:
+    """Folders Cortex periodically re-scans and indexes into the RAG
+    store, so a notes vault or repo stays searchable without manual
+    upload-per-file."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS watched_folders (
+            id TEXT PRIMARY KEY,
+            path TEXT NOT NULL UNIQUE,
+            extensions TEXT NOT NULL DEFAULT '.md,.txt,.py,.js,.ts,.json',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            last_scanned_at REAL,
+            created_at REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS watched_files (
+            path TEXT PRIMARY KEY,
+            folder_id TEXT NOT NULL,
+            mtime REAL NOT NULL,
+            indexed_at REAL NOT NULL
+        );
+        """
+    )
+
+
+def _schedules_table(conn: sqlite3.Connection) -> None:
+    """Recurring autonomous turns ("every morning, research X and
+    summarize") — a lightweight interval scheduler, not full cron syntax,
+    intentionally: one number (minutes) is enough for a personal tool and
+    needs no parser."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS schedules (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            prompt TEXT NOT NULL,
+            mode TEXT NOT NULL DEFAULT 'chat',
+            interval_minutes INTEGER NOT NULL,
+            conversation_id TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            last_run_at REAL,
+            next_run_at REAL,
+            created_at REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS schedule_runs (
+            id TEXT PRIMARY KEY,
+            schedule_id TEXT NOT NULL,
+            started_at REAL NOT NULL,
+            finished_at REAL,
+            status TEXT NOT NULL DEFAULT 'running',
+            summary TEXT,
+            error TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_schedule_runs_schedule ON schedule_runs(schedule_id);
+        """
+    )
+
+
+def _mcp_servers_table(conn: sqlite3.Connection) -> None:
+    """Configured MCP servers (run as local subprocesses over stdio — no
+    hosted/paid MCP services involved). Each server's advertised tools
+    get merged into the agent loop's tool set at runtime."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS mcp_servers (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            command TEXT NOT NULL,
+            args TEXT NOT NULL DEFAULT '[]',
+            env TEXT NOT NULL DEFAULT '{}',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
 # Ordered list — never reorder, only append.
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "baseline", _baseline),
@@ -172,6 +284,11 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (3, "fts5_index", _fts5_index),
     (4, "memories_table", _memories_table),
     (5, "tool_calls_table", _tool_calls_table),
+    (6, "personas_table", _personas_table),
+    (7, "message_branching", _message_branching),
+    (8, "watched_folders_table", _watched_folders_table),
+    (9, "schedules_table", _schedules_table),
+    (10, "mcp_servers_table", _mcp_servers_table),
 ]
 
 

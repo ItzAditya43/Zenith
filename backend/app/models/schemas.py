@@ -93,3 +93,19 @@ class MemoryCreate(StrictModel):
 
 class MemoryToggle(StrictModel):
     enabled: bool
+
+
+class PersonaCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=60)
+    system_prompt: str = Field(min_length=1, max_length=8000)
+    icon: Optional[str] = Field(default=None, max_length=8)
+
+
+class PersonaUpdate(StrictModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    system_prompt: Optional[str] = Field(default=None, min_length=1, max_length=8000)
+    icon: Optional[str] = Field(default=None, max_length=8)
+
+
+class ConversationPersonaSet(StrictModel):
+    persona_id: Optional[str] = None

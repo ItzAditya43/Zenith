@@ -11,7 +11,14 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.rate_limit import conversation_lock
 from app.db import storage
-from app.models.schemas import ChatRequest, ConversationCreate, ConversationRename
+from app.models.schemas import (
+    ChatRequest,
+    ConversationCreate,
+    ConversationPersonaSet,
+    ConversationRename,
+    PersonaCreate,
+    PersonaUpdate,
+)
 from app.services.ollama_client import OllamaClient, OllamaError
 from app.services.orchestrator import build_turn_context, run_turn
 from app.services.router import ModelRouter
@@ -59,6 +66,43 @@ async def generate_title(conversation_id: str, body: ConversationRename):
     if title:
         storage.rename_conversation(conversation_id, title)
     return {"title": title}
+
+
+@router.patch("/conversations/{conversation_id}/persona")
+async def set_conversation_persona(conversation_id: str, body: ConversationPersonaSet):
+    from app.services import persona_service
+    if body.persona_id and not persona_service.get_persona(body.persona_id):
+        raise HTTPException(404, "No such persona.")
+    persona_service.set_conversation_persona(conversation_id, body.persona_id)
+    return {"ok": True}
+
+
+@router.get("/personas")
+async def list_personas():
+    from app.services import persona_service
+    return persona_service.list_personas()
+
+
+@router.post("/personas")
+async def create_persona(body: PersonaCreate):
+    from app.services import persona_service
+    return persona_service.create_persona(body.name, body.system_prompt, body.icon)
+
+
+@router.patch("/personas/{persona_id}")
+async def update_persona(persona_id: str, body: PersonaUpdate):
+    from app.services import persona_service
+    if not persona_service.get_persona(persona_id):
+        raise HTTPException(404, "No such persona.")
+    persona_service.update_persona(persona_id, body.name, body.system_prompt, body.icon)
+    return {"ok": True}
+
+
+@router.delete("/personas/{persona_id}")
+async def delete_persona(persona_id: str):
+    from app.services import persona_service
+    persona_service.delete_persona(persona_id)
+    return {"ok": True}
 
 
 @router.delete("/conversations/{conversation_id}")
