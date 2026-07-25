@@ -351,6 +351,34 @@
   background: var(--bg-inset);
   border: 1px solid var(--border-hairline);
   color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.doc-chip-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+.doc-chip-edit-btn {
+  color: var(--text-tertiary);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+}
+.doc-chip-edit-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-panel-raised);
+}
+.doc-chip-edit-btn:disabled {
+  opacity: 0.5;
+}
+.doc-chip-result {
+  font-size: var(--text-xs);
+  color: var(--signal-voice, #50c878);
+}
+.doc-chip-error {
+  color: var(--signal-danger, #e5484d);
 }
 
 .msg-sources {

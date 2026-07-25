@@ -114,6 +114,14 @@ export const api = {
 
   exportUrl: (format) => `${BASE}/api/export/${format}`,
 
+  editDocument: (attachmentId, instruction) =>
+    request(`/api/documents/${attachmentId}/edit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction }),
+    }).then((r) => r.json()),
+  attachmentDownloadUrl: (attachmentId) => `${BASE}/api/attachments/${attachmentId}/download`,
+
   listBranches: (conversationId) =>
     request(`/api/conversations/${conversationId}/branches`).then((r) => r.json()),
   activateBranch: (conversationId, messageId) =>
