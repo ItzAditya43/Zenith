@@ -138,6 +138,23 @@ export const api = {
   removeFolder: (id) => request(`/api/folders/${id}`, { method: "DELETE" }),
   scanFolderNow: (id) => request(`/api/folders/${id}/scan`, { method: "POST" }).then((r) => r.json()),
 
+  listSchedules: () => request("/api/schedules").then((r) => r.json()),
+  createSchedule: (name, prompt, mode, intervalMinutes) =>
+    request("/api/schedules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, prompt, mode, interval_minutes: intervalMinutes }),
+    }).then((r) => r.json()),
+  toggleSchedule: (id, enabled) =>
+    request(`/api/schedules/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }),
+  deleteSchedule: (id) => request(`/api/schedules/${id}`, { method: "DELETE" }),
+  listScheduleRuns: (id) => request(`/api/schedules/${id}/runs`).then((r) => r.json()),
+  runScheduleNow: (id) => request(`/api/schedules/${id}/run-now`, { method: "POST" }).then((r) => r.json()),
+
   listBranches: (conversationId) =>
     request(`/api/conversations/${conversationId}/branches`).then((r) => r.json()),
   activateBranch: (conversationId, messageId) =>
