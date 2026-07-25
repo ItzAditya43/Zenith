@@ -30,8 +30,10 @@
   --glass-border: rgba(148, 163, 184, 0.16);
   --glass-blur: 22px;
 
-  /* Text */
-  --text-primary: #e8eaf2;
+  /* Text — kept just short of pure white against the near-black base;
+     max contrast reads harsher and is more fatiguing over long sessions
+     than a slightly softened value at the same apparent brightness. */
+  --text-primary: #dde1ea;
   --text-secondary: #9aa3b8;
   --text-tertiary: #626b81;
   --text-on-accent: #06090f;
@@ -88,6 +90,10 @@
   --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.35);
   --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.45);
   --shadow-glow: 0 0 0 1px var(--border-soft), 0 8px 30px rgba(0, 0, 0, 0.35);
+
+  /* Static background depth (replaces the old animated particle field) */
+  --bg-glow-1: rgba(77, 217, 192, 0.05);
+  --bg-glow-2: rgba(139, 127, 232, 0.045);
 }
 
 /* ============ Light theme ============
@@ -128,6 +134,9 @@
   --shadow-panel: 0 8px 32px rgba(15, 23, 42, 0.08);
   --shadow-float: 0 24px 60px rgba(15, 23, 42, 0.14);
   --shadow-glow: 0 0 0 1px var(--border-soft), 0 10px 30px rgba(15, 23, 42, 0.10);
+
+  --bg-glow-1: rgba(15, 184, 156, 0.05);
+  --bg-glow-2: rgba(109, 95, 224, 0.045);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -10,7 +10,13 @@ html, body, #root {
 
 body {
   margin: 0;
-  background: var(--bg-void);
+  /* Static depth, not motion: a soft, fixed radial gradient reads as an
+     instrument panel rather than a flat webpage, without the sustained
+     peripheral motion of the old animated background. */
+  background:
+    radial-gradient(ellipse 1200px 800px at 15% -10%, var(--bg-glow-1), transparent 60%),
+    radial-gradient(ellipse 900px 700px at 100% 100%, var(--bg-glow-2), transparent 55%),
+    var(--bg-void);
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: var(--text-base);

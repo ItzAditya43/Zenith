@@ -93,6 +93,18 @@
   flex-direction: column;
   gap: 2px;
 }
+.conversation-group + .conversation-group {
+  margin-top: var(--space-3);
+}
+.conversation-group-label {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-3);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
 .conversation-item {
   display: flex;
   align-items: center;
@@ -292,7 +304,7 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
   font-size: var(--text-base);
-  line-height: 1.6;
+  line-height: 1.65;
 }
 .msg-bubble-user {
   background: var(--bg-panel-raised);
@@ -300,10 +312,16 @@
   border-bottom-right-radius: var(--radius-sm);
 }
 .msg-bubble-assistant {
-  background: transparent;
-  padding-left: 0;
-  padding-right: 0;
+  /* A real surface, not floating text — but light-touch: a whisper
+     background tint plus a signal-colored left edge (same color the
+     model badge and cursor already use) gives the eye an anchor and a
+     quiet "which capability answered" cue, without a heavy boxed-in
+     bubble look. */
   max-width: 74ch;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hairline);
+  border-left: 2px solid var(--signal, var(--border-soft));
+  border-radius: var(--radius-md);
 }
 
 .msg-content p {
@@ -497,21 +515,89 @@
   background: var(--signal-voice-dim);
   animation: pulse-mic 1.4s ease-in-out infinite;
 }
-.search-toggle-btn.is-active {
+/* ============ Composer mode picker ============
+   Replaces the old row of unlabeled toggle icons (search/research/
+   agent/council) with one labeled control — clearer, and scales to
+   more modes without the composer turning into icon soup. */
+.mode-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+.mode-picker-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  transition: background var(--dur-fast), color var(--dur-fast);
+  white-space: nowrap;
+}
+.mode-picker-btn:hover {
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+}
+.mode-picker-btn.is-active {
   color: var(--signal-general);
   background: var(--signal-general-dim);
 }
-.agent-toggle-btn.is-active {
-  color: var(--signal-danger, #e5484d);
-  background: var(--signal-danger-dim, rgba(229, 72, 77, 0.12));
+.mode-picker-label {
+  font-weight: 500;
 }
-.research-toggle-btn.is-active {
-  color: var(--signal-voice, #50c878);
-  background: var(--signal-voice-dim, rgba(80, 200, 120, 0.15));
+.mode-picker-caret {
+  font-size: 0.6em;
+  opacity: 0.6;
+  margin-left: 2px;
 }
-.council-toggle-btn.is-active {
-  color: var(--signal-reasoning, #a855f7);
-  background: var(--signal-reasoning-dim, rgba(168, 85, 247, 0.15));
+.mode-picker-menu {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 0;
+  width: 280px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: var(--space-2);
+  z-index: 20;
+  list-style: none;
+  margin: 0;
+}
+.mode-picker-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition: background var(--dur-fast);
+}
+.mode-picker-option:hover {
+  background: var(--bg-panel-raised);
+}
+.mode-picker-option.is-selected {
+  background: var(--signal-general-dim);
+}
+.mode-picker-option-icon {
+  font-size: 1.1em;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.mode-picker-option-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.mode-picker-option-hint {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  line-height: 1.4;
+  margin-top: 1px;
 }
 
 /* ============ Agent tool-call cards ============ */
