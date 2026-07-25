@@ -63,6 +63,8 @@ export const api = {
       body: JSON.stringify({ persona_id: personaId }),
     }),
 
+  exportUrl: (format) => `${BASE}/api/export/${format}`,
+
   listMemories: () => request("/api/memories").then((r) => r.json()),
   addMemory: (content, category = "fact") =>
     request("/api/memories", {

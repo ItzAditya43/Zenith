@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent, chat, memory, system, upload, voice
+from app.api import agent, chat, export, memory, system, upload, voice
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.storage import init_db
@@ -162,6 +162,7 @@ if bool(settings.get("auth_enabled", False)) and settings.get("auth_shared_secre
 app.include_router(chat.router)
 app.include_router(memory.router)
 app.include_router(agent.router)
+app.include_router(export.router)
 app.include_router(upload.router)
 app.include_router(voice.router)
 app.include_router(system.router)
