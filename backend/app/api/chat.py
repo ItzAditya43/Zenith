@@ -16,6 +16,7 @@ from app.models.schemas import (
     ConversationCreate,
     ConversationPersonaSet,
     ConversationRename,
+    CouncilRequest,
     PersonaCreate,
     PersonaUpdate,
 )
@@ -374,6 +375,38 @@ async def chat(body: ChatRequest, request: Request):
             yield _sse({"type": "error", "message": str(exc)})
 
     return StreamingResponse(guarded_gen(), media_type="text/event-stream")
+
+
+@router.post("/council")
+async def council(body: CouncilRequest):
+    """Server-Sent Events stream, one turn fanned out to several models
+    concurrently instead of routed to one. Each event is one of:
+      {"type": "council_start", "models": [...]}
+      {"type": "council_token", "model": ..., "text": ...}
+      {"type": "council_error", "model": ..., "message": ...}
+      {"type": "council_done", "model": ..., "text": ..., "message_id": ...}
+      {"type": "done"}
+      {"type": "error", "message": ...}
+
+    Results persist as branch siblings under the same user message (see
+    council_service.py) — the chat UI's existing branch switcher is how
+    you pick which model's answer to keep."""
+    from app.services import council_service
+
+    async def council_guarded_gen():
+        try:
+            async with conversation_lock(body.conversation_id):
+                async for ev in council_service.run_council(
+                    body.conversation_id, body.message, body.attachment_ids, body.models,
+                ):
+                    yield _sse(ev)
+        except TimeoutError as exc:
+            yield _sse({"type": "error", "message": str(exc)})
+        except Exception as exc:
+            log.error("council.failed", error=str(exc))
+            yield _sse({"type": "error", "message": str(exc)})
+
+    return StreamingResponse(council_guarded_gen(), media_type="text/event-stream")
 
 
 async def _agent_event_gen(body: ChatRequest, request: Request) -> AsyncIterator[str]:

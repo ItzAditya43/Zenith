@@ -15,6 +15,55 @@ async function request(path, options = {}) {
   return res;
 }
 
+async function streamSSE(path, body, onEvent, signal) {
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+    onEvent({ type: "error", message: `Network error: ${err.message || err}` });
+    return;
+  }
+  if (!res.ok || !res.body) {
+    let detail = res.statusText;
+    try {
+      detail = (await res.json()).detail || detail;
+    } catch (_) {}
+    onEvent({ type: "error", message: detail });
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data:")) continue;
+        try {
+          onEvent(JSON.parse(line.slice(5).trim()));
+        } catch (_) {
+          /* ignore malformed chunk */
+        }
+      }
+    }
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+    onEvent({ type: "error", message: `Stream interrupted: ${err.message || err}` });
+  }
+}
+
 export const api = {
   base: BASE,
 
@@ -148,61 +197,35 @@ export const api = {
     onEvent,
     signal
   ) {
-    let res;
-    try {
-      res = await fetch(`${BASE}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversation_id: conversationId,
-          message,
-          attachment_ids: attachmentIds,
-          web_search: webSearch,
-          agent_mode_on: agentMode,
-          deep_research: deepResearch,
-          ...(editOf ? { edit_of: editOf } : {}),
-          ...(regenerateOf ? { regenerate_of: regenerateOf } : {}),
-        }),
-        signal,
-      });
-    } catch (err) {
-      // Network/AbortError path. Don't conflate user-cancel with a real error.
-      if (err && err.name === "AbortError") return;
-      onEvent({ type: "error", message: `Network error: ${err.message || err}` });
-      return;
-    }
-    if (!res.ok || !res.body) {
-      let detail = res.statusText;
-      try {
-        detail = (await res.json()).detail || detail;
-      } catch (_) {}
-      onEvent({ type: "error", message: detail });
-      return;
-    }
+    await streamSSE(
+      "/api/chat",
+      {
+        conversation_id: conversationId,
+        message,
+        attachment_ids: attachmentIds,
+        web_search: webSearch,
+        agent_mode_on: agentMode,
+        deep_research: deepResearch,
+        ...(editOf ? { edit_of: editOf } : {}),
+        ...(regenerateOf ? { regenerate_of: regenerateOf } : {}),
+      },
+      onEvent,
+      signal
+    );
+  },
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop();
-        for (const part of parts) {
-          const line = part.trim();
-          if (!line.startsWith("data:")) continue;
-          try {
-            onEvent(JSON.parse(line.slice(5).trim()));
-          } catch (_) {
-            /* ignore malformed chunk */
-          }
-        }
-      }
-    } catch (err) {
-      if (err && err.name === "AbortError") return;
-      onEvent({ type: "error", message: `Stream interrupted: ${err.message || err}` });
-    }
+  /**
+   * Council of models: one turn, several models concurrently. Events:
+   * "council_start" | "council_token" | "council_error" | "council_done"
+   * | "done" | "error". Results persist as branch siblings — see
+   * council_service.py.
+   */
+  async streamCouncil({ conversationId, message, attachmentIds, models }, onEvent, signal) {
+    await streamSSE(
+      "/api/council",
+      { conversation_id: conversationId, message, attachment_ids: attachmentIds, models },
+      onEvent,
+      signal
+    );
   },
 };
