@@ -158,6 +158,23 @@ async def _build_system_context(conversation_id: str, user_text: str) -> str:
                 )
         except Exception as exc:
             log.debug("orchestrator.recall_failed", error=str(exc))
+    if bool(settings.get("folder_recall_enabled", True)) and len(user_text.strip()) >= 12:
+        try:
+            from app.services import rag_service
+            hits = await asyncio.to_thread(
+                rag_service.retrieve,
+                user_text, None, int(settings.get("folder_recall_top_k", 3)), "folder",
+            )
+            if hits:
+                rendered = "\n\n".join(
+                    f"[{h['source_id']}]\n{h['text'][:600]}" for h in hits
+                )
+                parts.append(
+                    "Possibly relevant content from your watched folders "
+                    "(ignore if not relevant):\n" + rendered
+                )
+        except Exception as exc:
+            log.debug("orchestrator.folder_recall_failed", error=str(exc))
     return "\n\n".join(parts)
 
 

@@ -87,6 +87,9 @@ class ConfigPatch(StrictModel):
     agent_approval_timeout_seconds: Optional[int] = Field(default=None, ge=30, le=3600)
     research_max_iterations: Optional[int] = Field(default=None, ge=2, le=30)
     council_models: Optional[list[str]] = Field(default=None, max_length=6)
+    folder_scan_interval_seconds: Optional[int] = Field(default=None, ge=60, le=86400)
+    folder_recall_enabled: Optional[bool] = None
+    folder_recall_top_k: Optional[int] = Field(default=None, ge=1, le=10)
 
 
 class MemoryCreate(StrictModel):
@@ -119,3 +122,12 @@ class CouncilRequest(StrictModel):
     message: str
     attachment_ids: list[str] = []
     models: list[str] = Field(min_length=1, max_length=6)
+
+
+class WatchedFolderCreate(StrictModel):
+    path: str = Field(min_length=1, max_length=1000)
+    extensions: Optional[str] = Field(default=None, max_length=200)
+
+
+class WatchedFolderToggle(StrictModel):
+    enabled: bool

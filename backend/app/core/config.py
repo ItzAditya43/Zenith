@@ -129,6 +129,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "agent_command_timeout_seconds": 60,
     "agent_output_max_chars": 4000,  # cap per tool result fed back to the model
     "agent_approval_timeout_seconds": 600,  # auto-deny if you don't respond
+    # --- Folder watcher ---
+    "folder_scan_interval_seconds": 600,  # 10 min between background re-scans
+    "folder_recall_enabled": True,
+    "folder_recall_top_k": 3,
     # --- Council of models ---
     "council_models": [],  # model names to query together when Council mode is on
     # --- Deep Research (multi-step search/read/synthesize) ---
