@@ -62,12 +62,13 @@ TOOLS: dict[str, dict[str, str]] = {
     "fetch_url": {"description": "Fetch and extract the readable text of a URL. Args: url (string)."},
 }
 
-_SYSTEM_PROMPT = """You are Cortex operating in agent mode: you can use tools across multiple
+_SYSTEM_PROMPT_HEADER = """You are Cortex operating in agent mode: you can use tools across multiple
 steps to satisfy the user's request, instead of answering from memory alone.
 
 Available tools:
-""" + "\n".join(f"- {name}: {spec['description']}" for name, spec in TOOLS.items()) + """
+"""
 
+_SYSTEM_PROMPT_FOOTER = """
 Respond with EXACTLY ONE JSON object and nothing else — no prose, no markdown fence:
   To call a tool:      {"tool": "<name>", "args": {...}}
   To give a final answer: {"final": "<answer text, written for the user>"}
@@ -78,6 +79,15 @@ Rules:
 - Never invent a tool result — wait for the real one.
 - Once you have enough information, stop and return {"final": ...}. Don't over-explore.
 """
+
+
+def _build_system_prompt(mcp_tools: list[dict]) -> str:
+    """Built per-turn rather than a module constant: MCP tools come from
+    whatever servers are enabled right now, discovered fresh each turn
+    since they can be added/removed from Settings between conversations."""
+    lines = [f"- {name}: {spec['description']}" for name, spec in TOOLS.items()]
+    lines += [f"- {t['agent_tool_name']}: {t['description']}" for t in mcp_tools]
+    return _SYSTEM_PROMPT_HEADER + "\n".join(lines) + _SYSTEM_PROMPT_FOOTER
 
 _SAFE_BASH_CMDS = {
     "ls", "cat", "pwd", "echo", "grep", "find", "head", "tail", "wc",
@@ -313,6 +323,10 @@ async def run_agent_turn(
     history = storage.get_messages(conversation_id)
     system_text = await _build_system_context(conversation_id, user_text)
 
+    from app.services import mcp_service
+    mcp_tools = await mcp_service.list_all_tools()
+    mcp_by_name = {t["agent_tool_name"]: t for t in mcp_tools}
+
     router = ModelRouter()
     decision: RouteDecision = await router.decide(
         text=user_text, has_image=ctx.has_image, has_video=ctx.has_video,
@@ -328,7 +342,9 @@ async def run_agent_turn(
     yield {"type": "route", "model": decision.model, "role": decision.role,
            "reason": decision.reason, "confidence": decision.confidence}
 
-    system = _SYSTEM_PROMPT + (f"\n\nContext about this user:\n{system_text}" if system_text else "")
+    system = _build_system_prompt(mcp_tools) + (
+        f"\n\nContext about this user:\n{system_text}" if system_text else ""
+    )
     trimmed_history = [
         {"role": m["role"], "content": m["content"]}
         for m in history[-int(settings.get("max_context_messages", 24)):]
@@ -361,9 +377,10 @@ async def run_agent_turn(
 
         tool = str(step.get("tool", ""))
         args = step.get("args", {}) if isinstance(step.get("args"), dict) else {}
-        if tool not in TOOLS:
+        if tool not in TOOLS and tool not in mcp_by_name:
             loop_messages.append({"role": "assistant", "content": json.dumps(step)})
-            loop_messages.append({"role": "user", "content": f"Error: unknown tool '{tool}'. Choose one of: {', '.join(TOOLS)}."})
+            allowed = ", ".join(list(TOOLS) + list(mcp_by_name))
+            loop_messages.append({"role": "user", "content": f"Error: unknown tool '{tool}'. Choose one of: {allowed}."})
             continue
 
         risk = classify_risk(tool, args)
@@ -381,7 +398,15 @@ async def run_agent_turn(
                 loop_messages.append({"role": "user", "content": "Tool call denied by the user. Try a different approach or give a final answer."})
                 continue
 
-        result = await _execute_tool(tool, args, cmd_timeout, max_chars)
+        if tool in mcp_by_name:
+            mcp_tool = mcp_by_name[tool]
+            server = mcp_service.get_server(mcp_tool["server_id"])
+            result = (
+                await mcp_service.call_tool(server, mcp_tool["tool_name"], args, max_chars)
+                if server else f"Error: MCP server '{mcp_tool['server_name']}' is no longer configured."
+            )
+        else:
+            result = await _execute_tool(tool, args, cmd_timeout, max_chars)
         _resolve_call(call_id, "executed", result)
         yield {"type": "tool_result", "id": call_id, "tool": tool, "result": result}
 

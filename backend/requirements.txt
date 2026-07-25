@@ -1,7 +1,15 @@
 fastapi==0.115.6
+# mcp pulls in a newer starlette that breaks fastapi's pin; pinned here
+# explicitly so a future `pip install` doesn't silently re-break it.
+# (mcp also pulls sse-starlette for ITS server-side SSE transport, which
+# we don't use — only the stdio client — so that conflict is harmless.)
+starlette>=0.40.0,<0.42.0
 uvicorn[standard]==0.34.0
+mcp==1.28.1
 httpx==0.28.1
-pydantic==2.10.4
+# mcp requires pydantic>=2.11; bumped from 2.10.4 for that (fastapi 0.115.6
+# is fine with anything <3.0.0, so this is a safe bump, not a downgrade risk).
+pydantic==2.13.4
 python-multipart==0.0.20
 pypdf==5.1.0
 python-docx==1.1.2

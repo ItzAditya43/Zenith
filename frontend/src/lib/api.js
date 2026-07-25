@@ -155,6 +155,22 @@ export const api = {
   listScheduleRuns: (id) => request(`/api/schedules/${id}/runs`).then((r) => r.json()),
   runScheduleNow: (id) => request(`/api/schedules/${id}/run-now`, { method: "POST" }).then((r) => r.json()),
 
+  listMcpServers: () => request("/api/mcp/servers").then((r) => r.json()),
+  addMcpServer: (name, command, args = [], env = {}) =>
+    request("/api/mcp/servers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, command, args, env }),
+    }).then((r) => r.json()),
+  toggleMcpServer: (id, enabled) =>
+    request(`/api/mcp/servers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }),
+  removeMcpServer: (id) => request(`/api/mcp/servers/${id}`, { method: "DELETE" }),
+  getMcpServerTools: (id) => request(`/api/mcp/servers/${id}/tools`).then((r) => r.json()),
+
   listBranches: (conversationId) =>
     request(`/api/conversations/${conversationId}/branches`).then((r) => r.json()),
   activateBranch: (conversationId, messageId) =>
