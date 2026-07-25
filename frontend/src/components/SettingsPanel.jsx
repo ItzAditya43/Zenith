@@ -20,6 +20,7 @@ const SECTIONS = [
   { id: "routing", label: "Model routing", icon: "⇄" },
   { id: "models", label: "Installed models", icon: "▦" },
   { id: "voice", label: "Voice & audio", icon: "🎙" },
+  { id: "data", label: "Data", icon: "⬇" },
 ];
 
 export default function SettingsPanel({ onClose, theme, onThemeChange, voiceReplyEnabled, onVoiceReplyChange }) {
@@ -632,6 +633,42 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
                     <option value="piper">Piper (offline, neural)</option>
                     <option value="pyttsx3">System voice (fallback)</option>
                   </select>
+                </div>
+              </section>
+            )}
+
+            {activeSection === "data" && (
+              <section className="settings-section">
+                <h3 className="settings-section-title">Data</h3>
+                <p className="settings-section-desc">
+                  Everything Cortex knows about you, in a format you can actually read and keep
+                  — no lock-in. Downloads run locally against your own backend.
+                </p>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Export as JSON</span>
+                    <span className="setting-hint">
+                      Complete, machine-readable — every conversation, message, memory, and
+                      persona.
+                    </span>
+                  </div>
+                  <a className="settings-btn-primary" href={api.exportUrl("json")} download>
+                    Download .json
+                  </a>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Export as Markdown</span>
+                    <span className="setting-hint">
+                      One readable .md file per conversation, zipped — good for archiving or
+                      reading outside Cortex.
+                    </span>
+                  </div>
+                  <a className="settings-btn-primary" href={api.exportUrl("markdown")} download>
+                    Download .zip
+                  </a>
                 </div>
               </section>
             )}
