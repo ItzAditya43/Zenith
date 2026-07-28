@@ -16,6 +16,7 @@ from app.models.schemas import (
     ConversationCreate,
     ConversationPersonaSet,
     ConversationRename,
+    ConversationWorkdirSet,
     CouncilRequest,
     PersonaCreate,
     PersonaUpdate,
@@ -96,6 +97,28 @@ async def set_conversation_persona(conversation_id: str, body: ConversationPerso
 async def list_personas():
     from app.services import persona_service
     return persona_service.list_personas()
+
+
+@router.patch("/conversations/{conversation_id}/workdir")
+async def set_conversation_workdir(conversation_id: str, body: ConversationWorkdirSet):
+    """Binds this conversation to a project directory — agent mode's
+    bash cwd and relative file paths resolve against it, so you don't
+    repeat the full path every message. Validated the same way a
+    watched folder is (must exist, must be a directory, on whatever
+    filesystem the backend process can see)."""
+    from pathlib import Path
+
+    if body.workdir:
+        p = Path(body.workdir).expanduser()
+        if not p.exists() or not p.is_dir():
+            raise HTTPException(
+                400, f"Not a directory (or not visible to the backend process): {body.workdir}"
+            )
+        resolved = str(p.resolve())
+    else:
+        resolved = None
+    storage.set_conversation_workdir(conversation_id, resolved)
+    return {"ok": True, "workdir": resolved}
 
 
 @router.post("/personas")
