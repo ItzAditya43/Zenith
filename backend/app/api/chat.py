@@ -139,6 +139,7 @@ async def chat(body: ChatRequest, request: Request):
       {"type": "route", "model": ..., "role": ..., "reason": ...}
       {"type": "sources", "sources": [{"url":..., "title":...}, ...]}
       {"type": "tool_call"/"tool_pending"/"tool_result"/"tool_denied", ...}  (agent/research modes)
+      {"type": "memory_saved", "facts": ["...", ...]}  (only when something new was remembered)
       {"type": "token", "text": ...}
       {"type": "downgrade", "from": ..., "to": ..., "reason": ...}
       {"type": "done"}
@@ -341,15 +342,22 @@ async def chat(body: ChatRequest, request: Request):
         except Exception as exc:
             log.warning("chat.rag_index_failed", error=str(exc))
 
-        # Long-term memory: extract durable facts from the user's message
-        # in the background (small model, fire-and-forget).
+        # Long-term memory: extract durable facts from the user's message.
+        # Awaited (not fire-and-forget) so the UI can show what was
+        # actually remembered — previously this ran invisibly in the
+        # background with zero user-facing feedback. Small/fast model,
+        # short prompt, so the added latency is minor; best-effort
+        # throughout, a failure here never blocks the turn finishing.
         try:
             from app.services import memory_service
-            asyncio.create_task(
-                memory_service.extract_from_text(body.message, body.conversation_id)
-            )
+            added = await memory_service.extract_from_text(body.message, body.conversation_id)
+            if added:
+                yield _sse({
+                    "type": "memory_saved",
+                    "facts": [m["content"] for m in added],
+                })
         except Exception as exc:
-            log.debug("chat.memory_extract_spawn_failed", error=str(exc))
+            log.debug("chat.memory_extract_failed", error=str(exc))
 
         # Phase 6 #4: auto-generate a conversation title after the first
         # assistant response (fire-and-forget — don't block the SSE close).

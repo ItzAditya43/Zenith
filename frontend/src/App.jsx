@@ -3,6 +3,8 @@ import Sidebar from "./components/Sidebar";
 import Composer from "./components/Composer";
 import MessageBubble from "./components/MessageBubble";
 import SettingsPanel from "./components/SettingsPanel";
+import CommandPalette from "./components/CommandPalette";
+import ToastStack from "./components/ToastStack";
 import { api } from "./lib/api";
 
 export default function App() {
@@ -20,10 +22,21 @@ export default function App() {
   const [theme, setTheme] = useState(
     () => localStorage.getItem("cortex-theme") || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
   );
+  const [density, setDensity] = useState(() => localStorage.getItem("cortex-density") || "comfortable");
+  const [focusMode, setFocusMode] = useState(false);
   const [agentAvailable, setAgentAvailable] = useState(false);
   const [councilModels, setCouncilModels] = useState([]);
   const [personas, setPersonas] = useState([]);
   const [branches, setBranches] = useState({});
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = (message, type = "info", duration) => {
+    const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setToasts((t) => [...t, { id, message, type, duration }]);
+  };
+  const dismissToast = (id) => setToasts((t) => t.filter((x) => x.id !== id));
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
   const abortRef = useRef(null);
@@ -33,6 +46,11 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("cortex-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-density", density);
+    localStorage.setItem("cortex-density", density);
+  }, [density]);
 
   useEffect(() => {
     api.getConfig().then((c) => {
@@ -70,9 +88,27 @@ export default function App() {
       .catch((err) => setConnectionError(err.message));
   }, []);
 
+  const [isNearBottom, setIsNearBottom] = useState(true);
+
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    // Don't yank the view back down if the user has deliberately
+    // scrolled up to (re)read something while a reply keeps streaming in.
+    if (isNearBottom) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    }
   }, [messages]);
+
+  const handleChatScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setIsNearBottom(distanceFromBottom < 120);
+  };
+
+  const scrollToBottom = () => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    setIsNearBottom(true);
+  };
 
   // Keyboard shortcuts (Tier 6 #6) — skip when typing in inputs
   useEffect(() => {
@@ -80,13 +116,23 @@ export default function App() {
       const tag = e.target.tagName;
       const isInput = tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable;
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        if (isInput) return; // let native Cmd+K (e.g. in sidebar search) pass through
         e.preventDefault();
-        document.getElementById("sidebar-search")?.focus();
+        setCommandPaletteOpen((v) => !v);
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         // Send is handled in Composer; this is a no-op placeholder for focus.
+      } else if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+        e.preventDefault();
+        setFocusMode((v) => !v);
       } else if (e.key === "Escape") {
+        if (commandPaletteOpen) {
+          setCommandPaletteOpen(false);
+          return;
+        }
+        if (focusMode) {
+          setFocusMode(false);
+          return;
+        }
         if (isInput) return; // let inputs handle Escape themselves (blur, etc.)
         setSettingsOpen(false);
         setSearchResults(null);
@@ -94,7 +140,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [commandPaletteOpen, focusMode]);
 
   const refreshBranches = async (id) => {
     try {
@@ -222,6 +268,7 @@ export default function App() {
         const { title } = await api.setTitle(convId, firstUserText);
         if (title) {
           setConversations((cs) => cs.map((c) => (c.id === convId ? { ...c, title } : c)));
+          showToast(`Renamed to "${title}"`, "success");
         }
       } catch {
         /* title is best-effort */
@@ -375,6 +422,12 @@ export default function App() {
         } else if (event.type === "sources") {
           setMessages((m) =>
             m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, sources: event.sources } : msg))
+          );
+        } else if (event.type === "memory_saved") {
+          const [first, ...rest] = event.facts;
+          showToast(
+            rest.length ? `Remembered: "${first}" (+${rest.length} more)` : `Remembered: "${first}"`,
+            "success"
           );
         } else if (event.type === "tool_call") {
           setMessages((m) =>
@@ -536,21 +589,100 @@ export default function App() {
     [conversations, activeId]
   );
 
+  const openSettingsAt = (section) => {
+    setSettingsInitialSection(section);
+    setSettingsOpen(true);
+  };
+
+  const commands = useMemo(() => {
+    const list = [];
+    list.push({
+      id: "new-chat", group: "Actions", icon: "+", label: "New chat",
+      action: handleCreate,
+    });
+    list.push({
+      id: "toggle-theme", group: "Actions", icon: theme === "dark" ? "☀️" : "🌙",
+      label: theme === "dark" ? "Switch to light theme" : "Switch to dark theme",
+      action: () => setTheme((t) => (t === "dark" ? "light" : "dark")),
+    });
+    list.push({
+      id: "toggle-sidebar", group: "Actions", icon: "«",
+      label: sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar",
+      action: () => setSidebarCollapsed((v) => !v),
+    });
+    list.push({
+      id: "toggle-voice", group: "Actions", icon: "🔊",
+      label: voiceReplyEnabled ? "Turn off spoken replies" : "Turn on spoken replies",
+      action: () => setVoiceReplyEnabled((v) => !v),
+    });
+    list.push({
+      id: "toggle-focus", group: "Actions", icon: "◎",
+      label: focusMode ? "Exit focus mode" : "Enter focus mode",
+      hint: "⌘.",
+      action: () => setFocusMode((v) => !v),
+    });
+    list.push({
+      id: "toggle-density", group: "Actions", icon: "≡",
+      label: density === "compact" ? "Switch to comfortable density" : "Switch to compact density",
+      action: () => setDensity((d) => (d === "compact" ? "comfortable" : "compact")),
+    });
+    for (const s of [
+      { id: "appearance", label: "Appearance" },
+      { id: "memory", label: "Memory & persona" },
+      { id: "personas", label: "Personas" },
+      { id: "agent", label: "Agent tools" },
+      { id: "council", label: "Council" },
+      { id: "routing", label: "Model routing" },
+      { id: "folders", label: "Folders" },
+      { id: "schedules", label: "Schedules" },
+      { id: "data", label: "Data" },
+    ]) {
+      list.push({
+        id: `settings-${s.id}`, group: "Settings", icon: "⚙",
+        label: `Settings — ${s.label}`,
+        action: () => openSettingsAt(s.id),
+      });
+    }
+    for (const p of personas) {
+      list.push({
+        id: `persona-${p.id}`, group: "Personas", icon: p.icon || "🎭",
+        label: `Switch to persona: ${p.name}`,
+        hint: activeConversation?.persona_id === p.id ? "current" : undefined,
+        action: () => handlePersonaChange(p.id),
+      });
+    }
+    if (activeConversation?.persona_id) {
+      list.push({
+        id: "persona-none", group: "Personas", icon: "∅", label: "Remove persona from this conversation",
+        action: () => handlePersonaChange(null),
+      });
+    }
+    for (const c of conversations) {
+      list.push({
+        id: `conv-${c.id}`, group: "Conversations", icon: "💬", label: c.title,
+        action: () => selectConversation(c.id),
+      });
+    }
+    return list;
+  }, [conversations, personas, activeConversation, theme, sidebarCollapsed, voiceReplyEnabled, focusMode, density]);
+
   return (
-    <div className="app-shell">
-      <Sidebar
-        conversations={conversations}
-        activeId={activeId}
-        onSelect={selectConversation}
-        onCreate={handleCreate}
-        onDelete={handleDelete}
-        onOpenSettings={() => setSettingsOpen(true)}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
-        searchQuery={searchQuery}
-        onSearch={runSearch}
-        searchResults={searchResults}
-      />
+    <div className={`app-shell ${focusMode ? "app-shell-focus" : ""}`}>
+      {!focusMode && (
+        <Sidebar
+          conversations={conversations}
+          activeId={activeId}
+          onSelect={selectConversation}
+          onCreate={handleCreate}
+          onDelete={handleDelete}
+          onOpenSettings={() => setSettingsOpen(true)}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+          searchQuery={searchQuery}
+          onSearch={runSearch}
+          searchResults={searchResults}
+        />
+      )}
 
       <main className="chat-main">
         <header className="chat-header">
@@ -563,7 +695,14 @@ export default function App() {
           </button>
           <h1>{activeConversation?.title || "Cortex"}</h1>
           <div className="header-actions">
-            {personas.length > 0 && (
+            <button
+              className={`icon-btn focus-toggle-btn ${focusMode ? "is-active" : ""}`}
+              onClick={() => setFocusMode((v) => !v)}
+              title={focusMode ? "Exit focus mode (⌘. or Esc)" : "Focus mode — hide sidebar and chrome (⌘.)"}
+            >
+              ◎
+            </button>
+            {!focusMode && personas.length > 0 && (
               <select
                 className="persona-picker"
                 value={activeConversation?.persona_id || ""}
@@ -579,26 +718,30 @@ export default function App() {
                 ))}
               </select>
             )}
-            <button
-              className={`theme-toggle ${theme === "light" ? "theme-toggle-light" : ""}`}
-              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-              title="Toggle theme"
-              role="switch"
-              aria-checked={theme === "light"}
-            >
-              <span className="theme-toggle-track">
-                <span className="theme-toggle-thumb">
-                  {theme === "dark" ? "🌙" : "☀️"}
+            {!focusMode && (
+              <button
+                className={`theme-toggle ${theme === "light" ? "theme-toggle-light" : ""}`}
+                onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+                title="Toggle theme"
+                role="switch"
+                aria-checked={theme === "light"}
+              >
+                <span className="theme-toggle-track">
+                  <span className="theme-toggle-thumb">
+                    {theme === "dark" ? "🌙" : "☀️"}
+                  </span>
                 </span>
-              </span>
-            </button>
-            <button
-              className={`voice-toggle ${voiceReplyEnabled ? "voice-toggle-on" : ""}`}
-              onClick={() => setVoiceReplyEnabled((v) => !v)}
-              title="Speak replies aloud"
-            >
-              {voiceReplyEnabled ? "🔊 Voice on" : "🔈 Voice off"}
-            </button>
+              </button>
+            )}
+            {!focusMode && (
+              <button
+                className={`voice-toggle ${voiceReplyEnabled ? "voice-toggle-on" : ""}`}
+                onClick={() => setVoiceReplyEnabled((v) => !v)}
+                title="Speak replies aloud"
+              >
+                {voiceReplyEnabled ? "🔊 Voice on" : "🔈 Voice off"}
+              </button>
+            )}
           </div>
         </header>
 
@@ -609,7 +752,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="chat-scroll" ref={scrollRef}>
+        <div className="chat-scroll" ref={scrollRef} onScroll={handleChatScroll}>
           {messages.length === 0 && (
             <div className="empty-state">
               <div className="empty-state-mark" />
@@ -618,6 +761,36 @@ export default function App() {
                 Type, drop an image, upload a document, or hold the mic — Cortex reads
                 what's installed on your Ollama and routes the turn automatically.
               </p>
+              <div className="empty-state-features">
+                <div className="empty-state-feature">
+                  <span className="empty-state-feature-icon">🔍</span>
+                  <div>
+                    <strong>Web search &amp; research</strong>
+                    <span>Pick a mode from the composer to search or investigate before answering.</span>
+                  </div>
+                </div>
+                <div className="empty-state-feature">
+                  <span className="empty-state-feature-icon">📎</span>
+                  <div>
+                    <strong>Images, documents, video</strong>
+                    <span>Attach a file and Cortex routes to whatever model handles it best.</span>
+                  </div>
+                </div>
+                <div className="empty-state-feature">
+                  <span className="empty-state-feature-icon">🎙</span>
+                  <div>
+                    <strong>Voice in, voice out</strong>
+                    <span>Hold the mic to talk; turn on spoken replies from the header.</span>
+                  </div>
+                </div>
+                <div className="empty-state-feature">
+                  <span className="empty-state-feature-icon">⌘</span>
+                  <div>
+                    <strong>⌘K for everything</strong>
+                    <span>Jump to a conversation, switch persona, or open any setting.</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           {messages.map((m) => (
@@ -635,6 +808,12 @@ export default function App() {
           ))}
         </div>
 
+        {!isNearBottom && messages.length > 0 && (
+          <button className="scroll-to-bottom-btn" onClick={scrollToBottom} title="Scroll to latest">
+            ↓
+          </button>
+        )}
+
         <Composer
           onSend={handleSend}
           onStop={handleStop}
@@ -643,6 +822,7 @@ export default function App() {
           agentAvailable={agentAvailable}
           councilAvailable={councilModels.length >= 2}
           isStreaming={status === "thinking"}
+          onError={(msg) => showToast(msg, "error")}
         />
       </main>
 
@@ -662,8 +842,21 @@ export default function App() {
           onThemeChange={setTheme}
           voiceReplyEnabled={voiceReplyEnabled}
           onVoiceReplyChange={setVoiceReplyEnabled}
+          density={density}
+          onDensityChange={setDensity}
+          initialSection={settingsInitialSection}
         />
       )}
+
+      {commandPaletteOpen && (
+        <CommandPalette
+          open={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          commands={commands}
+        />
+      )}
+
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

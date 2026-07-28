@@ -26,13 +26,22 @@ const SECTIONS = [
   { id: "schedules", label: "Schedules", icon: "⏱" },
 ];
 
-export default function SettingsPanel({ onClose, theme, onThemeChange, voiceReplyEnabled, onVoiceReplyChange }) {
+export default function SettingsPanel({
+  onClose,
+  theme,
+  onThemeChange,
+  voiceReplyEnabled,
+  onVoiceReplyChange,
+  density,
+  onDensityChange,
+  initialSection = "appearance",
+}) {
   const [config, setConfig] = useState(null);
   const [models, setModels] = useState([]);
   const [modelsError, setModelsError] = useState(null);
   const [host, setHost] = useState("");
   const [saving, setSaving] = useState(false);
-  const [activeSection, setActiveSection] = useState("appearance");
+  const [activeSection, setActiveSection] = useState(initialSection);
   const [memories, setMemories] = useState([]);
   const [memoriesError, setMemoriesError] = useState(null);
   const [personas, setPersonas] = useState([]);
@@ -438,6 +447,29 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, voiceRepl
                   >
                     <span className="switch-thumb" />
                   </button>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Message density</span>
+                    <span className="setting-hint">
+                      Compact fits more on screen — tighter spacing, smaller type.
+                    </span>
+                  </div>
+                  <div className="theme-choice">
+                    {["comfortable", "compact"].map((d) => (
+                      <button
+                        key={d}
+                        className={`theme-choice-btn ${density === d ? "is-selected" : ""}`}
+                        onClick={() => onDensityChange(d)}
+                        aria-pressed={density === d}
+                      >
+                        <span className="theme-choice-label">
+                          {d === "comfortable" ? "Comfortable" : "Compact"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </section>
             )}

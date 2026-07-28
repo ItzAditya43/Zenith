@@ -87,6 +87,7 @@ export default function Composer({
   isStreaming = false,
   agentAvailable = false,
   councilAvailable = false,
+  onError = () => {},
 }) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState([]); // [{id, filename, kind, uploading}]
@@ -136,7 +137,7 @@ export default function Composer({
         );
       } catch (err) {
         setPending((p) => p.filter((a) => a.id !== localId));
-        alert(`Upload failed: ${err.message}`);
+        onError(`Upload failed: ${err.message}`);
       }
     }
   };
