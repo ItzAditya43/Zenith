@@ -193,8 +193,18 @@ export default function MessageBubble({
           </div>
         ) : (
           <div className="msg-content">
-            <MarkdownRenderer content={message.content} />
-            {message.streaming && <span className="cursor-blink" data-role={message.route_role} />}
+            {message.streaming && !message.content ? (
+              <span className="thinking-dots" data-role={message.route_role} aria-label="Thinking">
+                <span />
+                <span />
+                <span />
+              </span>
+            ) : (
+              <>
+                <MarkdownRenderer content={message.content} />
+                {message.streaming && <span className="cursor-blink" data-role={message.route_role} />}
+              </>
+            )}
           </div>
         )}
 
