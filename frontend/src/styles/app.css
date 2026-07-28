@@ -241,6 +241,33 @@
   background: var(--signal-voice-dim);
 }
 
+.workdir-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+.workdir-btn:hover {
+  color: var(--text-primary);
+}
+.workdir-btn.is-active {
+  border-color: var(--signal-general);
+  color: var(--signal-general);
+}
+
 .persona-picker {
   font-size: var(--text-xs);
   padding: var(--space-2) var(--space-3);

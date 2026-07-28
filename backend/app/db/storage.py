@@ -275,6 +275,21 @@ def rename_conversation(conversation_id: str, title: str) -> None:
         )
 
 
+def set_conversation_workdir(conversation_id: str, workdir: str | None) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE conversations SET workdir = ? WHERE id = ?", (workdir, conversation_id)
+        )
+
+
+def get_conversation_workdir(conversation_id: str) -> str | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT workdir FROM conversations WHERE id = ?", (conversation_id,)
+        ).fetchone()
+        return row["workdir"] if row else None
+
+
 def delete_conversation(conversation_id: str) -> None:
     with _conn() as conn:
         conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))

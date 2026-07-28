@@ -72,6 +72,26 @@ export default function App() {
     }
   };
 
+  const handleSetWorkdir = async () => {
+    if (!activeId) return;
+    const current = activeConversation?.workdir || "";
+    const input = window.prompt(
+      "Working directory for this conversation — agent mode's bash cwd and relative " +
+        "file paths resolve against it. Leave blank to unbind.",
+      current
+    );
+    if (input === null) return; // cancelled
+    try {
+      const result = await api.setConversationWorkdir(activeId, input.trim() || null);
+      setConversations((cs) =>
+        cs.map((c) => (c.id === activeId ? { ...c, workdir: result.workdir } : c))
+      );
+      showToast(result.workdir ? `Working directory set: ${result.workdir}` : "Working directory cleared", "success");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
   useEffect(() => {
     api
       .listConversations()
@@ -626,6 +646,13 @@ export default function App() {
       label: density === "compact" ? "Switch to comfortable density" : "Switch to compact density",
       action: () => setDensity((d) => (d === "compact" ? "comfortable" : "compact")),
     });
+    if (agentAvailable) {
+      list.push({
+        id: "set-workdir", group: "Actions", icon: "📁",
+        label: activeConversation?.workdir ? "Change working directory" : "Set working directory",
+        action: handleSetWorkdir,
+      });
+    }
     for (const s of [
       { id: "appearance", label: "Appearance" },
       { id: "memory", label: "Memory & persona" },
@@ -702,6 +729,19 @@ export default function App() {
             >
               ◎
             </button>
+            {!focusMode && agentAvailable && (
+              <button
+                className={`workdir-btn ${activeConversation?.workdir ? "is-active" : ""}`}
+                onClick={handleSetWorkdir}
+                title={
+                  activeConversation?.workdir
+                    ? `Working directory: ${activeConversation.workdir} — click to change`
+                    : "Set a working directory for agent mode (bash cwd + relative paths)"
+                }
+              >
+                📁 {activeConversation?.workdir ? activeConversation.workdir.split("/").pop() : "Set folder"}
+              </button>
+            )}
             {!focusMode && personas.length > 0 && (
               <select
                 className="persona-picker"

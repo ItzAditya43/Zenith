@@ -54,8 +54,18 @@ TOOLS: dict[str, dict[str, str]] = {
     "bash": {"description": "Run a shell command. Args: command (string), cwd (string, optional)."},
     "read_file": {"description": "Read a text file. Args: path (string)."},
     "write_file": {
-        "description": "Write or append text to a file, creating parent dirs as needed. "
+        "description": "Write or append text to a file, creating parent dirs as needed. Use this "
+                        "for new files or full rewrites; for changing part of an existing file, use "
+                        "edit_file instead — it's safer and doesn't require reproducing the whole file. "
                         "Args: path (string), content (string), mode ('overwrite'|'append', default 'overwrite')."
+    },
+    "edit_file": {
+        "description": "Make a precise change to an existing file: replace one exact occurrence of "
+                        "old_string with new_string, leaving the rest of the file untouched. Prefer "
+                        "this over write_file for editing code — include enough surrounding context "
+                        "in old_string to make it uniquely identify one spot. Fails if old_string "
+                        "isn't found, or is found more than once. Args: path (string), old_string "
+                        "(string), new_string (string)."
     },
     "list_dir": {"description": "List a directory's contents. Args: path (string)."},
     "web_search": {"description": "Search the web. Args: query (string)."},
@@ -108,7 +118,7 @@ def classify_risk(tool: str, args: dict[str, Any]) -> str:
     risky calls always pause for approval outside "full" mode."""
     if tool in ("read_file", "list_dir", "web_search", "fetch_url"):
         return "safe"
-    if tool == "write_file":
+    if tool in ("write_file", "edit_file"):
         return "risky"
     if tool == "bash":
         cmd = str(args.get("command", "")).strip()
@@ -176,9 +186,22 @@ def list_tool_calls(conversation_id: str) -> list[dict]:
 
 # --- Tool execution ---------------------------------------------------------
 
-async def _run_bash(args: dict, timeout: float, max_chars: int) -> str:
+def _resolve_path(path: str, workdir: str | None):
+    """Relative paths resolve against the conversation's bound working
+    directory (if any) — the same "you never repeat the full path"
+    convenience Claude Code gets from binding to a repo. Absolute paths
+    always pass through untouched."""
+    from pathlib import Path
+
+    p = Path(path)
+    if p.is_absolute() or not workdir:
+        return p
+    return Path(workdir) / p
+
+
+async def _run_bash(args: dict, timeout: float, max_chars: int, workdir: str | None = None) -> str:
     command = str(args.get("command", "")).strip()
-    cwd = args.get("cwd") or None
+    cwd = args.get("cwd") or workdir or None
     if not command:
         return "Error: no command given."
     try:
@@ -204,27 +227,25 @@ async def _run_bash(args: dict, timeout: float, max_chars: int) -> str:
         return f"Error running command: {exc}"
 
 
-def _run_read_file(args: dict, max_chars: int) -> str:
-    from pathlib import Path
+def _run_read_file(args: dict, max_chars: int, workdir: str | None = None) -> str:
     path = args.get("path")
     if not path:
         return "Error: no path given."
     try:
-        text = Path(path).read_text(errors="ignore")
+        text = _resolve_path(path, workdir).read_text(errors="ignore")
         return text[:max_chars]
     except Exception as exc:
         return f"Error reading file: {exc}"
 
 
-def _run_write_file(args: dict) -> str:
-    from pathlib import Path
+def _run_write_file(args: dict, workdir: str | None = None) -> str:
     path = args.get("path")
     content = args.get("content", "")
     mode = args.get("mode", "overwrite")
     if not path:
         return "Error: no path given."
     try:
-        p = Path(path)
+        p = _resolve_path(path, workdir)
         p.parent.mkdir(parents=True, exist_ok=True)
         if mode == "append":
             with open(p, "a") as f:
@@ -236,11 +257,41 @@ def _run_write_file(args: dict) -> str:
         return f"Error writing file: {exc}"
 
 
-def _run_list_dir(args: dict, max_chars: int) -> str:
-    from pathlib import Path
+def _run_edit_file(args: dict, workdir: str | None = None) -> str:
+    """Find-and-replace on an existing file — same safety contract as
+    Claude Code's own Edit tool: old_string must match exactly once, or
+    the call fails loudly instead of guessing which occurrence was
+    meant (or silently editing the wrong one)."""
+    path = args.get("path")
+    old_string = args.get("old_string")
+    new_string = args.get("new_string", "")
+    if not path:
+        return "Error: no path given."
+    if old_string is None:
+        return "Error: old_string is required."
+    if old_string == new_string:
+        return "Error: old_string and new_string are identical — nothing to change."
+    try:
+        p = _resolve_path(path, workdir)
+        text = p.read_text()
+    except Exception as exc:
+        return f"Error reading file: {exc}"
+    count = text.count(old_string)
+    if count == 0:
+        return "Error: old_string not found in file — it must match the file's contents exactly, including whitespace."
+    if count > 1:
+        return f"Error: old_string appears {count} times in the file — include more surrounding context so it matches exactly once."
+    try:
+        p.write_text(text.replace(old_string, new_string, 1))
+        return f"Replaced 1 occurrence in {path}."
+    except Exception as exc:
+        return f"Error writing file: {exc}"
+
+
+def _run_list_dir(args: dict, max_chars: int, workdir: str | None = None) -> str:
     path = args.get("path", ".")
     try:
-        entries = sorted(Path(path).iterdir())
+        entries = sorted(_resolve_path(path, workdir).iterdir())
         lines = [f"{'d' if e.is_dir() else 'f'} {e.name}" for e in entries]
         return "\n".join(lines)[:max_chars] or "(empty directory)"
     except Exception as exc:
@@ -270,15 +321,19 @@ async def _run_fetch_url(args: dict, max_chars: int) -> str:
     return f"[{page['title']}]\n{page['text']}"[:max_chars]
 
 
-async def _execute_tool(tool: str, args: dict, timeout: float, max_chars: int) -> str:
+async def _execute_tool(
+    tool: str, args: dict, timeout: float, max_chars: int, workdir: str | None = None
+) -> str:
     if tool == "bash":
-        return await _run_bash(args, timeout, max_chars)
+        return await _run_bash(args, timeout, max_chars, workdir)
     if tool == "read_file":
-        return _run_read_file(args, max_chars)
+        return _run_read_file(args, max_chars, workdir)
     if tool == "write_file":
-        return _run_write_file(args)
+        return _run_write_file(args, workdir)
+    if tool == "edit_file":
+        return _run_edit_file(args, workdir)
     if tool == "list_dir":
-        return _run_list_dir(args, max_chars)
+        return _run_list_dir(args, max_chars, workdir)
     if tool == "web_search":
         return await _run_web_search(args, max_chars)
     if tool == "fetch_url":
@@ -322,6 +377,7 @@ async def run_agent_turn(
     ctx = await build_turn_context(attachment_ids)
     history = storage.get_messages(conversation_id)
     system_text = await _build_system_context(conversation_id, user_text)
+    workdir = storage.get_conversation_workdir(conversation_id)
 
     from app.services import mcp_service
     mcp_tools = await mcp_service.list_all_tools()
@@ -344,6 +400,11 @@ async def run_agent_turn(
 
     system = _build_system_prompt(mcp_tools) + (
         f"\n\nContext about this user:\n{system_text}" if system_text else ""
+    ) + (
+        f"\n\nWorking directory for this conversation: {workdir}\n"
+        "Relative paths (in bash, read_file, write_file, edit_file, list_dir) resolve "
+        "against this directory automatically — you don't need to give full paths."
+        if workdir else ""
     )
     trimmed_history = [
         {"role": m["role"], "content": m["content"]}
@@ -406,7 +467,7 @@ async def run_agent_turn(
                 if server else f"Error: MCP server '{mcp_tool['server_name']}' is no longer configured."
             )
         else:
-            result = await _execute_tool(tool, args, cmd_timeout, max_chars)
+            result = await _execute_tool(tool, args, cmd_timeout, max_chars, workdir)
         _resolve_call(call_id, "executed", result)
         yield {"type": "tool_result", "id": call_id, "tool": tool, "result": result}
 

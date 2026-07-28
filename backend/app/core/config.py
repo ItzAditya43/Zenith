@@ -125,7 +125,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # --- Agent tool use (bash/files/web) ---
     "agent_enabled": False,          # master switch — off until you opt in
     "agent_mode": "manual",          # "manual" | "semi" | "full"
-    "agent_max_iterations": 8,       # tool-call rounds before forcing a final answer
+    "agent_max_iterations": 40,      # tool-call rounds before forcing a final answer
     "agent_command_timeout_seconds": 60,
     "agent_output_max_chars": 4000,  # cap per tool result fed back to the model
     "agent_approval_timeout_seconds": 600,  # auto-deny if you don't respond

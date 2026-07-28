@@ -111,6 +111,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ persona_id: personaId }),
     }),
+  setConversationWorkdir: (conversationId, workdir) =>
+    request(`/api/conversations/${conversationId}/workdir`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workdir }),
+    }).then((r) => r.json()),
 
   exportUrl: (format) => `${BASE}/api/export/${format}`,
 

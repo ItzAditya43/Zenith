@@ -258,6 +258,16 @@ def _schedules_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _conversation_workdir(conn: sqlite3.Connection) -> None:
+    """A per-conversation working directory — agent mode's bash cwd and
+    relative file paths resolve against it, the same way Claude Code
+    binds to "the current repo" so you never repeat full paths."""
+    cur = conn.cursor()
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(conversations)").fetchall()]
+    if "workdir" not in cols:
+        cur.execute("ALTER TABLE conversations ADD COLUMN workdir TEXT")
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -289,6 +299,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (8, "watched_folders_table", _watched_folders_table),
     (9, "schedules_table", _schedules_table),
     (10, "mcp_servers_table", _mcp_servers_table),
+    (11, "conversation_workdir", _conversation_workdir),
 ]
 
 
