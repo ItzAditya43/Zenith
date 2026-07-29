@@ -49,6 +49,12 @@
   letter-spacing: -0.02em;
 }
 
+.icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 .icon-btn {
   width: 30px;
   height: 30px;

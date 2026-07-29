@@ -1,3 +1,5 @@
+import Icon from "./Icon.jsx";
+
 function groupByDate(conversations) {
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
@@ -35,7 +37,7 @@ function ConversationItem({ c, active, collapsed, showDelete, onSelect, onDelete
           }}
           title="Delete conversation"
         >
-          ×
+          <Icon name="x" size={13} />
         </button>
       )}
     </div>
@@ -67,12 +69,12 @@ export default function Sidebar({
           {!collapsed && <span className="brand-name">Cortex</span>}
         </div>
         <button className="icon-btn" onClick={onToggleCollapse} title="Toggle sidebar">
-          {collapsed ? "»" : "«"}
+          <Icon name={collapsed ? "chevron-right" : "chevron-left"} size={15} />
         </button>
       </div>
 
       <button className="new-chat-btn" onClick={onCreate}>
-        <span className="new-chat-plus">+</span>
+        <span className="new-chat-plus"><Icon name="plus" size={15} /></span>
         {!collapsed && <span>New chat</span>}
       </button>
 
@@ -88,7 +90,7 @@ export default function Sidebar({
           />
           {showSearchResults && (
             <button className="sidebar-search-clear" onClick={() => onSearch("")} title="Clear">
-              ×
+              <Icon name="x" size={13} />
             </button>
           )}
         </div>
