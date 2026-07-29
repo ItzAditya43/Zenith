@@ -3,6 +3,7 @@
   GET  /api/agent/tool-calls?conversation_id=...  — audit log for a conversation
   POST /api/agent/tool-calls/{id}/approve         — let a pending call run
   POST /api/agent/tool-calls/{id}/deny            — block it
+  POST /api/agent/tool-calls/{id}/revert          — undo an already-applied file edit
 """
 from __future__ import annotations
 
@@ -32,3 +33,12 @@ async def deny(call_id: str):
     if not agent_service.approve_tool_call(call_id, False):
         raise HTTPException(404, "No pending tool call with that id (already resolved or timed out).")
     return {"ok": True}
+
+
+@router.post("/tool-calls/{call_id}/revert")
+async def revert(call_id: str):
+    try:
+        message = agent_service.revert_tool_call(call_id)
+    except agent_service.AgentError as exc:
+        raise HTTPException(400, str(exc))
+    return {"ok": True, "message": message}

@@ -281,6 +281,16 @@ export default function App() {
     }
   };
 
+  const handleRevertTool = async (toolCallId) => {
+    try {
+      const { message } = await api.revertToolCall(toolCallId);
+      setToolCallStatus(toolCallId, "reverted");
+      showToast(message, "success");
+    } catch (err) {
+      showToast(err.message || "Revert failed", "error");
+    }
+  };
+
   const maybeGenerateTitle = (convId, firstUserText) => {
     // Tier 6 #4 — auto-title after first user message.
     if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
@@ -458,7 +468,7 @@ export default function App() {
                     ...msg,
                     toolCalls: [
                       ...(msg.toolCalls || []),
-                      { id: event.id, tool: event.tool, args: event.args, risk: event.risk, status: "running" },
+                      { id: event.id, tool: event.tool, args: event.args, risk: event.risk, diff: event.diff, status: "running" },
                     ],
                   }
                 : msg
@@ -843,6 +853,7 @@ export default function App() {
               onEdit={handleEdit}
               onApproveTool={handleApproveTool}
               onDenyTool={handleDenyTool}
+              onRevertTool={handleRevertTool}
               siblings={branches[m.parent_id || "root"]}
               onSwitchBranch={handleSwitchBranch}
             />

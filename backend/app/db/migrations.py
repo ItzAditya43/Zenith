@@ -268,6 +268,23 @@ def _conversation_workdir(conn: sqlite3.Connection) -> None:
         cur.execute("ALTER TABLE conversations ADD COLUMN workdir TEXT")
 
 
+def _tool_call_diff_columns(conn: sqlite3.Connection) -> None:
+    """Diff preview + one-step undo for file-editing tool calls: `diff` is
+    a unified diff computed before the model's edit is applied (so the
+    approval card can show exactly what will change, not just raw args),
+    `previous_content`/`had_previous_file` capture what the file looked
+    like beforehand so a later revert can restore it exactly (including
+    deleting the file again if the edit created it)."""
+    cur = conn.cursor()
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(tool_calls)").fetchall()]
+    if "diff" not in cols:
+        cur.execute("ALTER TABLE tool_calls ADD COLUMN diff TEXT")
+    if "previous_content" not in cols:
+        cur.execute("ALTER TABLE tool_calls ADD COLUMN previous_content TEXT")
+    if "had_previous_file" not in cols:
+        cur.execute("ALTER TABLE tool_calls ADD COLUMN had_previous_file INTEGER")
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -300,6 +317,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (9, "schedules_table", _schedules_table),
     (10, "mcp_servers_table", _mcp_servers_table),
     (11, "conversation_workdir", _conversation_workdir),
+    (12, "tool_call_diff_columns", _tool_call_diff_columns),
 ]
 
 

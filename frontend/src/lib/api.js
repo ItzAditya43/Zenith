@@ -202,6 +202,8 @@ export const api = {
 
   approveToolCall: (id) => request(`/api/agent/tool-calls/${id}/approve`, { method: "POST" }),
   denyToolCall: (id) => request(`/api/agent/tool-calls/${id}/deny`, { method: "POST" }),
+  revertToolCall: (id) =>
+    request(`/api/agent/tool-calls/${id}/revert`, { method: "POST" }).then((r) => r.json()),
   listToolCalls: (conversationId) =>
     request(`/api/agent/tool-calls?conversation_id=${encodeURIComponent(conversationId)}`).then((r) => r.json()),
 
