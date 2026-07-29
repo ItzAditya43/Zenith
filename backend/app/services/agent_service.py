@@ -71,6 +71,26 @@ TOOLS: dict[str, dict[str, str]] = {
     "list_dir": {"description": "List a directory's contents. Args: path (string)."},
     "web_search": {"description": "Search the web. Args: query (string)."},
     "fetch_url": {"description": "Fetch and extract the readable text of a URL. Args: url (string)."},
+    "shell_start": {
+        "description": "Start a long-running background process (dev server, watch mode, REPL) that "
+                        "keeps running across multiple tool calls — unlike `bash`, which waits for the "
+                        "command to finish before returning. Returns a session_id. Use shell_output to "
+                        "read what it has printed since your last check, shell_write_stdin to send it "
+                        "input, and shell_kill to stop it when you're done. Args: command (string), "
+                        "cwd (string, optional)."
+    },
+    "shell_output": {
+        "description": "Read new output (stdout+stderr) from a shell_start session since the last time "
+                        "you called this for it. Also reports whether it's still running. Args: "
+                        "session_id (string)."
+    },
+    "shell_write_stdin": {
+        "description": "Send a line of text to a running shell_start session's stdin — e.g. answering "
+                        "a REPL prompt or typing a command into an interactive process. Args: "
+                        "session_id (string), text (string)."
+    },
+    "shell_kill": {"description": "Stop a running shell_start session. Args: session_id (string)."},
+    "shell_list": {"description": "List currently running shell_start sessions for this conversation. Args: (none)."},
 }
 
 _SYSTEM_PROMPT_HEADER = """You are Cortex operating in agent mode: you can use tools across multiple
@@ -114,19 +134,27 @@ class AgentError(RuntimeError):
     pass
 
 
+def _classify_bash_command(cmd: str) -> str:
+    cmd = cmd.strip()
+    first = cmd.split(" ", 1)[0] if cmd else ""
+    if first in _SAFE_BASH_CMDS and not any(tok in cmd for tok in _UNSAFE_BASH_TOKENS):
+        return "safe"
+    return "risky"
+
+
 def classify_risk(tool: str, args: dict[str, Any]) -> str:
     """Returns "safe" or "risky". Safe calls auto-run in "semi" mode;
     risky calls always pause for approval outside "full" mode."""
-    if tool in ("read_file", "list_dir", "web_search", "fetch_url"):
+    if tool in ("read_file", "list_dir", "web_search", "fetch_url", "shell_output", "shell_list", "shell_kill"):
         return "safe"
-    if tool in ("write_file", "edit_file"):
+    if tool in ("write_file", "edit_file", "shell_write_stdin"):
         return "risky"
     if tool == "bash":
-        cmd = str(args.get("command", "")).strip()
-        first = cmd.split(" ", 1)[0] if cmd else ""
-        if first in _SAFE_BASH_CMDS and not any(tok in cmd for tok in _UNSAFE_BASH_TOKENS):
-            return "safe"
-        return "risky"
+        return _classify_bash_command(str(args.get("command", "")))
+    if tool == "shell_start":
+        # Starting a background process is at least as consequential as
+        # running the same command with `bash` — same classification.
+        return _classify_bash_command(str(args.get("command", "")))
     return "risky"  # unknown tool — err conservative
 
 
@@ -321,6 +349,167 @@ async def _run_bash(args: dict, timeout: float, max_chars: int, workdir: str | N
         return f"Error running command: {exc}"
 
 
+# --- Persistent shell sessions ---------------------------------------------
+# In-memory, module-level — same "single backend process" assumption as the
+# _pending approval registry above. A session outlives the tool call that
+# started it (that's the whole point: `bash` blocks until the command
+# exits, this doesn't), so it can't live in the DB-backed tool_calls audit
+# row the way one-shot results do; it has to live as long as the process
+# does, which in practice means "until the backend restarts or it's killed."
+_MAX_SESSIONS = 8
+_SESSION_BUFFER_CAP = 200_000  # chars kept per session; oldest trimmed first
+
+_shell_sessions: dict[str, dict[str, Any]] = {}
+
+
+async def _pump_session_output(session: dict) -> None:
+    """Background task: continuously drains the process's stdout (stderr
+    merged in) into the session's buffer so output isn't lost between the
+    model's shell_output polls, and isn't blocked waiting for a read."""
+    proc = session["proc"]
+    try:
+        while True:
+            chunk = await proc.stdout.read(4096)
+            if not chunk:
+                break
+            text = chunk.decode(errors="ignore")
+            session["buffer"] += text
+            if len(session["buffer"]) > _SESSION_BUFFER_CAP:
+                overflow = len(session["buffer"]) - _SESSION_BUFFER_CAP
+                session["buffer"] = session["buffer"][overflow:]
+                session["last_sent"] = max(0, session["last_sent"] - overflow)
+    except Exception:
+        pass
+    finally:
+        session["alive"] = False
+        if proc.returncode is not None:
+            session["exit_code"] = proc.returncode
+        else:
+            # proc.wait() has been observed to hang indefinitely in some
+            # container environments even after the stdout pipe hit EOF
+            # (a child-watcher quirk, not a real still-running process) —
+            # never let that block forever.
+            try:
+                session["exit_code"] = await asyncio.wait_for(proc.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                session["exit_code"] = proc.returncode  # best-effort; may stay None
+
+
+async def _run_shell_start(args: dict, conversation_id: str, workdir: str | None = None) -> str:
+    command = str(args.get("command", "")).strip()
+    if not command:
+        return "Error: no command given."
+    live = sum(1 for s in _shell_sessions.values() if s["alive"])
+    if live >= _MAX_SESSIONS:
+        return f"Error: {_MAX_SESSIONS} shell sessions are already running — kill one with shell_kill first."
+    cwd = args.get("cwd") or workdir or None
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            command, cwd=cwd,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            stdin=asyncio.subprocess.PIPE,
+            start_new_session=True,  # own process group — see _run_shell_kill
+        )
+    except Exception as exc:
+        return f"Error starting session: {exc}"
+
+    session_id = str(uuid.uuid4())
+    session = {
+        "id": session_id, "conversation_id": conversation_id, "command": command,
+        "cwd": cwd, "proc": proc, "buffer": "", "last_sent": 0,
+        "alive": True, "exit_code": None, "created_at": time.time(),
+    }
+    _shell_sessions[session_id] = session
+    session["reader_task"] = asyncio.create_task(_pump_session_output(session))
+
+    # Grace period so the initial output (e.g. "Server running on :3000")
+    # is already there for the model to see, without blocking indefinitely
+    # on a process that's meant to keep running.
+    await asyncio.sleep(1.0)
+    output = session["buffer"]
+    session["last_sent"] = len(session["buffer"])
+    status = "running" if session["alive"] else f"exited (code {session['exit_code']})"
+    return f"Started session {session_id} ({status}).\n{output}".rstrip()
+
+
+def _get_session(session_id: str, conversation_id: str) -> dict | None:
+    session = _shell_sessions.get(session_id)
+    if session is None or session["conversation_id"] != conversation_id:
+        return None
+    return session
+
+
+def _run_shell_output(args: dict, conversation_id: str) -> str:
+    session_id = str(args.get("session_id", ""))
+    session = _get_session(session_id, conversation_id)
+    if session is None:
+        return "Error: no session with that id in this conversation."
+    new_output = session["buffer"][session["last_sent"]:]
+    session["last_sent"] = len(session["buffer"])
+    status = "running" if session["alive"] else f"exited (code {session['exit_code']})"
+    return f"Session {session_id}: {status}.\n{new_output}" if new_output else f"Session {session_id}: {status}. (no new output)"
+
+
+async def _run_shell_write_stdin(args: dict, conversation_id: str) -> str:
+    session_id = str(args.get("session_id", ""))
+    text = str(args.get("text", ""))
+    session = _get_session(session_id, conversation_id)
+    if session is None:
+        return "Error: no session with that id in this conversation."
+    if not session["alive"]:
+        return f"Error: session {session_id} has already exited."
+    try:
+        session["proc"].stdin.write((text + "\n").encode())
+        await session["proc"].stdin.drain()
+        return f"Sent to session {session_id}."
+    except Exception as exc:
+        return f"Error writing to session: {exc}"
+
+
+async def _run_shell_kill(args: dict, conversation_id: str) -> str:
+    session_id = str(args.get("session_id", ""))
+    session = _get_session(session_id, conversation_id)
+    if session is None:
+        return "Error: no session with that id in this conversation."
+    if not session["alive"]:
+        return f"Session {session_id} had already exited (code {session['exit_code']})."
+    try:
+        # `sh -c "<command>"` leaves any grandchild the command spawns
+        # (e.g. the real `sleep`/`node`/etc process under the shell)
+        # holding the stdout pipe open even after the shell itself is
+        # killed — so plain proc.kill() only kills the shell, and
+        # _pump_session_output's read() then blocks forever waiting for
+        # an EOF that never comes. Started with start_new_session=True,
+        # so killing the whole process group takes the real process(es)
+        # down too and the pipe actually closes.
+        import os
+        import signal
+        os.killpg(os.getpgid(session["proc"].pid), signal.SIGKILL)
+    except ProcessLookupError:
+        pass  # already gone
+    except Exception as exc:
+        return f"Error killing session: {exc}"
+    # Exit is settled by _pump_session_output's own (timeout-guarded) wait
+    # once stdout hits EOF — don't wait() here too, since calling it from
+    # two places at once caused a hang during development.
+    for _ in range(20):
+        if not session["alive"]:
+            break
+        await asyncio.sleep(0.25)
+    return f"Killed session {session_id}."
+
+
+def _run_shell_list(conversation_id: str) -> str:
+    sessions = [s for s in _shell_sessions.values() if s["conversation_id"] == conversation_id]
+    if not sessions:
+        return "No shell sessions for this conversation."
+    lines = []
+    for s in sessions:
+        status = "running" if s["alive"] else f"exited (code {s['exit_code']})"
+        lines.append(f"{s['id']}: {status} — {s['command']}")
+    return "\n".join(lines)
+
+
 def _run_read_file(args: dict, max_chars: int, workdir: str | None = None) -> str:
     path = args.get("path")
     if not path:
@@ -416,7 +605,8 @@ async def _run_fetch_url(args: dict, max_chars: int) -> str:
 
 
 async def _execute_tool(
-    tool: str, args: dict, timeout: float, max_chars: int, workdir: str | None = None
+    tool: str, args: dict, timeout: float, max_chars: int, workdir: str | None = None,
+    conversation_id: str | None = None,
 ) -> str:
     if tool == "bash":
         return await _run_bash(args, timeout, max_chars, workdir)
@@ -432,6 +622,16 @@ async def _execute_tool(
         return await _run_web_search(args, max_chars)
     if tool == "fetch_url":
         return await _run_fetch_url(args, max_chars)
+    if tool == "shell_start":
+        return await _run_shell_start(args, conversation_id, workdir)
+    if tool == "shell_output":
+        return _run_shell_output(args, conversation_id)
+    if tool == "shell_write_stdin":
+        return await _run_shell_write_stdin(args, conversation_id)
+    if tool == "shell_kill":
+        return await _run_shell_kill(args, conversation_id)
+    if tool == "shell_list":
+        return _run_shell_list(conversation_id)
     return f"Error: unknown tool '{tool}'."
 
 
@@ -562,7 +762,7 @@ async def run_agent_turn(
                 if server else f"Error: MCP server '{mcp_tool['server_name']}' is no longer configured."
             )
         else:
-            result = await _execute_tool(tool, args, cmd_timeout, max_chars, workdir)
+            result = await _execute_tool(tool, args, cmd_timeout, max_chars, workdir, conversation_id)
         _resolve_call(call_id, "executed", result)
         yield {"type": "tool_result", "id": call_id, "tool": tool, "result": result}
 

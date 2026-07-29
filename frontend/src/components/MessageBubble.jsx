@@ -5,7 +5,12 @@ import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
 
 const KIND_ICON = { image: "image", video: "video", document: "file-text", audio: "headphones" };
-const TOOL_ICON = { bash: "terminal", read_file: "book-open", write_file: "file-pen", list_dir: "folder-open", web_search: "search", fetch_url: "link" };
+const TOOL_ICON = {
+  bash: "terminal", read_file: "book-open", write_file: "file-pen", list_dir: "folder-open",
+  web_search: "search", fetch_url: "link",
+  shell_start: "terminal", shell_output: "terminal", shell_write_stdin: "terminal",
+  shell_kill: "square", shell_list: "layers",
+};
 const EDITABLE_DOC_EXTS = [".txt", ".md", ".csv", ".json"];
 
 function DocumentChip({ attachment: a }) {
@@ -86,7 +91,8 @@ function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
   const [expanded, setExpanded] = useState(() => Boolean(call.diff));
   const [reverting, setReverting] = useState(false);
   const argsSummary =
-    call.args?.command || call.args?.path || call.args?.query || call.args?.url || "";
+    call.args?.command || call.args?.path || call.args?.query || call.args?.url ||
+    (call.args?.session_id ? `session ${call.args.session_id.slice(0, 8)}` : "");
 
   const canRevert =
     call.status === "done" && REVERTABLE_TOOLS.has(call.tool) && call.diff && onRevert;
