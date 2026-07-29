@@ -58,10 +58,47 @@ function DocumentChip({ attachment: a }) {
   );
 }
 
-function ToolCallCard({ call, onApprove, onDeny }) {
-  const [expanded, setExpanded] = useState(false);
+function DiffView({ diff }) {
+  const lines = diff.split("\n");
+  return (
+    <pre className="tool-call-diff">
+      {lines.map((line, i) => {
+        const kind = line.startsWith("+") && !line.startsWith("+++")
+          ? "add"
+          : line.startsWith("-") && !line.startsWith("---")
+          ? "del"
+          : line.startsWith("@@")
+          ? "hunk"
+          : "ctx";
+        return (
+          <div key={i} className={`diff-line diff-line-${kind}`}>
+            {line || " "}
+          </div>
+        );
+      })}
+    </pre>
+  );
+}
+
+const REVERTABLE_TOOLS = new Set(["edit_file", "write_file"]);
+
+function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
+  const [expanded, setExpanded] = useState(() => Boolean(call.diff));
+  const [reverting, setReverting] = useState(false);
   const argsSummary =
     call.args?.command || call.args?.path || call.args?.query || call.args?.url || "";
+
+  const canRevert =
+    call.status === "done" && REVERTABLE_TOOLS.has(call.tool) && call.diff && onRevert;
+
+  const handleRevert = async () => {
+    setReverting(true);
+    try {
+      await onRevert?.(call.id);
+    } finally {
+      setReverting(false);
+    }
+  };
 
   return (
     <div className={`tool-call-card tool-call-${call.status}`}>
@@ -76,13 +113,14 @@ function ToolCallCard({ call, onApprove, onDeny }) {
             approving: "approving…",
             done: "done",
             denied: "denied",
+            reverted: "reverted",
           }[call.status] || call.status}
         </span>
       </button>
 
       {expanded && (
         <div className="tool-call-body">
-          <pre className="tool-call-args">{JSON.stringify(call.args, null, 2)}</pre>
+          {call.diff ? <DiffView diff={call.diff} /> : <pre className="tool-call-args">{JSON.stringify(call.args, null, 2)}</pre>}
           {call.result != null && <pre className="tool-call-result">{call.result}</pre>}
         </div>
       )}
@@ -94,6 +132,14 @@ function ToolCallCard({ call, onApprove, onDeny }) {
           </button>
           <button className="tool-call-deny-btn" onClick={() => onDeny?.(call.id)}>
             <Icon name="x" size={13} /> Deny
+          </button>
+        </div>
+      )}
+
+      {canRevert && (
+        <div className="tool-call-actions">
+          <button className="tool-call-revert-btn" onClick={handleRevert} disabled={reverting}>
+            <Icon name="rotate-ccw" size={13} /> {reverting ? "Reverting…" : "Revert this edit"}
           </button>
         </div>
       )}
@@ -131,6 +177,7 @@ export default function MessageBubble({
   onEdit,
   onApproveTool,
   onDenyTool,
+  onRevertTool,
   siblings,
   onSwitchBranch,
 }) {
@@ -177,7 +224,7 @@ export default function MessageBubble({
         {!isUser && message.toolCalls?.length > 0 && (
           <div className="tool-calls">
             {message.toolCalls.map((call) => (
-              <ToolCallCard key={call.id} call={call} onApprove={onApproveTool} onDeny={onDenyTool} />
+              <ToolCallCard key={call.id} call={call} onApprove={onApproveTool} onDeny={onDenyTool} onRevert={onRevertTool} />
             ))}
           </div>
         )}

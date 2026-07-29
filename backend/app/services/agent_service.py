@@ -34,6 +34,7 @@ Design choices, and why:
 from __future__ import annotations
 
 import asyncio
+import difflib
 import json
 import re
 import time
@@ -156,13 +157,21 @@ async def _await_approval(call_id: str, timeout: float) -> bool:
 
 # --- Tool call audit trail -------------------------------------------------
 
-def _log_call(conversation_id: str, tool: str, args: dict, risk: str) -> str:
+def _log_call(
+    conversation_id: str, tool: str, args: dict, risk: str,
+    diff: str | None = None, previous_content: str | None = None,
+    had_previous_file: bool | None = None,
+) -> str:
     call_id = str(uuid.uuid4())
     with _conn() as conn:
         conn.execute(
-            """INSERT INTO tool_calls (id, conversation_id, tool, args, risk, status, created_at)
-               VALUES (?, ?, ?, ?, ?, 'pending', ?)""",
-            (call_id, conversation_id, tool, json.dumps(args)[:MAX_ARG_LOG_CHARS], risk, time.time()),
+            """INSERT INTO tool_calls
+               (id, conversation_id, tool, args, risk, status, created_at,
+                diff, previous_content, had_previous_file)
+               VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
+            (call_id, conversation_id, tool, json.dumps(args)[:MAX_ARG_LOG_CHARS], risk, time.time(),
+             diff, previous_content,
+             None if had_previous_file is None else int(had_previous_file)),
         )
     return call_id
 
@@ -182,6 +191,91 @@ def list_tool_calls(conversation_id: str) -> list[dict]:
             (conversation_id,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def revert_tool_call(call_id: str) -> str:
+    """Undo an already-executed edit_file/write_file call by restoring the
+    file to what `previous_content`/`had_previous_file` recorded before the
+    edit ran — or deleting the file if the edit created it. Same one-step
+    undo model as an editor's Cmd+Z, scoped to a single tool call."""
+    from pathlib import Path
+    from app.db import storage
+
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM tool_calls WHERE id = ?", (call_id,)).fetchone()
+    if row is None:
+        raise AgentError("No tool call with that id.")
+    call = dict(row)
+    if call["tool"] not in ("edit_file", "write_file"):
+        raise AgentError("Only file edits can be reverted.")
+    if call["status"] != "executed":
+        raise AgentError("This call hasn't run (or was already reverted/denied) — nothing to revert.")
+    if call["had_previous_file"] is None:
+        raise AgentError("No backup was recorded for this edit — it predates the revert feature.")
+
+    args = json.loads(call["args"])
+    path = args.get("path")
+    if not path:
+        raise AgentError("No path recorded for this call.")
+    workdir = storage.get_conversation_workdir(call["conversation_id"])
+    p = _resolve_path(path, workdir)
+
+    try:
+        if call["had_previous_file"]:
+            p.write_text(call["previous_content"] or "")
+            msg = f"Reverted {path} to its previous contents."
+        else:
+            if p.exists():
+                p.unlink()
+            msg = f"Reverted {path} by deleting it (it didn't exist before this edit)."
+    except Exception as exc:
+        raise AgentError(f"Revert failed: {exc}") from exc
+
+    with _conn() as conn:
+        conn.execute("UPDATE tool_calls SET status = 'reverted' WHERE id = ?", (call_id,))
+    return msg
+
+
+def _preview_diff(tool: str, args: dict, workdir: str | None) -> tuple[str | None, str | None, bool | None]:
+    """Computed before approval/execution so both the approval prompt and
+    the audit trail show the real before/after — not just raw JSON args.
+    Returns (unified_diff_or_none, previous_content_or_none, had_previous_file_or_none).
+    Best-effort: any failure here just means no preview, execution still
+    runs its own validation and reports its own error."""
+    if tool not in ("edit_file", "write_file"):
+        return None, None, None
+    path = args.get("path")
+    if not path:
+        return None, None, None
+    try:
+        p = _resolve_path(path, workdir)
+    except Exception:
+        return None, None, None
+
+    had_previous_file = p.exists() and p.is_file()
+    previous_content = None
+    if had_previous_file:
+        try:
+            previous_content = p.read_text()
+        except Exception:
+            return None, None, None
+
+    if tool == "edit_file":
+        old_string = args.get("old_string")
+        new_string = args.get("new_string", "")
+        if not had_previous_file or old_string is None or previous_content.count(old_string) != 1:
+            return None, previous_content, had_previous_file
+        new_content = previous_content.replace(old_string, new_string, 1)
+    else:  # write_file
+        if args.get("mode") == "append":
+            new_content = (previous_content or "") + args.get("content", "")
+        else:
+            new_content = args.get("content", "")
+
+    old_lines = (previous_content or "").splitlines()
+    new_lines = new_content.splitlines()
+    diff = "\n".join(difflib.unified_diff(old_lines, new_lines, fromfile=path, tofile=path, lineterm=""))
+    return (diff or None), previous_content, had_previous_file
 
 
 # --- Tool execution ---------------------------------------------------------
@@ -445,12 +539,13 @@ async def run_agent_turn(
             continue
 
         risk = classify_risk(tool, args)
-        call_id = _log_call(conversation_id, tool, args, risk)
-        yield {"type": "tool_call", "id": call_id, "tool": tool, "args": args, "risk": risk}
+        diff, previous_content, had_previous_file = _preview_diff(tool, args, workdir)
+        call_id = _log_call(conversation_id, tool, args, risk, diff, previous_content, had_previous_file)
+        yield {"type": "tool_call", "id": call_id, "tool": tool, "args": args, "risk": risk, "diff": diff}
 
         needs_approval = mode == "manual" or (mode == "semi" and risk == "risky")
         if needs_approval:
-            yield {"type": "tool_pending", "id": call_id, "tool": tool, "args": args, "risk": risk}
+            yield {"type": "tool_pending", "id": call_id, "tool": tool, "args": args, "risk": risk, "diff": diff}
             approved = await _await_approval(call_id, approval_timeout)
             if not approved:
                 _resolve_call(call_id, "denied")
