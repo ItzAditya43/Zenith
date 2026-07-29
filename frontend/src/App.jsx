@@ -5,6 +5,7 @@ import MessageBubble from "./components/MessageBubble";
 import SettingsPanel from "./components/SettingsPanel";
 import CommandPalette from "./components/CommandPalette";
 import ToastStack from "./components/ToastStack";
+import Icon from "./components/Icon.jsx";
 import { api } from "./lib/api";
 
 export default function App() {
@@ -302,7 +303,7 @@ export default function App() {
     const assistantMsg = {
       id: `local-assistant-${Date.now()}`,
       role: "assistant",
-      content: `👥 Asking ${councilModels.length} models…`,
+      content: `Asking ${councilModels.length} models…`,
       streaming: true,
       model: null,
       route_role: "council",
@@ -536,7 +537,7 @@ export default function App() {
                     streaming: false,
                     interrupted: true,
                     interrupted_reason: event.message,
-                    content: msg.content || `⚠ ${event.message}`,
+                    content: msg.content || event.message,
                   }
                 : msg
             )
@@ -617,38 +618,38 @@ export default function App() {
   const commands = useMemo(() => {
     const list = [];
     list.push({
-      id: "new-chat", group: "Actions", icon: "+", label: "New chat",
+      id: "new-chat", group: "Actions", icon: "plus", label: "New chat",
       action: handleCreate,
     });
     list.push({
-      id: "toggle-theme", group: "Actions", icon: theme === "dark" ? "☀️" : "🌙",
+      id: "toggle-theme", group: "Actions", icon: theme === "dark" ? "sun" : "moon",
       label: theme === "dark" ? "Switch to light theme" : "Switch to dark theme",
       action: () => setTheme((t) => (t === "dark" ? "light" : "dark")),
     });
     list.push({
-      id: "toggle-sidebar", group: "Actions", icon: "«",
+      id: "toggle-sidebar", group: "Actions", icon: "panel-left",
       label: sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar",
       action: () => setSidebarCollapsed((v) => !v),
     });
     list.push({
-      id: "toggle-voice", group: "Actions", icon: "🔊",
+      id: "toggle-voice", group: "Actions", icon: "volume-2",
       label: voiceReplyEnabled ? "Turn off spoken replies" : "Turn on spoken replies",
       action: () => setVoiceReplyEnabled((v) => !v),
     });
     list.push({
-      id: "toggle-focus", group: "Actions", icon: "◎",
+      id: "toggle-focus", group: "Actions", icon: "target",
       label: focusMode ? "Exit focus mode" : "Enter focus mode",
       hint: "⌘.",
       action: () => setFocusMode((v) => !v),
     });
     list.push({
-      id: "toggle-density", group: "Actions", icon: "≡",
+      id: "toggle-density", group: "Actions", icon: "menu",
       label: density === "compact" ? "Switch to comfortable density" : "Switch to compact density",
       action: () => setDensity((d) => (d === "compact" ? "comfortable" : "compact")),
     });
     if (agentAvailable) {
       list.push({
-        id: "set-workdir", group: "Actions", icon: "📁",
+        id: "set-workdir", group: "Actions", icon: "folder",
         label: activeConversation?.workdir ? "Change working directory" : "Set working directory",
         action: handleSetWorkdir,
       });
@@ -665,14 +666,14 @@ export default function App() {
       { id: "data", label: "Data" },
     ]) {
       list.push({
-        id: `settings-${s.id}`, group: "Settings", icon: "⚙",
+        id: `settings-${s.id}`, group: "Settings", icon: "settings",
         label: `Settings — ${s.label}`,
         action: () => openSettingsAt(s.id),
       });
     }
     for (const p of personas) {
       list.push({
-        id: `persona-${p.id}`, group: "Personas", icon: p.icon || "🎭",
+        id: `persona-${p.id}`, group: "Personas", icon: "masks",
         label: `Switch to persona: ${p.name}`,
         hint: activeConversation?.persona_id === p.id ? "current" : undefined,
         action: () => handlePersonaChange(p.id),
@@ -680,13 +681,13 @@ export default function App() {
     }
     if (activeConversation?.persona_id) {
       list.push({
-        id: "persona-none", group: "Personas", icon: "∅", label: "Remove persona from this conversation",
+        id: "persona-none", group: "Personas", icon: "x", label: "Remove persona from this conversation",
         action: () => handlePersonaChange(null),
       });
     }
     for (const c of conversations) {
       list.push({
-        id: `conv-${c.id}`, group: "Conversations", icon: "💬", label: c.title,
+        id: `conv-${c.id}`, group: "Conversations", icon: "message-circle", label: c.title,
         action: () => selectConversation(c.id),
       });
     }
@@ -718,7 +719,7 @@ export default function App() {
             onClick={() => setSidebarCollapsed((v) => !v)}
             title="Toggle sidebar"
           >
-            ☰
+            <Icon name="menu" size={18} />
           </button>
           <h1>{activeConversation?.title || "Cortex"}</h1>
           <div className="header-actions">
@@ -727,7 +728,7 @@ export default function App() {
               onClick={() => setFocusMode((v) => !v)}
               title={focusMode ? "Exit focus mode (⌘. or Esc)" : "Focus mode — hide sidebar and chrome (⌘.)"}
             >
-              ◎
+              <Icon name="target" size={16} />
             </button>
             {!focusMode && agentAvailable && (
               <button
@@ -739,7 +740,7 @@ export default function App() {
                     : "Set a working directory for agent mode (bash cwd + relative paths)"
                 }
               >
-                📁 {activeConversation?.workdir ? activeConversation.workdir.split("/").pop() : "Set folder"}
+                <Icon name="folder" size={14} /> {activeConversation?.workdir ? activeConversation.workdir.split("/").pop() : "Set folder"}
               </button>
             )}
             {!focusMode && personas.length > 0 && (
@@ -768,7 +769,7 @@ export default function App() {
               >
                 <span className="theme-toggle-track">
                   <span className="theme-toggle-thumb">
-                    {theme === "dark" ? "🌙" : "☀️"}
+                    <Icon name={theme === "dark" ? "moon" : "sun"} size={12} />
                   </span>
                 </span>
               </button>
@@ -779,7 +780,7 @@ export default function App() {
                 onClick={() => setVoiceReplyEnabled((v) => !v)}
                 title="Speak replies aloud"
               >
-                {voiceReplyEnabled ? "🔊 Voice on" : "🔈 Voice off"}
+                <Icon name={voiceReplyEnabled ? "volume-2" : "volume-x"} size={14} /> {voiceReplyEnabled ? "Voice on" : "Voice off"}
               </button>
             )}
           </div>
@@ -803,28 +804,28 @@ export default function App() {
               </p>
               <div className="empty-state-features">
                 <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon">🔍</span>
+                  <span className="empty-state-feature-icon"><Icon name="search" size={18} /></span>
                   <div>
                     <strong>Web search &amp; research</strong>
                     <span>Pick a mode from the composer to search or investigate before answering.</span>
                   </div>
                 </div>
                 <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon">📎</span>
+                  <span className="empty-state-feature-icon"><Icon name="paperclip" size={18} /></span>
                   <div>
                     <strong>Images, documents, video</strong>
                     <span>Attach a file and Cortex routes to whatever model handles it best.</span>
                   </div>
                 </div>
                 <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon">🎙</span>
+                  <span className="empty-state-feature-icon"><Icon name="mic" size={18} /></span>
                   <div>
                     <strong>Voice in, voice out</strong>
                     <span>Hold the mic to talk; turn on spoken replies from the header.</span>
                   </div>
                 </div>
                 <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon">⌘</span>
+                  <span className="empty-state-feature-icon"><Icon name="command" size={18} /></span>
                   <div>
                     <strong>⌘K for everything</strong>
                     <span>Jump to a conversation, switch persona, or open any setting.</span>
@@ -850,7 +851,7 @@ export default function App() {
 
         {!isNearBottom && messages.length > 0 && (
           <button className="scroll-to-bottom-btn" onClick={scrollToBottom} title="Scroll to latest">
-            ↓
+            <Icon name="chevron-down" size={16} />
           </button>
         )}
 

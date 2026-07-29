@@ -1,6 +1,7 @@
 import { useEffect } from "react";
+import Icon from "./Icon.jsx";
 
-const ICON = { info: "ℹ", success: "✓", error: "⚠" };
+const ICON = { info: "info", success: "check", error: "alert-triangle" };
 
 export default function ToastStack({ toasts, onDismiss }) {
   return (
@@ -21,7 +22,7 @@ function Toast({ toast, onDismiss }) {
   return (
     <div className={`toast toast-${toast.type || "info"}`} onClick={onDismiss}>
       <span className="toast-icon" aria-hidden="true">
-        {ICON[toast.type] || ICON.info}
+        <Icon name={ICON[toast.type] || ICON.info} size={16} />
       </span>
       <span className="toast-message">{toast.message}</span>
     </div>

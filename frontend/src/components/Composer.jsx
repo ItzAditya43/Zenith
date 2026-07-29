@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { api } from "../lib/api";
+import Icon from "./Icon.jsx";
 
-const KIND_ICON = { image: "🖼", video: "🎬", document: "📄", audio: "🎙", other: "📎" };
+const KIND_ICON = { image: "image", video: "video", document: "file-text", audio: "headphones", other: "paperclip" };
 
 const MODES = [
-  { id: "off", icon: "💬", label: "Just chat", hint: "Answer from context — no search, no tools." },
-  { id: "search", icon: "🔍", label: "Web search", hint: "Search the web for this message." },
-  { id: "research", icon: "🔬", label: "Deep Research", hint: "Multi-step investigation and a written report, instead of a quick answer." },
-  { id: "agent", icon: "🤖", label: "Agent", hint: "Cortex can run commands and read/write files across multiple steps.", requires: "agentAvailable" },
-  { id: "council", icon: "👥", label: "Council", hint: "Ask all your configured models at once, compare the answers.", requires: "councilAvailable" },
+  { id: "off", icon: "message-circle", label: "Just chat", hint: "Answer from context — no search, no tools." },
+  { id: "search", icon: "search", label: "Web search", hint: "Search the web for this message." },
+  { id: "research", icon: "flask", label: "Deep Research", hint: "Multi-step investigation and a written report, instead of a quick answer." },
+  { id: "agent", icon: "bot", label: "Agent", hint: "Cortex can run commands and read/write files across multiple steps.", requires: "agentAvailable" },
+  { id: "council", icon: "users", label: "Council", hint: "Ask all your configured models at once, compare the answers.", requires: "councilAvailable" },
 ];
 
 function ModePicker({ mode, setMode, agentAvailable, councilAvailable }) {
@@ -44,10 +45,10 @@ function ModePicker({ mode, setMode, agentAvailable, councilAvailable }) {
         aria-expanded={open}
         title={current.hint}
       >
-        <span aria-hidden="true">{current.icon}</span>
+        <Icon name={current.icon} size={15} />
         <span className="mode-picker-label">{current.label}</span>
         <span className="mode-picker-caret" aria-hidden="true">
-          {open ? "▲" : "▼"}
+          <Icon name={open ? "chevron-up" : "chevron-down"} size={13} />
         </span>
       </button>
       {open && (
@@ -64,7 +65,7 @@ function ModePicker({ mode, setMode, agentAvailable, councilAvailable }) {
                 }}
               >
                 <span className="mode-picker-option-icon" aria-hidden="true">
-                  {m.icon}
+                  <Icon name={m.icon} size={15} />
                 </span>
                 <span>
                   <span className="mode-picker-option-label">{m.label}</span>
@@ -251,7 +252,7 @@ export default function Composer({
         <div className="composer-mic-error" role="alert">
           <span>{micError}</span>
           <button onClick={() => setMicError(null)} title="Dismiss">
-            ×
+            <Icon name="x" size={13} />
           </button>
         </div>
       )}
@@ -260,9 +261,9 @@ export default function Composer({
         <div className="composer-attachments">
           {pending.map((a) => (
             <span className="attachment-chip" key={a.id}>
-              {a.uploading ? "⏳" : KIND_ICON[a.kind] || "📎"} {a.filename}
+              <Icon name={a.uploading ? "hourglass" : KIND_ICON[a.kind] || "paperclip"} size={13} /> {a.filename}
               <button onClick={() => removeAttachment(a.id)} title="Remove">
-                ×
+                <Icon name="x" size={12} />
               </button>
             </span>
           ))}
@@ -275,7 +276,7 @@ export default function Composer({
           onClick={() => fileInputRef.current?.click()}
           title="Attach image, document, or video"
         >
-          📎
+          <Icon name="paperclip" size={17} />
         </button>
         <ModePicker
           mode={mode}
@@ -313,7 +314,7 @@ export default function Composer({
 
         {isStreaming ? (
           <button className="composer-send-btn stop-btn" onClick={onStop} title="Stop generating">
-            ◼
+            <Icon name="square" size={14} />
           </button>
         ) : (
           <button
@@ -325,7 +326,7 @@ export default function Composer({
             disabled={!supported}
             title={micTitle}
           >
-            {recording ? "◼" : "🎙"}
+            <Icon name={recording ? "square" : "mic"} size={16} />
           </button>
         )}
 
@@ -335,7 +336,7 @@ export default function Composer({
           disabled={disabled || (!text.trim() && pending.length === 0)}
           title="Send"
         >
-          ➤
+          <Icon name="send" size={16} />
         </button>
       </div>
     </div>

@@ -2,9 +2,10 @@ import { useState } from "react";
 import ModelBadge from "./ModelBadge";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { api } from "../lib/api";
+import Icon from "./Icon.jsx";
 
-const KIND_ICON = { image: "🖼", video: "🎬", document: "📄", audio: "🎙" };
-const TOOL_ICON = { bash: "⌨", read_file: "📖", write_file: "📝", list_dir: "📁", web_search: "🔍", fetch_url: "🌐" };
+const KIND_ICON = { image: "image", video: "video", document: "file-text", audio: "headphones" };
+const TOOL_ICON = { bash: "terminal", read_file: "book-open", write_file: "file-pen", list_dir: "folder-open", web_search: "search", fetch_url: "link" };
 const EDITABLE_DOC_EXTS = [".txt", ".md", ".csv", ".json"];
 
 function DocumentChip({ attachment: a }) {
@@ -30,10 +31,10 @@ function DocumentChip({ attachment: a }) {
   return (
     <div className="doc-chip-wrap">
       <span className="msg-attachment-chip">
-        {KIND_ICON[a.kind] || "📎"} {a.name}
+        <Icon name={KIND_ICON[a.kind] || "paperclip"} size={14} /> {a.name}
         {editable && (
           <button className="doc-chip-edit-btn" onClick={handleEdit} disabled={busy} title="Edit this document">
-            {busy ? "…" : "✎"}
+            {busy ? "…" : <Icon name="pencil" size={13} />}
           </button>
         )}
       </span>
@@ -45,10 +46,14 @@ function DocumentChip({ attachment: a }) {
           rel="noopener noreferrer"
           download
         >
-          ✓ {result.filename} — download
+          <Icon name="check" size={13} /> {result.filename} — download
         </a>
       )}
-      {result?.error && <span className="doc-chip-result doc-chip-error">⚠ {result.error}</span>}
+      {result?.error && (
+        <span className="doc-chip-result doc-chip-error">
+          <Icon name="alert-triangle" size={13} /> {result.error}
+        </span>
+      )}
     </div>
   );
 }
@@ -61,7 +66,7 @@ function ToolCallCard({ call, onApprove, onDeny }) {
   return (
     <div className={`tool-call-card tool-call-${call.status}`}>
       <button className="tool-call-header" onClick={() => setExpanded((v) => !v)}>
-        <span className="tool-call-icon">{TOOL_ICON[call.tool] || "🔧"}</span>
+        <span className="tool-call-icon"><Icon name={TOOL_ICON[call.tool] || "wrench"} size={14} /></span>
         <span className="tool-call-name">{call.tool}</span>
         <span className="tool-call-summary">{argsSummary}</span>
         <span className={`tool-call-status-chip tool-call-status-${call.status}`}>
@@ -85,10 +90,10 @@ function ToolCallCard({ call, onApprove, onDeny }) {
       {call.status === "pending" && (
         <div className="tool-call-actions">
           <button className="tool-call-approve-btn" onClick={() => onApprove?.(call.id)}>
-            ✓ Approve
+            <Icon name="check" size={13} /> Approve
           </button>
           <button className="tool-call-deny-btn" onClick={() => onDeny?.(call.id)}>
-            ✕ Deny
+            <Icon name="x" size={13} /> Deny
           </button>
         </div>
       )}
@@ -107,13 +112,13 @@ function BranchSwitcher({ siblings, activeId, onSwitch }) {
   return (
     <div className="branch-switcher">
       <button onClick={() => go(-1)} title="Previous version">
-        ‹
+        <Icon name="chevron-left" size={13} />
       </button>
       <span>
         {pos + 1}/{siblings.length}
       </span>
       <button onClick={() => go(1)} title="Next version">
-        ›
+        <Icon name="chevron-right" size={13} />
       </button>
     </div>
   );
@@ -219,7 +224,7 @@ export default function MessageBubble({
                 rel="noopener noreferrer"
                 title={s.url}
               >
-                🌐 {s.title || s.url}
+                <Icon name="link" size={12} /> {s.title || s.url}
               </a>
             ))}
           </div>
@@ -227,7 +232,7 @@ export default function MessageBubble({
 
         {message.interrupted && (
           <div className="msg-interrupted">
-            ⚠ {message.interrupted_reason || "Interrupted"}
+            <Icon name="alert-triangle" size={13} /> {message.interrupted_reason || "Interrupted"}
             {onRetry && (
               <button className="msg-retry-btn" onClick={() => onRetry(message)}>
                 Retry
@@ -240,16 +245,16 @@ export default function MessageBubble({
           <div className="msg-actions-row">
             <div className="msg-actions">
               <button onClick={copy} title="Copy">
-                {copied ? "✓ Copied" : "⧉ Copy"}
+                {copied ? <><Icon name="check" size={13} /> Copied</> : <><Icon name="copy" size={13} /> Copy</>}
               </button>
               {isUser && onEdit && (
                 <button onClick={() => setEditing(true)} title="Edit & resend">
-                  ✎ Edit
+                  <Icon name="pencil" size={13} /> Edit
                 </button>
               )}
               {!isUser && onRegenerate && (
                 <button onClick={() => onRegenerate(message)} title="Regenerate response">
-                  ↻ Regenerate
+                  <Icon name="rotate-ccw" size={13} /> Regenerate
                 </button>
               )}
             </div>

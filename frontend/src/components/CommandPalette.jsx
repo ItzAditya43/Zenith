@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import Icon from "./Icon.jsx";
 
 /**
- * ⌘K power-user palette: jump to a conversation, run an action, switch a
+ * Cmd/Ctrl+K power-user palette: jump to a conversation, run an action, switch a
  * persona, or open a specific Settings section — all from one input
  * instead of hunting through menus. Filters everything client-side
  * against a flat list of "commands" built fresh each open, so it always
@@ -61,7 +62,7 @@ export default function CommandPalette({ open, onClose, commands }) {
       <div className="cmdk-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Command palette">
         <div className="cmdk-input-row">
           <span className="cmdk-input-icon" aria-hidden="true">
-            ⌘
+            <Icon name="command" size={15} />
           </span>
           <input
             ref={inputRef}
@@ -87,7 +88,7 @@ export default function CommandPalette({ open, onClose, commands }) {
                   onClick={() => run(cmd)}
                 >
                   <span className="cmdk-item-icon" aria-hidden="true">
-                    {cmd.icon}
+                    <Icon name={cmd.icon || "chevron-right"} size={14} />
                   </span>
                   <span className="cmdk-item-label">{cmd.label}</span>
                   {cmd.hint && <span className="cmdk-item-hint">{cmd.hint}</span>}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import Icon from "./Icon.jsx";
 
 const ROLES = ["general", "code", "vision", "reasoning", "small_fast", "embedding"];
 const ROLE_LABEL = {
@@ -12,18 +13,18 @@ const ROLE_LABEL = {
 };
 
 const SECTIONS = [
-  { id: "appearance", label: "Appearance", icon: "◐" },
-  { id: "connection", label: "Connection", icon: "⚡" },
-  { id: "memory", label: "Memory & persona", icon: "◆" },
-  { id: "personas", label: "Personas", icon: "🎭" },
-  { id: "agent", label: "Agent tools", icon: "🤖" },
-  { id: "council", label: "Council", icon: "👥" },
-  { id: "routing", label: "Model routing", icon: "⇄" },
-  { id: "models", label: "Installed models", icon: "▦" },
-  { id: "voice", label: "Voice & audio", icon: "🎙" },
-  { id: "data", label: "Data", icon: "⬇" },
-  { id: "folders", label: "Folders", icon: "📁" },
-  { id: "schedules", label: "Schedules", icon: "⏱" },
+  { id: "appearance", label: "Appearance", icon: "sun" },
+  { id: "connection", label: "Connection", icon: "bolt" },
+  { id: "memory", label: "Memory & persona", icon: "layers" },
+  { id: "personas", label: "Personas", icon: "masks" },
+  { id: "agent", label: "Agent tools", icon: "bot" },
+  { id: "council", label: "Council", icon: "users" },
+  { id: "routing", label: "Model routing", icon: "target" },
+  { id: "models", label: "Installed models", icon: "grid" },
+  { id: "voice", label: "Voice & audio", icon: "mic" },
+  { id: "data", label: "Data", icon: "download" },
+  { id: "folders", label: "Folders", icon: "folder" },
+  { id: "schedules", label: "Schedules", icon: "clock" },
 ];
 
 export default function SettingsPanel({
@@ -394,7 +395,7 @@ export default function SettingsPanel({
                 onClick={() => setActiveSection(s.id)}
               >
                 <span className="settings-nav-icon" aria-hidden="true">
-                  {s.icon}
+                  <Icon name={s.icon} size={15} />
                 </span>
                 {s.label}
               </button>
@@ -630,7 +631,7 @@ export default function SettingsPanel({
                     <input
                       className="settings-input"
                       style={{ flex: "0 0 60px" }}
-                      placeholder="🎭"
+                      placeholder="Icon"
                       value={newPersonaIcon}
                       onChange={(e) => setNewPersonaIcon(e.target.value)}
                       maxLength={4}
@@ -692,7 +693,7 @@ export default function SettingsPanel({
                   <div className="setting-meta">
                     <span className="setting-label">Enable agent tools</span>
                     <span className="setting-hint">
-                      Master switch. Off = the 🤖 composer toggle does nothing.
+                      Master switch. Off = the Agent composer toggle does nothing.
                     </span>
                   </div>
                   <button
@@ -826,7 +827,7 @@ export default function SettingsPanel({
               <section className="settings-section">
                 <h3 className="settings-section-title">Council of models</h3>
                 <p className="settings-section-desc">
-                  Pick 2 or more installed models. When the 👥 toggle in the composer is on,
+                  Pick 2 or more installed models. When the Council toggle in the composer is on,
                   every message goes to all of them at once, in parallel — free, since they're
                   already on your machine. Answers show up as branches on the reply; flip
                   between them with the ‹ 1/N › switcher.
