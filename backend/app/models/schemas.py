@@ -80,11 +80,19 @@ class ConfigPatch(StrictModel):
     web_fetch_timeout_seconds: Optional[int] = Field(default=None, ge=2, le=60)
     web_fetch_max_urls_per_turn: Optional[int] = Field(default=None, ge=0, le=10)
     agent_enabled: Optional[bool] = None
-    agent_mode: Optional[Literal["manual", "semi", "full"]] = None
+    agent_mode: Optional[Literal["manual", "semi", "full", "plan"]] = None
     agent_max_iterations: Optional[int] = Field(default=None, ge=1, le=200)
     agent_command_timeout_seconds: Optional[int] = Field(default=None, ge=5, le=600)
     agent_output_max_chars: Optional[int] = Field(default=None, ge=500, le=20_000)
     agent_approval_timeout_seconds: Optional[int] = Field(default=None, ge=30, le=3600)
+    agent_subagent_max_iterations: Optional[int] = Field(default=None, ge=1, le=50)
+    agent_check_command: Optional[str] = Field(default=None, max_length=500)
+    agent_auto_check: Optional[bool] = None
+    agent_check_timeout_seconds: Optional[int] = Field(default=None, ge=5, le=1800)
+    image_gen_url: Optional[str] = Field(default=None, max_length=500)
+    image_gen_steps: Optional[int] = Field(default=None, ge=1, le=150)
+    image_gen_size: Optional[int] = Field(default=None, ge=128, le=2048)
+    image_gen_timeout_seconds: Optional[int] = Field(default=None, ge=10, le=1800)
     research_max_iterations: Optional[int] = Field(default=None, ge=2, le=30)
     council_models: Optional[list[str]] = Field(default=None, max_length=6)
     folder_scan_interval_seconds: Optional[int] = Field(default=None, ge=60, le=86400)
