@@ -1189,6 +1189,26 @@
   background: var(--signal-general-dim);
   color: var(--text-primary);
 }
+.accent-choice {
+  display: flex;
+  gap: var(--space-2);
+}
+.accent-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--border-soft);
+  cursor: pointer;
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+}
+.accent-swatch:hover {
+  transform: scale(1.1);
+}
+.accent-swatch.is-selected {
+  border-color: var(--bg-panel);
+  box-shadow: 0 0 0 2px var(--text-primary);
+}
 .theme-swatch {
   width: 18px;
   height: 18px;

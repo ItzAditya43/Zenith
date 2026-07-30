@@ -139,6 +139,35 @@
   --bg-glow-2: rgba(109, 95, 224, 0.045);
 }
 
+/*
+  Accent themes. The primary accent (--signal-general, the de-facto brand
+  color used on the mark, primary buttons, cursors and the "general"
+  capability) can be re-hued without disturbing the other capability
+  signals. These blocks come after [data-theme="light"] so they win for the
+  tokens they touch in both light and dark — App.jsx sets data-accent on
+  <html> exactly like data-theme. "teal" is the default and needs no block.
+*/
+[data-accent="violet"] {
+  --signal-general: #8b7fe8;
+  --signal-general-dim: rgba(139, 127, 232, 0.14);
+  --bg-glow-1: rgba(139, 127, 232, 0.06);
+}
+[data-accent="amber"] {
+  --signal-general: #e8b23d;
+  --signal-general-dim: rgba(232, 178, 61, 0.14);
+  --bg-glow-1: rgba(232, 178, 61, 0.06);
+}
+[data-accent="rose"] {
+  --signal-general: #ef6f9f;
+  --signal-general-dim: rgba(239, 111, 159, 0.14);
+  --bg-glow-1: rgba(239, 111, 159, 0.06);
+}
+[data-accent="sky"] {
+  --signal-general: #6fb1ef;
+  --signal-general-dim: rgba(111, 177, 239, 0.14);
+  --bg-glow-1: rgba(111, 177, 239, 0.06);
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --dur-fast: 0ms;
