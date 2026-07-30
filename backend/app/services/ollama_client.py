@@ -186,3 +186,79 @@ class OllamaClient:
                 raise OllamaError(
                     f"Can't reach Ollama at {self.host}. Is `ollama serve` running?"
                 ) from exc
+
+    # --- Model management (pull / create / delete / show) ------------------
+
+    async def _stream_progress(self, path: str, payload: dict) -> AsyncIterator[dict]:
+        """Shared streamer for /api/pull and /api/create, both of which emit
+        newline-delimited JSON progress objects. Yields each parsed object;
+        raises OllamaError on connection failure. Uses no read timeout —
+        pulling a multi-GB model legitimately takes a long time."""
+        timeout = httpx.Timeout(connect=10.0, read=None, write=30.0, pool=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
+                async with client.stream("POST", f"{self.host}{path}", json=payload) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            yield json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+            except httpx.ConnectError as exc:
+                raise OllamaError(
+                    f"Can't reach Ollama at {self.host}. Is `ollama serve` running?"
+                ) from exc
+
+    async def pull_model(self, name: str) -> AsyncIterator[dict]:
+        """Stream `ollama pull <name>` progress objects
+        ({status, digest?, total?, completed?})."""
+        async for ev in self._stream_progress("/api/pull", {"name": name, "stream": True}):
+            yield ev
+
+    async def create_model(self, name: str, spec: dict) -> AsyncIterator[dict]:
+        """Stream `ollama create <name>` using the structured create API
+        ({from, system, adapter, template, parameters, ...}). `adapter` is
+        the fine-tune / LoRA path — a GGUF adapter file or a directory Ollama
+        can read. Only non-empty spec fields are forwarded."""
+        payload = {"model": name, "stream": True}
+        for key in ("from", "system", "adapter", "template", "quantize"):
+            val = spec.get(key)
+            if val:
+                payload[key] = val
+        if isinstance(spec.get("parameters"), dict) and spec["parameters"]:
+            payload["parameters"] = spec["parameters"]
+        async for ev in self._stream_progress("/api/create", payload):
+            yield ev
+
+    async def delete_model(self, name: str) -> None:
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                resp = await client.request(
+                    "DELETE", f"{self.host}/api/delete", json={"name": name}
+                )
+                resp.raise_for_status()
+            except httpx.ConnectError as exc:
+                raise OllamaError(
+                    f"Can't reach Ollama at {self.host}. Is `ollama serve` running?"
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                raise OllamaError(
+                    f"Ollama couldn't delete '{name}' ({exc.response.status_code})."
+                ) from exc
+
+    async def show_model(self, name: str) -> dict:
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                resp = await client.post(f"{self.host}/api/show", json={"name": name})
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.ConnectError as exc:
+                raise OllamaError(
+                    f"Can't reach Ollama at {self.host}. Is `ollama serve` running?"
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                raise OllamaError(
+                    f"Ollama couldn't show '{name}' ({exc.response.status_code})."
+                ) from exc

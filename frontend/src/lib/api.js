@@ -211,6 +211,10 @@ export const api = {
     request(`/api/agent/tool-calls?conversation_id=${encodeURIComponent(conversationId)}`).then((r) => r.json()),
 
   listModels: () => request("/api/models").then((r) => r.json()),
+  pullModel: (name, onEvent) => streamSSE("/api/models/pull", { name }, onEvent),
+  createModel: (spec, onEvent) => streamSSE("/api/models/create", spec, onEvent),
+  deleteModel: (name) =>
+    request(`/api/models/${name}`, { method: "DELETE" }).then((r) => r.json()),
   getConfig: () => request("/api/config").then((r) => r.json()),
   patchConfig: (patch) =>
     request("/api/config", {
