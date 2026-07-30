@@ -647,10 +647,10 @@ export default function App() {
       return;
     }
     try {
-      const results = await api.searchConversations(q);
+      const results = await api.searchAll(q);
       setSearchResults(results);
     } catch {
-      setSearchResults([]);
+      setSearchResults({ conversations: [], documents: [], memories: [] });
     }
   };
 
@@ -753,6 +753,7 @@ export default function App() {
           onCreate={handleCreate}
           onDelete={handleDelete}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenMemory={() => openSettingsAt("memory")}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
           searchQuery={searchQuery}

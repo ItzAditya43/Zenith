@@ -51,6 +51,7 @@ export default function Sidebar({
   onCreate,
   onDelete,
   onOpenSettings,
+  onOpenMemory,
   collapsed,
   onToggleCollapse,
   searchQuery,
@@ -58,8 +59,11 @@ export default function Sidebar({
   searchResults,
 }) {
   const showSearchResults = searchResults !== null;
-  const list = showSearchResults ? searchResults : conversations;
-  const groups = showSearchResults || collapsed ? null : groupByDate(list);
+  const convResults = showSearchResults ? searchResults.conversations || [] : conversations;
+  const docResults = showSearchResults ? searchResults.documents || [] : [];
+  const memResults = showSearchResults ? searchResults.memories || [] : [];
+  const totalResults = convResults.length + docResults.length + memResults.length;
+  const groups = showSearchResults || collapsed ? null : groupByDate(conversations);
 
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -84,7 +88,7 @@ export default function Sidebar({
             id="sidebar-search"
             className="sidebar-search"
             type="search"
-            placeholder="Search conversations…  (⌘K)"
+            placeholder="Search chats, docs, memories…"
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
           />
@@ -97,43 +101,95 @@ export default function Sidebar({
       )}
 
       <nav className="conversation-list">
-        {showSearchResults && (
-          <p className="search-results-label">
-            {searchResults.length} result{searchResults.length === 1 ? "" : "s"}
-          </p>
-        )}
-        {groups
-          ? groups.map((group) => (
-              <div className="conversation-group" key={group.label}>
-                <p className="conversation-group-label">{group.label}</p>
-                {group.items.map((c) => (
+        {showSearchResults ? (
+          <>
+            {convResults.length > 0 && (
+              <div className="conversation-group">
+                <p className="conversation-group-label">Conversations</p>
+                {convResults.map((c) => (
                   <ConversationItem
-                    key={c.id}
-                    c={c}
-                    active={c.id === activeId}
+                    key={c.conversation_id || c.id}
+                    c={{ id: c.conversation_id || c.id, title: c.title }}
+                    active={(c.conversation_id || c.id) === activeId}
                     collapsed={collapsed}
-                    showDelete={!showSearchResults}
+                    showDelete={false}
                     onSelect={onSelect}
                     onDelete={onDelete}
                   />
                 ))}
               </div>
-            ))
-          : list.map((c) => (
-              <ConversationItem
-                key={c.id}
-                c={c}
-                active={c.id === activeId}
-                collapsed={collapsed}
-                showDelete={!showSearchResults}
-                onSelect={onSelect}
-                onDelete={onDelete}
-              />
-            ))}
-        {list.length === 0 && !collapsed && (
-          <p className="conversation-empty">
-            {showSearchResults ? "No matches." : "No conversations yet — start one above."}
-          </p>
+            )}
+            {docResults.length > 0 && (
+              <div className="conversation-group">
+                <p className="conversation-group-label">Documents</p>
+                {docResults.map((d) => (
+                  <button
+                    key={d.id}
+                    className="search-result-item"
+                    onClick={() => d.conversation_id && onSelect(d.conversation_id)}
+                    disabled={!d.conversation_id}
+                    title={d.snip || d.filename}
+                  >
+                    <Icon name="file-text" size={14} />
+                    <span className="search-result-text">{d.filename}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {memResults.length > 0 && (
+              <div className="conversation-group">
+                <p className="conversation-group-label">Memories</p>
+                {memResults.map((m) => (
+                  <button
+                    key={m.id}
+                    className="search-result-item"
+                    onClick={() => onOpenMemory?.()}
+                    title={m.content}
+                  >
+                    <Icon name="layers" size={14} />
+                    <span className="search-result-text">{m.content}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {totalResults === 0 && !collapsed && (
+              <p className="conversation-empty">No matches.</p>
+            )}
+          </>
+        ) : (
+          <>
+            {groups
+              ? groups.map((group) => (
+                  <div className="conversation-group" key={group.label}>
+                    <p className="conversation-group-label">{group.label}</p>
+                    {group.items.map((c) => (
+                      <ConversationItem
+                        key={c.id}
+                        c={c}
+                        active={c.id === activeId}
+                        collapsed={collapsed}
+                        showDelete
+                        onSelect={onSelect}
+                        onDelete={onDelete}
+                      />
+                    ))}
+                  </div>
+                ))
+              : conversations.map((c) => (
+                  <ConversationItem
+                    key={c.id}
+                    c={c}
+                    active={c.id === activeId}
+                    collapsed={collapsed}
+                    showDelete
+                    onSelect={onSelect}
+                    onDelete={onDelete}
+                  />
+                ))}
+            {conversations.length === 0 && !collapsed && (
+              <p className="conversation-empty">No conversations yet — start one above.</p>
+            )}
+          </>
         )}
       </nav>
 

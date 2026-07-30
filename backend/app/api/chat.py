@@ -42,6 +42,13 @@ async def search_conversations(q: str = ""):
     return storage.search_conversations(q)
 
 
+@router.get("/search/all")
+async def search_all(q: str = ""):
+    """Unified search across conversations, documents, and memories in one
+    call — powers the grouped sidebar search results."""
+    return storage.search_all(q)
+
+
 @router.post("/conversations")
 async def create_conversation(body: ConversationCreate):
     return storage.create_conversation(body.title)
