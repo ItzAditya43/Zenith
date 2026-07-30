@@ -369,3 +369,59 @@ def search_conversations(q: str) -> list[dict]:
             (like,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def search_documents(q: str) -> list[dict]:
+    """Match uploaded documents by filename or by the text of their indexed
+    chunks (source_kind='document', source_id=attachment id). Returns one
+    row per document with a snippet from the first matching chunk."""
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT a.id, a.filename, a.kind, a.conversation_id,
+                   (SELECT substr(ch.text, 1, 160) FROM chunks ch
+                    WHERE ch.source_kind = 'document' AND ch.source_id = a.id
+                      AND ch.text LIKE ? LIMIT 1) AS snip
+            FROM attachments a
+            WHERE a.filename LIKE ?
+               OR EXISTS (SELECT 1 FROM chunks ch
+                          WHERE ch.source_kind = 'document' AND ch.source_id = a.id
+                            AND ch.text LIKE ?)
+            ORDER BY a.created_at DESC
+            LIMIT 20
+            """,
+            (like, like, like),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_memories(q: str) -> list[dict]:
+    """Match stored memories by content."""
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, content, category, enabled
+            FROM memories
+            WHERE content LIKE ?
+            ORDER BY updated_at DESC
+            LIMIT 20
+            """,
+            (like,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_all(q: str) -> dict:
+    """Unified search: conversations (message content), documents (filename
+    + chunk text), and memories (content) in one call, grouped by kind."""
+    return {
+        "conversations": search_conversations(q),
+        "documents": search_documents(q),
+        "memories": search_memories(q),
+    }

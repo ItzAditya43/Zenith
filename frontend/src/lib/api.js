@@ -90,6 +90,8 @@ export const api = {
     }).then((r) => r.json()),
   searchConversations: (query) =>
     request(`/api/conversations/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
+  searchAll: (query) =>
+    request(`/api/search/all?q=${encodeURIComponent(query)}`).then((r) => r.json()),
 
   listPersonas: () => request("/api/personas").then((r) => r.json()),
   createPersona: (name, systemPrompt, icon = null) =>
