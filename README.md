@@ -1,9 +1,14 @@
 # Cortex
 
 A self-hosted, multimodal AI workspace built on your own Ollama instance —
-chat, agents, deep research, memory, and voice, all running on your own
-hardware. No cloud calls except to your own local Ollama (and the open web,
-only when you explicitly ask it to search or attach a link).
+chat, a Claude-Code-class coding agent, deep research, memory, image
+generation, and voice, all running on your own hardware. No cloud calls
+except to your own local Ollama (and the open web, only when you explicitly
+ask it to search or attach a link).
+
+Run it as a Docker stack, install it as a **native desktop app** (Tauri +
+frozen backend), or reach it from your phone over your LAN/Tailscale — same
+local backend, same data.
 
 Everything in this document reflects what's actually implemented and has
 been verified against a real running deployment — not a roadmap, not
@@ -27,10 +32,17 @@ aspirational copy.
   - [Council of models](#council-of-models)
   - [Conversation branching](#conversation-branching)
   - [Document editing](#document-editing)
+  - [Image generation](#image-generation)
+  - [Model management](#model-management)
+  - [Unified search](#unified-search)
+  - [Import from ChatGPT / Claude](#import-from-chatgpt--claude)
   - [Folder watcher](#folder-watcher)
   - [Scheduled/recurring turns](#scheduledrecurring-turns)
   - [Data export](#data-export)
+  - [Passcode lock](#passcode-lock)
   - [Interface](#interface)
+- [Desktop app](#desktop-app)
+- [Mobile & multi-device](#mobile--multi-device)
 - [Configuration reference](#configuration-reference)
 - [Safety model](#safety-model)
 - [Known limitations](#known-limitations)
@@ -66,8 +78,10 @@ means:
 ```
 cortex/
 ├── backend/     FastAPI (Python) — Ollama client, router, RAG, agent loop,
-│                MCP client, STT/TTS, doc/video parsing, SQLite
-└── frontend/    React + Vite — chat UI, command palette, settings
+│                MCP client, browser automation, image gen, STT/TTS, SQLite
+├── frontend/    React + Vite — chat UI, command palette, settings, PWA
+└── desktop/     Tauri v2 shell — packages the above into a native app
+                 (see DESKTOP.md); the frozen backend runs as a sidecar
 ```
 
 Ollama itself is untouched — Cortex talks to it over its normal HTTP API
@@ -79,11 +93,14 @@ processes because Ollama doesn't serve those model types.
 
 | Module | Responsibility |
 |---|---|
-| `app/main.py` | FastAPI app, lifespan (background tasks: orphan sweeper, folder scanner, schedule runner, model prewarm), CORS, optional shared-secret auth |
-| `app/api/*.py` | One router per feature area — thin, delegates to `services/` |
+| `app/main.py` | FastAPI app, lifespan (background tasks: orphan sweeper, folder scanner, schedule runner, model prewarm), CORS (+ opt-in LAN/Tailscale), shared-secret auth, passcode-lock middleware |
+| `app/api/*.py` | One router per feature area — thin, delegates to `services/` (incl. `lock.py`, `images.py`) |
 | `app/services/orchestrator.py` | Ties one plain chat turn together: attachments → context → route → stream → persist |
 | `app/services/router.py` | Capability classification (keyword + embedding-based) and model registry |
-| `app/services/agent_service.py` | The agentic tool-use loop (bash/files/web/MCP) |
+| `app/services/agent_service.py` | The agentic tool-use loop — bash, files (with diff-preview + undo), persistent shell sessions, browser automation, first-class git, run_checks, sub-agent delegation, MCP; plan-first mode; checkpoint/resume |
+| `app/services/browser_service.py` | Headless-Chromium browser automation over raw CDP (navigate/click/type/read) |
+| `app/services/image_service.py` | Local Stable Diffusion (AUTOMATIC1111-compatible) image generation |
+| `app/services/import_service.py` | Ingest ChatGPT/Claude conversation exports |
 | `app/services/research_service.py` | Deep Research's web-only multi-step loop |
 | `app/services/council_service.py` | Concurrent multi-model fan-out |
 | `app/services/mcp_service.py` | MCP client (stdio transport) |
@@ -102,14 +119,16 @@ processes because Ollama doesn't serve those model types.
 
 | File | Responsibility |
 |---|---|
-| `App.jsx` | Top-level state, SSE event handling, keyboard shortcuts, toasts |
-| `components/Composer.jsx` | Message input, attachments, mic, the mode picker |
-| `components/MessageBubble.jsx` | One message: markdown, tool-call cards, branch switcher, citations |
-| `components/Sidebar.jsx` | Conversation list, date-grouped, search |
+| `App.jsx` | Top-level state, SSE event handling, keyboard shortcuts, toasts, lock gate |
+| `components/Composer.jsx` | Message input, attachments, mic, the mode picker (chat/search/research/agent/council/image) |
+| `components/MessageBubble.jsx` | One message: markdown, tool-call cards (diff view + revert), plan card, generated images, branch switcher, citations |
+| `components/Sidebar.jsx` | Conversation list (date-grouped) + unified search across chats/docs/memories |
+| `components/Icon.jsx` | The single SVG icon system (replaced all emoji glyphs) |
+| `components/LockScreen.jsx` | Passcode gate shown when the app is locked |
 | `components/CommandPalette.jsx` | ⌘K palette |
 | `components/SettingsPanel.jsx` | Every configuration surface |
-| `components/ToastStack.jsx` | Background-event notifications |
-| `lib/api.js` | All backend calls, including the shared SSE-stream parser |
+| `components/ToastStack.jsx` | Background-event + desktop notifications |
+| `lib/api.js` | All backend calls, shared SSE parser, host-derived API base, unlock header |
 
 ## Quick start
 
@@ -260,48 +279,69 @@ switch). When on, the composer's mode picker gets an **Agent** option,
 and the model can take multi-step actions instead of answering from
 context alone:
 
-**Tools:** `bash`, `read_file`, `write_file`, `edit_file`, `list_dir`,
-`web_search`, `fetch_url`, plus anything advertised by configured MCP
-servers (see below).
+**Tools** (a Claude-Code-class set):
 
-- **`edit_file`** is a precise find-and-replace: give it `old_string` +
-  `new_string`, it replaces the one exact occurrence — same safety
-  contract as Claude Code's own Edit tool. Fails loudly (not found /
-  found N times) instead of guessing which spot was meant. `write_file`
-  is for new files or full rewrites; the model is instructed to prefer
-  `edit_file` for changing part of an existing file.
-- **Autonomy has three modes** (Settings → Agent tools → Autonomy):
-  - **Manual** — every tool call pauses for your approval in the chat UI.
-  - **Semi-auto** — read-only calls (read/list/search/most bash) run
-    immediately; anything that writes or executes ambiguously still asks.
-  - **Full-auto** — nothing pauses. Fast, and only as safe as your
-    prompts.
-- **Every tool call is audited** in a `tool_calls` table regardless of
-  mode — nothing the agent does is invisible.
+| Tool(s) | What it does |
+|---|---|
+| `bash` | Run a one-shot shell command (cwd = the conversation's working dir) |
+| `shell_start` / `shell_output` / `shell_write_stdin` / `shell_kill` / `shell_list` | **Persistent shell sessions** — start a dev server / watch mode / REPL that stays alive across tool calls, poll its output, feed it stdin, kill it. `bash` blocks until a command exits; these don't |
+| `read_file` / `write_file` / `edit_file` / `list_dir` | File I/O. `edit_file` is a precise one-occurrence find-and-replace (same contract as Claude Code's Edit tool); fails loudly rather than guessing |
+| `git` | **First-class git** — structured `status`/`diff`/`log`/`commit`/`branch` with parsed output, not raw git through `bash` |
+| `run_checks` | Run the project's configured test/lint command and report pass/fail + output, so the agent verifies its own edits |
+| `web_search` / `fetch_url` | Search the web / read a page's readable text |
+| `browser_navigate` / `browser_click` / `browser_type` / `browser_get_text` / `browser_close` | **Real browser automation** — drive a headless Chromium (raw CDP) through JS-rendered pages, SPAs, and forms that `fetch_url` can't handle |
+| `spawn_subagent` | **Delegate** a self-contained task to a nested, unattended sub-agent that reports back a summary |
+| MCP tools | Anything advertised by a configured MCP server (see below) |
+
+**Diff-preview + one-step undo.** Before a file edit runs, the approval card
+shows a real unified diff (colored add/remove lines) instead of raw JSON
+args, so you see exactly what will change. After it runs, a **Revert** button
+restores the file to its prior contents (or deletes it if the edit created
+it) — a per-call Cmd+Z.
+
+**Autonomy has four modes** (Settings → Agent tools → Autonomy):
+
+- **Manual** — every tool call pauses for your approval in the chat UI.
+- **Semi-auto** — read-only calls (read/list/search/most bash/git-status)
+  run immediately; anything that writes or executes ambiguously still asks.
+- **Full-auto** — nothing pauses. Fast, and only as safe as your prompts.
+- **Plan-first** — the model drafts a step-by-step plan; you approve it
+  **once** in a plan card, then the whole plan runs unattended. Reject and
+  nothing runs. This is the signature Claude-Code plan-mode experience.
+
+**Test/lint feedback loop.** Set a check command (e.g. `pytest -q`,
+`npm test`) in Settings; the agent can call `run_checks` any time, and with
+**auto-check** on it runs automatically after every file edit and the
+pass/fail is fed back into the loop so the model fixes breakage on its own.
+
+**Checkpoint / resume.** If a run hits its iteration cap without finishing,
+the full loop state is saved to the DB; your next message resumes from
+exactly where it stopped instead of starting cold. Survives a backend
+restart.
+
+Other properties:
+
+- **Every tool call is audited** in a `tool_calls` table regardless of mode
+  — nothing the agent does is invisible, including a sub-agent's own calls
+  (tagged with their parent).
 - **Per-conversation working directory** — bind a conversation to a real
-  project folder (📁 button in the header, only shown when agent mode is
-  on) and the agent's `bash` cwd defaults to it, with relative paths in
-  every file tool resolving against it automatically — the same "never
-  repeat the full path" convenience Claude Code gets from binding to a
-  repo.
-- **No filesystem sandbox**, by explicit choice — tools operate on
-  whatever the backend process can see (see the Docker note above). This
-  is a deliberate "it's your machine" posture, not an oversight.
-- **JSON-in-text tool calling**, not Ollama's native `tools` API — native
-  function calling only works on a subset of models; prompting for a
-  strict JSON object works with any chat model. The cost: small models
-  (roughly under ~4B parameters) often skip the protocol entirely and
-  answer from guesswork instead of actually calling a tool. This is a
-  real limitation of small local models, not a Cortex bug — pin the
-  relevant role to a bigger model in Model routing for agent turns to
-  work reliably. Verified directly: `qwen2.5-coder:3b` described its plan
-  in prose instead of calling a tool; the same request against an 8B
-  model correctly called `read_file` then `edit_file` and fixed a real
-  bug in a real file.
-- **Iteration cap**: 40 tool-call rounds by default before the model is
-  forced to give a final answer (configurable, up to 200) — enough for a
-  real multi-file task, still bounded so a confused model can't loop
-  forever.
+  project folder (folder button in the header) and the agent's `bash` cwd +
+  all relative file paths resolve against it automatically.
+- **Agent-authored git commits never carry a `Co-Authored-By` trailer** —
+  the `git commit` tool strips it, and commit messages go through argv (no
+  shell injection).
+- **No filesystem sandbox**, by explicit choice — tools operate on whatever
+  the backend process can see. A real syscall sandbox was investigated and
+  shelved (Docker's seccomp blocks the nested user namespaces bwrap/firejail
+  need); see [`docs/NOT_BUILT.md`](docs/NOT_BUILT.md).
+- **JSON-in-text tool calling**, not Ollama's native `tools` API — works
+  with any chat model, at the cost that small models (roughly under ~4B
+  params) often skip the protocol. Pin the relevant role to a bigger model
+  for agent turns to work reliably. Verified directly: `qwen2.5-coder:3b`
+  described its plan in prose; an 8B model correctly called `read_file` then
+  `edit_file` and fixed a real bug in a real file.
+- **Iteration cap**: 40 tool-call rounds by default (up to 200), after which
+  the run checkpoints instead of just giving up.
 
 ### Deep Research
 
@@ -385,6 +425,51 @@ untouched.
 - One-shot (not agentic) — sends the full document + your instruction to
   the general-role model, returns the complete edited text.
 
+### Image generation
+
+`image_service.py`. Optional **Image** mode in the composer, backed by a
+local Stable Diffusion server (AUTOMATIC1111 / Forge / SD.Next — anything
+speaking the standard `/sdapi/v1/txt2img` contract).
+
+- Off until you point `image_gen_url` at your own SD server in **Settings →
+  Connection** (e.g. `http://localhost:7860`, started with `--api`). No
+  diffusion server is bundled — same "bring your own local model" posture as
+  the Ollama dependency, kept free and local.
+- Generated images render inline in the chat; click to open full size.
+- Degrades gracefully: clear messages when it isn't configured or the server
+  can't be reached, rather than a silent failure.
+
+### Model management
+
+Manage Ollama models from **Settings → Installed models** instead of the
+CLI (`app/api/system.py` over Ollama's own API):
+
+- **Pull** a model from the registry with a live progress bar.
+- **Delete** an installed model.
+- **Create a variant** from a base model — bake in a system prompt, or apply
+  a fine-tuned **LoRA adapter** (uses Ollama's structured `create` API with
+  `from` / `system` / `adapter`).
+
+### Unified search
+
+The sidebar search covers three sources in one query, grouped in the
+results, not just conversation titles:
+
+- **Conversations** — full-text over message *content* (SQLite FTS5).
+- **Documents** — uploaded files, by filename and by their indexed chunk
+  text.
+- **Memories** — stored long-term facts, by content.
+
+Document hits jump to their source conversation; memory hits open
+Settings → Memory.
+
+### Import from ChatGPT / Claude
+
+`import_service.py`. **Settings → Data → Import** takes the
+`conversations.json` from a ChatGPT or Claude data export, auto-detects which
+it is, and creates a Cortex conversation per chat — original messages and
+timestamps preserved, so your history from other tools isn't stranded.
+
 ### Folder watcher
 
 `folder_service.py`. Point Cortex at a real directory (a notes vault, a
@@ -438,6 +523,20 @@ can actually read and keep:
 Both are plain stdlib (`json`/`zipfile`) — no new dependencies, runs
 entirely against your own backend.
 
+### Passcode lock
+
+`app/api/lock.py`. Optional passcode gate (**Settings → Data**) so other
+people using the same machine can't open your chats.
+
+- **Real API-level enforcement**, not just a UI overlay: a live-checked
+  middleware returns `423 Locked` for any `/api/*` request without a valid
+  unlock token. The passcode is PBKDF2-hashed in config; the unlock token
+  lives in `sessionStorage` (clears when the tab closes).
+- Explicitly a **login gate, not at-rest encryption** — the SQLite file is
+  still readable by anyone with filesystem access. Real encryption would
+  need SQLCipher and would break FTS search; that tradeoff is documented,
+  not silently made.
+
 ### Interface
 
 - **Command palette (⌘K)** — jump to any conversation, switch persona,
@@ -459,10 +558,53 @@ entirely against your own backend.
   all header chrome except the title, centers a narrower reading column.
 - **Date-grouped sidebar** (Today / Previous 7 days / Previous 30 days /
   Older) instead of one flat list.
-- Calm, static background (no animated particle field), real visual
-  definition on assistant replies (a signal-colored left edge matching
-  the routed model's capability color), softened text contrast for
-  sustained reading.
+- **One consistent SVG icon system** (`Icon.jsx`) — every emoji glyph was
+  replaced with a single thin-stroke `currentColor` set, so the UI reads as
+  a deliberate product rather than a generic "AI wrapper" across every OS.
+- **Custom accent themes** — pick the primary accent (teal/violet/sky/
+  amber/rose) in Settings → Appearance; re-hues the brand, buttons, and
+  cursors in both light and dark, persisted per-device.
+- **Desktop notifications** (opt-in) — a system notification when a reply
+  finishes while the tab is backgrounded, or when a scheduled task runs.
+- Calm, static background, real visual definition on assistant replies (a
+  signal-colored left edge matching the routed model's capability color),
+  softened text contrast for sustained reading.
+
+## Desktop app
+
+Cortex can be packaged as a native, double-click desktop app — no terminal,
+no `docker compose`. The build has been run and verified on Linux; macOS /
+Windows follow the same steps (see [`DESKTOP.md`](DESKTOP.md)).
+
+- **Tauri v2 shell** — uses the OS's native webview (no bundled Chromium, so
+  the shell binary is ~13 MB), and spawns the backend as a **sidecar**.
+- **Frozen backend** — PyInstaller bundles the whole FastAPI backend into a
+  single ~147 MB executable, so end users need neither Python nor Docker.
+- **Persistence** — the SQLite DB lives in the OS app-data dir
+  (`~/.local/share/dev.cortex.desktop`, `~/Library/Application Support/…`,
+  `%APPDATA%\…`); closing the app never wipes anything.
+- **Ollama stays external** (weights are too large to bundle). The app
+  expects Ollama running on the host, same as the Docker deployment.
+- Verified end-to-end: launching the built app spawns the backend sidecar,
+  which binds `127.0.0.1:8420` and serves `/api/health` → 200. Linux builds
+  produce a `.deb` and a portable `.AppImage`.
+
+## Mobile & multi-device
+
+One backend, many devices — shared access to a single instance (not
+multi-master sync; see [`docs/NOT_BUILT.md`](docs/NOT_BUILT.md)).
+
+- **Installable PWA** — web manifest + brand icons + `apple-mobile-web-app`
+  meta, so the app installs to a phone's home screen and runs standalone. A
+  network-first app-shell service worker registers in production builds.
+- **Responsive layout** — on narrow screens the sidebar becomes an
+  off-canvas drawer over a tap-to-close backdrop; header/composer adapt.
+- **LAN / Tailscale access** — the frontend derives the backend URL from
+  wherever it was opened (not hard-coded `localhost`), so browsing to
+  `http://<host-ip>:5173` from a phone just works. Turn on the opt-in
+  `cors_allow_lan` toggle to accept private-network + `*.ts.net` origins
+  (verified: LAN origins allowed, public origins still blocked). Pair it
+  with the passcode lock or shared-secret auth. See [`MULTIDEVICE.md`](MULTIDEVICE.md).
 
 ## Configuration reference
 
@@ -485,16 +627,20 @@ Grouped by area; see `app/core/config.py` for the authoritative list and
 | RAG | `rag_enabled`, `rag_chunk_chars`, `rag_chunk_overlap`, `rag_top_k` | `True`, `1200`, `200`, `5` | Document/folder chunking + retrieval |
 | Web | `web_search_max_results`, `web_fetch_max_chars`, `web_fetch_timeout_seconds`, `web_fetch_max_urls_per_turn` | `5`, `4000`, `8`, `3` | Search/fetch limits |
 | Agent | `agent_enabled` | `False` | Master switch |
-| Agent | `agent_mode` | `manual` | `manual` \| `semi` \| `full` |
-| Agent | `agent_max_iterations` | `40` | Tool-call cap per turn (1–200) |
+| Agent | `agent_mode` | `manual` | `manual` \| `semi` \| `full` \| `plan` |
+| Agent | `agent_max_iterations` | `40` | Tool-call cap per turn (1–200); checkpoints at the cap |
+| Agent | `agent_subagent_max_iterations` | `8` | Step budget for a `spawn_subagent` delegation |
+| Agent | `agent_check_command`, `agent_auto_check`, `agent_check_timeout_seconds` | `""`, `False`, `180` | Test/lint command, run-after-every-edit toggle, its timeout |
 | Agent | `agent_command_timeout_seconds`, `agent_output_max_chars`, `agent_approval_timeout_seconds` | `60`, `4000`, `600` | Bash timeout, result truncation, approval-wait timeout |
+| Images | `image_gen_url`, `image_gen_steps`, `image_gen_size`, `image_gen_timeout_seconds` | `""`, `20`, `512`, `180` | Stable Diffusion server URL + generation params |
 | Research | `research_max_iterations` | `10` | Deep Research's step cap |
 | Council | `council_models` | `[]` | Which installed models participate |
 | Folders | `folder_scan_interval_seconds`, `folder_recall_enabled`, `folder_recall_top_k` | `600`, `True`, `3` | Background re-scan cadence + recall |
 | Schedules | `schedule_check_interval_seconds` | `60` | How often due schedules are checked |
 | Attachments | `upload_max_bytes`, `upload_orphan_ttl_seconds`, `attachment_ttl_hours` | `200MB`, `24h`, `72h` | Upload limits + cleanup |
 | Auth | `auth_enabled`, `auth_shared_secret` | `False`, `""` | Shared-secret auth in front of the API |
-| CORS | `cors_allow_origins` | localhost only | Tighten if exposing beyond localhost |
+| Lock | `lock_enabled`, `lock_pass_hash` | `False`, `""` | App-level passcode gate (set via Settings, not env) |
+| CORS | `cors_allow_origins`, `cors_allow_lan` | localhost only, `False` | Allowed origins; `cors_allow_lan` also accepts private-net + `*.ts.net` |
 | Ops | `log_level`, `request_timeout_seconds`, `prewarm_model_on_startup` | `INFO`, `600`, `False` | Structured logging, Ollama timeout, cold-start preload |
 
 ## Safety model
@@ -503,7 +649,9 @@ Cortex is a **personal, single-user tool** — the safety model reflects
 that, not a multi-tenant SaaS product:
 
 - **Agent mode is off by default.** You opt in explicitly, and pick an
-  autonomy level (manual/semi/full) that matches how much you trust it.
+  autonomy level (manual / semi / full / plan-first) that matches how much
+  you trust it. Plan-first is the safest "let it run" option — you approve a
+  whole plan up front instead of gating each step or gating nothing.
 - **No filesystem sandbox** for agent tools, by design — see the Docker
   section above. The tradeoff is explicit: you get real practical power
   (editing your real code, running your real commands) in exchange for
@@ -520,6 +668,9 @@ that, not a multi-tenant SaaS product:
 - **Shared-secret auth** (`auth_enabled`) is available if you need to put
   this behind something other than `localhost`, but there's no
   multi-user/permission model — it's one shared secret for the whole API.
+- **Passcode lock** gates the UI/API on a shared machine (a real `423`
+  middleware, not UI theater) — but it's a login gate, **not** at-rest
+  encryption. The database file stays readable with filesystem access.
 
 ## Known limitations
 
@@ -534,6 +685,19 @@ that, not a multi-tenant SaaS product:
   shown. A silent video or one with disabled captions won't be usefully
   read (Deep Research/agent mode get a title-only fallback in that case).
 - **Agent mode has no filesystem sandbox** — see [Safety model](#safety-model).
+  A real syscall sandbox was investigated and shelved (Docker's default
+  seccomp blocks the nested user namespaces bwrap/firejail need); details in
+  [`docs/NOT_BUILT.md`](docs/NOT_BUILT.md).
+- **Image generation needs your own Stable Diffusion server** — Cortex ships
+  the integration, not a diffusion model. Off until you set `image_gen_url`.
+- **No OS-level "computer use."** Browser automation (drive a web UI) is
+  built; controlling arbitrary *native desktop apps* by screen capture +
+  synthetic input is deliberately not — headless backend, platform-specific,
+  and a severe security surface. See [`docs/NOT_BUILT.md`](docs/NOT_BUILT.md).
+- **Desktop app: Linux built, macOS/Windows not.** The Linux `.deb` +
+  `.AppImage` are built and verified here; the other platforms follow the
+  same documented steps but haven't been run. Auto-update is scaffolded but
+  needs a release pipeline to wire up.
 - **Reddit's JSON API can be IP-blocked** by some hosting providers
   (observed from at least one cloud sandbox during development); falls
   back to generic HTML extraction automatically when that happens.

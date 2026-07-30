@@ -6,15 +6,21 @@ terminal, no `docker compose`. It uses **Tauri** (native OS webview, ~a few MB,
 no bundled Chromium) as the shell and a **PyInstaller**-frozen backend as a
 Tauri *sidecar* so end users don't need Python.
 
-> **Status: built and verified on Linux (x86_64).** This scaffold was actually
-> compiled end-to-end: PyInstaller produced a working 147 MB `cortex-backend`
-> binary (boots the real app, `/api/health` → 200), and `tauri build` produced
-> `Cortex_0.1.0_amd64.deb` (~151 MB) containing both the Tauri shell
-> (`usr/bin/cortex`, links the system webkit2gtk — no bundled Chromium) and the
-> backend sidecar (`usr/bin/cortex-backend`). The build artifacts are
-> git-ignored (rebuild them with the steps below). macOS/Windows builds follow
-> the same steps but haven't been run here — expect to iterate on PyInstaller
-> hidden-imports per-platform.
+> **Status: built and verified on Linux (x86_64).** This was compiled
+> end-to-end: PyInstaller produced a working 147 MB `cortex-backend` binary
+> (boots the real app, `/api/health` → 200), and `tauri build` produced both
+> `Cortex_0.1.0_amd64.deb` (~151 MB) and a portable `Cortex_0.1.0_amd64.AppImage`
+> (~243 MB), each containing the Tauri shell (links system webkit2gtk — no
+> bundled Chromium) and the backend sidecar. **Verified by launching the built
+> app: it spawns the sidecar, which binds `127.0.0.1:8420` and serves
+> `/api/health` → 200.** Build artifacts are git-ignored (rebuild with the
+> steps below). macOS/Windows follow the same steps but haven't been run here —
+> expect to iterate on PyInstaller hidden-imports per-platform.
+>
+> **AppImage tip:** on a host without FUSE (many sandboxes/CI), the AppImage
+> bundling step fails with `failed to run linuxdeploy`. Build it with
+> `APPIMAGE_EXTRACT_AND_RUN=1 cargo tauri build --bundles appimage`, and run
+> the resulting AppImage the same way if FUSE isn't installed.
 
 ## How it behaves once built
 
