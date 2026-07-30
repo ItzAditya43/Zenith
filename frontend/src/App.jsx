@@ -24,6 +24,7 @@ export default function App() {
     () => localStorage.getItem("cortex-theme") || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
   );
   const [density, setDensity] = useState(() => localStorage.getItem("cortex-density") || "comfortable");
+  const [accent, setAccent] = useState(() => localStorage.getItem("cortex-accent") || "teal");
   const [focusMode, setFocusMode] = useState(false);
   const [agentAvailable, setAgentAvailable] = useState(false);
   const [councilModels, setCouncilModels] = useState([]);
@@ -52,6 +53,11 @@ export default function App() {
     document.documentElement.setAttribute("data-density", density);
     localStorage.setItem("cortex-density", density);
   }, [density]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-accent", accent);
+    localStorage.setItem("cortex-accent", accent);
+  }, [accent]);
 
   useEffect(() => {
     api.getConfig().then((c) => {
@@ -930,6 +936,8 @@ export default function App() {
           onVoiceReplyChange={setVoiceReplyEnabled}
           density={density}
           onDensityChange={setDensity}
+          accent={accent}
+          onAccentChange={setAccent}
           initialSection={settingsInitialSection}
         />
       )}

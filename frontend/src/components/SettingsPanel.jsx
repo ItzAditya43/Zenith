@@ -35,6 +35,8 @@ export default function SettingsPanel({
   onVoiceReplyChange,
   density,
   onDensityChange,
+  accent,
+  onAccentChange,
   initialSection = "appearance",
 }) {
   const [config, setConfig] = useState(null);
@@ -481,6 +483,33 @@ export default function SettingsPanel({
                           {d === "comfortable" ? "Comfortable" : "Compact"}
                         </span>
                       </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Accent color</span>
+                    <span className="setting-hint">
+                      Re-hues the primary accent — brand mark, buttons, cursors — across both themes.
+                    </span>
+                  </div>
+                  <div className="accent-choice">
+                    {[
+                      { id: "teal", color: "#4dd9c0" },
+                      { id: "violet", color: "#8b7fe8" },
+                      { id: "sky", color: "#6fb1ef" },
+                      { id: "amber", color: "#e8b23d" },
+                      { id: "rose", color: "#ef6f9f" },
+                    ].map((a) => (
+                      <button
+                        key={a.id}
+                        className={`accent-swatch ${accent === a.id ? "is-selected" : ""}`}
+                        style={{ background: a.color }}
+                        onClick={() => onAccentChange(a.id)}
+                        aria-pressed={accent === a.id}
+                        title={a.id[0].toUpperCase() + a.id.slice(1)}
+                      />
                     ))}
                   </div>
                 </div>
