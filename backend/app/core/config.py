@@ -128,6 +128,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "http://localhost:8000",
         "http://127.0.0.1:8000",
     ],
+    # Multi-device access: when on, also accept requests from private-LAN and
+    # Tailscale (*.ts.net) origins so you can open Cortex from a phone/laptop
+    # on the same network. Off by default — it widens who can reach the API,
+    # so pair it with the passcode lock or shared-secret auth. See MULTIDEVICE.md.
+    "cors_allow_lan": False,
     # --- Operational ---
     "log_level": "INFO",
     "request_timeout_seconds": 600,

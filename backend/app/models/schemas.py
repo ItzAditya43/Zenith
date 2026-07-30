@@ -54,6 +54,7 @@ class ConfigPatch(StrictModel):
     auth_enabled: Optional[bool] = None
     auth_shared_secret: Optional[str] = None
     cors_allow_origins: Optional[list[str]] = None
+    cors_allow_lan: Optional[bool] = None
     rag_enabled: Optional[bool] = None
     rag_chunk_chars: Optional[int] = Field(default=None, ge=200, le=20_000)
     rag_chunk_overlap: Optional[int] = Field(default=None, ge=0, le=5_000)

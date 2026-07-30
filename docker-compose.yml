@@ -53,7 +53,12 @@ services:
       dockerfile: Dockerfile
     container_name: cortex-frontend
     environment:
-      - VITE_API_BASE=http://localhost:8420
+      # By default the frontend derives the backend URL from whatever host it
+      # was opened on (same hostname, port 8420) — so accessing the app from
+      # another device on your LAN/Tailscale just works. Uncomment and pin this
+      # only if your backend lives at a fixed, different address.
+      # - VITE_API_BASE=http://localhost:8420
+      - VITE_API_BASE=
     ports:
       - "5173:5173"
     depends_on:

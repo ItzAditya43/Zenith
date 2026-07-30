@@ -1,4 +1,22 @@
-const BASE = import.meta.env.VITE_API_BASE || "http://localhost:8420";
+// API base resolution, in priority order:
+//   1. An explicit VITE_API_BASE (set at build/deploy time) always wins.
+//   2. Otherwise derive it from wherever the frontend itself was loaded — same
+//      hostname, backend port 8420. This is what makes multi-device access work:
+//      open the app from a phone at http://192.168.1.5:5173 (or a Tailscale
+//      hostname) and it talks to the backend at that same host, not "localhost"
+//      (which on the phone would mean the phone itself).
+//   3. Fall back to localhost for SSR/other odd contexts.
+const BACKEND_PORT = "8420";
+function resolveBase() {
+  const explicit = import.meta.env.VITE_API_BASE;
+  if (explicit) return explicit;
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:${BACKEND_PORT}`;
+  }
+  return "http://localhost:8420";
+}
+const BASE = resolveBase();
 
 // App-level passcode lock: the unlock token (issued by /api/lock/verify) is
 // stored in sessionStorage and sent on every request so the backend's lock
