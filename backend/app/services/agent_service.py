@@ -120,6 +120,15 @@ TOOLS: dict[str, dict[str, str]] = {
                         "Args: selector (string, optional — omit for the whole page)."
     },
     "browser_close": {"description": "Close the browser session for this conversation. Args: (none)."},
+    "git": {
+        "description": "Structured git operations in the conversation's working directory — cleaner "
+                        "than raw `git` via bash, with parsed output. Args: op (one of 'status', "
+                        "'diff', 'log', 'commit', 'branch'). For 'diff': path (string, optional), "
+                        "staged (boolean, optional — show staged changes). For 'log': count (int, "
+                        "optional, default 10). For 'commit': message (string, required), add_all "
+                        "(boolean, optional, default true — stage everything first). For 'branch': "
+                        "name (string, optional — create/switch to it; omit to list branches)."
+    },
 }
 
 _SYSTEM_PROMPT_HEADER = """You are Cortex operating in agent mode: you can use tools across multiple
@@ -193,6 +202,11 @@ def classify_risk(tool: str, args: dict[str, Any]) -> str:
         # unattended sub-loop, not a single action — the sub-agent's own
         # tool calls don't get individually gated after this.
         return "risky"
+    if tool == "git":
+        # Read-only inspection is safe; anything that writes repo state
+        # (commit, creating/switching a branch) pauses like a file write.
+        op = str(args.get("op", "")).strip()
+        return "safe" if op in ("status", "diff", "log") else "risky"
     return "risky"  # unknown tool — err conservative
 
 
@@ -385,6 +399,80 @@ async def _run_bash(args: dict, timeout: float, max_chars: int, workdir: str | N
         return "\n".join(parts)[:max_chars]
     except Exception as exc:
         return f"Error running command: {exc}"
+
+
+_COAUTHOR_RE = re.compile(r"(?im)^\s*co-authored-by:.*$")
+
+
+async def _git_exec(argv: list[str], cwd: str, timeout: float) -> tuple[int, str, str]:
+    """argv-based (no shell) so a commit message can't be shell-injected."""
+    proc = await asyncio.create_subprocess_exec(
+        *argv, cwd=cwd,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        return 124, "", f"git timed out after {timeout}s."
+    return proc.returncode, stdout.decode(errors="ignore"), stderr.decode(errors="ignore")
+
+
+async def _run_git(args: dict, timeout: float, max_chars: int, workdir: str | None = None) -> str:
+    op = str(args.get("op", "")).strip()
+    cwd = workdir or None
+    if not cwd:
+        return ("Error: the git tool needs a working directory bound to this conversation — "
+                "set one with the folder picker in the header first.")
+
+    if op == "status":
+        argv = ["git", "status", "--short", "--branch"]
+    elif op == "log":
+        try:
+            count = max(1, min(int(args.get("count", 10)), 100))
+        except (TypeError, ValueError):
+            count = 10
+        argv = ["git", "log", f"-{count}", "--oneline", "--decorate"]
+    elif op == "diff":
+        argv = ["git", "diff"]
+        if args.get("staged"):
+            argv.append("--staged")
+        if args.get("path"):
+            argv += ["--", str(args["path"])]
+    elif op == "commit":
+        message = str(args.get("message", "")).strip()
+        if not message:
+            return "Error: commit needs a message."
+        # Honor the repo owner's standing rule: never let an agent-authored
+        # commit carry a Co-Authored-By trailer (the model sometimes adds
+        # one unprompted). Strip any such line before committing.
+        message = _COAUTHOR_RE.sub("", message).strip()
+        if args.get("add_all", True):
+            code, _, err = await _git_exec(["git", "add", "-A"], cwd, timeout)
+            if code != 0:
+                return f"Error staging changes: {err.strip() or code}"
+        argv = ["git", "commit", "-m", message]
+    elif op == "branch":
+        name = args.get("name")
+        if name:
+            # Create+switch; if it already exists, just switch to it.
+            code, out, err = await _git_exec(["git", "switch", "-c", str(name)], cwd, timeout)
+            if code != 0 and "already exists" in err:
+                code, out, err = await _git_exec(["git", "switch", str(name)], cwd, timeout)
+            combined = (out + err).strip() or f"(exit {code})"
+            return combined[:max_chars]
+        argv = ["git", "branch", "--list"]
+    else:
+        return f"Error: unknown git op {op!r}. Use one of: status, diff, log, commit, branch."
+
+    code, out, err = await _git_exec(argv, cwd, timeout)
+    body = out if out.strip() else err
+    if code != 0 and not body.strip():
+        body = f"(git exited {code})"
+    if op == "status" and not body.strip():
+        body = "(clean working tree)"
+    return body[:max_chars]
 
 
 # --- Persistent shell sessions ---------------------------------------------
@@ -706,6 +794,8 @@ async def _execute_tool(
         return await _run_web_search(args, max_chars)
     if tool == "fetch_url":
         return await _run_fetch_url(args, max_chars)
+    if tool == "git":
+        return await _run_git(args, timeout, max_chars, workdir)
     if tool == "shell_start":
         return await _run_shell_start(args, conversation_id, workdir)
     if tool == "shell_output":
