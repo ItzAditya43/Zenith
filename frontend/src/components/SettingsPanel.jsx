@@ -694,6 +694,35 @@ export default function SettingsPanel({
                     }}
                   />
                 </div>
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  Multi-device access
+                </h3>
+                <p className="settings-section-desc">
+                  Let other devices on your network (or Tailscale) reach Cortex — open it from a
+                  phone at <code>http://&lt;this-machine-ip&gt;:5173</code>. Widens who can reach the
+                  API, so pair it with the passcode lock. Takes effect after a backend restart. See
+                  MULTIDEVICE.md.
+                </p>
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Allow LAN / Tailscale access</span>
+                    <span className="setting-hint">
+                      Accepts requests from private-network and <code>*.ts.net</code> origins.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${config?.cors_allow_lan ? "switch-on" : ""}`}
+                    onClick={async () => {
+                      const updated = await api.patchConfig({ cors_allow_lan: !config?.cors_allow_lan });
+                      setConfig(updated);
+                    }}
+                    role="switch"
+                    aria-checked={!!config?.cors_allow_lan}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
               </section>
             )}
 

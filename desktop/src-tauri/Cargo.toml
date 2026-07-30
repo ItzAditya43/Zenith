@@ -1,0 +1,18 @@
+[package]
+name = "cortex"
+version = "0.1.0"
+description = "Cortex — self-hosted local AI chat for Ollama"
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+
+[features]
+# Bundling the frozen backend as a sidecar is on by default.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

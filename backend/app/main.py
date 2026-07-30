@@ -152,9 +152,23 @@ def _cors_origins() -> list[str]:
     return list(origins)
 
 
+# Opt-in LAN/Tailscale origin matching for multi-device access. Matches
+# http(s)://{localhost|private-IP|*.ts.net}[:port] — private ranges are
+# 10/8, 192.168/16, 172.16-31/12. Off unless cors_allow_lan is set.
+_LAN_ORIGIN_REGEX = (
+    r"^https?://("
+    r"localhost|127\.0\.0\.1|"
+    r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+    r"192\.168\.\d{1,3}\.\d{1,3}|"
+    r"172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|"
+    r"[a-zA-Z0-9-]+\.ts\.net"
+    r")(:\d+)?$"
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
+    allow_origin_regex=_LAN_ORIGIN_REGEX if bool(settings.get("cors_allow_lan", False)) else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
