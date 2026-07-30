@@ -983,7 +983,50 @@ async def run_agent_turn(
     client = OllamaClient()
     final_text: str | None = None
 
+    # Plan-first mode: the model drafts a plan, you approve it once, then it
+    # executes the whole thing unattended (no per-tool-call gates). Distinct
+    # from "full" in that you see and sign off on the plan before anything
+    # runs. Reuses the same approval-future machinery as tool approvals.
+    effective_mode = mode
+    if mode == "plan":
+        plan_prompt = loop_messages + [{
+            "role": "user",
+            "content": (
+                'Before doing anything, outline your plan as a JSON object: '
+                '{"plan": ["step 1", "step 2", ...]}. List the concrete steps — '
+                "commands you'll run, files you'll change — you intend to take. "
+                "Do NOT call any tool yet; return only the plan."
+            ),
+        }]
+        try:
+            raw_plan = await client.chat(decision.model, plan_prompt)
+        except OllamaError as exc:
+            yield {"type": "error", "message": str(exc)}
+            return
+        parsed_plan = _parse_step(raw_plan)
+        if parsed_plan and isinstance(parsed_plan.get("plan"), list):
+            steps = [str(s) for s in parsed_plan["plan"]]
+            plan_text = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(steps))
+        else:
+            plan_text = raw_plan.strip()
+        plan_id = str(uuid.uuid4())
+        yield {"type": "plan_pending", "id": plan_id, "plan": plan_text}
+        approved = await _await_approval(plan_id, approval_timeout)
+        if not approved:
+            yield {"type": "plan_rejected", "id": plan_id}
+            final_text = "Plan rejected — I haven't made any changes. Tell me what to adjust and I'll re-plan."
+        else:
+            yield {"type": "plan_approved", "id": plan_id}
+            loop_messages.append({"role": "assistant", "content": f"My plan:\n{plan_text}"})
+            loop_messages.append({
+                "role": "user",
+                "content": "Approved. Execute this plan now, one tool call per step, then give a final summary.",
+            })
+            effective_mode = "full"  # approved plan runs unattended
+
     for _ in range(max_iters):
+        if final_text is not None:
+            break  # plan was rejected before the loop even started
         try:
             raw = await client.chat(decision.model, loop_messages)
         except OllamaError as exc:
@@ -1014,7 +1057,7 @@ async def run_agent_turn(
         call_id = _log_call(conversation_id, tool, args, risk, diff, previous_content, had_previous_file)
         yield {"type": "tool_call", "id": call_id, "tool": tool, "args": args, "risk": risk, "diff": diff}
 
-        needs_approval = mode == "manual" or (mode == "semi" and risk == "risky")
+        needs_approval = effective_mode == "manual" or (effective_mode == "semi" and risk == "risky")
         if needs_approval:
             yield {"type": "tool_pending", "id": call_id, "tool": tool, "args": args, "risk": risk, "diff": diff}
             approved = await _await_approval(call_id, approval_timeout)

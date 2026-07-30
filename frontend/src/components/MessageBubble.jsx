@@ -179,6 +179,33 @@ function BranchSwitcher({ siblings, activeId, onSwitch }) {
   );
 }
 
+function PlanCard({ plan, onDecision }) {
+  return (
+    <div className={`plan-card plan-card-${plan.status}`}>
+      <div className="plan-card-header">
+        <Icon name="layers" size={14} />
+        <span>Proposed plan</span>
+        {plan.status !== "pending" && (
+          <span className={`plan-card-status plan-card-status-${plan.status}`}>
+            {plan.status === "approved" ? "approved" : "rejected"}
+          </span>
+        )}
+      </div>
+      <pre className="plan-card-body">{plan.text}</pre>
+      {plan.status === "pending" && (
+        <div className="tool-call-actions">
+          <button className="tool-call-approve-btn" onClick={() => onDecision?.(plan.id, true)}>
+            <Icon name="check" size={13} /> Approve &amp; run
+          </button>
+          <button className="tool-call-deny-btn" onClick={() => onDecision?.(plan.id, false)}>
+            <Icon name="x" size={13} /> Reject
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MessageBubble({
   message,
   onRetry,
@@ -187,6 +214,7 @@ export default function MessageBubble({
   onApproveTool,
   onDenyTool,
   onRevertTool,
+  onPlanDecision,
   siblings,
   onSwitchBranch,
 }) {
@@ -228,6 +256,10 @@ export default function MessageBubble({
               <DocumentChip key={a.id} attachment={a} />
             ))}
           </div>
+        )}
+
+        {!isUser && message.plan && (
+          <PlanCard plan={message.plan} onDecision={onPlanDecision} />
         )}
 
         {!isUser && message.toolCalls?.length > 0 && (
