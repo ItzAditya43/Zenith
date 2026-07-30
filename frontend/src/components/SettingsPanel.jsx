@@ -80,6 +80,9 @@ export default function SettingsPanel({
   const [checkCommand, setCheckCommand] = useState("");
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState("");
+  const [lockEnabled, setLockEnabled] = useState(false);
+  const [lockInput, setLockInput] = useState("");
+  const [lockMsg, setLockMsg] = useState("");
   const [pullName, setPullName] = useState("");
   const [pullBusy, setPullBusy] = useState(false);
   const [pullStatus, setPullStatus] = useState("");
@@ -137,6 +140,7 @@ export default function SettingsPanel({
       setSystemPrompt(c.system_prompt || "");
       setCheckCommand(c.agent_check_command || "");
     });
+    api.lockStatus().then(({ enabled }) => setLockEnabled(enabled)).catch(() => {});
     refreshModels();
     refreshMemories();
     refreshPersonas();
@@ -383,6 +387,40 @@ export default function SettingsPanel({
       refreshModels();
     } catch (err) {
       setModelsError(err.message);
+    }
+  };
+
+  const handleSetPasscode = async () => {
+    const pass = lockInput.trim();
+    if (pass.length < 4) {
+      setLockMsg("Passcode must be at least 4 characters.");
+      return;
+    }
+    try {
+      const { token } = await api.lockSet(pass);
+      sessionStorage.setItem("cortex-unlock", token || ""); // stay unlocked in this tab
+      setLockEnabled(true);
+      setLockInput("");
+      setLockMsg("Passcode set. It'll be required next time this tab is opened.");
+    } catch (err) {
+      setLockMsg(err.message || "Couldn't set passcode.");
+    }
+  };
+
+  const handleDisablePasscode = async () => {
+    const pass = lockInput.trim();
+    if (!pass) {
+      setLockMsg("Enter your current passcode to turn the lock off.");
+      return;
+    }
+    try {
+      await api.lockDisable(pass);
+      sessionStorage.removeItem("cortex-unlock");
+      setLockEnabled(false);
+      setLockInput("");
+      setLockMsg("Lock disabled.");
+    } catch (err) {
+      setLockMsg(err.message || "Couldn't disable the lock.");
     }
   };
 
@@ -1291,6 +1329,33 @@ export default function SettingsPanel({
                     />
                   </label>
                 </div>
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  Passcode lock
+                </h3>
+                <p className="settings-section-desc">
+                  Require a passcode to open Cortex on this machine — useful if others use the same
+                  computer. Note: this is a login gate, <strong>not</strong> at-rest encryption; the
+                  database file itself is still readable by anyone with filesystem access.
+                </p>
+                <div className="settings-row">
+                  <input
+                    className="settings-input"
+                    type="password"
+                    placeholder={lockEnabled ? "Current passcode (to change/disable)" : "Set a passcode (min 4 chars)"}
+                    value={lockInput}
+                    onChange={(e) => setLockInput(e.target.value)}
+                  />
+                  <button className="settings-btn-primary" onClick={handleSetPasscode}>
+                    {lockEnabled ? "Change" : "Enable lock"}
+                  </button>
+                  {lockEnabled && (
+                    <button className="settings-btn-secondary" onClick={handleDisablePasscode}>
+                      Disable
+                    </button>
+                  )}
+                </div>
+                {lockMsg && <span className="setting-hint">{lockMsg}</span>}
               </section>
             )}
 

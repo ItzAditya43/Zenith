@@ -6,9 +6,12 @@ import SettingsPanel from "./components/SettingsPanel";
 import CommandPalette from "./components/CommandPalette";
 import ToastStack from "./components/ToastStack";
 import Icon from "./components/Icon.jsx";
+import LockScreen from "./components/LockScreen.jsx";
 import { api } from "./lib/api";
 
 export default function App() {
+  const [locked, setLocked] = useState(false);
+  const [lockChecked, setLockChecked] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -161,6 +164,19 @@ export default function App() {
       setConnectionError(err.message);
     }
   };
+
+  // Passcode lock: on load, ask the backend whether a lock is set. If it is
+  // and we don't already hold a valid unlock token this tab session, show
+  // the lock screen before anything else loads.
+  useEffect(() => {
+    api
+      .lockStatus()
+      .then(({ enabled }) => {
+        setLocked(enabled && !sessionStorage.getItem("cortex-unlock"));
+        setLockChecked(true);
+      })
+      .catch(() => setLockChecked(true));
+  }, []);
 
   useEffect(() => {
     api
@@ -803,6 +819,9 @@ export default function App() {
     }
     return list;
   }, [conversations, personas, activeConversation, theme, sidebarCollapsed, voiceReplyEnabled, focusMode, density]);
+
+  if (!lockChecked) return null; // avoid a flash of the app before we know
+  if (locked) return <LockScreen onUnlocked={() => window.location.reload()} />;
 
   return (
     <div className={`app-shell ${focusMode ? "app-shell-focus" : ""}`}>

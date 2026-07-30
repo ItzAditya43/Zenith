@@ -1364,6 +1364,20 @@
   opacity: 0.6;
   cursor: default;
 }
+.settings-btn-secondary {
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+.settings-btn-secondary:hover {
+  color: var(--signal-danger, #e5484d);
+  border-color: var(--signal-danger, #e5484d);
+}
 
 .text-btn {
   color: var(--signal-general);
@@ -1981,4 +1995,78 @@
 }
 [data-density="compact"] .chat-scroll {
   gap: var(--space-2);
+}
+
+/* --- Passcode lock screen --- */
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg-base);
+  z-index: 1000;
+}
+.lock-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(360px, 90vw);
+  padding: var(--space-7) var(--space-6);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-float);
+  text-align: center;
+}
+.lock-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--signal-general), var(--signal-vision));
+}
+.lock-card h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.lock-card p {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin-top: calc(-1 * var(--space-2));
+}
+.lock-input {
+  width: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  text-align: center;
+  letter-spacing: 0.2em;
+}
+.lock-input:focus {
+  outline: none;
+  border-color: var(--signal-general);
+}
+.lock-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--signal-danger, #e5484d);
+  font-size: var(--text-xs);
+}
+.lock-submit {
+  width: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--signal-general);
+  color: var(--text-on-accent);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+.lock-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
