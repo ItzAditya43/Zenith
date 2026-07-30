@@ -546,10 +546,15 @@ export default function App() {
           setMessages((m) =>
             m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, content: fullText } : msg))
           );
+        } else if (event.type === "resumed") {
+          showToast("Resuming from where the last run left off…", "info");
         } else if (event.type === "done") {
           setMessages((m) =>
             m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, streaming: false } : msg))
           );
+          if (event.checkpointed) {
+            showToast("Run paused at the step limit — send a message to continue.", "info", 6000);
+          }
           setConversations((cs) =>
             cs.map((c) => (c.id === activeId ? { ...c, updated_at: Date.now() / 1000 } : c))
           );

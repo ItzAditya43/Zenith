@@ -496,7 +496,7 @@ async def _agent_event_gen(body: ChatRequest, request: Request) -> AsyncIterator
                         maybe_generate_title(body.conversation_id, full_text)
                     except Exception as exc:
                         log.debug("chat.agent_title_gen_failed", error=str(exc))
-                yield _sse({"type": "done"})
+                yield _sse({"type": "done", "checkpointed": ev.get("checkpointed", False)})
             else:
                 yield _sse(ev)
     except Exception as exc:
