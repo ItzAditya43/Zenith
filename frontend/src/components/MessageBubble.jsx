@@ -12,6 +12,7 @@ const TOOL_ICON = {
   shell_kill: "square", shell_list: "layers", spawn_subagent: "bot",
   browser_navigate: "globe", browser_click: "globe", browser_type: "globe",
   browser_get_text: "globe", browser_close: "globe", git: "git-branch",
+  run_checks: "check-circle",
 };
 const EDITABLE_DOC_EXTS = [".txt", ".md", ".csv", ".json"];
 
