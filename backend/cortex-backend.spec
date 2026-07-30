@@ -37,7 +37,7 @@ datas = (
 
 a = Analysis(
     ["run_frozen.py"],
-    pathex=[],
+    pathex=["."],  # so `app` is importable during analysis
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

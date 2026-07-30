@@ -6,12 +6,15 @@ terminal, no `docker compose`. It uses **Tauri** (native OS webview, ~a few MB,
 no bundled Chromium) as the shell and a **PyInstaller**-frozen backend as a
 Tauri *sidecar* so end users don't need Python.
 
-> **Status: reference scaffold.** The files under `desktop/` and
-> `backend/cortex-backend.spec` were authored in an environment **without a
-> Rust toolchain**, so the Tauri build has **not been compiled or verified**
-> here. The structure and steps below are correct to the best of our knowledge
-> for Tauri v2; expect to iterate on PyInstaller hidden-imports and Tauri
-> config the first time you build on each OS.
+> **Status: built and verified on Linux (x86_64).** This scaffold was actually
+> compiled end-to-end: PyInstaller produced a working 147 MB `cortex-backend`
+> binary (boots the real app, `/api/health` → 200), and `tauri build` produced
+> `Cortex_0.1.0_amd64.deb` (~151 MB) containing both the Tauri shell
+> (`usr/bin/cortex`, links the system webkit2gtk — no bundled Chromium) and the
+> backend sidecar (`usr/bin/cortex-backend`). The build artifacts are
+> git-ignored (rebuild them with the steps below). macOS/Windows builds follow
+> the same steps but haven't been run here — expect to iterate on PyInstaller
+> hidden-imports per-platform.
 
 ## How it behaves once built
 
