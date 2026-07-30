@@ -1022,10 +1022,29 @@ async def run_agent_turn(
         {"role": m["role"], "content": m["content"]}
         for m in history[-int(settings.get("max_context_messages", 24)):]
     ]
-    loop_messages: list[dict] = (
-        [{"role": "system", "content": system}] + trimmed_history
-        + [{"role": "user", "content": user_text}]
-    )
+    # Resume a checkpointed run: if the previous agent turn on this
+    # conversation stopped at the iteration cap without finishing, it stashed
+    # its full loop state. Pick up from exactly there (with the new user
+    # message appended as a nudge) instead of starting cold, then clear the
+    # checkpoint so we don't resume it twice.
+    checkpoint = storage.get_agent_checkpoint(conversation_id)
+    if checkpoint:
+        try:
+            loop_messages = json.loads(checkpoint["state"])
+            loop_messages.append({"role": "user", "content": user_text})
+            storage.clear_agent_checkpoint(conversation_id)
+            yield {"type": "resumed", "iterations_used": checkpoint.get("iterations_used", 0)}
+        except (json.JSONDecodeError, TypeError):
+            storage.clear_agent_checkpoint(conversation_id)
+            loop_messages = (
+                [{"role": "system", "content": system}] + trimmed_history
+                + [{"role": "user", "content": user_text}]
+            )
+    else:
+        loop_messages = (
+            [{"role": "system", "content": system}] + trimmed_history
+            + [{"role": "user", "content": user_text}]
+        )
 
     client = OllamaClient()
     final_text: str | None = None
@@ -1160,12 +1179,29 @@ async def run_agent_turn(
             yield {"type": "tool_result", "id": check_id, "tool": "run_checks", "result": check_result}
             loop_messages.append({"role": "user", "content": f"(automatic) {check_result}"})
 
+    checkpointed = False
     if final_text is None:
+        # Hit the iteration cap without finishing — stash the full loop state
+        # so the next message resumes instead of restarting. The system prompt
+        # is dropped from the saved state (it's rebuilt fresh on resume) to
+        # keep the checkpoint compact.
+        try:
+            saveable = [m for m in loop_messages if m.get("role") != "system"]
+            storage.save_agent_checkpoint(
+                conversation_id, json.dumps(saveable), decision.model, max_iters
+            )
+            checkpointed = True
+        except Exception as exc:
+            log.warning("agent.checkpoint_save_failed", error=str(exc))
         final_text = (
-            "I wasn't able to finish this within the step limit "
-            f"({max_iters} tool calls). Here's what I found so far — "
-            "you can ask me to continue."
+            "I hit the step limit "
+            f"({max_iters} tool calls) before finishing. I've saved my progress — "
+            "send another message (e.g. \"continue\") and I'll pick up right where I left off."
         )
+    else:
+        # Finished normally — make sure no stale checkpoint lingers so a later
+        # unrelated turn doesn't accidentally resume this one.
+        storage.clear_agent_checkpoint(conversation_id)
 
     # Pseudo-stream the final answer so the UI keeps its typewriter effect
     # even though the loop itself wasn't token-streamed.
@@ -1173,4 +1209,5 @@ async def run_agent_turn(
         yield {"type": "token", "text": chunk}
 
     yield {"type": "done", "full_text": final_text, "model": decision.model,
-           "role": decision.role, "reason": decision.reason, "parent_id": assistant_parent_id}
+           "role": decision.role, "reason": decision.reason,
+           "parent_id": assistant_parent_id, "checkpointed": checkpointed}

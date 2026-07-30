@@ -290,9 +290,36 @@ def get_conversation_workdir(conversation_id: str) -> str | None:
         return row["workdir"] if row else None
 
 
+def save_agent_checkpoint(conversation_id: str, state: str, model: str | None, iterations_used: int) -> None:
+    import time
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO agent_checkpoints (conversation_id, state, model, iterations_used, created_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(conversation_id) DO UPDATE SET
+                 state = excluded.state, model = excluded.model,
+                 iterations_used = excluded.iterations_used, created_at = excluded.created_at""",
+            (conversation_id, state, model, iterations_used, time.time()),
+        )
+
+
+def get_agent_checkpoint(conversation_id: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM agent_checkpoints WHERE conversation_id = ?", (conversation_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def clear_agent_checkpoint(conversation_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM agent_checkpoints WHERE conversation_id = ?", (conversation_id,))
+
+
 def delete_conversation(conversation_id: str) -> None:
     with _conn() as conn:
         conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
+        conn.execute("DELETE FROM agent_checkpoints WHERE conversation_id = ?", (conversation_id,))
         conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
 
 

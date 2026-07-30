@@ -285,6 +285,26 @@ def _tool_call_diff_columns(conn: sqlite3.Connection) -> None:
         cur.execute("ALTER TABLE tool_calls ADD COLUMN had_previous_file INTEGER")
 
 
+def _agent_checkpoints_table(conn: sqlite3.Connection) -> None:
+    """One saved agent-loop state per conversation, for pausing/resuming a
+    long run. When an agent turn hits its iteration cap without finishing,
+    the loop's message history is stashed here (as JSON) so the next turn
+    resumes from exactly where it stopped instead of starting cold. DB-backed
+    (not in-memory) so a checkpoint survives a backend restart — that's the
+    point of a checkpoint. At most one per conversation (PK)."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS agent_checkpoints (
+            conversation_id TEXT PRIMARY KEY,
+            state TEXT NOT NULL,
+            model TEXT,
+            iterations_used INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -318,6 +338,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (10, "mcp_servers_table", _mcp_servers_table),
     (11, "conversation_workdir", _conversation_workdir),
     (12, "tool_call_diff_columns", _tool_call_diff_columns),
+    (13, "agent_checkpoints_table", _agent_checkpoints_table),
 ]
 
 
