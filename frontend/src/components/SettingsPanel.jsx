@@ -720,12 +720,15 @@ export default function SettingsPanel({
                     <option value="manual">Manual — approve every action</option>
                     <option value="semi">Semi-auto — auto-run reads, confirm writes</option>
                     <option value="full">Full-auto — no confirmation</option>
+                    <option value="plan">Plan-first — approve a plan, then it runs unattended</option>
                   </select>
                   <span className="setting-hint">
                     {config?.agent_mode === "full"
                       ? "Nothing pauses for approval. Only as safe as your prompts."
                       : config?.agent_mode === "semi"
                       ? "Read-only calls (read/list/search) run immediately; writes and shell commands with side effects still ask first."
+                      : config?.agent_mode === "plan"
+                      ? "Cortex drafts a step-by-step plan and waits for your approval; once approved, it executes the whole plan without pausing at each step."
                       : "Every tool call — even a plain file read — shows up in chat for you to approve or deny."}
                   </span>
                 </div>

@@ -291,6 +291,17 @@ export default function App() {
     }
   };
 
+  // Plan-first mode reuses the same approve/deny endpoints (the backend
+  // awaits approval on the plan id exactly like a tool-call id). The
+  // plan_approved/plan_rejected SSE events settle the card's status.
+  const handlePlanDecision = async (planId, approved) => {
+    try {
+      await (approved ? api.approveToolCall(planId) : api.denyToolCall(planId));
+    } catch {
+      /* the plan_approved/plan_rejected SSE event or timeout will settle it */
+    }
+  };
+
   const maybeGenerateTitle = (convId, firstUserText) => {
     // Tier 6 #4 — auto-title after first user message.
     if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
@@ -510,6 +521,23 @@ export default function App() {
                       tc.id === event.id ? { ...tc, status: "denied" } : tc
                     ),
                   }
+                : msg
+            )
+          );
+        } else if (event.type === "plan_pending") {
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantMsg.id
+                ? { ...msg, plan: { id: event.id, text: event.plan, status: "pending" } }
+                : msg
+            )
+          );
+        } else if (event.type === "plan_approved" || event.type === "plan_rejected") {
+          const status = event.type === "plan_approved" ? "approved" : "rejected";
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantMsg.id && msg.plan
+                ? { ...msg, plan: { ...msg.plan, status } }
                 : msg
             )
           );
@@ -854,6 +882,7 @@ export default function App() {
               onApproveTool={handleApproveTool}
               onDenyTool={handleDenyTool}
               onRevertTool={handleRevertTool}
+              onPlanDecision={handlePlanDecision}
               siblings={branches[m.parent_id || "root"]}
               onSwitchBranch={handleSwitchBranch}
             />
