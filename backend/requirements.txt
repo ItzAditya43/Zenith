@@ -28,3 +28,7 @@ pytest-asyncio==0.25.0
 httpx==0.28.1
 sqlite-vec>=0.1.6
 requests>=2.31
+# Raw Chrome DevTools Protocol client for the browser_* agent tools — no
+# Playwright/Selenium install (~300MB+ of browser binaries each); we drive
+# the system chromium package directly over its own CDP websocket.
+websockets>=12.0,<14.0
