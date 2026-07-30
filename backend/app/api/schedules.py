@@ -46,6 +46,14 @@ async def delete_schedule(schedule_id: str):
     return {"ok": True}
 
 
+@router.get("/recent-runs")
+async def recent_runs(since: float = 0):
+    """Completed runs across all schedules finished after `since` (unix ts).
+    Polled by the frontend to raise desktop notifications for background
+    scheduled tasks."""
+    return schedule_service.list_recent_runs(since)
+
+
 @router.get("/{schedule_id}/runs")
 async def list_runs(schedule_id: str):
     return schedule_service.list_runs(schedule_id)

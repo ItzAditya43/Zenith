@@ -161,6 +161,7 @@ export const api = {
     }),
   deleteSchedule: (id) => request(`/api/schedules/${id}`, { method: "DELETE" }),
   listScheduleRuns: (id) => request(`/api/schedules/${id}/runs`).then((r) => r.json()),
+  recentScheduleRuns: (since) => request(`/api/schedules/recent-runs?since=${since}`).then((r) => r.json()),
   runScheduleNow: (id) => request(`/api/schedules/${id}/run-now`, { method: "POST" }).then((r) => r.json()),
 
   listMcpServers: () => request("/api/mcp/servers").then((r) => r.json()),
