@@ -9,3 +9,13 @@ createRoot(document.getElementById("root")).render(
     <App />
   </StrictMode>
 );
+
+// Register the app-shell service worker only in a production build — in the
+// Vite dev server it would cache assets and break hot-module reloading.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* SW is a progressive enhancement — ignore registration failures */
+    });
+  });
+}
