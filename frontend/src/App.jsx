@@ -38,6 +38,7 @@ export default function App() {
   const lastRunPollRef = useRef(Date.now() / 1000);
   const [focusMode, setFocusMode] = useState(false);
   const [agentAvailable, setAgentAvailable] = useState(false);
+  const [imageAvailable, setImageAvailable] = useState(false);
   const [councilModels, setCouncilModels] = useState([]);
   const [personas, setPersonas] = useState([]);
   const [branches, setBranches] = useState({});
@@ -172,6 +173,10 @@ export default function App() {
   // Passcode lock: on load, ask the backend whether a lock is set. If it is
   // and we don't already hold a valid unlock token this tab session, show
   // the lock screen before anything else loads.
+  useEffect(() => {
+    api.imageStatus().then(({ configured }) => setImageAvailable(configured)).catch(() => {});
+  }, []);
+
   useEffect(() => {
     api
       .lockStatus()
@@ -459,6 +464,44 @@ export default function App() {
     setStatus("idle");
   };
 
+  const handleImageSend = async (text) => {
+    if (!activeId || !text.trim()) return;
+    const userMsg = { id: `local-${Date.now()}`, role: "user", content: text, attachments: [] };
+    const assistantMsg = {
+      id: `local-assistant-${Date.now()}`,
+      role: "assistant",
+      content: "",
+      streaming: true,
+      model: null,
+      route_role: "vision",
+    };
+    setMessages((m) => [...m, userMsg, assistantMsg]);
+    setStatus("thinking");
+    try {
+      const { images } = await api.generateImage(text);
+      const urls = (images || []).map((b64) =>
+        b64.startsWith("data:") ? b64 : `data:image/png;base64,${b64}`
+      );
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantMsg.id
+            ? { ...msg, streaming: false, content: `*${text}*`, generatedImages: urls }
+            : msg
+        )
+      );
+    } catch (err) {
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantMsg.id
+            ? { ...msg, streaming: false, interrupted: true, interrupted_reason: err.message || "Image generation failed" }
+            : msg
+        )
+      );
+    } finally {
+      setStatus("idle");
+    }
+  };
+
   const handleSend = async (
     text,
     attachmentIds,
@@ -467,10 +510,12 @@ export default function App() {
     agentMode = false,
     deepResearch = false,
     regenerateOf = null,
-    councilMode = false
+    councilMode = false,
+    imageMode = false
   ) => {
     if (!activeId) return;
     if (councilMode) return handleCouncilSend(text, attachmentIds);
+    if (imageMode) return handleImageSend(text);
     const editOf = editContext?.messageId || null;
 
     let assistantMsg;
@@ -1007,6 +1052,7 @@ export default function App() {
           conversationId={activeId}
           agentAvailable={agentAvailable}
           councilAvailable={councilModels.length >= 2}
+          imageAvailable={imageAvailable}
           isStreaming={status === "thinking"}
           onError={(msg) => showToast(msg, "error")}
         />

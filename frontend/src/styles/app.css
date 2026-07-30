@@ -2098,3 +2098,16 @@
   opacity: 0.6;
   cursor: default;
 }
+
+.msg-generated-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.msg-generated-images img {
+  max-width: 100%;
+  width: 320px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-hairline);
+}

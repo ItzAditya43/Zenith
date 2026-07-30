@@ -11,9 +11,10 @@ const MODES = [
   { id: "research", icon: "flask", label: "Deep Research", hint: "Multi-step investigation and a written report, instead of a quick answer." },
   { id: "agent", icon: "bot", label: "Agent", hint: "Cortex can run commands and read/write files across multiple steps.", requires: "agentAvailable" },
   { id: "council", icon: "users", label: "Council", hint: "Ask all your configured models at once, compare the answers.", requires: "councilAvailable" },
+  { id: "image", icon: "image", label: "Image", hint: "Generate an image from your prompt with a local Stable Diffusion server.", requires: "imageAvailable" },
 ];
 
-function ModePicker({ mode, setMode, agentAvailable, councilAvailable }) {
+function ModePicker({ mode, setMode, agentAvailable, councilAvailable, imageAvailable }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -31,9 +32,8 @@ function ModePicker({ mode, setMode, agentAvailable, councilAvailable }) {
     };
   }, [open]);
 
-  const available = MODES.filter(
-    (m) => !m.requires || (m.requires === "agentAvailable" ? agentAvailable : councilAvailable)
-  );
+  const availability = { agentAvailable, councilAvailable, imageAvailable };
+  const available = MODES.filter((m) => !m.requires || availability[m.requires]);
   const current = MODES.find((m) => m.id === mode) || MODES[0];
 
   return (
@@ -88,6 +88,7 @@ export default function Composer({
   isStreaming = false,
   agentAvailable = false,
   councilAvailable = false,
+  imageAvailable = false,
   onError = () => {},
 }) {
   const [text, setText] = useState("");
@@ -157,7 +158,8 @@ export default function Composer({
       mode === "agent" && agentAvailable,
       mode === "research",
       null,
-      mode === "council" && councilAvailable
+      mode === "council" && councilAvailable,
+      mode === "image" && imageAvailable
     );
     setText("");
     setPending([]);
@@ -283,6 +285,7 @@ export default function Composer({
           setMode={setMode}
           agentAvailable={agentAvailable}
           councilAvailable={councilAvailable}
+          imageAvailable={imageAvailable}
         />
         <input
           ref={fileInputRef}

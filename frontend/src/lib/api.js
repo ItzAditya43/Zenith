@@ -226,6 +226,13 @@ export const api = {
   createModel: (spec, onEvent) => streamSSE("/api/models/create", spec, onEvent),
   deleteModel: (name) =>
     request(`/api/models/${name}`, { method: "DELETE" }).then((r) => r.json()),
+  imageStatus: () => request("/api/images/status").then((r) => r.json()),
+  generateImage: (prompt, negative = "") =>
+    request("/api/images/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, negative }),
+    }).then((r) => r.json()),
+
   lockStatus: () => request("/api/lock/status").then((r) => r.json()),
   lockVerify: (passcode) =>
     request("/api/lock/verify", {

@@ -674,6 +674,26 @@ export default function SettingsPanel({
                     </p>
                   )}
                 </div>
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  Image generation
+                </h3>
+                <p className="settings-section-desc">
+                  Optional. Point this at a local Stable Diffusion server with its API enabled
+                  (AUTOMATIC1111 / Forge / SD.Next started with <code>--api</code>). Once set, an{" "}
+                  <strong>Image</strong> mode appears in the composer. Leave blank to keep it off.
+                </p>
+                <div className="settings-row">
+                  <input
+                    className="settings-input"
+                    placeholder="http://localhost:7860"
+                    defaultValue={config?.image_gen_url || ""}
+                    onBlur={async (e) => {
+                      const updated = await api.patchConfig({ image_gen_url: e.target.value.trim() });
+                      setConfig(updated);
+                    }}
+                  />
+                </div>
               </section>
             )}
 

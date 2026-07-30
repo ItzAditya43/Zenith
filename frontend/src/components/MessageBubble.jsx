@@ -299,6 +299,15 @@ export default function MessageBubble({
                 {message.streaming && <span className="cursor-blink" data-role={message.route_role} />}
               </>
             )}
+            {message.generatedImages?.length > 0 && (
+              <div className="msg-generated-images">
+                {message.generatedImages.map((src, i) => (
+                  <a key={i} href={src} target="_blank" rel="noopener noreferrer">
+                    <img src={src} alt="Generated" />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -112,6 +112,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # --- Auth (off by default — see Tier1 #8) ---
     "auth_enabled": False,
     "auth_shared_secret": "",
+    # --- Image generation (local Stable Diffusion server, off until set) ---
+    "image_gen_url": "",             # e.g. http://localhost:7860 (AUTOMATIC1111 --api)
+    "image_gen_steps": 20,
+    "image_gen_size": 512,
+    "image_gen_timeout_seconds": 180,
     # --- App-level passcode lock (gates the UI/API on a shared machine —
     # not at-rest encryption; the SQLite file itself is still readable by
     # anyone with filesystem access). Off until the user sets a passcode. ---
