@@ -15,7 +15,11 @@ export default function App() {
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Start collapsed on narrow screens so the off-canvas sidebar doesn't
+  // cover the chat on first load (phones); expanded on desktop.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 720
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [status, setStatus] = useState("idle"); // idle | thinking | speaking
   const [activeRole, setActiveRole] = useState("general");
@@ -259,6 +263,7 @@ export default function App() {
   const selectConversation = async (id) => {
     setActiveId(id);
     setSearchResults(null);
+    if (window.innerWidth <= 720) setSidebarCollapsed(true); // close off-canvas sidebar on mobile
     const msgs = await api.getMessages(id);
     setMessages(msgs);
     refreshBranches(id);
@@ -839,6 +844,14 @@ export default function App() {
           searchQuery={searchQuery}
           onSearch={runSearch}
           searchResults={searchResults}
+        />
+      )}
+
+      {!focusMode && !sidebarCollapsed && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setSidebarCollapsed(true)}
+          aria-hidden="true"
         />
       )}
 

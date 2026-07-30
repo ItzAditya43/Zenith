@@ -1800,22 +1800,50 @@
 }
 
 /* ============ Responsive (Tier 6 #8) ============ */
+.sidebar-backdrop {
+  display: none;
+}
 @media (max-width: 720px) {
   .sidebar {
     position: fixed;
-    z-index: 5;
+    z-index: 6;
     height: 100vh;
+    height: 100dvh; /* respect mobile browser chrome */
     transform: translateX(-100%);
     transition: transform var(--dur-base) var(--ease-out);
   }
   .sidebar:not(.sidebar-collapsed) {
     transform: translateX(0);
   }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    background: rgba(0, 0, 0, 0.45);
+  }
   .mobile-menu-btn {
     display: grid;
   }
   .msg-bubble {
     max-width: 88vw;
+  }
+  .chat-header {
+    padding: var(--space-3) var(--space-4);
+  }
+  .chat-header h1 {
+    font-size: var(--text-base);
+  }
+  .header-actions .workdir-btn,
+  .header-actions .persona-picker {
+    display: none; /* declutter the mobile header */
+  }
+  .settings-panel,
+  .cmdk-panel {
+    width: 96vw;
+  }
+  .composer {
+    padding: var(--space-2) var(--space-3);
   }
 }
 
