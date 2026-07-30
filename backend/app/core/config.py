@@ -112,6 +112,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # --- Auth (off by default — see Tier1 #8) ---
     "auth_enabled": False,
     "auth_shared_secret": "",
+    # --- App-level passcode lock (gates the UI/API on a shared machine —
+    # not at-rest encryption; the SQLite file itself is still readable by
+    # anyone with filesystem access). Off until the user sets a passcode. ---
+    "lock_enabled": False,
+    "lock_pass_hash": "",
     "cors_allow_origins": [
         "http://localhost:5173",
         "http://127.0.0.1:5173",

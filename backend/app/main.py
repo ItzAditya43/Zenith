@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent, chat, documents, export, folders, mcp, memory, schedules, system, upload, voice
+from app.api import agent, chat, documents, export, folders, lock, mcp, memory, schedules, system, upload, voice
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.storage import init_db
@@ -204,6 +204,34 @@ if bool(settings.get("auth_enabled", False)) and settings.get("auth_shared_secre
     log.info("auth.enabled", kind="shared_secret")
 
 
+class PasscodeLock(BaseHTTPMiddleware):
+    """App-level passcode gate (separate from the deploy-time shared secret).
+    Checked live per-request so it takes effect the moment a user sets a
+    passcode, without a restart. Requests must carry X-Cortex-Unlock with the
+    token issued by /api/lock/verify."""
+
+    _ALLOW = {"/api/health", "/docs", "/openapi.json", "/redoc"}
+
+    async def dispatch(self, request: Request, call_next):
+        from app.api import lock as lock_api
+
+        path = request.url.path
+        if (
+            request.method == "OPTIONS"
+            or path in self._ALLOW
+            or path.startswith("/docs")
+            or path.startswith("/api/lock/")  # status/verify/set/disable stay reachable
+            or not path.startswith("/api/")
+        ):
+            return await call_next(request)
+        if lock_api.is_locked() and not lock_api.token_valid(request.headers.get("x-cortex-unlock", "")):
+            return JSONResponse({"detail": "Locked — unlock with your passcode."}, status_code=423)
+        return await call_next(request)
+
+
+app.add_middleware(PasscodeLock)
+
+
 app.include_router(chat.router)
 app.include_router(memory.router)
 app.include_router(agent.router)
@@ -215,3 +243,4 @@ app.include_router(mcp.router)
 app.include_router(upload.router)
 app.include_router(voice.router)
 app.include_router(system.router)
+app.include_router(lock.router)

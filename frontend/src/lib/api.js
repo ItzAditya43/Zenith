@@ -1,7 +1,18 @@
 const BASE = import.meta.env.VITE_API_BASE || "http://localhost:8420";
 
+// App-level passcode lock: the unlock token (issued by /api/lock/verify) is
+// stored in sessionStorage and sent on every request so the backend's lock
+// middleware lets it through.
+function unlockHeaders() {
+  const token = sessionStorage.getItem("cortex-unlock");
+  return token ? { "X-Cortex-Unlock": token } : {};
+}
+
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, options);
+  const res = await fetch(`${BASE}${path}`, {
+    ...options,
+    headers: { ...unlockHeaders(), ...(options.headers || {}) },
+  });
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -20,7 +31,7 @@ async function streamSSE(path, body, onEvent, signal) {
   try {
     res = await fetch(`${BASE}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...unlockHeaders() },
       body: JSON.stringify(body),
       signal,
     });
@@ -215,6 +226,23 @@ export const api = {
   createModel: (spec, onEvent) => streamSSE("/api/models/create", spec, onEvent),
   deleteModel: (name) =>
     request(`/api/models/${name}`, { method: "DELETE" }).then((r) => r.json()),
+  lockStatus: () => request("/api/lock/status").then((r) => r.json()),
+  lockVerify: (passcode) =>
+    request("/api/lock/verify", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passcode }),
+    }).then((r) => r.json()),
+  lockSet: (passcode) =>
+    request("/api/lock/set", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passcode }),
+    }).then((r) => r.json()),
+  lockDisable: (passcode) =>
+    request("/api/lock/disable", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passcode }),
+    }).then((r) => r.json()),
+
   getConfig: () => request("/api/config").then((r) => r.json()),
   patchConfig: (patch) =>
     request("/api/config", {
