@@ -37,6 +37,8 @@ export default function SettingsPanel({
   onDensityChange,
   accent,
   onAccentChange,
+  notificationsEnabled,
+  onNotificationsChange,
   onImported,
   initialSection = "appearance",
 }) {
@@ -532,6 +534,24 @@ export default function SettingsPanel({
                       />
                     ))}
                   </div>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Desktop notifications</span>
+                    <span className="setting-hint">
+                      Get a system notification when a response finishes while this tab is in the
+                      background, or when a scheduled task runs. Asks the browser for permission.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${notificationsEnabled ? "switch-on" : ""}`}
+                    onClick={() => onNotificationsChange(!notificationsEnabled)}
+                    role="switch"
+                    aria-checked={!!notificationsEnabled}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
                 </div>
               </section>
             )}

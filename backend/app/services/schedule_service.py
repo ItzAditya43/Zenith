@@ -81,6 +81,26 @@ def list_runs(schedule_id: str, limit: int = 20) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def list_recent_runs(since: float, limit: int = 20) -> list[dict]:
+    """Completed runs across all schedules that finished after `since`,
+    with the schedule's name joined in. Powers the frontend's background
+    desktop-notification poll — it asks 'what finished since I last checked'."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT r.id, r.schedule_id, r.finished_at, r.status, r.summary,
+                   s.name AS schedule_name, s.conversation_id
+            FROM schedule_runs r
+            JOIN schedules s ON s.id = r.schedule_id
+            WHERE r.finished_at IS NOT NULL AND r.finished_at > ?
+            ORDER BY r.finished_at DESC
+            LIMIT ?
+            """,
+            (since, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 async def _ensure_conversation(schedule: dict) -> str:
     from app.db import storage
 

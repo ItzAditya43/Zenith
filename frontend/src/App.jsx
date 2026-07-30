@@ -25,6 +25,10 @@ export default function App() {
   );
   const [density, setDensity] = useState(() => localStorage.getItem("cortex-density") || "comfortable");
   const [accent, setAccent] = useState(() => localStorage.getItem("cortex-accent") || "teal");
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    () => localStorage.getItem("cortex-notifications") === "1"
+  );
+  const lastRunPollRef = useRef(Date.now() / 1000);
   const [focusMode, setFocusMode] = useState(false);
   const [agentAvailable, setAgentAvailable] = useState(false);
   const [councilModels, setCouncilModels] = useState([]);
@@ -39,6 +43,32 @@ export default function App() {
     setToasts((t) => [...t, { id, message, type, duration }]);
   };
   const dismissToast = (id) => setToasts((t) => t.filter((x) => x.id !== id));
+
+  // Fire a desktop notification if the user has opted in and granted browser
+  // permission. `onlyWhenHidden` limits noise for in-app completions (a turn
+  // finishing) — background scheduled runs notify regardless of focus.
+  const notify = (title, body, { onlyWhenHidden = false } = {}) => {
+    if (!notificationsEnabled) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if (onlyWhenHidden && !document.hidden) return;
+    try {
+      new Notification(title, { body, tag: "cortex", icon: "/favicon.ico" });
+    } catch {
+      /* some browsers throw if constructed outside a user gesture — ignore */
+    }
+  };
+
+  const enableNotifications = async (on) => {
+    if (on && typeof Notification !== "undefined" && Notification.permission !== "granted") {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        showToast("Notifications weren't allowed by the browser.", "error");
+        return;
+      }
+    }
+    setNotificationsEnabled(on);
+    localStorage.setItem("cortex-notifications", on ? "1" : "0");
+  };
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
   const abortRef = useRef(null);
@@ -58,6 +88,30 @@ export default function App() {
     document.documentElement.setAttribute("data-accent", accent);
     localStorage.setItem("cortex-accent", accent);
   }, [accent]);
+
+  // Poll for background scheduled-task completions while notifications are on,
+  // so an unattended schedule that runs while you're in another tab still
+  // reaches you. Only notifies for runs finished since the last poll.
+  useEffect(() => {
+    if (!notificationsEnabled) return;
+    lastRunPollRef.current = Date.now() / 1000;
+    const tick = async () => {
+      try {
+        const runs = await api.recentScheduleRuns(lastRunPollRef.current);
+        if (runs.length) {
+          lastRunPollRef.current = Math.max(...runs.map((r) => r.finished_at));
+          for (const r of runs) {
+            const label = r.status === "error" ? "failed" : "finished";
+            notify(`Scheduled task ${label}`, r.schedule_name || "A scheduled task ran.");
+          }
+        }
+      } catch {
+        /* transient; try again next tick */
+      }
+    };
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [notificationsEnabled]);
 
   useEffect(() => {
     api.getConfig().then((c) => {
@@ -578,10 +632,8 @@ export default function App() {
           } else {
             setStatus("idle");
           }
-          // Tier 6 #15 — notify when tab is backgrounded.
-          if (document.hidden && "Notification" in window && Notification.permission === "granted") {
-            new Notification("Cortex", { body: "Response ready" });
-          }
+          // Notify when the tab is backgrounded and the user opted in.
+          notify("Cortex", "Your response is ready.", { onlyWhenHidden: true });
         } else if (event.type === "error") {
           setConnectionError(event.message);
           setStatus("idle");
@@ -948,6 +1000,8 @@ export default function App() {
           onDensityChange={setDensity}
           accent={accent}
           onAccentChange={setAccent}
+          notificationsEnabled={notificationsEnabled}
+          onNotificationsChange={enableNotifications}
           onImported={() => { refreshConversations(); showToast("Import complete — conversations added.", "success"); }}
           initialSection={settingsInitialSection}
         />
