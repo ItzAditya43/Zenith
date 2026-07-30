@@ -80,6 +80,13 @@ export default function SettingsPanel({
   const [checkCommand, setCheckCommand] = useState("");
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState("");
+  const [pullName, setPullName] = useState("");
+  const [pullBusy, setPullBusy] = useState(false);
+  const [pullStatus, setPullStatus] = useState("");
+  const [pullPct, setPullPct] = useState(null);
+  const [createForm, setCreateForm] = useState({ name: "", from: "", system: "", adapter: "" });
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createStatus, setCreateStatus] = useState("");
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptSaved, setPromptSaved] = useState(false);
 
@@ -332,6 +339,51 @@ export default function SettingsPanel({
   const saveCheckCommand = async (command) => {
     const updated = await api.patchConfig({ agent_check_command: command });
     setConfig(updated);
+  };
+
+  const handlePull = async () => {
+    const name = pullName.trim();
+    if (!name || pullBusy) return;
+    setPullBusy(true);
+    setPullStatus("Starting…");
+    setPullPct(null);
+    await api.pullModel(name, (ev) => {
+      if (ev.error) setPullStatus(`Error: ${ev.error}`);
+      else if (ev.status === "done") setPullStatus("Done.");
+      else {
+        setPullStatus(ev.status || "Pulling…");
+        if (ev.total && ev.completed) setPullPct(Math.round((ev.completed / ev.total) * 100));
+      }
+    });
+    setPullBusy(false);
+    setPullName("");
+    setPullPct(null);
+    refreshModels();
+  };
+
+  const handleCreate = async () => {
+    const { name, from } = createForm;
+    if (!name.trim() || !from.trim() || createBusy) return;
+    setCreateBusy(true);
+    setCreateStatus("Creating…");
+    await api.createModel(createForm, (ev) => {
+      if (ev.error) setCreateStatus(`Error: ${ev.error}`);
+      else if (ev.status === "done") setCreateStatus("Created.");
+      else setCreateStatus(ev.status || "Working…");
+    });
+    setCreateBusy(false);
+    setCreateForm({ name: "", from: "", system: "", adapter: "" });
+    refreshModels();
+  };
+
+  const handleDeleteModel = async (name) => {
+    if (!window.confirm(`Delete model "${name}"? This removes it from Ollama.`)) return;
+    try {
+      await api.deleteModel(name);
+      refreshModels();
+    } catch (err) {
+      setModelsError(err.message);
+    }
   };
 
   const handleImport = async (e) => {
@@ -1038,11 +1090,95 @@ export default function SettingsPanel({
                             {r}
                           </span>
                         ))}
+                        <button
+                          className="model-delete-btn"
+                          onClick={() => handleDeleteModel(m.name)}
+                          title="Delete model from Ollama"
+                        >
+                          <Icon name="x" size={13} />
+                        </button>
                       </span>
                     </li>
                   ))}
                   {models.length === 0 && !modelsError && <li className="model-empty">Loading…</li>}
                 </ul>
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  Pull a model
+                </h3>
+                <p className="settings-section-desc">
+                  Download a model from the Ollama registry — no CLI needed. Try{" "}
+                  <code>llama3.2</code>, <code>qwen2.5-coder</code>, or <code>llava</code>.
+                </p>
+                <div className="settings-row">
+                  <input
+                    className="settings-input"
+                    placeholder="model name, e.g. llama3.2:3b"
+                    value={pullName}
+                    onChange={(e) => setPullName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handlePull()}
+                    disabled={pullBusy}
+                  />
+                  <button className="settings-btn-primary" onClick={handlePull} disabled={pullBusy || !pullName.trim()}>
+                    {pullBusy ? "Pulling…" : "Pull"}
+                  </button>
+                </div>
+                {pullStatus && (
+                  <div className="model-progress">
+                    <span className="setting-hint">
+                      {pullStatus}
+                      {pullPct != null ? ` — ${pullPct}%` : ""}
+                    </span>
+                    {pullPct != null && (
+                      <div className="model-progress-bar">
+                        <div className="model-progress-fill" style={{ width: `${pullPct}%` }} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  Create a variant / apply an adapter
+                </h3>
+                <p className="settings-section-desc">
+                  Make a new model from an existing one — bake in a system prompt, or apply a
+                  fine-tuned LoRA adapter (point <code>adapter</code> at a GGUF adapter file Ollama
+                  can read).
+                </p>
+                <div className="setting-row setting-row-stack" style={{ gap: "0.5rem" }}>
+                  <input
+                    className="settings-input"
+                    placeholder="New model name, e.g. my-assistant"
+                    value={createForm.name}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                  />
+                  <input
+                    className="settings-input"
+                    placeholder="Base model (from), e.g. llama3.2:3b"
+                    value={createForm.from}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, from: e.target.value }))}
+                  />
+                  <input
+                    className="settings-input"
+                    placeholder="System prompt (optional)"
+                    value={createForm.system}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, system: e.target.value }))}
+                  />
+                  <input
+                    className="settings-input"
+                    placeholder="Adapter path (optional, for LoRA)"
+                    value={createForm.adapter}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, adapter: e.target.value }))}
+                  />
+                  <button
+                    className="settings-btn-primary"
+                    onClick={handleCreate}
+                    disabled={createBusy || !createForm.name.trim() || !createForm.from.trim()}
+                  >
+                    {createBusy ? "Creating…" : "Create"}
+                  </button>
+                  {createStatus && <span className="setting-hint">{createStatus}</span>}
+                </div>
               </section>
             )}
 

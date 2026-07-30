@@ -150,6 +150,73 @@ async def models_refresh():
     return {"ok": True, "models": await registry.models()}
 
 
+def _model_progress_sse(gen):
+    """Wrap an Ollama pull/create progress stream as SSE, busting the model
+    cache when it completes so the new model shows up immediately."""
+    import json as _json
+
+    async def stream():
+        client = OllamaClient()
+        try:
+            async for ev in gen(client):
+                yield f"data: {_json.dumps(ev)}\n\n"
+            await ModelRegistry().models(force=True)
+            yield f"data: {_json.dumps({'status': 'done'})}\n\n"
+        except OllamaError as exc:
+            yield f"data: {_json.dumps({'error': str(exc)})}\n\n"
+
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+@router.post("/models/pull")
+async def models_pull(body: dict):
+    """Stream `ollama pull <name>` progress as SSE."""
+    name = str(body.get("name", "")).strip()
+    if not name:
+        raise HTTPException(400, "A model name is required.")
+    return _model_progress_sse(lambda c: c.pull_model(name))
+
+
+@router.post("/models/create")
+async def models_create(body: dict):
+    """Create a model variant from a base model (`from`), optionally applying
+    a system prompt or a LoRA/fine-tune adapter (`adapter` = path to a GGUF
+    adapter). Streams progress as SSE."""
+    name = str(body.get("name", "")).strip()
+    base = str(body.get("from", "")).strip()
+    if not name or not base:
+        raise HTTPException(400, "A new model name and a base model ('from') are required.")
+    spec = {
+        "from": base,
+        "system": str(body.get("system", "")).strip(),
+        "adapter": str(body.get("adapter", "")).strip(),
+    }
+    return _model_progress_sse(lambda c: c.create_model(name, spec))
+
+
+@router.delete("/models/{name:path}")
+async def models_delete(name: str):
+    """Delete an installed model. `:path` so tags with slashes work."""
+    client = OllamaClient()
+    try:
+        await client.delete_model(name)
+    except OllamaError as exc:
+        raise HTTPException(503, str(exc))
+    await ModelRegistry().models(force=True)
+    return {"ok": True}
+
+
+@router.get("/models/{name:path}/show")
+async def models_show(name: str):
+    """Model details (parameters, template, license) from `ollama show`."""
+    client = OllamaClient()
+    try:
+        return await client.show_model(name)
+    except OllamaError as exc:
+        raise HTTPException(503, str(exc))
+
+
 @router.get("/config")
 async def get_config():
     return JSONResponse(dict(settings.all()), headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
