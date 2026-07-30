@@ -37,6 +37,14 @@ services:
       # - ${HOME}:/host-home                        # unrestricted: your whole home directory
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Headless chromium (browser_* agent tools) crashes under the default
+    # 64MB /dev/shm — Chrome uses shared memory for tab rendering buffers.
+    shm_size: "1gb"
+    # Without a real PID 1, killed subprocesses' orphaned grandchildren
+    # (chromium's crashpad handler, in particular — it detaches into its
+    # own session and reparents to PID 1 on exit) become unreaped zombies.
+    # `init: true` runs a proper init (tini) as PID 1 so they get reaped.
+    init: true
     restart: unless-stopped
 
   frontend:

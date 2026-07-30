@@ -10,6 +10,8 @@ const TOOL_ICON = {
   web_search: "search", fetch_url: "link",
   shell_start: "terminal", shell_output: "terminal", shell_write_stdin: "terminal",
   shell_kill: "square", shell_list: "layers", spawn_subagent: "bot",
+  browser_navigate: "globe", browser_click: "globe", browser_type: "globe",
+  browser_get_text: "globe", browser_close: "globe",
 };
 const EDITABLE_DOC_EXTS = [".txt", ".md", ".csv", ".json"];
 
@@ -92,6 +94,7 @@ function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
   const [reverting, setReverting] = useState(false);
   const argsSummary =
     call.args?.command || call.args?.path || call.args?.query || call.args?.url || call.args?.task ||
+    call.args?.selector ||
     (call.args?.session_id ? `session ${call.args.session_id.slice(0, 8)}` : "");
 
   const canRevert =

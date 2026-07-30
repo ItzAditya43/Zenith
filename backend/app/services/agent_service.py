@@ -99,6 +99,27 @@ TOOLS: dict[str, dict[str, str]] = {
                         "keep working on Y). Give it a clear, standalone task description. It cannot "
                         "spawn further sub-agents. Args: task (string)."
     },
+    "browser_navigate": {
+        "description": "Open a URL in a real headless browser — unlike fetch_url, this renders "
+                        "JavaScript, so it works on pages that need it (SPAs, login-gated content "
+                        "rendered client-side, sites that block plain HTTP fetches). Starts a browser "
+                        "session for this conversation if none is open yet; later browser_* calls act "
+                        "on the same page. Returns the page title and visible text. Args: url (string)."
+    },
+    "browser_click": {
+        "description": "Click an element on the currently open browser page (from browser_navigate). "
+                        "Args: selector (string, CSS selector)."
+    },
+    "browser_type": {
+        "description": "Type text into an input/textarea on the currently open browser page. Args: "
+                        "selector (string, CSS selector), text (string), submit (boolean, optional — "
+                        "if true, submits the enclosing form after typing)."
+    },
+    "browser_get_text": {
+        "description": "Read the visible text of the currently open browser page, or of one element. "
+                        "Args: selector (string, optional — omit for the whole page)."
+    },
+    "browser_close": {"description": "Close the browser session for this conversation. Args: (none)."},
 }
 
 _SYSTEM_PROMPT_HEADER = """You are Cortex operating in agent mode: you can use tools across multiple
@@ -153,9 +174,13 @@ def _classify_bash_command(cmd: str) -> str:
 def classify_risk(tool: str, args: dict[str, Any]) -> str:
     """Returns "safe" or "risky". Safe calls auto-run in "semi" mode;
     risky calls always pause for approval outside "full" mode."""
-    if tool in ("read_file", "list_dir", "web_search", "fetch_url", "shell_output", "shell_list", "shell_kill"):
+    if tool in ("read_file", "list_dir", "web_search", "fetch_url", "shell_output", "shell_list", "shell_kill",
+                "browser_get_text", "browser_close"):
         return "safe"
-    if tool in ("write_file", "edit_file", "shell_write_stdin"):
+    if tool in ("write_file", "edit_file", "shell_write_stdin", "browser_navigate", "browser_click", "browser_type"):
+        # Navigating/clicking/typing can trigger real side effects (form
+        # submissions, purchases, account actions) — same caution as a
+        # file write, not treated as merely "reading a page."
         return "risky"
     if tool == "bash":
         return _classify_bash_command(str(args.get("command", "")))
@@ -617,6 +642,52 @@ async def _run_fetch_url(args: dict, max_chars: int) -> str:
     return f"[{page['title']}]\n{page['text']}"[:max_chars]
 
 
+async def _run_browser_navigate(args: dict, conversation_id: str, max_chars: int) -> str:
+    from app.services import browser_service
+    try:
+        return await browser_service.navigate(conversation_id, str(args.get("url", "")), max_chars)
+    except browser_service.BrowserError as exc:
+        return f"Error: {exc}"
+
+
+async def _run_browser_click(args: dict, conversation_id: str) -> str:
+    from app.services import browser_service
+    selector = str(args.get("selector", ""))
+    if not selector:
+        return "Error: no selector given."
+    try:
+        return await browser_service.click(conversation_id, selector)
+    except browser_service.BrowserError as exc:
+        return f"Error: {exc}"
+
+
+async def _run_browser_type(args: dict, conversation_id: str) -> str:
+    from app.services import browser_service
+    selector = str(args.get("selector", ""))
+    if not selector:
+        return "Error: no selector given."
+    try:
+        return await browser_service.type_text(
+            conversation_id, selector, str(args.get("text", "")), bool(args.get("submit", False))
+        )
+    except browser_service.BrowserError as exc:
+        return f"Error: {exc}"
+
+
+async def _run_browser_get_text(args: dict, conversation_id: str, max_chars: int) -> str:
+    from app.services import browser_service
+    try:
+        return await browser_service.get_text(conversation_id, args.get("selector") or None, max_chars)
+    except browser_service.BrowserError as exc:
+        return f"Error: {exc}"
+
+
+async def _run_browser_close(conversation_id: str) -> str:
+    from app.services import browser_service
+    closed = await browser_service.close_session(conversation_id)
+    return "Closed the browser session." if closed else "No browser session was open."
+
+
 async def _execute_tool(
     tool: str, args: dict, timeout: float, max_chars: int, workdir: str | None = None,
     conversation_id: str | None = None,
@@ -645,6 +716,16 @@ async def _execute_tool(
         return await _run_shell_kill(args, conversation_id)
     if tool == "shell_list":
         return _run_shell_list(conversation_id)
+    if tool == "browser_navigate":
+        return await _run_browser_navigate(args, conversation_id, max_chars)
+    if tool == "browser_click":
+        return await _run_browser_click(args, conversation_id)
+    if tool == "browser_type":
+        return await _run_browser_type(args, conversation_id)
+    if tool == "browser_get_text":
+        return await _run_browser_get_text(args, conversation_id, max_chars)
+    if tool == "browser_close":
+        return await _run_browser_close(conversation_id)
     return f"Error: unknown tool '{tool}'."
 
 

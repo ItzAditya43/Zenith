@@ -5,8 +5,11 @@ WORKDIR /app
 # System deps: libmagic1 is used by app/services/attachments.py for MIME
 # sniffing. ffmpeg was previously installed for video frame extraction but
 # that feature is not implemented, so it has been removed to slim the image.
+# chromium backs the browser_* agent tools (real JS-rendered browsing via
+# raw CDP, not a full Playwright/Selenium install — see browser_service.py).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 \
+    chromium \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
