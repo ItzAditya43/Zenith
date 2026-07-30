@@ -99,6 +99,15 @@ export default function App() {
     }
   };
 
+  const refreshConversations = async () => {
+    try {
+      const list = await api.listConversations();
+      setConversations(list);
+    } catch (err) {
+      setConnectionError(err.message);
+    }
+  };
+
   useEffect(() => {
     api
       .listConversations()
@@ -939,6 +948,7 @@ export default function App() {
           onDensityChange={setDensity}
           accent={accent}
           onAccentChange={setAccent}
+          onImported={() => { refreshConversations(); showToast("Import complete — conversations added.", "success"); }}
           initialSection={settingsInitialSection}
         />
       )}

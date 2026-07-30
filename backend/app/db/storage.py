@@ -245,9 +245,10 @@ def add_message(
     route_reason: str | None = None,
     attachments: list | None = None,
     parent_id: str | None = None,
+    created_at: float | None = None,
 ) -> dict:
     mid = str(uuid.uuid4())
-    now = time.time()
+    now = created_at if created_at is not None else time.time()
     with _conn() as conn:
         conn.execute(
             """INSERT INTO messages

@@ -61,6 +61,31 @@ async def upload(file: UploadFile, conversation_id: str | None = Form(None)):
     }
 
 
+@router.post("/import")
+async def import_history(file: UploadFile):
+    """Import a ChatGPT or Claude conversations.json export into Cortex.
+    Auto-detects which of the two it is from the JSON shape."""
+    import json as _json
+    from app.services import import_service
+
+    data = await file.read()
+    if len(data) > MAX_FILE_BYTES:
+        raise HTTPException(413, "File too large (200MB limit).")
+    try:
+        parsed_json = _json.loads(data.decode("utf-8", errors="ignore"))
+    except _json.JSONDecodeError:
+        raise HTTPException(400, "That file isn't valid JSON — upload the conversations.json from your export.")
+    try:
+        normalized = import_service.detect_and_parse(parsed_json)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if not normalized:
+        raise HTTPException(400, "No importable conversations found in that file.")
+    result = import_service.import_conversations(normalized)
+    log.info("import_completed", **result)
+    return result
+
+
 async def _index_document(att, conversation_id: str | None) -> None:
     """Best-effort background chunk+embed of an uploaded document."""
     try:
