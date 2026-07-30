@@ -91,6 +91,14 @@ TOOLS: dict[str, dict[str, str]] = {
     },
     "shell_kill": {"description": "Stop a running shell_start session. Args: session_id (string)."},
     "shell_list": {"description": "List currently running shell_start sessions for this conversation. Args: (none)."},
+    "spawn_subagent": {
+        "description": "Delegate a self-contained task to a sub-agent that works autonomously — no "
+                        "approval prompts, it can't ask you questions — and reports back a summary "
+                        "when done. Useful for a separate investigation or chunk of work you'd "
+                        "otherwise have to context-switch into yourself (e.g. 'research X' while you "
+                        "keep working on Y). Give it a clear, standalone task description. It cannot "
+                        "spawn further sub-agents. Args: task (string)."
+    },
 }
 
 _SYSTEM_PROMPT_HEADER = """You are Cortex operating in agent mode: you can use tools across multiple
@@ -155,6 +163,11 @@ def classify_risk(tool: str, args: dict[str, Any]) -> str:
         # Starting a background process is at least as consequential as
         # running the same command with `bash` — same classification.
         return _classify_bash_command(str(args.get("command", "")))
+    if tool == "spawn_subagent":
+        # Always risky: it's one approval that authorizes a whole
+        # unattended sub-loop, not a single action — the sub-agent's own
+        # tool calls don't get individually gated after this.
+        return "risky"
     return "risky"  # unknown tool — err conservative
 
 
@@ -649,6 +662,93 @@ def _parse_step(raw: str) -> dict | None:
     return obj if isinstance(obj, dict) else None
 
 
+async def _run_subagent(
+    task: str, conversation_id: str, workdir: str | None,
+    mcp_tools: list[dict], mcp_by_name: dict, model: str,
+    max_chars: int, cmd_timeout: float, parent_call_id: str,
+) -> AsyncIterator[dict]:
+    """A self-contained, unattended sub-loop: same tool set and JSON
+    protocol as the main agent loop, but with no approval gates of its
+    own — spawning it was already the one approval (or the conversation
+    is in semi/full mode), so the user has effectively agreed to let this
+    delegated task run without a prompt at every step. Every tool call it
+    makes is still logged to the audit trail and streamed to the UI
+    (tagged with the parent call's id) — nothing it does is invisible,
+    it just doesn't pause. Can't spawn further sub-agents, which bounds
+    both the blast radius and the cost of a single delegation."""
+    from app.services import mcp_service
+
+    max_iters = int(settings.get("agent_subagent_max_iterations", 8))
+    system = _build_system_prompt(mcp_tools) + (
+        f"\n\nWorking directory: {workdir}\n"
+        "Relative paths resolve against this directory automatically."
+        if workdir else ""
+    ) + (
+        "\n\nYou are a sub-agent delegated a single focused task by another agent. "
+        "Work autonomously — there's no user to ask for approval or clarification. "
+        "When you're done, respond with a concise {\"final\": \"...\"} summary of what "
+        "you did and what you found."
+    )
+    loop_messages: list[dict] = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": task},
+    ]
+    client = OllamaClient()
+    final_text: str | None = None
+
+    for _ in range(max_iters):
+        try:
+            raw = await client.chat(model, loop_messages)
+        except OllamaError as exc:
+            final_text = f"Sub-agent error: {exc}"
+            break
+
+        step = _parse_step(raw)
+        if not step:
+            final_text = raw.strip()
+            break
+        if "final" in step:
+            final_text = str(step["final"])
+            break
+
+        tool = str(step.get("tool", ""))
+        args = step.get("args", {}) if isinstance(step.get("args"), dict) else {}
+        if tool == "spawn_subagent":
+            loop_messages.append({"role": "assistant", "content": json.dumps(step)})
+            loop_messages.append({"role": "user", "content": "Error: sub-agents can't spawn further sub-agents. Do this task directly."})
+            continue
+        if tool not in TOOLS and tool not in mcp_by_name:
+            loop_messages.append({"role": "assistant", "content": json.dumps(step)})
+            allowed = ", ".join(n for n in TOOLS if n != "spawn_subagent")
+            loop_messages.append({"role": "user", "content": f"Error: unknown tool '{tool}'. Choose one of: {allowed}."})
+            continue
+
+        risk = classify_risk(tool, args)
+        diff, previous_content, had_previous_file = _preview_diff(tool, args, workdir)
+        call_id = _log_call(conversation_id, tool, args, risk, diff, previous_content, had_previous_file)
+        yield {"type": "tool_call", "id": call_id, "tool": tool, "args": args, "risk": risk,
+               "diff": diff, "subagent_of": parent_call_id}
+
+        if tool in mcp_by_name:
+            mcp_tool = mcp_by_name[tool]
+            server = mcp_service.get_server(mcp_tool["server_id"])
+            result = (
+                await mcp_service.call_tool(server, mcp_tool["tool_name"], args, max_chars)
+                if server else f"Error: MCP server '{mcp_tool['server_name']}' is no longer configured."
+            )
+        else:
+            result = await _execute_tool(tool, args, cmd_timeout, max_chars, workdir, conversation_id)
+        _resolve_call(call_id, "executed", result)
+        yield {"type": "tool_result", "id": call_id, "tool": tool, "result": result, "subagent_of": parent_call_id}
+
+        loop_messages.append({"role": "assistant", "content": json.dumps(step)})
+        loop_messages.append({"role": "user", "content": f"Tool result for {tool}:\n{result}"})
+
+    if final_text is None:
+        final_text = f"Sub-agent hit its step limit ({max_iters}) without finishing — partial progress only."
+    yield {"type": "subagent_done", "text": final_text}
+
+
 async def run_agent_turn(
     conversation_id: str,
     user_text: str,
@@ -754,7 +854,22 @@ async def run_agent_turn(
                 loop_messages.append({"role": "user", "content": "Tool call denied by the user. Try a different approach or give a final answer."})
                 continue
 
-        if tool in mcp_by_name:
+        if tool == "spawn_subagent":
+            task_desc = str(args.get("task", "")).strip()
+            if not task_desc:
+                result = "Error: no task given."
+            else:
+                summary = None
+                async for sub_event in _run_subagent(
+                    task_desc, conversation_id, workdir, mcp_tools, mcp_by_name,
+                    decision.model, max_chars, cmd_timeout, call_id,
+                ):
+                    if sub_event["type"] == "subagent_done":
+                        summary = sub_event["text"]
+                    else:
+                        yield sub_event
+                result = summary or "Sub-agent finished with no summary."
+        elif tool in mcp_by_name:
             mcp_tool = mcp_by_name[tool]
             server = mcp_service.get_server(mcp_tool["server_id"])
             result = (
