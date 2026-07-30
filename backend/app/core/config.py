@@ -130,6 +130,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "agent_output_max_chars": 4000,  # cap per tool result fed back to the model
     "agent_approval_timeout_seconds": 600,  # auto-deny if you don't respond
     "agent_subagent_max_iterations": 8,  # step budget for a spawn_subagent delegation
+    "agent_check_command": "",       # e.g. "pytest -q" or "npm test" — run_checks default
+    "agent_auto_check": False,       # auto-run the check command after each file edit
+    "agent_check_timeout_seconds": 180,  # tests/lint can be slower than a plain command
     # --- Scheduled/recurring turns ---
     "schedule_check_interval_seconds": 60,  # how often the scanner checks for due schedules
     # --- Folder watcher ---

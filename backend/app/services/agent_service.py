@@ -120,6 +120,13 @@ TOOLS: dict[str, dict[str, str]] = {
                         "Args: selector (string, optional — omit for the whole page)."
     },
     "browser_close": {"description": "Close the browser session for this conversation. Args: (none)."},
+    "run_checks": {
+        "description": "Run the project's test/lint command and get back whether it passed or failed, "
+                        "with the output. Use this to verify your changes actually work after editing "
+                        "files, instead of guessing. Uses the configured check command by default "
+                        "(set in Settings). Args: command (string, optional — override the configured "
+                        "command for this run)."
+    },
     "git": {
         "description": "Structured git operations in the conversation's working directory — cleaner "
                         "than raw `git` via bash, with parsed output. Args: op (one of 'status', "
@@ -207,6 +214,10 @@ def classify_risk(tool: str, args: dict[str, Any]) -> str:
         # (commit, creating/switching a branch) pauses like a file write.
         op = str(args.get("op", "")).strip()
         return "safe" if op in ("status", "diff", "log") else "risky"
+    if tool == "run_checks":
+        # Running the user-configured check command is safe (they chose it);
+        # an arbitrary command override the model supplies is not.
+        return "risky" if str(args.get("command", "")).strip() else "safe"
     return "risky"  # unknown tool — err conservative
 
 
@@ -473,6 +484,40 @@ async def _run_git(args: dict, timeout: float, max_chars: int, workdir: str | No
     if op == "status" and not body.strip():
         body = "(clean working tree)"
     return body[:max_chars]
+
+
+async def _run_checks(args: dict, workdir: str | None = None) -> str:
+    """Run the project's test/lint command and report pass/fail + output.
+    Gives the model a first-class way to verify its edits instead of
+    guessing whether they worked."""
+    command = str(args.get("command", "")).strip() or str(settings.get("agent_check_command", "")).strip()
+    if not command:
+        return ("Error: no check command configured. Set one in Settings → Agent tools "
+                "(e.g. 'pytest -q' or 'npm test'), or pass a command explicitly.")
+    cwd = workdir or None
+    timeout = float(settings.get("agent_check_timeout_seconds", 180))
+    max_chars = int(settings.get("agent_output_max_chars", 4000))
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            command, cwd=cwd,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+        )
+        try:
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return f"Checks TIMED OUT after {timeout}s (command: {command})."
+    except Exception as exc:
+        return f"Error running checks: {exc}"
+    verdict = "PASSED" if proc.returncode == 0 else "FAILED"
+    output = out.decode(errors="ignore")
+    # For a passing run the tail is what matters (summary line); for a
+    # failing one the model needs to see the failure, which tools also
+    # print near the end — so keep the tail either way.
+    if len(output) > max_chars:
+        output = "…(truncated)…\n" + output[-max_chars:]
+    return f"Checks {verdict} (exit {proc.returncode}, command: {command}).\n{output}".rstrip()
 
 
 # --- Persistent shell sessions ---------------------------------------------
@@ -796,6 +841,8 @@ async def _execute_tool(
         return await _run_fetch_url(args, max_chars)
     if tool == "git":
         return await _run_git(args, timeout, max_chars, workdir)
+    if tool == "run_checks":
+        return await _run_checks(args, workdir)
     if tool == "shell_start":
         return await _run_shell_start(args, conversation_id, workdir)
     if tool == "shell_output":
@@ -1097,6 +1144,21 @@ async def run_agent_turn(
 
         loop_messages.append({"role": "assistant", "content": json.dumps(step)})
         loop_messages.append({"role": "user", "content": f"Tool result for {tool}:\n{result}"})
+
+        # Auto-check feedback loop: after a file edit, optionally run the
+        # configured test/lint command and feed the pass/fail back into the
+        # loop as its own audited tool call, so the model reacts to a broken
+        # build/test without having to remember to check.
+        if (tool in ("edit_file", "write_file")
+                and settings.get("agent_auto_check")
+                and str(settings.get("agent_check_command", "")).strip()
+                and not result.startswith("Error")):
+            check_id = _log_call(conversation_id, "run_checks", {}, "safe")
+            yield {"type": "tool_call", "id": check_id, "tool": "run_checks", "args": {}, "risk": "safe", "diff": None}
+            check_result = await _run_checks({}, workdir)
+            _resolve_call(check_id, "executed", check_result)
+            yield {"type": "tool_result", "id": check_id, "tool": "run_checks", "result": check_result}
+            loop_messages.append({"role": "user", "content": f"(automatic) {check_result}"})
 
     if final_text is None:
         final_text = (

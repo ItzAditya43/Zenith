@@ -72,6 +72,7 @@ export default function SettingsPanel({
   const [mcpToolsResult, setMcpToolsResult] = useState({});
   const [newMemory, setNewMemory] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [checkCommand, setCheckCommand] = useState("");
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptSaved, setPromptSaved] = useState(false);
 
@@ -120,6 +121,7 @@ export default function SettingsPanel({
       setConfig(c);
       setHost(c.ollama_host);
       setSystemPrompt(c.system_prompt || "");
+      setCheckCommand(c.agent_check_command || "");
     });
     refreshModels();
     refreshMemories();
@@ -317,6 +319,16 @@ export default function SettingsPanel({
 
   const setAgentMode = async (mode) => {
     const updated = await api.patchConfig({ agent_mode: mode });
+    setConfig(updated);
+  };
+
+  const saveCheckCommand = async (command) => {
+    const updated = await api.patchConfig({ agent_check_command: command });
+    setConfig(updated);
+  };
+
+  const toggleAutoCheck = async (checked) => {
+    const updated = await api.patchConfig({ agent_auto_check: checked });
     setConfig(updated);
   };
 
@@ -740,6 +752,43 @@ export default function SettingsPanel({
                   the "general" role to a larger model in Model routing for agent turns to work
                   reliably.
                 </p>
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  Test / lint checks
+                </h3>
+                <p className="settings-section-desc">
+                  A command the agent can run to verify its own edits — e.g.{" "}
+                  <code>pytest -q</code> or <code>npm test</code>. It runs in the conversation's
+                  working directory. The agent can call it any time via its <code>run_checks</code>{" "}
+                  tool; turn on auto-check to have it run automatically after every file edit.
+                </p>
+                <div className="settings-row">
+                  <input
+                    className="settings-input"
+                    placeholder="e.g. pytest -q"
+                    value={checkCommand}
+                    onChange={(e) => setCheckCommand(e.target.value)}
+                    onBlur={(e) => saveCheckCommand(e.target.value.trim())}
+                  />
+                </div>
+                <div className="setting-row" style={{ marginTop: "0.75rem" }}>
+                  <div>
+                    <strong>Auto-run after edits</strong>
+                    <span className="setting-hint">
+                      After each successful file edit, run the check command and feed the pass/fail
+                      back to the agent so it fixes breakage on its own.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${config?.agent_auto_check ? "switch-on" : ""}`}
+                    onClick={() => toggleAutoCheck(!config?.agent_auto_check)}
+                    disabled={!config?.agent_enabled}
+                    role="switch"
+                    aria-checked={!!config?.agent_auto_check}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
 
                 <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
                   MCP servers
