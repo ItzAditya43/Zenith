@@ -229,6 +229,12 @@ export const api = {
     return request("/api/upload", { method: "POST", body: form }).then((r) => r.json());
   },
 
+  importHistory: (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/api/import", { method: "POST", body: form }).then((r) => r.json());
+  },
+
   transcribe: (blob, filename = "voice.webm") => {
     const form = new FormData();
     form.append("file", blob, filename);

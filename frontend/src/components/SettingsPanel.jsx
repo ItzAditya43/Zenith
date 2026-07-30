@@ -37,6 +37,7 @@ export default function SettingsPanel({
   onDensityChange,
   accent,
   onAccentChange,
+  onImported,
   initialSection = "appearance",
 }) {
   const [config, setConfig] = useState(null);
@@ -75,6 +76,8 @@ export default function SettingsPanel({
   const [newMemory, setNewMemory] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [checkCommand, setCheckCommand] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState("");
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptSaved, setPromptSaved] = useState(false);
 
@@ -327,6 +330,23 @@ export default function SettingsPanel({
   const saveCheckCommand = async (command) => {
     const updated = await api.patchConfig({ agent_check_command: command });
     setConfig(updated);
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    setImportStatus("");
+    try {
+      const res = await api.importHistory(file);
+      setImportStatus(`Imported ${res.conversations} conversation(s), ${res.messages} messages.`);
+      onImported?.();
+    } catch (err) {
+      setImportStatus(err.message || "Import failed.");
+    } finally {
+      setImporting(false);
+    }
   };
 
   const toggleAutoCheck = async (checked) => {
@@ -1087,6 +1107,33 @@ export default function SettingsPanel({
                   <a className="settings-btn-primary" href={api.exportUrl("markdown")} download>
                     Download .zip
                   </a>
+                </div>
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  Import
+                </h3>
+                <p className="settings-section-desc">
+                  Bring your history over from another tool — upload the{" "}
+                  <code>conversations.json</code> from a ChatGPT or Claude data export. Cortex
+                  detects which it is automatically and creates a conversation for each chat.
+                </p>
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Import from ChatGPT / Claude</span>
+                    <span className="setting-hint">
+                      {importStatus || "Your original messages and timestamps are preserved."}
+                    </span>
+                  </div>
+                  <label className="settings-btn-primary" style={{ cursor: "pointer" }}>
+                    {importing ? "Importing…" : "Choose conversations.json"}
+                    <input
+                      type="file"
+                      accept="application/json,.json"
+                      hidden
+                      disabled={importing}
+                      onChange={handleImport}
+                    />
+                  </label>
                 </div>
               </section>
             )}
