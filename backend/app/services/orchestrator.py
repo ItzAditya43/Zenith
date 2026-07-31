@@ -240,6 +240,7 @@ async def run_turn(
     parent_message_id: str | None = None,
     parent_explicit: bool = False,
     regenerate_user_message_id: str | None = None,
+    model_override: str | None = None,
 ) -> tuple[RouteDecision, AsyncIterator[str], list[dict], str]:
     """Returns the routing decision, an async generator of reply tokens,
     a list of web sources used (possibly empty), and the parent_id the
@@ -314,14 +315,22 @@ async def run_turn(
     context_chars = sum(len(m["content"]) for m in messages)
 
     router = ModelRouter()
-    decision = await router.decide(
-        text=user_text,
-        has_image=ctx.has_image,
-        has_video=ctx.has_video,
-        has_long_document=ctx.has_long_document,
-        history_last_model=history_last_model,
-        context_chars=context_chars,
-    )
+    if model_override:
+        # Per-message override: skip auto-routing entirely and answer
+        # with exactly the model the user picked for this one turn.
+        decision = RouteDecision(
+            model=model_override, role="general", reason="Manually selected for this message.",
+            confidence=1.0,
+        )
+    else:
+        decision = await router.decide(
+            text=user_text,
+            has_image=ctx.has_image,
+            has_video=ctx.has_video,
+            has_long_document=ctx.has_long_document,
+            history_last_model=history_last_model,
+            context_chars=context_chars,
+        )
 
     if regenerate_user_message_id:
         # The user turn already exists — only a new assistant sibling is

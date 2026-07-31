@@ -290,6 +290,7 @@ async def chat(body: ChatRequest, request: Request):
             parent_message_id=parent_message_id,
             parent_explicit=parent_explicit,
             regenerate_user_message_id=body.regenerate_of,
+            model_override=body.model_override,
         )
     except OllamaError as exc:
         raise HTTPException(status_code=503, detail=str(exc))

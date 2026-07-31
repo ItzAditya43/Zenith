@@ -25,6 +25,7 @@ class ChatRequest(StrictModel):
     deep_research: bool = False  # composer "Research" toggle
     edit_of: Optional[str] = None  # branching: id of the user message being replaced
     regenerate_of: Optional[str] = None  # branching: assistant message id to regenerate
+    model_override: Optional[str] = None  # skip auto-routing, force this exact installed model
 
 
 class ConversationCreate(StrictModel):
