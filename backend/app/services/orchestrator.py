@@ -113,11 +113,14 @@ def _build_messages(history: list[dict], user_text: str, ctx: TurnContext) -> li
     return messages
 
 
-async def _build_system_context(conversation_id: str, user_text: str) -> str:
+async def _build_system_context(conversation_id: str, user_text: str) -> tuple[str, list[dict]]:
     """Compose the system message: user-configured persona/system prompt,
     long-term memories, and recall of relevant past-conversation excerpts.
-    Any failing section is skipped."""
+    Any failing section is skipped. Also returns `citations` — the recalled
+    chunks actually folded into context, so the UI can show "this answer
+    used X" instead of the recall being invisible."""
     parts: list[str] = []
+    citations: list[dict] = []
     persona_prompt = None
     try:
         from app.services import persona_service
@@ -159,6 +162,10 @@ async def _build_system_context(conversation_id: str, user_text: str) -> str:
                     "Possibly relevant excerpts from your past conversations "
                     "with this user (ignore if not relevant):\n" + rendered
                 )
+                citations.extend(
+                    {"kind": "recall", "text": h["text"][:300], "source_id": h.get("source_id")}
+                    for h in hits
+                )
         except Exception as exc:
             log.debug("orchestrator.recall_failed", error=str(exc))
     if bool(settings.get("folder_recall_enabled", True)) and len(user_text.strip()) >= 12:
@@ -176,9 +183,13 @@ async def _build_system_context(conversation_id: str, user_text: str) -> str:
                     "Possibly relevant content from your watched folders "
                     "(ignore if not relevant):\n" + rendered
                 )
+                citations.extend(
+                    {"kind": "folder", "text": h["text"][:300], "source_id": h.get("source_id")}
+                    for h in hits
+                )
         except Exception as exc:
             log.debug("orchestrator.folder_recall_failed", error=str(exc))
-    return "\n\n".join(parts)
+    return "\n\n".join(parts), citations
 
 
 async def _gather_web_context(user_text: str, web_search: bool) -> tuple[str, list[dict]]:
@@ -281,6 +292,7 @@ async def run_turn(
     # so the model can answer questions about page 300, not just the
     # first and last pages. Falls back to the truncate path if no
     # embedding model is available.
+    doc_citations: list[dict] = []
     if ctx.attachment_summaries:
         try:
             from app.services import rag_service
@@ -299,13 +311,17 @@ async def run_turn(
                     messages[-1]["content"] = (
                         user_text + "\n\n" + rendered
                     ).strip()
+                    doc_citations.extend(
+                        {"kind": "document", "text": c["text"][:300], "source_id": att["name"]}
+                        for c in chunks
+                    )
         except Exception as exc:
             log.warning("orchestrator.rag_failed", error=str(exc))
 
     # Personal-assistant context: system prompt + long-term memories +
     # recall of relevant excerpts from *other* conversations. All
     # best-effort — a failure here must never block the turn.
-    system_text = await _build_system_context(conversation_id, user_text)
+    system_text, recall_citations = await _build_system_context(conversation_id, user_text)
     if system_text:
         messages.insert(0, {"role": "system", "content": system_text})
 
@@ -357,4 +373,5 @@ async def run_turn(
     stream = client.chat_stream(
         decision.model, messages, images_b64=ctx.images_b64 or None
     )
-    return decision, stream, web_sources, assistant_parent_id
+    all_sources = web_sources + recall_citations + doc_citations
+    return decision, stream, all_sources, assistant_parent_id

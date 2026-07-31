@@ -92,7 +92,7 @@ async def run_deep_research(
 
     ctx = await build_turn_context(attachment_ids)
     history = storage.get_messages(conversation_id)
-    system_text = await _build_system_context(conversation_id, user_text)
+    system_text, _sys_citations = await _build_system_context(conversation_id, user_text)
 
     router = ModelRouter()
     decision: RouteDecision = await router.decide(
