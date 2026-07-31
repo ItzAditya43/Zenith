@@ -32,6 +32,8 @@ export default function App() {
   const genStartRef = useRef(0);
   const genTokenCountRef = useRef(0);
   const [voiceReplyEnabled, setVoiceReplyEnabled] = useState(false);
+  const [continuousVoice, setContinuousVoice] = useState(false);
+  const [autoListenNonce, setAutoListenNonce] = useState(null);
   const [connectionError, setConnectionError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
@@ -375,7 +377,12 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     if (audioRef.current) {
       audioRef.current.src = url;
-      audioRef.current.onended = () => setStatus("idle");
+      audioRef.current.onended = () => {
+        setStatus("idle");
+        // Continuous mode: hand the mic back the instant the reply finishes
+        // speaking, so the conversation keeps flowing hands-free.
+        if (continuousVoice) setAutoListenNonce(Date.now());
+      };
       await audioRef.current.play();
     }
   };
@@ -1044,6 +1051,19 @@ export default function App() {
                 <Icon name={voiceReplyEnabled ? "volume-2" : "volume-x"} size={14} /> {voiceReplyEnabled ? "Voice on" : "Voice off"}
               </button>
             )}
+            {!focusMode && (
+              <button
+                className={`voice-toggle ${continuousVoice ? "voice-toggle-on" : ""}`}
+                onClick={() => {
+                  const next = !continuousVoice;
+                  setContinuousVoice(next);
+                  if (next) setVoiceReplyEnabled(true); // the loop needs spoken replies to keep going
+                }}
+                title="Hands-free conversation: speak, hear the reply, mic reopens automatically"
+              >
+                <Icon name="headphones" size={14} /> {continuousVoice ? "Live voice" : "Voice chat"}
+              </button>
+            )}
           </div>
         </header>
 
@@ -1147,6 +1167,8 @@ export default function App() {
           isStreaming={status === "thinking"}
           onError={(msg) => showToast(msg, "error")}
           seedText={seedText}
+          continuousVoice={continuousVoice}
+          autoListenNonce={autoListenNonce}
         />
       </main>
 
