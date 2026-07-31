@@ -37,6 +37,20 @@ function DocumentChip({ attachment: a }) {
     }
   };
 
+  if (a.kind === "image") {
+    return (
+      <a
+        className="msg-image-attachment"
+        href={`${api.base}/api/attachments/${a.id}/download`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={a.name}
+      >
+        <img src={`${api.base}/api/attachments/${a.id}/download`} alt={a.name} loading="lazy" />
+      </a>
+    );
+  }
+
   return (
     <div className="doc-chip-wrap">
       <span className="msg-attachment-chip">
