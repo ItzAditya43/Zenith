@@ -395,6 +395,24 @@ def _notes_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _todos_table(conn: sqlite3.Connection) -> None:
+    """A dedicated to-do list, distinct from Notes (freeform scratchpad)
+    and Calendar (timed events) — discrete tasks with a done/not-done
+    state and an optional due date."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS todos (
+            id TEXT PRIMARY KEY,
+            text TEXT NOT NULL,
+            done INTEGER NOT NULL DEFAULT 0,
+            due_ts REAL,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        );
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -433,6 +451,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (15, "projects_table", _projects_table),
     (16, "calendar_events_table", _calendar_events_table),
     (17, "notes_table", _notes_table),
+    (18, "todos_table", _todos_table),
 ]
 
 

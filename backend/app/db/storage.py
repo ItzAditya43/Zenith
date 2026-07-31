@@ -563,6 +563,50 @@ def delete_note(note_id: str) -> None:
         conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
 
 
+def create_todo(text: str, due_ts: float | None = None) -> dict:
+    tid = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO todos (id, text, done, due_ts, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?)",
+            (tid, text, due_ts, now, now),
+        )
+    return {"id": tid, "text": text, "done": 0, "due_ts": due_ts, "created_at": now, "updated_at": now}
+
+
+def list_todos() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM todos ORDER BY done ASC, (due_ts IS NULL), due_ts ASC, created_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def update_todo(todo_id: str, text: str | None = None, done: bool | None = None, due_ts: float | None = "__unset__") -> None:
+    fields, params = [], []
+    if text is not None:
+        fields.append("text = ?")
+        params.append(text)
+    if done is not None:
+        fields.append("done = ?")
+        params.append(1 if done else 0)
+    if due_ts != "__unset__":
+        fields.append("due_ts = ?")
+        params.append(due_ts)
+    if not fields:
+        return
+    fields.append("updated_at = ?")
+    params.append(time.time())
+    params.append(todo_id)
+    with _conn() as conn:
+        conn.execute(f"UPDATE todos SET {', '.join(fields)} WHERE id = ?", params)
+
+
+def delete_todo(todo_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM todos WHERE id = ?", (todo_id,))
+
+
 def search_conversations(q: str) -> list[dict]:
     """Full-text search over message content. Returns distinct
     conversations with the matching snippet and message count. Uses

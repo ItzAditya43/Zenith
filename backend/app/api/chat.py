@@ -712,3 +712,29 @@ async def update_note(note_id: str, body: dict):
 async def remove_note(note_id: str):
     storage.delete_note(note_id)
     return {"ok": True}
+
+
+@router.get("/todos")
+async def list_todos():
+    return storage.list_todos()
+
+
+@router.post("/todos")
+async def create_todo(body: dict):
+    text = str(body.get("text", "")).strip()
+    if not text:
+        raise HTTPException(422, "text is required.")
+    return storage.create_todo(text, body.get("due_ts"))
+
+
+@router.patch("/todos/{todo_id}")
+async def update_todo(todo_id: str, body: dict):
+    due_ts = body["due_ts"] if "due_ts" in body else "__unset__"
+    storage.update_todo(todo_id, body.get("text"), body.get("done"), due_ts)
+    return {"ok": True}
+
+
+@router.delete("/todos/{todo_id}")
+async def remove_todo(todo_id: str):
+    storage.delete_todo(todo_id)
+    return {"ok": True}

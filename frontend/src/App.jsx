@@ -12,6 +12,7 @@ import BranchTree from "./components/BranchTree.jsx";
 import DocumentEditor from "./components/DocumentEditor.jsx";
 import CalendarPanel from "./components/CalendarPanel.jsx";
 import NotesPanel from "./components/NotesPanel.jsx";
+import TodoPanel from "./components/TodoPanel.jsx";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
 
@@ -61,6 +62,7 @@ export default function App() {
   const [openDoc, setOpenDoc] = useState(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [todosOpen, setTodosOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
@@ -1016,6 +1018,15 @@ export default function App() {
                 <Icon name="pencil" size={16} />
               </button>
             )}
+            {!focusMode && (
+              <button
+                className={`icon-btn ${todosOpen ? "is-active" : ""}`}
+                onClick={() => setTodosOpen((v) => !v)}
+                title="To-do"
+              >
+                <Icon name="check" size={16} />
+              </button>
+            )}
             <button
               className={`icon-btn focus-toggle-btn ${focusMode ? "is-active" : ""}`}
               onClick={() => setFocusMode((v) => !v)}
@@ -1094,6 +1105,7 @@ export default function App() {
 
         {calendarOpen && <CalendarPanel onClose={() => setCalendarOpen(false)} />}
         {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}
+        {todosOpen && <TodoPanel onClose={() => setTodosOpen(false)} />}
 
         {branchTreeOpen && (
           <BranchTree
