@@ -1,6 +1,6 @@
 {
-  "name": "Cortex — local AI",
-  "short_name": "Cortex",
+  "name": "Zenith — local AI",
+  "short_name": "Zenith",
   "description": "Your self-hosted, local-first AI chat client for Ollama.",
   "start_url": "/",
   "scope": "/",

@@ -3,7 +3,7 @@
 Two entry points the orchestrator uses:
 
   search(query)         -> DuckDuckGo HTML results (no API key, no cost —
-                            keeps Cortex's "nothing leaves your machine
+                            keeps Zenith's "nothing leaves your machine
                             except your own tools" ethos as close as
                             possible for a feature that inherently needs
                             the open internet).

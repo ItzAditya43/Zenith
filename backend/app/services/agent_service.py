@@ -6,7 +6,7 @@ Design choices, and why:
 
 - **JSON-in-text tool calling, not Ollama's native `tools` API.** Native
   function calling only works on a subset of models (recent Llama/Qwen/
-  Mistral builds); Cortex's whole pitch is "works with whatever you've
+  Mistral builds); Zenith's whole pitch is "works with whatever you've
   pulled." Prompting the model to emit a strict JSON object and parsing
   it works with any chat model, at the cost of losing token-level
   streaming during the loop (each round is a full non-streaming call;
@@ -138,7 +138,7 @@ TOOLS: dict[str, dict[str, str]] = {
     },
 }
 
-_SYSTEM_PROMPT_HEADER = """You are Cortex operating in agent mode: you can use tools across multiple
+_SYSTEM_PROMPT_HEADER = """You are Zenith operating in agent mode: you can use tools across multiple
 steps to satisfy the user's request, instead of answering from memory alone.
 
 Available tools:

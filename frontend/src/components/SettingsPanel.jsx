@@ -438,7 +438,7 @@ export default function SettingsPanel({
       const url = URL.createObjectURL(file);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "cortex-sync.blob";
+      a.download = "zenith-sync.blob";
       a.click();
       URL.revokeObjectURL(url);
       setSyncStatus({ ok: true, message: "Exported. Move this file to the other device and import it there." });
@@ -596,7 +596,7 @@ export default function SettingsPanel({
     }
     try {
       const { token } = await api.lockSet(pass);
-      sessionStorage.setItem("cortex-unlock", token || ""); // stay unlocked in this tab
+      sessionStorage.setItem("zenith-unlock", token || ""); // stay unlocked in this tab
       setLockEnabled(true);
       setLockInput("");
       setLockMsg("Passcode set. It'll be required next time this tab is opened.");
@@ -613,7 +613,7 @@ export default function SettingsPanel({
     }
     try {
       await api.lockDisable(pass);
-      sessionStorage.removeItem("cortex-unlock");
+      sessionStorage.removeItem("zenith-unlock");
       setLockEnabled(false);
       setLockInput("");
       setLockMsg("Lock disabled.");
@@ -667,7 +667,7 @@ export default function SettingsPanel({
   };
 
   const clearAllMemories = async () => {
-    if (!window.confirm("Forget everything Cortex has learned about you? This can't be undone."))
+    if (!window.confirm("Forget everything Zenith has learned about you? This can't be undone."))
       return;
     await api.clearMemories();
     refreshMemories();
@@ -702,7 +702,7 @@ export default function SettingsPanel({
             <span className="settings-title-mark" aria-hidden="true" />
             <div>
               <h2>Settings</h2>
-              <p className="settings-subtitle">Tune how Cortex runs on your machine</p>
+              <p className="settings-subtitle">Tune how Zenith runs on your machine</p>
             </div>
           </div>
           <button className="icon-btn settings-close" onClick={onClose} title="Close (Esc)">
@@ -731,7 +731,7 @@ export default function SettingsPanel({
               <section className="settings-section">
                 <h3 className="settings-section-title">Appearance</h3>
                 <p className="settings-section-desc">
-                  Cortex adapts to your environment. Switch themes any time — your choice is
+                  Zenith adapts to your environment. Switch themes any time — your choice is
                   remembered on this device.
                 </p>
 
@@ -789,7 +789,7 @@ export default function SettingsPanel({
                   <div className="setting-meta">
                     <span className="setting-label">Speak replies aloud</span>
                     <span className="setting-hint">
-                      When on, Cortex reads assistant responses using your chosen voice engine.
+                      When on, Zenith reads assistant responses using your chosen voice engine.
                     </span>
                   </div>
                   <button
@@ -849,7 +849,7 @@ export default function SettingsPanel({
               <section className="settings-section">
                 <h3 className="settings-section-title">Ollama connection</h3>
                 <p className="settings-section-desc">
-                  Cortex talks to a local Ollama instance. Point it at the host it's running on.
+                  Zenith talks to a local Ollama instance. Point it at the host it's running on.
                 </p>
                 <div className="setting-row setting-row-stack">
                   <label className="setting-label" htmlFor="ollama-host">
@@ -898,7 +898,7 @@ export default function SettingsPanel({
                   Multi-device access
                 </h3>
                 <p className="settings-section-desc">
-                  Let other devices on your network (or Tailscale) reach Cortex — open it from a
+                  Let other devices on your network (or Tailscale) reach Zenith — open it from a
                   phone at <code>http://&lt;this-machine-ip&gt;:5173</code>. Widens who can reach the
                   API, so pair it with the passcode lock. Takes effect after a backend restart. See
                   MULTIDEVICE.md.
@@ -930,7 +930,7 @@ export default function SettingsPanel({
                 <h3 className="settings-section-title">Persona</h3>
                 <p className="settings-section-desc">
                   Standing instructions sent with every message — tone, role, how you want
-                  Cortex to behave. Applies regardless of which model the router picks.
+                  Zenith to behave. Applies regardless of which model the router picks.
                 </p>
                 <div className="setting-row setting-row-stack">
                   <textarea
@@ -951,7 +951,7 @@ export default function SettingsPanel({
                   Long-term memory
                 </h3>
                 <p className="settings-section-desc">
-                  Cortex quietly picks up durable facts from what you say ("uses fish shell",
+                  Zenith quietly picks up durable facts from what you say ("uses fish shell",
                   "allergic to peanuts") and recalls them in future chats. Nothing leaves your
                   machine.
                 </p>
@@ -1041,7 +1041,7 @@ export default function SettingsPanel({
                 <h3 className="settings-section-title">Skills</h3>
                 <p className="settings-section-desc">
                   When agent mode repeats the exact same ordered tool sequence across
-                  two separate turns, Cortex auto-saves it as a reusable playbook here —
+                  two separate turns, Zenith auto-saves it as a reusable playbook here —
                   no manual curation needed. Click "Use" to drop the original prompt back
                   into the composer as a starting point.
                 </p>
@@ -1092,7 +1092,7 @@ export default function SettingsPanel({
                 <h3 className="settings-section-title">Email</h3>
                 <p className="settings-section-desc">
                   Connect your own IMAP/SMTP account — no third-party mail API. Credentials are
-                  stored the same way as other local settings (plaintext in Cortex's own config
+                  stored the same way as other local settings (plaintext in Zenith's own config
                   file, not encrypted at rest — use an app password if your provider supports
                   one). Summaries and reply drafts run on your local model; nothing sends until
                   you review and hit send.
@@ -1391,7 +1391,7 @@ export default function SettingsPanel({
               <section className="settings-section">
                 <h3 className="settings-section-title">Agent tools</h3>
                 <p className="settings-section-desc">
-                  Off by default. When on, Cortex can run shell commands and read/write files
+                  Off by default. When on, Zenith can run shell commands and read/write files
                   across multiple steps to complete a request — not just answer from context.
                   This runs with the same permissions as the backend process, on whatever
                   filesystem it can see (the container's, unless you've bind-mounted your real
@@ -1438,7 +1438,7 @@ export default function SettingsPanel({
                       : config?.agent_mode === "semi"
                       ? "Read-only calls (read/list/search) run immediately; writes and shell commands with side effects still ask first."
                       : config?.agent_mode === "plan"
-                      ? "Cortex drafts a step-by-step plan and waits for your approval; once approved, it executes the whole plan without pausing at each step."
+                      ? "Zenith drafts a step-by-step plan and waits for your approval; once approved, it executes the whole plan without pausing at each step."
                       : "Every tool call — even a plain file read — shows up in chat for you to approve or deny."}
                   </span>
                 </div>
@@ -1446,7 +1446,7 @@ export default function SettingsPanel({
                 <p className="settings-hint-note">
                   Small models (roughly under ~4B parameters) often skip the tool-calling
                   protocol entirely and answer from guesswork instead of actually using a tool —
-                  this isn't a bug in Cortex, it's a real limitation of small local models. Pin
+                  this isn't a bug in Zenith, it's a real limitation of small local models. Pin
                   the "general" role to a larger model in Model routing for agent turns to work
                   reliably.
                 </p>
@@ -1493,7 +1493,7 @@ export default function SettingsPanel({
                 </h3>
                 <p className="settings-section-desc">
                   Connect external MCP (Model Context Protocol) tool servers — email, calendar,
-                  Notion, whatever's published — instead of Cortex hand-building each
+                  Notion, whatever's published — instead of Zenith hand-building each
                   integration. Runs as a local subprocess over stdio, same free-by-construction
                   posture as everything else here. Their tools appear in agent mode's tool list
                   automatically, prefixed <code>mcp__servername__</code>, and go through the same
@@ -1620,7 +1620,7 @@ export default function SettingsPanel({
                   <div>
                     <h3 className="settings-section-title">Model routing</h3>
                     <p className="settings-section-desc settings-section-desc-inline">
-                      Cortex auto-picks a model per capability. Override any role to pin it.
+                      Zenith auto-picks a model per capability. Override any role to pin it.
                     </p>
                   </div>
                   <button className="text-btn" onClick={refreshModels}>
@@ -1867,7 +1867,7 @@ export default function SettingsPanel({
               <section className="settings-section">
                 <h3 className="settings-section-title">Data</h3>
                 <p className="settings-section-desc">
-                  Everything Cortex knows about you, in a format you can actually read and keep
+                  Everything Zenith knows about you, in a format you can actually read and keep
                   — no lock-in. Downloads run locally against your own backend.
                 </p>
 
@@ -1889,7 +1889,7 @@ export default function SettingsPanel({
                     <span className="setting-label">Export as Markdown</span>
                     <span className="setting-hint">
                       One readable .md file per conversation, zipped — good for archiving or
-                      reading outside Cortex.
+                      reading outside Zenith.
                     </span>
                   </div>
                   <a className="settings-btn-primary" href={api.exportUrl("markdown")} download>
@@ -1902,7 +1902,7 @@ export default function SettingsPanel({
                 </h3>
                 <p className="settings-section-desc">
                   Bring your history over from another tool — upload the{" "}
-                  <code>conversations.json</code> from a ChatGPT or Claude data export. Cortex
+                  <code>conversations.json</code> from a ChatGPT or Claude data export. Zenith
                   detects which it is automatically and creates a conversation for each chat.
                 </p>
                 <div className="setting-row">
@@ -1928,7 +1928,7 @@ export default function SettingsPanel({
                   Passcode lock
                 </h3>
                 <p className="settings-section-desc">
-                  Require a passcode to open Cortex on this machine — useful if others use the same
+                  Require a passcode to open Zenith on this machine — useful if others use the same
                   computer. Note: this is a login gate, <strong>not</strong> at-rest encryption; the
                   database file itself is still readable by anyone with filesystem access.
                 </p>
@@ -1957,7 +1957,7 @@ export default function SettingsPanel({
               <section className="settings-section">
                 <h3 className="settings-section-title">Watched folders</h3>
                 <p className="settings-section-desc">
-                  Point Cortex at a folder and it periodically re-indexes matching files
+                  Point Zenith at a folder and it periodically re-indexes matching files
                   (.md/.txt/.py/.js/.ts/.json) so their content is recalled in chat automatically
                   — no manual upload per file. Paths are resolved on the <em>backend</em>, which
                   in the Docker deployment means the container's own filesystem unless you've

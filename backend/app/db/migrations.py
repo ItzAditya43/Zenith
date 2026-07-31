@@ -1,6 +1,6 @@
 """Lightweight ordered migration runner.
 
-Keeps `cortex.db` upgradeable across versions without dropping data. Each
+Keeps `zenith.db` upgradeable across versions without dropping data. Each
 migration is a tuple `(version, name, callable)` where the callable takes
 a `sqlite3.Connection` and applies forward-only changes.
 
@@ -122,7 +122,7 @@ def _fts5_index(conn: sqlite3.Connection) -> None:
 
 def _memories_table(conn: sqlite3.Connection) -> None:
     """Long-term user memory: small, durable facts extracted from chats
-    ("prefers metric units", "works on a project called cortex") that get
+    ("prefers metric units", "works on a project called zenith") that get
     injected into the system prompt of every turn."""
     conn.executescript(
         """
@@ -202,7 +202,7 @@ def _message_branching(conn: sqlite3.Connection) -> None:
 
 
 def _watched_folders_table(conn: sqlite3.Connection) -> None:
-    """Folders Cortex periodically re-scans and indexes into the RAG
+    """Folders Zenith periodically re-scans and indexes into the RAG
     store, so a notes vault or repo stays searchable without manual
     upload-per-file."""
     conn.executescript(

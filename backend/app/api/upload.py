@@ -63,7 +63,7 @@ async def upload(file: UploadFile, conversation_id: str | None = Form(None)):
 
 @router.post("/import")
 async def import_history(file: UploadFile):
-    """Import a ChatGPT or Claude conversations.json export into Cortex.
+    """Import a ChatGPT or Claude conversations.json export into Zenith.
     Auto-detects which of the two it is from the JSON shape."""
     import json as _json
     from app.services import import_service

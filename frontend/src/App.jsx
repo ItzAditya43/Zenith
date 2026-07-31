@@ -49,12 +49,12 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [theme, setTheme] = useState(
-    () => localStorage.getItem("cortex-theme") || "midnight-glass"
+    () => localStorage.getItem("zenith-theme") || "midnight-glass"
   );
-  const [density, setDensity] = useState(() => localStorage.getItem("cortex-density") || "comfortable");
-  const [ambientAnim, setAmbientAnim] = useState(() => localStorage.getItem("cortex-ambient") || "none");
+  const [density, setDensity] = useState(() => localStorage.getItem("zenith-density") || "comfortable");
+  const [ambientAnim, setAmbientAnim] = useState(() => localStorage.getItem("zenith-ambient") || "none");
   const [notificationsEnabled, setNotificationsEnabled] = useState(
-    () => localStorage.getItem("cortex-notifications") === "1"
+    () => localStorage.getItem("zenith-notifications") === "1"
   );
   const lastRunPollRef = useRef(Date.now() / 1000);
   const [focusMode, setFocusMode] = useState(false);
@@ -73,12 +73,12 @@ export default function App() {
   const [todosOpen, setTodosOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(
-    () => !localStorage.getItem("cortex-onboarded")
+    () => !localStorage.getItem("zenith-onboarded")
   );
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const dismissOnboarding = () => {
-    localStorage.setItem("cortex-onboarded", "1");
+    localStorage.setItem("zenith-onboarded", "1");
     setOnboardingOpen(false);
   };
   const [groupPersonaIds, setGroupPersonaIds] = useState([]);
@@ -102,7 +102,7 @@ export default function App() {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
     if (onlyWhenHidden && !document.hidden) return;
     try {
-      new Notification(title, { body, tag: "cortex", icon: "/favicon.ico" });
+      new Notification(title, { body, tag: "zenith", icon: "/favicon.ico" });
     } catch {
       /* some browsers throw if constructed outside a user gesture — ignore */
     }
@@ -117,7 +117,7 @@ export default function App() {
       }
     }
     setNotificationsEnabled(on);
-    localStorage.setItem("cortex-notifications", on ? "1" : "0");
+    localStorage.setItem("zenith-notifications", on ? "1" : "0");
   };
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
@@ -126,7 +126,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("cortex-theme", theme);
+    localStorage.setItem("zenith-theme", theme);
     // An animation picked under a previous theme might not fit this one
     // (e.g. Stars under Zen Minimal) — drop back to none rather than
     // showing something that doesn't belong.
@@ -136,11 +136,11 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-density", density);
-    localStorage.setItem("cortex-density", density);
+    localStorage.setItem("zenith-density", density);
   }, [density]);
 
   useEffect(() => {
-    localStorage.setItem("cortex-ambient", ambientAnim);
+    localStorage.setItem("zenith-ambient", ambientAnim);
   }, [ambientAnim]);
 
   // Poll for background scheduled-task completions while notifications are on,
@@ -248,7 +248,7 @@ export default function App() {
     api
       .lockStatus()
       .then(({ enabled }) => {
-        setLocked(enabled && !sessionStorage.getItem("cortex-unlock"));
+        setLocked(enabled && !sessionStorage.getItem("zenith-unlock"));
         setLockChecked(true);
       })
       .catch(() => setLockChecked(true));
@@ -844,7 +844,7 @@ export default function App() {
             setStatus("idle");
           }
           // Notify when the tab is backgrounded and the user opted in.
-          notify("Cortex", "Your response is ready.", { onlyWhenHidden: true });
+          notify("Zenith", "Your response is ready.", { onlyWhenHidden: true });
         } else if (event.type === "error") {
           setConnectionError(event.message);
           setStatus("idle");
@@ -1068,7 +1068,7 @@ export default function App() {
           >
             <Icon name="menu" size={18} />
           </button>
-          <h1>{activeConversation?.title || "Cortex"}</h1>
+          <h1>{activeConversation?.title || "Zenith"}</h1>
           <StatusRail genStats={genStats} />
           <div className="header-actions">
             <div className="header-tool-group">
@@ -1258,7 +1258,7 @@ export default function App() {
               <div className="empty-state-mark" />
               <h2>Everything runs on your machine.</h2>
               <p>
-                Type, drop an image, upload a document, or hold the mic — Cortex reads
+                Type, drop an image, upload a document, or hold the mic — Zenith reads
                 what's installed on your Ollama and routes the turn automatically.
               </p>
               <div className="empty-state-features">
@@ -1273,7 +1273,7 @@ export default function App() {
                   <span className="empty-state-feature-icon"><Icon name="paperclip" size={18} /></span>
                   <div>
                     <strong>Images, documents, video</strong>
-                    <span>Attach a file and Cortex routes to whatever model handles it best.</span>
+                    <span>Attach a file and Zenith routes to whatever model handles it best.</span>
                   </div>
                 </div>
                 <div className="empty-state-feature">

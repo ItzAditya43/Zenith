@@ -1,4 +1,4 @@
-"""Folder watcher: point Cortex at a directory (a notes vault, a repo)
+"""Folder watcher: point Zenith at a directory (a notes vault, a repo)
 and it periodically re-scans and indexes matching files into the RAG
 store, so they're recalled during chat like any other knowledge —
 without a manual upload per file.

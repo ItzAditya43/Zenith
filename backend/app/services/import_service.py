@@ -2,7 +2,7 @@
 past chats aren't stranded in another tool. Both are self-serve data exports
 (no API, no scraping): ChatGPT's `conversations.json` (a tree of message
 nodes under `mapping`), and Claude's `conversations.json` (a flat
-`chat_messages` list). We normalize either into Cortex conversations.
+`chat_messages` list). We normalize either into Zenith conversations.
 """
 from __future__ import annotations
 
@@ -107,7 +107,7 @@ def detect_and_parse(data) -> list[dict]:
 
 
 def import_conversations(parsed: list[dict]) -> dict:
-    """Create Cortex conversations from normalized data. Messages are chained
+    """Create Zenith conversations from normalized data. Messages are chained
     linearly (each is the previous one's child) to match the branching
     model's active-chain shape."""
     conversations = 0

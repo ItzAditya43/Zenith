@@ -1,5 +1,5 @@
 """
-Structured JSONL logging for Cortex.
+Structured JSONL logging for Zenith.
 
 Replaces bare print()/unstructured exception strings with one consistent
 JSON-per-line format that downstream tooling (jq, Loki, vector, etc.) can
@@ -8,7 +8,7 @@ backend boot events all flow through here.
 
 Writes to:
   - stdout (always; what the developer / `docker logs` sees)
-  - backend/data/cortex.log (rotated by size; historical record)
+  - backend/data/zenith.log (rotated by size; historical record)
 
 The level is read once at import time from `settings.get("log_level", "INFO")`
 and from the LOG_LEVEL env var as an override.
@@ -116,7 +116,7 @@ def configure_logging() -> logging.Logger:
         pass
 
     level = getattr(logging, level_name.upper(), logging.INFO)
-    logger = logging.getLogger("cortex")
+    logger = logging.getLogger("zenith")
     logger.setLevel(level)
     logger.propagate = False  # don't double-log via uvicorn root
 
@@ -135,7 +135,7 @@ def configure_logging() -> logging.Logger:
             or (_get_settings().get("data_dir") or "data")
         )
         data_dir.mkdir(parents=True, exist_ok=True)
-        log_path = data_dir / "cortex.log"
+        log_path = data_dir / "zenith.log"
         _FILE_HANDLER = RotatingFileHandler(
             log_path, maxBytes=2_000_000, backupCount=3, encoding="utf-8"
         )
@@ -176,7 +176,7 @@ class BoundLogger:
     ceremony at every emit.
 
     The wrapped logger is the underlying stdlib logger, so any handler,
-    level, or formatter configured on the root `cortex` logger still
+    level, or formatter configured on the root `zenith` logger still
     applies — only the call-site ergonomics change.
     """
 
@@ -233,8 +233,8 @@ def get_logger(name: str | None = None):
     """Return the configured JSONL logger, optionally namespaced.
 
     `name` is treated as a `__name__`-style dotted suffix and joined to
-    the root "cortex" logger so different modules get distinct log
-    records (`logger="cortex.api.upload"`, etc.) without re-running
+    the root "zenith" logger so different modules get distinct log
+    records (`logger="zenith.api.upload"`, etc.) without re-running
     `configure_logging`. Returns a `BoundLogger` so callers can use
     `log.info("evt", foo=1)` without manually wrapping `extra=...`."""
     root = configure_logging()

@@ -84,7 +84,7 @@ export default function Sidebar({
       <div className="sidebar-header">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true" />
-          {!collapsed && <span className="brand-name">Cortex</span>}
+          {!collapsed && <span className="brand-name">Zenith</span>}
         </div>
         <button className="icon-btn" onClick={onToggleCollapse} title="Toggle sidebar">
           <Icon name={collapsed ? "chevron-right" : "chevron-left"} size={15} />

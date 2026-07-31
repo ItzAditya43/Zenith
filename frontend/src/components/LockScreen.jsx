@@ -19,7 +19,7 @@ export default function LockScreen({ onUnlocked }) {
     setError("");
     try {
       const { token } = await api.lockVerify(passcode);
-      sessionStorage.setItem("cortex-unlock", token || "");
+      sessionStorage.setItem("zenith-unlock", token || "");
       onUnlocked();
     } catch (err) {
       setError(err.message || "Incorrect passcode.");
@@ -33,7 +33,7 @@ export default function LockScreen({ onUnlocked }) {
     <div className="lock-screen">
       <form className="lock-card" onSubmit={submit}>
         <div className="lock-mark" aria-hidden="true" />
-        <h1>Cortex is locked</h1>
+        <h1>Zenith is locked</h1>
         <p>Enter your passcode to continue.</p>
         <input
           type="password"

@@ -10,7 +10,7 @@ const MODES = [
   { id: "off", icon: "message-circle", label: "Just chat", hint: "Answer from context — no search, no tools." },
   { id: "search", icon: "search", label: "Web search", hint: "Search the web for this message." },
   { id: "research", icon: "flask", label: "Deep Research", hint: "Multi-step investigation and a written report, instead of a quick answer." },
-  { id: "agent", icon: "bot", label: "Agent", hint: "Cortex can run commands and read/write files across multiple steps.", requires: "agentAvailable" },
+  { id: "agent", icon: "bot", label: "Agent", hint: "Zenith can run commands and read/write files across multiple steps.", requires: "agentAvailable" },
   { id: "council", icon: "users", label: "Council", hint: "Ask all your configured models at once, compare the answers.", requires: "councilAvailable" },
   { id: "image", icon: "image", label: "Image", hint: "Generate an image from your prompt with a local Stable Diffusion server.", requires: "imageAvailable" },
 ];
@@ -370,7 +370,7 @@ export default function Composer({
               ? "Listening… release to stop"
               : transcribing
               ? "Transcribing…"
-              : "Message Cortex — attach files, or hold the mic to talk"
+              : "Message Zenith — attach files, or hold the mic to talk"
           }
           value={text}
           onChange={(e) => setText(e.target.value)}

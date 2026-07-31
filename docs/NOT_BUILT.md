@@ -7,7 +7,7 @@ blindly later.
 
 ## True OS-level computer-use (screen capture + click/type of any desktop app)
 
-**Not built.** Cortex already has real *browser* automation (headless Chromium
+**Not built.** Zenith already has real *browser* automation (headless Chromium
 over CDP — see `browser_service.py`), which covers "drive a web UI." Full
 desktop computer-use — controlling arbitrary native apps by screenshotting the
 screen and synthesizing mouse/keyboard — was not built because:
@@ -39,7 +39,7 @@ isolation to add a nested one* — a bad tradeoff as a default. The container
 boundary itself is already the sandbox for the common deployment; a real
 in-container syscall sandbox would need a different runtime (e.g. gVisor as the
 Docker runtime), which is an infrastructure choice for the operator, not
-something Cortex can ship on by default.
+something Zenith can ship on by default.
 
 ## Auto-update
 
