@@ -73,6 +73,25 @@ async def _schedule_runner(interval_seconds: int) -> None:
         raise
 
 
+async def _email_triage_runner(interval_seconds: int) -> None:
+    """Background inbox scan: flags urgent messages so you don't have to
+    keep the inbox open to catch a signature deadline. Same fire-and-forget
+    pattern as the other background loops — off entirely unless email is
+    configured (scan_for_urgent no-ops immediately in that case)."""
+    from app.services.email_service import scan_for_urgent
+
+    try:
+        while True:
+            try:
+                await scan_for_urgent()
+            except Exception as exc:
+                log.warning("email.triage_runner_error", error=str(exc))
+            await asyncio.sleep(interval_seconds)
+    except asyncio.CancelledError:
+        log.info("email.triage_runner_stopped")
+        raise
+
+
 async def _prewarm() -> None:
     """Load the general-role model into Ollama's memory so the first turn
     doesn't pay the multi-second cold-load cost. Best-effort, off the
@@ -108,6 +127,7 @@ async def lifespan(app: FastAPI):
     folder_scanner = asyncio.create_task(_folder_scanner(folder_interval))
     schedule_interval = int(settings.get("schedule_check_interval_seconds", 60))
     schedule_runner = asyncio.create_task(_schedule_runner(schedule_interval))
+    email_triage_runner = asyncio.create_task(_email_triage_runner(300))
     # Track the last model used in this process so the router can be
     # "sticky" — see ModelRouter.decide() and the /api/route/preview docstring.
     app.state.last_route_model = None
@@ -121,7 +141,8 @@ async def lifespan(app: FastAPI):
         sweeper.cancel()
         folder_scanner.cancel()
         schedule_runner.cancel()
-        for task in (sweeper, folder_scanner, schedule_runner):
+        email_triage_runner.cancel()
+        for task in (sweeper, folder_scanner, schedule_runner, email_triage_runner):
             try:
                 await task
             except asyncio.CancelledError:

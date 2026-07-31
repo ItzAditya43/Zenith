@@ -142,10 +142,17 @@ async def activity():
         ]
     except Exception:
         pass
+    urgent_emails = 0
+    try:
+        from app.db import storage
+        urgent_emails = len(storage.list_urgent_email_flags(unseen_only=True))
+    except Exception:
+        pass
     return {
         "shell_sessions": shell_sessions,
         "browser_sessions": browser_sessions,
         "due_schedules": due_schedules,
+        "urgent_emails": urgent_emails,
         "count": len(shell_sessions) + len(browser_sessions),
     }
 
@@ -389,3 +396,16 @@ async def email_send(body: dict):
         return {"ok": True}
     except email_service.EmailError as exc:
         raise HTTPException(400, str(exc))
+
+
+@router.get("/email/flags")
+async def email_flags(unseen_only: bool = True):
+    from app.db import storage
+    return storage.list_urgent_email_flags(unseen_only)
+
+
+@router.post("/email/flags/mark-seen")
+async def email_flags_mark_seen():
+    from app.db import storage
+    storage.mark_email_flags_seen()
+    return {"ok": True}

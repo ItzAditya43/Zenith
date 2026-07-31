@@ -413,6 +413,26 @@ def _todos_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _email_flags_table(conn: sqlite3.Connection) -> None:
+    """Background inbox triage: the email scanner classifies each new
+    message once and, if urgent, records it here so the UI can badge it
+    without re-scanning or re-asking the model. `message_id` is unique so
+    a message is only ever classified once even across many scan cycles."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS email_flags (
+            message_id TEXT PRIMARY KEY,
+            subject TEXT,
+            sender TEXT,
+            reason TEXT,
+            urgent INTEGER NOT NULL DEFAULT 0,
+            seen INTEGER NOT NULL DEFAULT 0,
+            flagged_at REAL NOT NULL
+        );
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -452,6 +472,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (16, "calendar_events_table", _calendar_events_table),
     (17, "notes_table", _notes_table),
     (18, "todos_table", _todos_table),
+    (19, "email_flags_table", _email_flags_table),
 ]
 
 

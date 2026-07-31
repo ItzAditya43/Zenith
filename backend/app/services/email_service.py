@@ -9,6 +9,7 @@ nothing goes out automatically.
 """
 from __future__ import annotations
 
+import asyncio
 import email
 import imaplib
 import smtplib
@@ -265,3 +266,55 @@ def send_message(to: str, subject: str, body: str, in_reply_to: str | None = Non
             smtp.sendmail(user, [to], mime.as_string())
     except Exception as exc:
         raise EmailError(f"Send failed: {exc}") from exc
+
+
+async def scan_for_urgent(limit: int = 10) -> int:
+    """Background triage: looks at the most recent messages, classifies
+    any not already seen, and records the urgent ones. Returns how many
+    new urgent flags were found this pass. Called on a timer from
+    main.py, same pattern as the folder scanner / schedule runner —
+    never raises, a flaky inbox connection just means "nothing new this
+    cycle" rather than crashing the loop."""
+    from app.db import storage
+    from app.services.ollama_client import OllamaClient
+    from app.services.router import ModelRegistry, ModelRouter
+
+    if not settings.get("email_enabled"):
+        return 0
+    try:
+        messages = await asyncio.to_thread(list_messages, "INBOX", limit)
+    except EmailError as exc:
+        log.warning("email.triage_fetch_failed", error=str(exc))
+        return 0
+
+    unseen = [m for m in messages if not storage.is_email_flagged_seen(m["id"])]
+    if not unseen:
+        return 0
+
+    registry = ModelRegistry()
+    installed = await registry.models()
+    router = ModelRouter(registry=registry)
+    model = router._match_capability("small_fast", installed) or (installed[0] if installed else None)  # noqa: SLF001
+    if not model:
+        return 0
+
+    client = OllamaClient()
+    new_urgent = 0
+    for m in unseen:
+        prompt = (
+            "Is this email urgent — a time-sensitive deadline, a document needing a "
+            "signature, a legal/financial/business action item? Reply with exactly "
+            "one line: either 'URGENT: <one-sentence reason>' or 'NOT_URGENT'.\n\n"
+            f"From: {m['from']}\nSubject: {m['subject']}\n\n{m['snippet']}"
+        )
+        try:
+            out = (await client.chat(model, [{"role": "user", "content": prompt}])).strip()
+        except Exception as exc:
+            log.warning("email.triage_classify_failed", error=str(exc))
+            continue
+        urgent = out.upper().startswith("URGENT")
+        reason = out.split(":", 1)[1].strip() if urgent and ":" in out else ""
+        storage.record_email_flag(m["id"], m["subject"], m["from"], reason, urgent)
+        if urgent:
+            new_urgent += 1
+    return new_urgent
