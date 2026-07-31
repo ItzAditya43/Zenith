@@ -519,6 +519,50 @@ def delete_calendar_event(event_id: str) -> None:
         conn.execute("DELETE FROM calendar_events WHERE id = ?", (event_id,))
 
 
+def create_note(content: str, color: str = "default") -> dict:
+    nid = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO notes (id, content, color, pinned, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)",
+            (nid, content, color, now, now),
+        )
+    return {"id": nid, "content": content, "color": color, "pinned": 0, "created_at": now, "updated_at": now}
+
+
+def list_notes() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def update_note(note_id: str, content: str | None = None, color: str | None = None, pinned: bool | None = None) -> None:
+    fields, params = [], []
+    if content is not None:
+        fields.append("content = ?")
+        params.append(content)
+    if color is not None:
+        fields.append("color = ?")
+        params.append(color)
+    if pinned is not None:
+        fields.append("pinned = ?")
+        params.append(1 if pinned else 0)
+    if not fields:
+        return
+    fields.append("updated_at = ?")
+    params.append(time.time())
+    params.append(note_id)
+    with _conn() as conn:
+        conn.execute(f"UPDATE notes SET {', '.join(fields)} WHERE id = ?", params)
+
+
+def delete_note(note_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+
+
 def search_conversations(q: str) -> list[dict]:
     """Full-text search over message content. Returns distinct
     conversations with the matching snippet and message count. Uses

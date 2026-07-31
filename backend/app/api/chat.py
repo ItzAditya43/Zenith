@@ -687,3 +687,28 @@ async def create_calendar_event(body: dict):
 async def remove_calendar_event(event_id: str):
     storage.delete_calendar_event(event_id)
     return {"ok": True}
+
+
+@router.get("/notes")
+async def list_notes():
+    return storage.list_notes()
+
+
+@router.post("/notes")
+async def create_note(body: dict):
+    content = str(body.get("content", "")).strip()
+    if not content:
+        raise HTTPException(422, "content is required.")
+    return storage.create_note(content, body.get("color", "default"))
+
+
+@router.patch("/notes/{note_id}")
+async def update_note(note_id: str, body: dict):
+    storage.update_note(note_id, body.get("content"), body.get("color"), body.get("pinned"))
+    return {"ok": True}
+
+
+@router.delete("/notes/{note_id}")
+async def remove_note(note_id: str):
+    storage.delete_note(note_id)
+    return {"ok": True}
