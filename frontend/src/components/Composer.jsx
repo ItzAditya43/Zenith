@@ -338,7 +338,7 @@ export default function Composer({
         />
         {installedModels.length > 0 && (
           <select
-            className="model-override-picker"
+            className={`model-override-picker ${modelOverride ? "is-active" : ""}`}
             value={modelOverride}
             onChange={(e) => setModelOverride(e.target.value)}
             title="Answer this one message with a specific model instead of auto-routing"

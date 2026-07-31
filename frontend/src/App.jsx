@@ -1071,67 +1071,62 @@ export default function App() {
           <h1>{activeConversation?.title || "Cortex"}</h1>
           <StatusRail genStats={genStats} />
           <div className="header-actions">
-            {Object.values(branches).some((s) => s.length > 1) && (
-              <button
-                className={`icon-btn branch-tree-toggle ${branchTreeOpen ? "is-active" : ""}`}
-                onClick={() => setBranchTreeOpen((v) => !v)}
-                title="Branch tree — see and switch between alternate versions"
-              >
-                <Icon name="layers" size={16} />
-              </button>
-            )}
-            {!focusMode && (
-              <button
-                className={`icon-btn ${calendarOpen ? "is-active" : ""}`}
-                onClick={() => setCalendarOpen((v) => !v)}
-                title="Calendar"
-              >
-                <Icon name="clock" size={16} />
-              </button>
-            )}
-            {!focusMode && (
-              <button
-                className={`icon-btn ${notesOpen ? "is-active" : ""}`}
-                onClick={() => setNotesOpen((v) => !v)}
-                title="Notes"
-              >
-                <Icon name="pencil" size={16} />
-              </button>
-            )}
-            {!focusMode && (
-              <button
-                className={`icon-btn ${todosOpen ? "is-active" : ""}`}
-                onClick={() => setTodosOpen((v) => !v)}
-                title="To-do"
-              >
-                <Icon name="check" size={16} />
-              </button>
-            )}
-            {!focusMode && (
-              <button
-                className={`icon-btn ${researchOpen ? "is-active" : ""}`}
-                onClick={() => setResearchOpen((v) => !v)}
-                title="Research reports"
-              >
-                <Icon name="flask" size={16} />
-              </button>
-            )}
-            {!focusMode && (
-              <button
-                className={`icon-btn ${usageOpen ? "is-active" : ""}`}
-                onClick={() => setUsageOpen((v) => !v)}
-                title="Usage & diagnostics"
-              >
-                <Icon name="grid" size={16} />
-              </button>
-            )}
-            <button
-              className={`icon-btn focus-toggle-btn ${focusMode ? "is-active" : ""}`}
-              onClick={() => setFocusMode((v) => !v)}
-              title={focusMode ? "Exit focus mode (⌘. or Esc)" : "Focus mode — hide sidebar and chrome (⌘.)"}
-            >
-              <Icon name="target" size={16} />
-            </button>
+            <div className="header-tool-group">
+              {Object.values(branches).some((s) => s.length > 1) && (
+                <button
+                  className={`icon-btn branch-tree-toggle ${branchTreeOpen ? "is-active" : ""}`}
+                  onClick={() => setBranchTreeOpen((v) => !v)}
+                  title="Branch tree — see and switch between alternate versions"
+                >
+                  <Icon name="layers" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${calendarOpen ? "is-active" : ""}`}
+                  onClick={() => setCalendarOpen((v) => !v)}
+                  title="Calendar"
+                >
+                  <Icon name="clock" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${notesOpen ? "is-active" : ""}`}
+                  onClick={() => setNotesOpen((v) => !v)}
+                  title="Notes"
+                >
+                  <Icon name="pencil" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${todosOpen ? "is-active" : ""}`}
+                  onClick={() => setTodosOpen((v) => !v)}
+                  title="To-do"
+                >
+                  <Icon name="check" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${researchOpen ? "is-active" : ""}`}
+                  onClick={() => setResearchOpen((v) => !v)}
+                  title="Research reports"
+                >
+                  <Icon name="flask" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${usageOpen ? "is-active" : ""}`}
+                  onClick={() => setUsageOpen((v) => !v)}
+                  title="Usage & diagnostics"
+                >
+                  <Icon name="grid" size={16} />
+                </button>
+              )}
+            </div>
             {!focusMode && agentAvailable && (
               <button
                 className={`workdir-btn ${activeConversation?.workdir ? "is-active" : ""}`}
@@ -1171,37 +1166,46 @@ export default function App() {
                 {groupPersonaIds.length >= 2 && <span style={{ marginLeft: 4, fontSize: "0.75em" }}>{groupPersonaIds.length}</span>}
               </button>
             )}
-            {!focusMode && (
+            <div className="header-tool-group">
+              {!focusMode && (
+                <button
+                  className="icon-btn"
+                  onClick={() => openSettingsAt("appearance")}
+                  title="Change theme"
+                >
+                  <Icon name="sun" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${voiceReplyEnabled ? "is-active" : ""}`}
+                  onClick={() => setVoiceReplyEnabled((v) => !v)}
+                  title={voiceReplyEnabled ? "Spoken replies on" : "Spoken replies off"}
+                >
+                  <Icon name={voiceReplyEnabled ? "volume-2" : "volume-x"} size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${continuousVoice ? "is-active" : ""}`}
+                  onClick={() => {
+                    const next = !continuousVoice;
+                    setContinuousVoice(next);
+                    if (next) setVoiceReplyEnabled(true); // the loop needs spoken replies to keep going
+                  }}
+                  title={continuousVoice ? "Hands-free voice mode on" : "Hands-free conversation: speak, hear the reply, mic reopens automatically"}
+                >
+                  <Icon name="headphones" size={16} />
+                </button>
+              )}
               <button
-                className="icon-btn"
-                onClick={() => openSettingsAt("appearance")}
-                title="Change theme"
+                className={`icon-btn ${focusMode ? "is-active" : ""}`}
+                onClick={() => setFocusMode((v) => !v)}
+                title={focusMode ? "Exit focus mode (⌘. or Esc)" : "Focus mode — hide sidebar and chrome (⌘.)"}
               >
-                <Icon name="sun" size={16} />
+                <Icon name="target" size={16} />
               </button>
-            )}
-            {!focusMode && (
-              <button
-                className={`voice-toggle ${voiceReplyEnabled ? "voice-toggle-on" : ""}`}
-                onClick={() => setVoiceReplyEnabled((v) => !v)}
-                title="Speak replies aloud"
-              >
-                <Icon name={voiceReplyEnabled ? "volume-2" : "volume-x"} size={14} /> {voiceReplyEnabled ? "Voice on" : "Voice off"}
-              </button>
-            )}
-            {!focusMode && (
-              <button
-                className={`voice-toggle ${continuousVoice ? "voice-toggle-on" : ""}`}
-                onClick={() => {
-                  const next = !continuousVoice;
-                  setContinuousVoice(next);
-                  if (next) setVoiceReplyEnabled(true); // the loop needs spoken replies to keep going
-                }}
-                title="Hands-free conversation: speak, hear the reply, mic reopens automatically"
-              >
-                <Icon name="headphones" size={14} /> {continuousVoice ? "Live voice" : "Voice chat"}
-              </button>
-            )}
+            </div>
           </div>
         </header>
 
