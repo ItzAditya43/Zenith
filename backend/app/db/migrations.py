@@ -376,6 +376,25 @@ def _calendar_events_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _notes_table(conn: sqlite3.Connection) -> None:
+    """Keep-style quick notes — a fast scratchpad separate from chat
+    history, for the stuff you don't want buried in a conversation
+    thread. No folders/tags, deliberately: pin + color is the whole
+    organizing model, same as the product it's modeled on."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS notes (
+            id TEXT PRIMARY KEY,
+            content TEXT NOT NULL,
+            color TEXT NOT NULL DEFAULT 'default',
+            pinned INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        );
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -413,6 +432,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (14, "skills_table", _skills_table),
     (15, "projects_table", _projects_table),
     (16, "calendar_events_table", _calendar_events_table),
+    (17, "notes_table", _notes_table),
 ]
 
 

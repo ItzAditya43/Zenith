@@ -240,6 +240,21 @@ export const api = {
       body: JSON.stringify({ to, subject, body, in_reply_to: inReplyTo }),
     }).then((r) => r.json()),
 
+  listNotes: () => request("/api/notes").then((r) => r.json()),
+  createNote: (content, color = "default") =>
+    request("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, color }),
+    }).then((r) => r.json()),
+  updateNote: (id, patch) =>
+    request(`/api/notes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then((r) => r.json()),
+  deleteNote: (id) => request(`/api/notes/${id}`, { method: "DELETE" }),
+
   listCalendarEvents: (fromTs, toTs) =>
     request(`/api/calendar/events?from_ts=${fromTs}&to_ts=${toTs}`).then((r) => r.json()),
   createCalendarEvent: (event) =>
