@@ -517,8 +517,7 @@
   height: 44px;
   margin: 0 auto var(--space-4);
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--signal-general), var(--signal-vision));
-  opacity: 0.85;
+  object-fit: cover;
 }
 .empty-state h2 {
   font-family: var(--font-display);
