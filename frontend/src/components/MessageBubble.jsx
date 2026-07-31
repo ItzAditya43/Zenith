@@ -235,6 +235,7 @@ export default function MessageBubble({
   siblings,
   onSwitchBranch,
   onOpenEditor,
+  personas,
 }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
@@ -289,7 +290,13 @@ export default function MessageBubble({
         }`}
         data-role={!isUser ? message.route_role : undefined}
       >
-        {!isUser && message.model && (
+        {!isUser && message.speaker_persona_id && (
+          <div className="group-speaker-badge">
+            {message.speakerIcon || personas?.find((p) => p.id === message.speaker_persona_id)?.icon || ""}{" "}
+            {message.speakerName || personas?.find((p) => p.id === message.speaker_persona_id)?.name || "Bot"}
+          </div>
+        )}
+        {!isUser && message.model && !message.speaker_persona_id && (
           <ModelBadge model={message.model} role={message.route_role} reason={message.route_reason} />
         )}
 

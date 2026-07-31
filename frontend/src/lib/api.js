@@ -242,6 +242,17 @@ export const api = {
       body: JSON.stringify({ to, subject, body, in_reply_to: inReplyTo }),
     }).then((r) => r.json()),
 
+  getGroupPersonas: (conversationId) =>
+    request(`/api/conversations/${conversationId}/group-personas`).then((r) => r.json()),
+  setGroupPersonas: (conversationId, personaIds) =>
+    request(`/api/conversations/${conversationId}/group-personas`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ persona_ids: personaIds }),
+    }).then((r) => r.json()),
+  streamGroupChat: (conversationId, message, onEvent, signal) =>
+    streamSSE(`/api/conversations/${conversationId}/group-chat`, { message }, onEvent, signal),
+
   listResearchReports: () => request("/api/research/reports").then((r) => r.json()),
   getResearchReport: (id) => request(`/api/research/reports/${id}`).then((r) => r.json()),
   deleteResearchReport: (id) => request(`/api/research/reports/${id}`, { method: "DELETE" }),

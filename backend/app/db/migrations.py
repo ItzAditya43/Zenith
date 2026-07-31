@@ -451,6 +451,21 @@ def _research_reports_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _group_chat_column(conn: sqlite3.Connection) -> None:
+    """A conversation can be bound to multiple personas at once — a
+    simulated group chat. NULL/empty means "normal single-assistant
+    conversation" (the default, unchanged behavior). `messages.speaker_persona_id`
+    tags which persona said a given group-chat reply, for the UI to render
+    each speaker distinctly."""
+    cur = conn.cursor()
+    conv_cols = [r[1] for r in cur.execute("PRAGMA table_info(conversations)").fetchall()]
+    if "group_persona_ids" not in conv_cols:
+        cur.execute("ALTER TABLE conversations ADD COLUMN group_persona_ids TEXT")
+    msg_cols = [r[1] for r in cur.execute("PRAGMA table_info(messages)").fetchall()]
+    if "speaker_persona_id" not in msg_cols:
+        cur.execute("ALTER TABLE messages ADD COLUMN speaker_persona_id TEXT")
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -492,6 +507,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (18, "todos_table", _todos_table),
     (19, "email_flags_table", _email_flags_table),
     (20, "research_reports_table", _research_reports_table),
+    (21, "group_chat_column", _group_chat_column),
 ]
 
 

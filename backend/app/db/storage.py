@@ -290,6 +290,7 @@ def add_message(
     attachments: list | None = None,
     parent_id: str | None = None,
     created_at: float | None = None,
+    speaker_persona_id: str | None = None,
 ) -> dict:
     mid = str(uuid.uuid4())
     now = created_at if created_at is not None else time.time()
@@ -297,10 +298,10 @@ def add_message(
         conn.execute(
             """INSERT INTO messages
                (id, conversation_id, role, content, model, route_role, route_reason,
-                attachments, created_at, parent_id, active)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+                attachments, created_at, parent_id, active, speaker_persona_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
             (mid, conversation_id, role, content, model, route_role, route_reason,
-             json.dumps(attachments or []), now, parent_id),
+             json.dumps(attachments or []), now, parent_id, speaker_persona_id),
         )
         conn.execute(
             "UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conversation_id)
@@ -309,6 +310,7 @@ def add_message(
         "id": mid, "conversation_id": conversation_id, "role": role, "content": content,
         "model": model, "route_role": route_role, "route_reason": route_reason,
         "attachments": attachments or [], "created_at": now, "parent_id": parent_id, "active": 1,
+        "speaker_persona_id": speaker_persona_id,
     }
 
 
@@ -709,6 +711,25 @@ def get_research_report(report_id: str) -> dict | None:
 def delete_research_report(report_id: str) -> None:
     with _conn() as conn:
         conn.execute("DELETE FROM research_reports WHERE id = ?", (report_id,))
+
+
+def set_group_personas(conversation_id: str, persona_ids: list[str] | None) -> None:
+    value = json.dumps(persona_ids) if persona_ids else None
+    with _conn() as conn:
+        conn.execute("UPDATE conversations SET group_persona_ids = ? WHERE id = ?", (value, conversation_id))
+
+
+def get_group_personas(conversation_id: str) -> list[str]:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT group_persona_ids FROM conversations WHERE id = ?", (conversation_id,)
+        ).fetchone()
+    if not row or not row["group_persona_ids"]:
+        return []
+    try:
+        return json.loads(row["group_persona_ids"])
+    except (json.JSONDecodeError, TypeError):
+        return []
 
 
 def search_conversations(q: str) -> list[dict]:

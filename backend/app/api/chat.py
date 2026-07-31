@@ -798,3 +798,40 @@ async def ask_research_report(report_id: str, body: dict):
     )
     answer = await OllamaClient().chat(model, [{"role": "user", "content": prompt}])
     return {"answer": answer}
+
+
+@router.patch("/conversations/{conversation_id}/group-personas")
+async def set_group_personas(conversation_id: str, body: dict):
+    persona_ids = body.get("persona_ids") or None
+    if persona_ids is not None and len(persona_ids) > 6:
+        raise HTTPException(422, "Up to 6 personas per group chat.")
+    storage.set_group_personas(conversation_id, persona_ids)
+    return {"ok": True, "persona_ids": persona_ids or []}
+
+
+@router.get("/conversations/{conversation_id}/group-personas")
+async def get_group_personas(conversation_id: str):
+    return {"persona_ids": storage.get_group_personas(conversation_id)}
+
+
+@router.post("/conversations/{conversation_id}/group-chat")
+async def group_chat(conversation_id: str, body: dict):
+    """SSE stream of a simulated multi-bot round: each configured persona
+    replies in turn, seeing what the others already said this round."""
+    from app.services import group_chat_service
+
+    persona_ids = storage.get_group_personas(conversation_id)
+    message = str(body.get("message", "")).strip()
+
+    async def stream():
+        if not message:
+            yield _sse({"type": "error", "message": "Empty message."})
+            return
+        try:
+            async for ev in group_chat_service.run_group_turn(conversation_id, message, persona_ids):
+                yield _sse(ev)
+        except Exception as exc:
+            log.error("chat.group_chat_failed", error=str(exc))
+            yield _sse({"type": "error", "message": str(exc)})
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
