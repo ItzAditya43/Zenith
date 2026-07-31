@@ -327,3 +327,64 @@ async def hardware_report():
     registry = ModelRegistry()
     installed = await registry.models()
     return hardware_service.score_models(installed)
+
+
+@router.get("/email/test")
+async def email_test():
+    from app.services import email_service
+    try:
+        return await asyncio.to_thread(email_service.test_connection)
+    except email_service.EmailError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.get("/email/messages")
+async def email_messages(folder: str = "INBOX"):
+    from app.services import email_service
+    try:
+        return await asyncio.to_thread(email_service.list_messages, folder)
+    except email_service.EmailError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.get("/email/messages/{message_id}")
+async def email_message(message_id: str, folder: str = "INBOX"):
+    from app.services import email_service
+    try:
+        return await asyncio.to_thread(email_service.get_message, message_id, folder)
+    except email_service.EmailError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.post("/email/messages/{message_id}/summarize")
+async def email_summarize(message_id: str, folder: str = "INBOX"):
+    from app.services import email_service
+    try:
+        return {"summary": await email_service.summarize(message_id, folder)}
+    except email_service.EmailError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.post("/email/messages/{message_id}/draft-reply")
+async def email_draft_reply(message_id: str, body: dict, folder: str = "INBOX"):
+    from app.services import email_service
+    try:
+        draft = await email_service.draft_reply(message_id, body.get("instruction", ""), folder)
+        return {"draft": draft}
+    except email_service.EmailError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.post("/email/send")
+async def email_send(body: dict):
+    from app.services import email_service
+    to = str(body.get("to", "")).strip()
+    subject = str(body.get("subject", "")).strip()
+    text = str(body.get("body", "")).strip()
+    if not to or not text:
+        raise HTTPException(422, "to and body are required.")
+    try:
+        await asyncio.to_thread(email_service.send_message, to, subject, text, body.get("in_reply_to"))
+        return {"ok": True}
+    except email_service.EmailError as exc:
+        raise HTTPException(400, str(exc))

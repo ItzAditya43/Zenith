@@ -222,6 +222,24 @@ export const api = {
 
   hardwareReport: () => request("/api/hardware").then((r) => r.json()),
 
+  emailTest: () => request("/api/email/test").then((r) => r.json()),
+  emailMessages: () => request("/api/email/messages").then((r) => r.json()),
+  emailMessage: (id) => request(`/api/email/messages/${id}`).then((r) => r.json()),
+  emailSummarize: (id) =>
+    request(`/api/email/messages/${id}/summarize`, { method: "POST" }).then((r) => r.json()),
+  emailDraftReply: (id, instruction = "") =>
+    request(`/api/email/messages/${id}/draft-reply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction }),
+    }).then((r) => r.json()),
+  emailSend: (to, subject, body, inReplyTo = null) =>
+    request("/api/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, body, in_reply_to: inReplyTo }),
+    }).then((r) => r.json()),
+
   listProjects: () => request("/api/projects").then((r) => r.json()),
   createProject: (name, workdir) =>
     request("/api/projects", {

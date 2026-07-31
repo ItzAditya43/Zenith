@@ -101,6 +101,14 @@ class ConfigPatch(StrictModel):
     folder_recall_enabled: Optional[bool] = None
     folder_recall_top_k: Optional[int] = Field(default=None, ge=1, le=10)
     schedule_check_interval_seconds: Optional[int] = Field(default=None, ge=15, le=3600)
+    email_enabled: Optional[bool] = None
+    email_imap_host: Optional[str] = Field(default=None, max_length=255)
+    email_imap_port: Optional[int] = Field(default=None, ge=1, le=65535)
+    email_smtp_host: Optional[str] = Field(default=None, max_length=255)
+    email_smtp_port: Optional[int] = Field(default=None, ge=1, le=65535)
+    email_username: Optional[str] = Field(default=None, max_length=255)
+    email_password: Optional[str] = Field(default=None, max_length=500)
+    email_fetch_count: Optional[int] = Field(default=None, ge=1, le=200)
 
 
 class MemoryCreate(StrictModel):
