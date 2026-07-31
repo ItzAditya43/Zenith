@@ -455,6 +455,7 @@ export const api = {
       deepResearch = false,
       editOf = null,
       regenerateOf = null,
+      modelOverride = null,
     },
     onEvent,
     signal
@@ -470,6 +471,7 @@ export const api = {
         deep_research: deepResearch,
         ...(editOf ? { edit_of: editOf } : {}),
         ...(regenerateOf ? { regenerate_of: regenerateOf } : {}),
+        ...(modelOverride ? { model_override: modelOverride } : {}),
       },
       onEvent,
       signal

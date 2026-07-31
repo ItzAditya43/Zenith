@@ -94,8 +94,10 @@ export default function Composer({
   seedText = null,
   continuousVoice = false,
   autoListenNonce = null,
+  installedModels = [],
 }) {
   const [text, setText] = useState("");
+  const [modelOverride, setModelOverride] = useState("");
   const [pending, setPending] = useState([]); // [{id, filename, kind, uploading}]
   const [transcribing, setTranscribing] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -185,10 +187,12 @@ export default function Composer({
       mode === "research",
       null,
       mode === "council" && councilAvailable,
-      mode === "image" && imageAvailable
+      mode === "image" && imageAvailable,
+      modelOverride || null
     );
     setText("");
     setPending([]);
+    setModelOverride(""); // one-shot: back to auto-routing next message
   };
 
   const handleKeyDown = (e) => {
@@ -332,6 +336,21 @@ export default function Composer({
           councilAvailable={councilAvailable}
           imageAvailable={imageAvailable}
         />
+        {installedModels.length > 0 && (
+          <select
+            className="model-override-picker"
+            value={modelOverride}
+            onChange={(e) => setModelOverride(e.target.value)}
+            title="Answer this one message with a specific model instead of auto-routing"
+          >
+            <option value="">Auto</option>
+            {installedModels.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        )}
         <input
           ref={fileInputRef}
           type="file"

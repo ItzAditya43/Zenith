@@ -65,6 +65,7 @@ export default function App() {
   const [branchTreeOpen, setBranchTreeOpen] = useState(false);
   const [seedText, setSeedText] = useState(null);
   const [projects, setProjects] = useState([]);
+  const [installedModels, setInstalledModels] = useState([]);
   const [openDoc, setOpenDoc] = useState(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -234,6 +235,7 @@ export default function App() {
   // the lock screen before anything else loads.
   useEffect(() => {
     refreshProjects();
+    api.listModels().then((ms) => setInstalledModels(ms.map((m) => m.name))).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -638,7 +640,8 @@ export default function App() {
     deepResearch = false,
     regenerateOf = null,
     councilMode = false,
-    imageMode = false
+    imageMode = false,
+    modelOverride = null
   ) => {
     if (!activeId) return;
     if (councilMode) return handleCouncilSend(text, attachmentIds);
@@ -695,7 +698,7 @@ export default function App() {
 
     let fullText = "";
     await api.streamChat(
-      { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode, deepResearch, editOf, regenerateOf },
+      { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode, deepResearch, editOf, regenerateOf, modelOverride },
       (event) => {
         if (event.type === "route") {
           setActiveRole(event.role);
@@ -1311,6 +1314,7 @@ export default function App() {
           isStreaming={status === "thinking"}
           onError={(msg) => showToast(msg, "error")}
           seedText={seedText}
+          installedModels={installedModels}
           continuousVoice={continuousVoice}
           autoListenNonce={autoListenNonce}
         />

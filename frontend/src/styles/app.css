@@ -2896,3 +2896,14 @@
   max-height: 260px;
   object-fit: cover;
 }
+
+.model-override-picker {
+  max-width: 140px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  flex-shrink: 0;
+}
