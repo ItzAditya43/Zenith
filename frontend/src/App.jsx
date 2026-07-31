@@ -9,6 +9,7 @@ import Icon from "./components/Icon.jsx";
 import LockScreen from "./components/LockScreen.jsx";
 import StatusRail from "./components/StatusRail.jsx";
 import BranchTree from "./components/BranchTree.jsx";
+import DocumentEditor from "./components/DocumentEditor.jsx";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
 
@@ -55,6 +56,7 @@ export default function App() {
   const [branchTreeOpen, setBranchTreeOpen] = useState(false);
   const [seedText, setSeedText] = useState(null);
   const [projects, setProjects] = useState([]);
+  const [openDoc, setOpenDoc] = useState(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
@@ -970,7 +972,8 @@ export default function App() {
         />
       )}
 
-      <main className="chat-main">
+      <main className={`chat-main ${openDoc ? "chat-main-split" : ""}`}>
+        <div className="chat-column">
         <header className="chat-header">
           <button
             className="mobile-menu-btn"
@@ -1146,6 +1149,7 @@ export default function App() {
               siblings={branches[m.parent_id || "root"]}
               onSwitchBranch={handleSwitchBranch}
               onDeleteMessage={handleDeleteMessage}
+              onOpenEditor={(text, lang) => setOpenDoc({ text, lang })}
             />
           ))}
         </div>
@@ -1170,6 +1174,18 @@ export default function App() {
           continuousVoice={continuousVoice}
           autoListenNonce={autoListenNonce}
         />
+        </div>
+
+        {openDoc && (
+          <DocumentEditor
+            doc={openDoc}
+            onClose={() => setOpenDoc(null)}
+            onSendBack={(text) => {
+              setSeedText({ text: "```\n" + text + "\n```", nonce: Date.now() });
+              setOpenDoc(null);
+            }}
+          />
+        )}
       </main>
 
       {settingsOpen && (

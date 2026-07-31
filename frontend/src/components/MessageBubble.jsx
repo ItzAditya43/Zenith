@@ -234,6 +234,7 @@ export default function MessageBubble({
   onDeleteMessage,
   siblings,
   onSwitchBranch,
+  onOpenEditor,
 }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
@@ -344,7 +345,7 @@ export default function MessageBubble({
               </span>
             ) : (
               <>
-                <MarkdownRenderer content={message.content} />
+                <MarkdownRenderer content={message.content} onOpenEditor={onOpenEditor} />
                 {message.streaming && <span className="cursor-blink" data-role={message.route_role} />}
               </>
             )}
