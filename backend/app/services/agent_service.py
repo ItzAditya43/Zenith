@@ -1049,6 +1049,8 @@ async def run_agent_turn(
     client = OllamaClient()
     final_text: str | None = None
     tool_seq: list[str] = []
+    had_failure = False
+    last_failure: str | None = None
 
     # Plan-first mode: the model drafts a plan, you approve it once, then it
     # executes the whole thing unattended (no per-tool-call gates). Distinct
@@ -1162,6 +1164,9 @@ async def run_agent_turn(
             result = await _execute_tool(tool, args, cmd_timeout, max_chars, workdir, conversation_id)
         _resolve_call(call_id, "executed", result)
         yield {"type": "tool_result", "id": call_id, "tool": tool, "result": result}
+        if isinstance(result, str) and result.startswith("Error:"):
+            had_failure = True
+            last_failure = f"{tool}: {result[:200]}"
 
         loop_messages.append({"role": "assistant", "content": json.dumps(step)})
         loop_messages.append({"role": "user", "content": f"Tool result for {tool}:\n{result}"})
@@ -1217,6 +1222,19 @@ async def run_agent_turn(
             new_skill = storage.record_skill_run(conversation_id, signature, tool_seq, user_text)
         except Exception as exc:
             log.warning("agent.skill_detection_failed", error=str(exc))
+        # Error-driven self-scripting: a tool failed mid-turn but the agent
+        # still reached a real answer — that recovery path (what it tried
+        # instead) is worth remembering so the next attempt at a similar
+        # task skips straight to what actually works.
+        if had_failure and not checkpointed:
+            try:
+                correction_id = storage.record_skill_correction(
+                    conversation_id, last_failure, tool_seq, user_text
+                )
+                if correction_id and not new_skill:
+                    new_skill = correction_id
+            except Exception as exc:
+                log.warning("agent.correction_recording_failed", error=str(exc))
 
     yield {"type": "done", "full_text": final_text, "model": decision.model,
            "role": decision.role, "reason": decision.reason,

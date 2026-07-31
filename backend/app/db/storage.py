@@ -445,6 +445,43 @@ def record_skill_run(
         }
 
 
+def record_skill_correction(
+    conversation_id: str, failure: str, recovery_sequence: list[str], prompt_template: str
+) -> dict | None:
+    """Error-driven self-scripting: a tool call failed mid-turn, but the
+    agent kept going and still reached a real answer via some other
+    sequence. That recovery path — what actually worked after the
+    failure — is saved immediately (no repeat-detection wait, since the
+    within-turn recovery is itself the valuable signal), so a similar
+    future task can skip straight past the dead end."""
+    if not failure or len(recovery_sequence) < 1:
+        return None
+    signature = f"correction:{failure[:60]}|{'|'.join(recovery_sequence)}"
+    with _conn() as conn:
+        existing = conn.execute("SELECT id FROM skills WHERE signature = ?", (signature,)).fetchone()
+        if existing:
+            conn.execute("UPDATE skills SET use_count = use_count + 1 WHERE signature = ?", (signature,))
+            return None
+        skill_id = str(uuid.uuid4())
+        name = f"Recovery: {failure.split(':')[0]} failed → {' → '.join(recovery_sequence[:3])}"
+        now = time.time()
+        conn.execute(
+            """INSERT INTO skills
+               (id, name, description, signature, prompt_template, tool_sequence,
+                source_conversation_id, auto_detected, use_count, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?)""",
+            (skill_id, name, f"Auto-detected correction: after '{failure}' failed, "
+             f"this sequence worked instead: {'/'.join(recovery_sequence)}.",
+             signature, prompt_template, json.dumps(recovery_sequence), conversation_id, now),
+        )
+        return {
+            "id": skill_id, "name": name, "signature": signature,
+            "prompt_template": prompt_template, "tool_sequence": recovery_sequence,
+            "source_conversation_id": conversation_id, "auto_detected": 1,
+            "use_count": 1, "created_at": now,
+        }
+
+
 def list_skills() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute("SELECT * FROM skills ORDER BY use_count DESC, created_at DESC").fetchall()
