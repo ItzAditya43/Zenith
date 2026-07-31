@@ -215,6 +215,10 @@ export const api = {
     request(`/api/conversations/${conversationId}/messages/${messageId}/activate`, {
       method: "POST",
     }).then((r) => r.json()),
+  deleteMessage: (conversationId, messageId) =>
+    request(`/api/conversations/${conversationId}/messages/${messageId}`, {
+      method: "DELETE",
+    }).then((r) => r.json()),
 
   listMemories: () => request("/api/memories").then((r) => r.json()),
   addMemory: (content, category = "fact") =>

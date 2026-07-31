@@ -324,6 +324,35 @@ def delete_conversation(conversation_id: str) -> None:
         conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
 
 
+def delete_message(conversation_id: str, message_id: str) -> int:
+    """Delete a message and everything downstream of it (its whole subtree in
+    the parent/active branching model) — you can't keep a reply whose prompt
+    is gone. Returns the number deleted. FTS is kept in sync by the
+    messages_fts delete trigger."""
+    with _conn() as conn:
+        # BFS the subtree by parent_id.
+        to_delete: list[str] = []
+        frontier = [message_id]
+        while frontier:
+            mid = frontier.pop()
+            to_delete.append(mid)
+            rows = conn.execute(
+                "SELECT id FROM messages WHERE conversation_id = ? AND parent_id = ?",
+                (conversation_id, mid),
+            ).fetchall()
+            frontier.extend(r["id"] for r in rows)
+        for mid in to_delete:
+            conn.execute(
+                "DELETE FROM messages WHERE id = ? AND conversation_id = ?",
+                (mid, conversation_id),
+            )
+        conn.execute(
+            "UPDATE conversations SET updated_at = ? WHERE id = ?",
+            (time.time(), conversation_id),
+        )
+    return len(to_delete)
+
+
 def search_conversations(q: str) -> list[dict]:
     """Full-text search over message content. Returns distinct
     conversations with the matching snippet and message count. Uses

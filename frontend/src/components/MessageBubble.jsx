@@ -216,11 +216,13 @@ export default function MessageBubble({
   onDenyTool,
   onRevertTool,
   onPlanDecision,
+  onDeleteMessage,
   siblings,
   onSwitchBranch,
 }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(message.content || "");
 
@@ -231,6 +233,28 @@ export default function MessageBubble({
       setTimeout(() => setCopied(false), 1500);
     } catch {
       /* clipboard may be blocked */
+    }
+  };
+
+  const share = async () => {
+    const text = message.content || "";
+    // Prefer the native share sheet (mobile/some desktops); fall back to
+    // copying so the button always does something useful.
+    try {
+      if (navigator.share) {
+        await navigator.share({ text });
+        return;
+      }
+    } catch {
+      /* user dismissed the share sheet — treat as a no-op */
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setShared(true);
+      setTimeout(() => setShared(false), 1500);
+    } catch {
+      /* clipboard blocked */
     }
   };
 
@@ -353,6 +377,16 @@ export default function MessageBubble({
               {!isUser && onRegenerate && (
                 <button onClick={() => onRegenerate(message)} title="Regenerate response">
                   <Icon name="rotate-ccw" size={13} /> Regenerate
+                </button>
+              )}
+              {message.content && (
+                <button onClick={share} title="Share (or copy)">
+                  {shared ? <><Icon name="check" size={13} /> Copied</> : <><Icon name="share" size={13} /> Share</>}
+                </button>
+              )}
+              {onDeleteMessage && (
+                <button onClick={() => onDeleteMessage(message)} title="Delete this message" className="msg-action-danger">
+                  <Icon name="trash" size={13} /> Delete
                 </button>
               )}
             </div>

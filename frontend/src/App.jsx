@@ -285,6 +285,23 @@ export default function App() {
     }
   };
 
+  const handleDeleteMessage = async (message) => {
+    if (!window.confirm("Delete this message and everything after it in this branch?")) return;
+    // A not-yet-persisted (optimistic) message only exists in local state.
+    if (!message.id || String(message.id).startsWith("local")) {
+      setMessages((m) => m.filter((x) => x.id !== message.id));
+      return;
+    }
+    try {
+      const result = await api.deleteMessage(activeId, message.id);
+      setMessages(result.messages);
+      refreshBranches(activeId);
+      showToast(`Deleted ${result.deleted} message${result.deleted === 1 ? "" : "s"}.`, "success");
+    } catch (err) {
+      showToast(err.message || "Delete failed", "error");
+    }
+  };
+
   const handleCreate = async () => {
     const conv = await api.createConversation();
     setConversations((c) => [conv, ...c]);
@@ -1035,6 +1052,7 @@ export default function App() {
               onPlanDecision={handlePlanDecision}
               siblings={branches[m.parent_id || "root"]}
               onSwitchBranch={handleSwitchBranch}
+              onDeleteMessage={handleDeleteMessage}
             />
           ))}
         </div>
