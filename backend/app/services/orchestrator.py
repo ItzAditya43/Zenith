@@ -133,8 +133,11 @@ async def _build_system_context(conversation_id: str, user_text: str) -> str:
     if custom:
         parts.append(custom)
     try:
+        from app.db import storage
         from app.services import memory_service
-        block = await asyncio.to_thread(memory_service.memory_block)
+        conv = await asyncio.to_thread(storage.get_conversation, conversation_id)
+        project_id = conv.get("project_id") if conv else None
+        block = await asyncio.to_thread(memory_service.memory_block, project_id)
         if block:
             parts.append(block)
     except Exception as exc:

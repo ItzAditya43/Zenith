@@ -63,15 +63,59 @@ def init_db() -> None:
     run_migrations()
 
 
-def create_conversation(title: str = "New chat") -> dict:
+def create_conversation(title: str = "New chat", project_id: str | None = None) -> dict:
     cid = str(uuid.uuid4())
+    now = time.time()
+    workdir = None
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO conversations (id, title, created_at, updated_at, project_id) VALUES (?, ?, ?, ?, ?)",
+            (cid, title, now, now, project_id),
+        )
+        if project_id:
+            proj = conn.execute("SELECT workdir FROM projects WHERE id = ?", (project_id,)).fetchone()
+            if proj and proj["workdir"]:
+                workdir = proj["workdir"]
+                conn.execute("UPDATE conversations SET workdir = ? WHERE id = ?", (workdir, cid))
+    return {"id": cid, "title": title, "created_at": now, "updated_at": now, "project_id": project_id, "workdir": workdir}
+
+
+def set_conversation_project(conversation_id: str, project_id: str | None) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE conversations SET project_id = ? WHERE id = ?", (project_id, conversation_id))
+        if project_id:
+            proj = conn.execute("SELECT workdir FROM projects WHERE id = ?", (project_id,)).fetchone()
+            if proj and proj["workdir"]:
+                conn.execute("UPDATE conversations SET workdir = ? WHERE id = ?", (proj["workdir"], conversation_id))
+
+
+def create_project(name: str, workdir: str | None = None) -> dict:
+    pid = str(uuid.uuid4())
     now = time.time()
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
-            (cid, title, now, now),
+            "INSERT INTO projects (id, name, workdir, created_at) VALUES (?, ?, ?, ?)",
+            (pid, name, workdir, now),
         )
-    return {"id": cid, "title": title, "created_at": now, "updated_at": now}
+    return {"id": pid, "name": name, "workdir": workdir, "created_at": now}
+
+
+def list_projects() -> list[dict]:
+    with _conn() as conn:
+        return [dict(r) for r in conn.execute("SELECT * FROM projects ORDER BY created_at DESC").fetchall()]
+
+
+def delete_project(project_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE conversations SET project_id = NULL WHERE project_id = ?", (project_id,))
+        conn.execute("UPDATE memories SET project_id = NULL WHERE project_id = ?", (project_id,))
+        conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+
+
+def get_conversation(conversation_id: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM conversations WHERE id = ?", (conversation_id,)).fetchone()
+        return dict(row) if row else None
 
 
 def list_conversations() -> list[dict]:

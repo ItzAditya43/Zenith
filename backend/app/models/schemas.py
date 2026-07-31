@@ -29,6 +29,7 @@ class ChatRequest(StrictModel):
 
 class ConversationCreate(StrictModel):
     title: str = "New chat"
+    project_id: str | None = None
 
 
 class ConversationRename(StrictModel):

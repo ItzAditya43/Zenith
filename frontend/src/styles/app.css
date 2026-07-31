@@ -2392,3 +2392,47 @@
 .branch-tree-toggle.is-active {
   color: var(--signal-general);
 }
+
+/* Projects grouping in sidebar */
+.conversation-group-label-project {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+}
+.conversation-empty-project {
+  padding-left: var(--space-3);
+  font-size: var(--text-xs);
+  opacity: 0.6;
+}
+.sidebar-new-project-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px dashed var(--border-hairline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.sidebar-new-project-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-soft);
+}
+.conversation-group-add-btn {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+}
+.conversation-group-add-btn:hover {
+  color: var(--text-primary);
+}

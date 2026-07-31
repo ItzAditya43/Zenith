@@ -330,6 +330,31 @@ def _skills_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _projects_table(conn: sqlite3.Connection) -> None:
+    """Projects group conversations that share context: a default working
+    directory (agent mode's bash cwd) and a memory scope (memories tagged to
+    a project only surface in that project's conversations, not globally).
+    A conversation's `project_id` is nullable — most conversations stay
+    unscoped, same as before this migration."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            workdir TEXT,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+    cur = conn.cursor()
+    conv_cols = [r[1] for r in cur.execute("PRAGMA table_info(conversations)").fetchall()]
+    if "project_id" not in conv_cols:
+        cur.execute("ALTER TABLE conversations ADD COLUMN project_id TEXT")
+    mem_cols = [r[1] for r in cur.execute("PRAGMA table_info(memories)").fetchall()]
+    if "project_id" not in mem_cols:
+        cur.execute("ALTER TABLE memories ADD COLUMN project_id TEXT")
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -365,6 +390,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (12, "tool_call_diff_columns", _tool_call_diff_columns),
     (13, "agent_checkpoints_table", _agent_checkpoints_table),
     (14, "skills_table", _skills_table),
+    (15, "projects_table", _projects_table),
 ]
 
 

@@ -51,9 +51,12 @@ def list_memories(include_disabled: bool = True) -> list[dict]:
 
 
 def add_memory(content: str, category: str = "fact",
-               source_conversation_id: str | None = None) -> dict | None:
+               source_conversation_id: str | None = None,
+               project_id: str | None = None) -> dict | None:
     """Insert a memory, deduped on normalized content. Returns the row,
-    or None if it was a duplicate / empty."""
+    or None if it was a duplicate / empty. A memory saved from a
+    project-scoped conversation is tagged with that project — it only
+    surfaces in that project's conversations, not globally."""
     content = " ".join(content.split()).strip().rstrip(".")
     if not content or len(content) > 300:
         return None
@@ -76,14 +79,14 @@ def add_memory(content: str, category: str = "fact",
             )
         conn.execute(
             """INSERT INTO memories
-               (id, content, category, source_conversation_id, enabled, created_at, updated_at)
-               VALUES (?, ?, ?, ?, 1, ?, ?)""",
-            (mid, content, category, source_conversation_id, now, now),
+               (id, content, category, source_conversation_id, enabled, created_at, updated_at, project_id)
+               VALUES (?, ?, ?, ?, 1, ?, ?, ?)""",
+            (mid, content, category, source_conversation_id, now, now, project_id),
         )
     log.info("memory.added", content=content[:80])
     return {"id": mid, "content": content, "category": category,
             "source_conversation_id": source_conversation_id,
-            "enabled": 1, "created_at": now, "updated_at": now}
+            "enabled": 1, "created_at": now, "updated_at": now, "project_id": project_id}
 
 
 def delete_memory(memory_id: str) -> None:
@@ -105,12 +108,17 @@ def clear_memories() -> int:
         return cur.rowcount
 
 
-def memory_block() -> str:
+def memory_block(project_id: str | None = None) -> str:
     """Render enabled memories as a system-prompt section. Empty string
-    when memory is off or there's nothing stored."""
+    when memory is off or there's nothing stored. Project-scoped memories
+    only surface for conversations in that same project; global (unscoped)
+    memories always surface."""
     if not bool(settings.get("memory_enabled", True)):
         return ""
-    mems = [m for m in list_memories() if m["enabled"]]
+    mems = [
+        m for m in list_memories()
+        if m["enabled"] and (not m.get("project_id") or m.get("project_id") == project_id)
+    ]
     if not mems:
         return ""
     lines = "\n".join(f"- {m['content']}" for m in mems)
@@ -148,9 +156,14 @@ async def extract_from_text(user_text: str,
             model, [{"role": "user", "content": _EXTRACT_PROMPT + user_text[:2000]}]
         )
         facts = _parse_facts(out)
+        project_id = None
+        if conversation_id:
+            from app.db.storage import get_conversation
+            conv = get_conversation(conversation_id)
+            project_id = conv.get("project_id") if conv else None
         added = []
         for fact in facts[:5]:
-            row = add_memory(fact, source_conversation_id=conversation_id)
+            row = add_memory(fact, source_conversation_id=conversation_id, project_id=project_id)
             if row:
                 added.append(row)
         return added

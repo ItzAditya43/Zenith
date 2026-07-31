@@ -52,6 +52,7 @@ export default function App() {
   const [branches, setBranches] = useState({});
   const [branchTreeOpen, setBranchTreeOpen] = useState(false);
   const [seedText, setSeedText] = useState(null);
+  const [projects, setProjects] = useState([]);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
@@ -180,9 +181,29 @@ export default function App() {
     }
   };
 
+  const refreshProjects = () => {
+    api.listProjects().then(setProjects).catch(() => {});
+  };
+
+  const handleCreateProject = async () => {
+    const name = window.prompt("Project name?");
+    if (!name || !name.trim()) return;
+    try {
+      await api.createProject(name.trim());
+      refreshProjects();
+      showToast(`Project "${name.trim()}" created.`, "success");
+    } catch (err) {
+      showToast(err.message || "Couldn't create project", "error");
+    }
+  };
+
   // Passcode lock: on load, ask the backend whether a lock is set. If it is
   // and we don't already hold a valid unlock token this tab session, show
   // the lock screen before anything else loads.
+  useEffect(() => {
+    refreshProjects();
+  }, []);
+
   useEffect(() => {
     api.imageStatus().then(({ configured }) => setImageAvailable(configured)).catch(() => {});
   }, []);
@@ -312,8 +333,8 @@ export default function App() {
     }
   };
 
-  const handleCreate = async () => {
-    const conv = await api.createConversation();
+  const handleCreate = async (projectId = null) => {
+    const conv = await api.createConversation("New chat", projectId);
     setConversations((c) => [conv, ...c]);
     setActiveId(conv.id);
     setMessages([]);
@@ -928,6 +949,9 @@ export default function App() {
           searchQuery={searchQuery}
           onSearch={runSearch}
           searchResults={searchResults}
+          projects={projects}
+          onCreateProject={handleCreateProject}
+          onCreateInProject={handleCreate}
         />
       )}
 
