@@ -220,6 +220,8 @@ export const api = {
       method: "DELETE",
     }).then((r) => r.json()),
 
+  hardwareReport: () => request("/api/hardware").then((r) => r.json()),
+
   listProjects: () => request("/api/projects").then((r) => r.json()),
   createProject: (name, workdir) =>
     request("/api/projects", {

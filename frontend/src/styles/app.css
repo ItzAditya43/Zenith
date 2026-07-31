@@ -2580,3 +2580,36 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Hardware-aware model manager */
+.hw-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin: var(--space-2) 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+}
+.fit-chip {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.fit-chip-comfortable {
+  background: color-mix(in srgb, var(--signal-success, #3aa76d) 20%, transparent);
+  color: var(--signal-success, #3aa76d);
+}
+.fit-chip-tight {
+  background: color-mix(in srgb, #d9a441 20%, transparent);
+  color: #d9a441;
+}
+.fit-chip-will_struggle {
+  background: color-mix(in srgb, var(--signal-danger, #d64545) 20%, transparent);
+  color: var(--signal-danger, #d64545);
+}

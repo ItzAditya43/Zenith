@@ -54,6 +54,7 @@ export default function SettingsPanel({
   const [memoriesError, setMemoriesError] = useState(null);
   const [skills, setSkills] = useState([]);
   const [skillsError, setSkillsError] = useState(null);
+  const [hardware, setHardware] = useState(null);
   const [personas, setPersonas] = useState([]);
   const [newPersonaName, setNewPersonaName] = useState("");
   const [newPersonaIcon, setNewPersonaIcon] = useState("");
@@ -117,6 +118,10 @@ export default function SettingsPanel({
       .catch((err) => setSkillsError(err.message));
   };
 
+  const refreshHardware = () => {
+    api.hardwareReport().then(setHardware).catch(() => {});
+  };
+
   const refreshModels = () => {
     api
       .listModels()
@@ -158,6 +163,7 @@ export default function SettingsPanel({
     refreshModels();
     refreshMemories();
     refreshSkills();
+    refreshHardware();
     refreshPersonas();
     refreshFolders();
     refreshSchedules();
@@ -360,8 +366,8 @@ export default function SettingsPanel({
     setConfig(updated);
   };
 
-  const handlePull = async () => {
-    const name = pullName.trim();
+  const handlePull = async (overrideName) => {
+    const name = (overrideName || pullName).trim();
     if (!name || pullBusy) return;
     setPullBusy(true);
     setPullStatus("Starting…");
@@ -1233,28 +1239,83 @@ export default function SettingsPanel({
                 <p className="settings-section-desc">
                   Everything below is running locally on your Ollama. No data leaves your machine.
                 </p>
+                {hardware && (
+                  <div className="hw-summary">
+                    <span>{hardware.hardware.cpu_cores} CPU cores</span>
+                    <span>{hardware.hardware.ram_gb ?? "?"} GB RAM</span>
+                    <span>
+                      {hardware.hardware.gpu
+                        ? `${hardware.hardware.gpu.name}${hardware.hardware.gpu.vram_gb ? ` (${hardware.hardware.gpu.vram_gb} GB VRAM)` : ""}`
+                        : "No GPU detected — running on CPU"}
+                    </span>
+                  </div>
+                )}
                 <ul className="model-list">
-                  {models.map((m) => (
-                    <li key={m.name}>
-                      <span className="model-name">{m.name}</span>
-                      <span className="model-roles">
-                        {m.roles?.map((r) => (
-                          <span key={r} className="role-chip" data-role={r}>
-                            {r}
-                          </span>
-                        ))}
-                        <button
-                          className="model-delete-btn"
-                          onClick={() => handleDeleteModel(m.name)}
-                          title="Delete model from Ollama"
-                        >
-                          <Icon name="x" size={13} />
-                        </button>
-                      </span>
-                    </li>
-                  ))}
+                  {models.map((m) => {
+                    const hw = hardware?.installed.find((x) => x.name === m.name);
+                    return (
+                      <li key={m.name}>
+                        <span className="model-name">{m.name}</span>
+                        <span className="model-roles">
+                          {m.roles?.map((r) => (
+                            <span key={r} className="role-chip" data-role={r}>
+                              {r}
+                            </span>
+                          ))}
+                          {hw && hw.fit !== "unknown" && (
+                            <span className={`fit-chip fit-chip-${hw.fit}`} title="Estimated fit for your hardware">
+                              {hw.fit === "comfortable" ? "fits well" : hw.fit === "tight" ? "tight fit" : "will struggle"}
+                            </span>
+                          )}
+                          <button
+                            className="model-delete-btn"
+                            onClick={() => handleDeleteModel(m.name)}
+                            title="Delete model from Ollama"
+                          >
+                            <Icon name="x" size={13} />
+                          </button>
+                        </span>
+                      </li>
+                    );
+                  })}
                   {models.length === 0 && !modelsError && <li className="model-empty">Loading…</li>}
                 </ul>
+
+                {hardware?.recommended.length > 0 && (
+                  <>
+                    <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                      Recommended for your hardware
+                    </h3>
+                    <p className="settings-section-desc">
+                      Sized to what {hardware.budget_gb ? `~${hardware.budget_gb} GB` : "this machine"} can
+                      actually run well — best fit first.
+                    </p>
+                    <ul className="model-list">
+                      {hardware.recommended.map((m) => (
+                        <li key={m.name}>
+                          <span className="model-name" style={{ flex: 1 }}>
+                            {m.name}
+                            <span style={{ display: "block", fontSize: "0.75em", color: "var(--text-tertiary)" }}>
+                              {m.note}
+                            </span>
+                          </span>
+                          <span className={`fit-chip fit-chip-${m.fit}`}>
+                            {m.fit === "comfortable" ? "fits well" : m.fit === "tight" ? "tight fit" : "will struggle"}
+                          </span>
+                          <button
+                            className="text-btn"
+                            onClick={() => {
+                              setPullName(m.name);
+                              handlePull(m.name);
+                            }}
+                          >
+                            Pull
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
 
                 <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
                   Pull a model
@@ -1272,7 +1333,7 @@ export default function SettingsPanel({
                     onKeyDown={(e) => e.key === "Enter" && handlePull()}
                     disabled={pullBusy}
                   />
-                  <button className="settings-btn-primary" onClick={handlePull} disabled={pullBusy || !pullName.trim()}>
+                  <button className="settings-btn-primary" onClick={() => handlePull()} disabled={pullBusy || !pullName.trim()}>
                     {pullBusy ? "Pulling…" : "Pull"}
                   </button>
                 </div>
