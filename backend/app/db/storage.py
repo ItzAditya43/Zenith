@@ -480,6 +480,45 @@ def save_skill_manual(name: str, prompt_template: str, description: str = "") ->
     }
 
 
+def create_calendar_event(
+    title: str, start_ts: float, end_ts: float | None = None, description: str = "",
+    all_day: bool = False, source_conversation_id: str | None = None,
+) -> dict:
+    eid = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO calendar_events
+               (id, title, description, start_ts, end_ts, all_day, source_conversation_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (eid, title, description, start_ts, end_ts, 1 if all_day else 0, source_conversation_id, now),
+        )
+    return {
+        "id": eid, "title": title, "description": description, "start_ts": start_ts,
+        "end_ts": end_ts, "all_day": 1 if all_day else 0,
+        "source_conversation_id": source_conversation_id, "created_at": now,
+    }
+
+
+def list_calendar_events(from_ts: float | None = None, to_ts: float | None = None) -> list[dict]:
+    with _conn() as conn:
+        sql = "SELECT * FROM calendar_events WHERE 1=1"
+        params: list = []
+        if from_ts is not None:
+            sql += " AND (end_ts IS NULL AND start_ts >= ? OR end_ts >= ?)"
+            params += [from_ts, from_ts]
+        if to_ts is not None:
+            sql += " AND start_ts <= ?"
+            params.append(to_ts)
+        sql += " ORDER BY start_ts ASC"
+        return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
+def delete_calendar_event(event_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM calendar_events WHERE id = ?", (event_id,))
+
+
 def search_conversations(q: str) -> list[dict]:
     """Full-text search over message content. Returns distinct
     conversations with the matching snippet and message count. Uses

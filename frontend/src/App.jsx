@@ -10,6 +10,7 @@ import LockScreen from "./components/LockScreen.jsx";
 import StatusRail from "./components/StatusRail.jsx";
 import BranchTree from "./components/BranchTree.jsx";
 import DocumentEditor from "./components/DocumentEditor.jsx";
+import CalendarPanel from "./components/CalendarPanel.jsx";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
 
@@ -57,6 +58,7 @@ export default function App() {
   const [seedText, setSeedText] = useState(null);
   const [projects, setProjects] = useState([]);
   const [openDoc, setOpenDoc] = useState(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
@@ -994,6 +996,15 @@ export default function App() {
                 <Icon name="layers" size={16} />
               </button>
             )}
+            {!focusMode && (
+              <button
+                className={`icon-btn ${calendarOpen ? "is-active" : ""}`}
+                onClick={() => setCalendarOpen((v) => !v)}
+                title="Calendar"
+              >
+                <Icon name="clock" size={16} />
+              </button>
+            )}
             <button
               className={`icon-btn focus-toggle-btn ${focusMode ? "is-active" : ""}`}
               onClick={() => setFocusMode((v) => !v)}
@@ -1069,6 +1080,8 @@ export default function App() {
             )}
           </div>
         </header>
+
+        {calendarOpen && <CalendarPanel onClose={() => setCalendarOpen(false)} />}
 
         {branchTreeOpen && (
           <BranchTree

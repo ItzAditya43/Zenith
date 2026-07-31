@@ -240,6 +240,16 @@ export const api = {
       body: JSON.stringify({ to, subject, body, in_reply_to: inReplyTo }),
     }).then((r) => r.json()),
 
+  listCalendarEvents: (fromTs, toTs) =>
+    request(`/api/calendar/events?from_ts=${fromTs}&to_ts=${toTs}`).then((r) => r.json()),
+  createCalendarEvent: (event) =>
+    request("/api/calendar/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+    }).then((r) => r.json()),
+  deleteCalendarEvent: (id) => request(`/api/calendar/events/${id}`, { method: "DELETE" }),
+
   listProjects: () => request("/api/projects").then((r) => r.json()),
   createProject: (name, workdir) =>
     request("/api/projects", {
