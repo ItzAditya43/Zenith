@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any, AsyncIterator
 
 from fastapi import APIRouter, HTTPException, Request
@@ -323,6 +324,8 @@ async def chat(body: ChatRequest, request: Request):
             pass
 
         collected: list[str] = []
+        turn_start = time.monotonic()
+        first_token_ms: int | None = None
         try:
             async for piece in _with_heartbeat(stream, heartbeat):
                 # A None from the wrapper means the model has been silent
@@ -332,6 +335,8 @@ async def chat(body: ChatRequest, request: Request):
                 if piece is None:
                     yield ":heartbeat\n\n"
                     continue
+                if first_token_ms is None:
+                    first_token_ms = int((time.monotonic() - turn_start) * 1000)
                 collected.append(piece)
                 yield _sse({"type": "token", "text": piece})
         except OllamaError as exc:
@@ -434,6 +439,14 @@ async def chat(body: ChatRequest, request: Request):
                 maybe_generate_title(body.conversation_id, full_text)
             except Exception as exc:
                 log.debug("chat.title_gen_failed", error=str(exc))
+
+        try:
+            storage.record_usage_event(
+                current_model, current_role, len(collected),
+                int((time.monotonic() - turn_start) * 1000), first_token_ms,
+            )
+        except Exception as exc:
+            log.debug("chat.usage_record_failed", error=str(exc))
 
         yield _sse({"type": "done"})
 
