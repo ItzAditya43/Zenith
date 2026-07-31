@@ -17,6 +17,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export function useVoiceRecorder() {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState(null);
+  // Exposed reactively so a waveform visualizer can tap the live MediaStream
+  // (an AnalyserNode) while recording. Null when not recording.
+  const [stream, setStream] = useState(null);
   const [supported] = useState(
     () => typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia
   );
@@ -60,6 +63,7 @@ export function useVoiceRecorder() {
     };
     mediaRecorderRef.current = recorder;
     recorder.start();
+    setStream(stream);
     setRecording(true);
   }, [recording, supported]);
 
@@ -75,6 +79,7 @@ export function useVoiceRecorder() {
         // Release the mic so the OS indicator turns off between recordings.
         streamRef.current?.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
+        setStream(null);
         setRecording(false);
         resolve(blob);
       };
@@ -85,10 +90,12 @@ export function useVoiceRecorder() {
 
   const cancel = useCallback(() => {
     const recorder = mediaRecorderRef.current;
+    if (recorder) recorder.onstop = null; // don't resolve stop() with a blob
     if (recorder && recorder.state !== "inactive") recorder.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     chunksRef.current = [];
+    setStream(null);
     setRecording(false);
   }, []);
 
@@ -99,5 +106,5 @@ export function useVoiceRecorder() {
     };
   }, []);
 
-  return { recording, error, supported, start, stop, cancel };
+  return { recording, error, supported, stream, start, stop, cancel };
 }

@@ -2111,3 +2111,48 @@
   border-radius: var(--radius-md);
   border: 1px solid var(--border-hairline);
 }
+
+/* --- Voice recording panel --- */
+.voice-panel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--signal-general-dim);
+  background: var(--bg-inset);
+  cursor: pointer;
+  position: relative;
+}
+.voice-panel-time {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--signal-general);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  min-width: 44px;
+}
+.voice-panel-wave {
+  flex: 1;
+  height: 36px;
+  min-width: 0;
+}
+.voice-panel-label {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.voice-panel-cancel {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.voice-panel-cancel:hover {
+  background: var(--signal-danger-dim, rgba(229, 72, 77, 0.12));
+  color: var(--signal-danger, #e5484d);
+}
