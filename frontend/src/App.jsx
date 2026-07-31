@@ -18,6 +18,7 @@ import GroupChatPicker from "./components/GroupChatPicker.jsx";
 import AmbientCanvas from "./components/AmbientCanvas.jsx";
 import OnboardingTour from "./components/OnboardingTour.jsx";
 import WhatsNewPanel from "./components/WhatsNewPanel.jsx";
+import UsageDashboard from "./components/UsageDashboard.jsx";
 import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
@@ -75,6 +76,7 @@ export default function App() {
     () => !localStorage.getItem("cortex-onboarded")
   );
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
   const dismissOnboarding = () => {
     localStorage.setItem("cortex-onboarded", "1");
     setOnboardingOpen(false);
@@ -1114,6 +1116,15 @@ export default function App() {
                 <Icon name="flask" size={16} />
               </button>
             )}
+            {!focusMode && (
+              <button
+                className={`icon-btn ${usageOpen ? "is-active" : ""}`}
+                onClick={() => setUsageOpen((v) => !v)}
+                title="Usage & diagnostics"
+              >
+                <Icon name="grid" size={16} />
+              </button>
+            )}
             <button
               className={`icon-btn focus-toggle-btn ${focusMode ? "is-active" : ""}`}
               onClick={() => setFocusMode((v) => !v)}
@@ -1200,6 +1211,7 @@ export default function App() {
         {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}
         {todosOpen && <TodoPanel onClose={() => setTodosOpen(false)} />}
         {researchOpen && <ResearchDashboard onClose={() => setResearchOpen(false)} />}
+        {usageOpen && <UsageDashboard onClose={() => setUsageOpen(false)} />}
         {groupPickerOpen && (
           <GroupChatPicker
             personas={personas}
