@@ -9,6 +9,7 @@ import Icon from "./components/Icon.jsx";
 import LockScreen from "./components/LockScreen.jsx";
 import StatusRail from "./components/StatusRail.jsx";
 import BranchTree from "./components/BranchTree.jsx";
+import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
 
 export default function App() {
@@ -50,6 +51,7 @@ export default function App() {
   const [personas, setPersonas] = useState([]);
   const [branches, setBranches] = useState({});
   const [branchTreeOpen, setBranchTreeOpen] = useState(false);
+  const [seedText, setSeedText] = useState(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
@@ -1038,6 +1040,11 @@ export default function App() {
         )}
 
         <div className="chat-scroll" ref={scrollRef} onScroll={handleChatScroll}>
+          <SelectionPopover
+            containerRef={scrollRef}
+            onExplain={(text) => setSeedText({ text: `Explain this: "${text}"`, nonce: Date.now() })}
+            onAsk={(text) => setSeedText({ text: `About this: "${text}"\n`, nonce: Date.now() })}
+          />
           {messages.length === 0 && (
             <div className="empty-state">
               <div className="empty-state-mark" />
@@ -1112,6 +1119,7 @@ export default function App() {
           imageAvailable={imageAvailable}
           isStreaming={status === "thinking"}
           onError={(msg) => showToast(msg, "error")}
+          seedText={seedText}
         />
       </main>
 

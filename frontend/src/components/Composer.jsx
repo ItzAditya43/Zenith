@@ -91,6 +91,7 @@ export default function Composer({
   councilAvailable = false,
   imageAvailable = false,
   onError = () => {},
+  seedText = null,
 }) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState([]); // [{id, filename, kind, uploading}]
@@ -106,6 +107,14 @@ export default function Composer({
   useEffect(() => {
     if (recorderError) setMicError(recorderError.message);
   }, [recorderError]);
+
+  // Seeded from a "quick action" on selected text elsewhere in the app
+  // (BranchTree switches don't seed; only explicit quote/explain actions do).
+  useEffect(() => {
+    if (!seedText) return;
+    setText((t) => (t ? `${t}\n${seedText.text}` : seedText.text));
+    textareaRef.current?.focus();
+  }, [seedText]);
 
   // Auto-grow textarea (Tier 6 #9)
   useEffect(() => {
