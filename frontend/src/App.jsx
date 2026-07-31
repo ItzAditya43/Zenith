@@ -14,6 +14,7 @@ import CalendarPanel from "./components/CalendarPanel.jsx";
 import NotesPanel from "./components/NotesPanel.jsx";
 import TodoPanel from "./components/TodoPanel.jsx";
 import ResearchDashboard from "./components/ResearchDashboard.jsx";
+import GroupChatPicker from "./components/GroupChatPicker.jsx";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
 
@@ -65,6 +66,9 @@ export default function App() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
+  const [groupPersonaIds, setGroupPersonaIds] = useState([]);
+  const [groupPickerOpen, setGroupPickerOpen] = useState(false);
+  const [groupStreaming, setGroupStreaming] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
@@ -315,6 +319,7 @@ export default function App() {
     const msgs = await api.getMessages(id);
     setMessages(msgs);
     refreshBranches(id);
+    api.getGroupPersonas(id).then((r) => setGroupPersonaIds(r.persona_ids || [])).catch(() => setGroupPersonaIds([]));
   };
 
   const handleSwitchBranch = async (messageId) => {
@@ -567,6 +572,47 @@ export default function App() {
     }
   };
 
+  const handleGroupSend = async (text) => {
+    if (!activeId || !text.trim()) return;
+    const userMsg = { id: `local-user-${Date.now()}`, role: "user", content: text };
+    setMessages((m) => [...m, userMsg]);
+    setStatus("thinking");
+    setGroupStreaming(true);
+    const bySpeaker = {};
+    await api.streamGroupChat(activeId, text, (ev) => {
+      if (ev.type === "speaker_start") {
+        const persona = personas.find((p) => p.id === ev.persona_id);
+        const localId = `local-group-${ev.persona_id}-${Date.now()}`;
+        bySpeaker[ev.persona_id] = localId;
+        setMessages((m) => [
+          ...m,
+          {
+            id: localId, role: "assistant", content: "", streaming: true,
+            speaker_persona_id: ev.persona_id,
+            speakerName: persona?.name || "Bot",
+            speakerIcon: persona?.icon || "",
+          },
+        ]);
+      } else if (ev.type === "token") {
+        const localId = bySpeaker[ev.persona_id];
+        if (!localId) return;
+        setMessages((m) => m.map((msg) => (msg.id === localId ? { ...msg, content: msg.content + ev.text } : msg)));
+      } else if (ev.type === "speaker_done") {
+        const localId = bySpeaker[ev.persona_id];
+        if (!localId) return;
+        setMessages((m) => m.map((msg) => (msg.id === localId ? { ...msg, id: ev.message_id, content: ev.text, streaming: false } : msg)));
+      } else if (ev.type === "error") {
+        showToast(ev.message, "error");
+      } else if (ev.type === "done") {
+        setStatus("idle");
+        setGroupStreaming(false);
+        selectConversation(activeId); // reconcile with persisted state
+      }
+    });
+    setStatus("idle");
+    setGroupStreaming(false);
+  };
+
   const handleSend = async (
     text,
     attachmentIds,
@@ -581,6 +627,7 @@ export default function App() {
     if (!activeId) return;
     if (councilMode) return handleCouncilSend(text, attachmentIds);
     if (imageMode) return handleImageSend(text);
+    if (groupPersonaIds.length >= 2) return handleGroupSend(text);
     const editOf = editContext?.messageId || null;
 
     let assistantMsg;
@@ -1058,7 +1105,7 @@ export default function App() {
                 <Icon name="folder" size={14} /> {activeConversation?.workdir ? activeConversation.workdir.split("/").pop() : "Set folder"}
               </button>
             )}
-            {!focusMode && personas.length > 0 && (
+            {!focusMode && personas.length > 0 && groupPersonaIds.length < 2 && (
               <select
                 className="persona-picker"
                 value={activeConversation?.persona_id || ""}
@@ -1073,6 +1120,16 @@ export default function App() {
                   </option>
                 ))}
               </select>
+            )}
+            {!focusMode && personas.length >= 2 && (
+              <button
+                className={`icon-btn ${groupPersonaIds.length >= 2 ? "is-active" : ""}`}
+                onClick={() => setGroupPickerOpen((v) => !v)}
+                title={groupPersonaIds.length >= 2 ? `Group chat: ${groupPersonaIds.length} personas` : "Set up a group chat"}
+              >
+                <Icon name="users" size={16} />
+                {groupPersonaIds.length >= 2 && <span style={{ marginLeft: 4, fontSize: "0.75em" }}>{groupPersonaIds.length}</span>}
+              </button>
             )}
             {!focusMode && (
               <button
@@ -1118,6 +1175,17 @@ export default function App() {
         {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}
         {todosOpen && <TodoPanel onClose={() => setTodosOpen(false)} />}
         {researchOpen && <ResearchDashboard onClose={() => setResearchOpen(false)} />}
+        {groupPickerOpen && (
+          <GroupChatPicker
+            personas={personas}
+            selectedIds={groupPersonaIds}
+            onChange={(ids) => {
+              setGroupPersonaIds(ids);
+              api.setGroupPersonas(activeId, ids.length >= 2 ? ids : null).catch(() => {});
+            }}
+            onClose={() => setGroupPickerOpen(false)}
+          />
+        )}
 
         {branchTreeOpen && (
           <BranchTree
@@ -1199,6 +1267,7 @@ export default function App() {
               onSwitchBranch={handleSwitchBranch}
               onDeleteMessage={handleDeleteMessage}
               onOpenEditor={(text, lang) => setOpenDoc({ text, lang })}
+              personas={personas}
             />
           ))}
         </div>

@@ -2856,3 +2856,10 @@
     border-bottom: 1px solid var(--border-hairline);
   }
 }
+
+.group-speaker-badge {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--signal-general, #d97757);
+  margin-bottom: var(--space-1);
+}
