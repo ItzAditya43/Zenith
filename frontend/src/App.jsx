@@ -7,6 +7,7 @@ import CommandPalette from "./components/CommandPalette";
 import ToastStack from "./components/ToastStack";
 import Icon from "./components/Icon.jsx";
 import LockScreen from "./components/LockScreen.jsx";
+import StatusRail from "./components/StatusRail.jsx";
 import { api } from "./lib/api";
 
 export default function App() {
@@ -23,6 +24,11 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [status, setStatus] = useState("idle"); // idle | thinking | speaking
   const [activeRole, setActiveRole] = useState("general");
+  // Live generation stats for the status rail — recomputed on every token
+  // event while streaming, cleared shortly after a turn finishes.
+  const [genStats, setGenStats] = useState(null); // { model, tokPerSec }
+  const genStartRef = useRef(0);
+  const genTokenCountRef = useRef(0);
   const [voiceReplyEnabled, setVoiceReplyEnabled] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -588,6 +594,9 @@ export default function App() {
       (event) => {
         if (event.type === "route") {
           setActiveRole(event.role);
+          genStartRef.current = Date.now();
+          genTokenCountRef.current = 0;
+          setGenStats({ model: event.model, tokPerSec: 0 });
           setMessages((m) =>
             m.map((msg) =>
               msg.id === assistantMsg.id
@@ -698,12 +707,18 @@ export default function App() {
           setMessages((m) =>
             m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, content: fullText } : msg))
           );
+          genTokenCountRef.current += 1;
+          const elapsed = (Date.now() - genStartRef.current) / 1000;
+          if (elapsed > 0.3) {
+            setGenStats((s) => (s ? { ...s, tokPerSec: genTokenCountRef.current / elapsed } : s));
+          }
         } else if (event.type === "resumed") {
           showToast("Resuming from where the last run left off…", "info");
         } else if (event.type === "done") {
           setMessages((m) =>
             m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, streaming: false } : msg))
           );
+          setTimeout(() => setGenStats(null), 2500); // let the final tok/s linger briefly
           if (event.checkpointed) {
             showToast("Run paused at the step limit — send a message to continue.", "info", 6000);
           }
@@ -927,6 +942,7 @@ export default function App() {
             <Icon name="menu" size={18} />
           </button>
           <h1>{activeConversation?.title || "Cortex"}</h1>
+          <StatusRail genStats={genStats} />
           <div className="header-actions">
             <button
               className={`icon-btn focus-toggle-btn ${focusMode ? "is-active" : ""}`}
