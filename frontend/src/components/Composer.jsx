@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import VoiceRecordingPanel from "./VoiceRecordingPanel.jsx";
 
 const KIND_ICON = { image: "image", video: "video", document: "file-text", audio: "headphones", other: "paperclip" };
 
@@ -99,7 +100,7 @@ export default function Composer({
   const [mode, setMode] = useState("off");
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
-  const { recording, error: recorderError, supported, start, stop, cancel } = useVoiceRecorder();
+  const { recording, error: recorderError, supported, stream, start, stop, cancel } = useVoiceRecorder();
 
   // Surface recorder errors inline (replaces the old alert()).
   useEffect(() => {
@@ -211,6 +212,17 @@ export default function Composer({
     }
   };
 
+  const handleMicStopFromPanel = async () => {
+    if (!recording) return;
+    const blob = await stop();
+    await transcribeAndInsert(blob);
+  };
+
+  const handleMicCancel = () => {
+    cancel();
+    setMicError(null);
+  };
+
   // Spacebar hold-to-talk when the composer area is focused but the textarea
   // is not (Tier 3 #4).
   const handleComposerKeyDown = (e) => {
@@ -272,6 +284,14 @@ export default function Composer({
         </div>
       )}
 
+      {recording || transcribing ? (
+        <VoiceRecordingPanel
+          stream={stream}
+          transcribing={transcribing}
+          onStop={handleMicStopFromPanel}
+          onCancel={handleMicCancel}
+        />
+      ) : (
       <div className="composer-row">
         <button
           className="composer-icon-btn"
@@ -342,6 +362,7 @@ export default function Composer({
           <Icon name="send" size={16} />
         </button>
       </div>
+      )}
     </div>
   );
 }
