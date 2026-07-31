@@ -17,7 +17,7 @@ export default function OnboardingTour({ onClose }) {
     <div className="calendar-overlay" onClick={onClose}>
       <div className="calendar-modal" style={{ width: "min(620px, calc(100vw - 3rem))" }} onClick={(e) => e.stopPropagation()}>
         <div className="calendar-header">
-          <span>Welcome to Cortex</span>
+          <span>Welcome to Zenith</span>
           <button className="icon-btn" onClick={onClose} title="Close">
             <Icon name="x" size={14} />
           </button>

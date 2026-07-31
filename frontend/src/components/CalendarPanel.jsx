@@ -9,7 +9,7 @@ function fmt(ts) {
 }
 
 /**
- * A plain local calendar — events stored in Cortex's own SQLite, no
+ * A plain local calendar — events stored in Zenith's own SQLite, no
  * Google/Outlook OAuth. Agenda-list view of the next 30 days, plus a quick
  * add form. Kept deliberately simple: this is a personal scheduling
  * surface, not a full calendar app.

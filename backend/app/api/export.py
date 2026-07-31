@@ -1,5 +1,5 @@
 """Full data export — the "this is actually yours" feature. Everything
-Cortex knows (conversations, messages, memories, personas) as either one
+Zenith knows (conversations, messages, memories, personas) as either one
 complete JSON file or a human-readable Markdown zip, no partial/opaque
 formats. No external dependencies: stdlib json/zipfile only.
 """
@@ -43,7 +43,7 @@ async def export_json():
     return Response(
         content=payload,
         media_type="application/json",
-        headers={"Content-Disposition": 'attachment; filename="cortex-export.json"'},
+        headers={"Content-Disposition": 'attachment; filename="zenith-export.json"'},
     )
 
 
@@ -95,5 +95,5 @@ async def export_markdown():
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="cortex-export.zip"'},
+        headers={"Content-Disposition": 'attachment; filename="zenith-export.zip"'},
     )

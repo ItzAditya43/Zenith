@@ -150,7 +150,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Cortex",
+    title="Zenith",
     version="0.1.0",
     lifespan=lifespan,
     description="Local-first AI chat with a small router over local Ollama models.",
@@ -199,7 +199,7 @@ app.add_middleware(
 # --- Optional shared-secret auth (Tier 1 #8) ---
 # Off by default. When enabled, callers must send
 #   Authorization: Bearer <auth_shared_secret>
-# on every /api/* request, or  X-Cortex-Secret: <auth_shared_secret>.
+# on every /api/* request, or  X-Zenith-Secret: <auth_shared_secret>.
 # Health endpoint is always reachable so monitoring still works.
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -225,7 +225,7 @@ class SharedSecretAuth(BaseHTTPMiddleware):
         if auth.startswith("Bearer "):
             token = auth[7:]
         else:
-            token = request.headers.get("x-cortex-secret", "")
+            token = request.headers.get("x-zenith-secret", "")
         if token != self.secret:
             return JSONResponse(
                 {"detail": "Unauthorized — set Authorization: Bearer <auth_shared_secret>"},
@@ -242,7 +242,7 @@ if bool(settings.get("auth_enabled", False)) and settings.get("auth_shared_secre
 class PasscodeLock(BaseHTTPMiddleware):
     """App-level passcode gate (separate from the deploy-time shared secret).
     Checked live per-request so it takes effect the moment a user sets a
-    passcode, without a restart. Requests must carry X-Cortex-Unlock with the
+    passcode, without a restart. Requests must carry X-Zenith-Unlock with the
     token issued by /api/lock/verify."""
 
     _ALLOW = {"/api/health", "/docs", "/openapi.json", "/redoc"}
@@ -259,7 +259,7 @@ class PasscodeLock(BaseHTTPMiddleware):
             or not path.startswith("/api/")
         ):
             return await call_next(request)
-        if lock_api.is_locked() and not lock_api.token_valid(request.headers.get("x-cortex-unlock", "")):
+        if lock_api.is_locked() and not lock_api.token_valid(request.headers.get("x-zenith-unlock", "")):
             return JSONResponse({"detail": "Locked — unlock with your passcode."}, status_code=423)
         return await call_next(request)
 

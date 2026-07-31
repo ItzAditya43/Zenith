@@ -1,13 +1,13 @@
-# Using Cortex from other devices
+# Using Zenith from other devices
 
-Cortex runs one backend on one machine; other devices (a phone, a laptop, a
+Zenith runs one backend on one machine; other devices (a phone, a laptop, a
 tablet) reach that same backend over your network. This is **shared access to
 one instance**, not multi-master sync — see the note at the bottom.
 
 ## Same Wi-Fi / LAN
 
 1. Find the host machine's LAN IP (e.g. `192.168.1.20`).
-2. In Cortex → Settings → Connection, turn on **Allow LAN/Tailscale access**
+2. In Zenith → Settings → Connection, turn on **Allow LAN/Tailscale access**
    (this widens CORS to accept private-network and `*.ts.net` origins).
 3. On the other device, open `http://192.168.1.20:5173`.
 
@@ -43,7 +43,7 @@ Tailscale additionally keeps traffic on an encrypted, private tailnet.
 Every device here is a thin client of the **one** backend and its **one**
 SQLite database — so history is naturally consistent because there's a single
 source of truth. What's intentionally out of scope is **multi-master sync**:
-several independent Cortex instances (each with their own DB) reconciling
+several independent Zenith instances (each with their own DB) reconciling
 conversations offline and merging on reconnect. That needs a real
 conflict-resolution layer (CRDTs or a sync server) and is a much larger project
-than "let my phone use my desktop's Cortex," which is what the above delivers.
+than "let my phone use my desktop's Zenith," which is what the above delivers.

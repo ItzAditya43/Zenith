@@ -1,6 +1,6 @@
 """Personal email client: read your inbox over IMAP, send/reply over SMTP,
 using your own mail account — no third-party mail API, same "your data,
-your machine" model as the rest of Cortex. Uses only the stdlib
+your machine" model as the rest of Zenith. Uses only the stdlib
 (imaplib/smtplib/email), so no new dependency.
 
 AI summarize/auto-reply reuse the same local Ollama model the rest of the

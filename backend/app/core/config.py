@@ -1,5 +1,5 @@
 """
-Central configuration for Cortex.
+Central configuration for Zenith.
 
 Everything here can be overridden by environment variables or by editing
 `data/config.json` at runtime through the Settings panel in the UI.
@@ -34,7 +34,7 @@ def upload_dir() -> Path:
 
 
 def db_path() -> Path:
-    return data_dir() / "cortex.db"
+    return data_dir() / "zenith.db"
 
 
 def config_path() -> Path:
@@ -143,7 +143,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "http://127.0.0.1:8000",
     ],
     # Multi-device access: when on, also accept requests from private-LAN and
-    # Tailscale (*.ts.net) origins so you can open Cortex from a phone/laptop
+    # Tailscale (*.ts.net) origins so you can open Zenith from a phone/laptop
     # on the same network. Off by default — it widens who can reach the API,
     # so pair it with the passcode lock or shared-secret auth. See MULTIDEVICE.md.
     "cors_allow_lan": False,

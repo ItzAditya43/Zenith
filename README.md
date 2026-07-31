@@ -1,4 +1,4 @@
-# Cortex
+# Zenith
 
 A self-hosted, multimodal AI workspace built on your own Ollama instance —
 chat, a Claude-Code-class coding agent, deep research, memory, image
@@ -53,7 +53,7 @@ aspirational copy.
 
 ## Philosophy
 
-Cortex's whole pitch is **your own compute, your own models, your own
+Zenith's whole pitch is **your own compute, your own models, your own
 data** — a self-hosted alternative to the cloud AI assistants, built to be
 practically as capable as they are rather than a toy demo. Concretely that
 means:
@@ -76,7 +76,7 @@ means:
 ## Architecture
 
 ```
-cortex/
+zenith/
 ├── backend/     FastAPI (Python) — Ollama client, router, RAG, agent loop,
 │                MCP client, browser automation, image gen, STT/TTS, SQLite
 ├── frontend/    React + Vite — chat UI, command palette, settings, PWA
@@ -84,7 +84,7 @@ cortex/
                  (see DESKTOP.md); the frozen backend runs as a sidecar
 ```
 
-Ollama itself is untouched — Cortex talks to it over its normal HTTP API
+Ollama itself is untouched — Zenith talks to it over its normal HTTP API
 (`http://localhost:11434` by default, `host.docker.internal:11434` from
 inside the Docker deployment). Whisper and Piper TTS run as separate local
 processes because Ollama doesn't serve those model types.
@@ -150,7 +150,7 @@ your host's Ollama via `host.docker.internal:11434` — see the note at the
 top of `docker-compose.yml` if you'd rather run Ollama in its own
 container instead. If Ollama shows unreachable from the container, check
 that it's bound to more than `127.0.0.1` (`OLLAMA_HOST=0.0.0.0:11434
-ollama serve`) — a common gotcha, not a Cortex bug.
+ollama serve`) — a common gotcha, not a Zenith bug.
 
 **Manual:**
 
@@ -228,7 +228,7 @@ badge with the model used and why.
   the role by cosine similarity. Falls back to the regex router if no
   embedding model is configured.
 - **Fallback on mid-stream failure**: if the chosen model dies partway
-  through a reply, Cortex retries once against your configured fallback
+  through a reply, Zenith retries once against your configured fallback
   model/role and tells you it downgraded.
 - Add a keyword to `capability_keywords` (Settings, or directly in
   `data/config.json`) and any model containing it in its name gets
@@ -247,7 +247,7 @@ badge with the model used and why.
 - **Cross-conversation recall** — past messages are indexed the same way
   documents are; the orchestrator pulls relevant excerpts from *other*
   conversations into context automatically (excluding the current one),
-  so Cortex remembers things you told it in a different chat.
+  so Zenith remembers things you told it in a different chat.
 - **Personas** (`persona_service.py`) — named, switchable system-prompt
   presets ("Coding buddy", "Blunt editor"). Pick one per conversation from
   a header dropdown; it overrides the one global system prompt for that
@@ -364,7 +364,7 @@ and fetches multiple sources, and writes a structured cited report.
 
 `mcp_service.py`. Connect external [Model Context Protocol](https://modelcontextprotocol.io)
 tool servers — email, calendar, Notion, whatever's published — instead of
-Cortex hand-building each integration. Configure a server (command + args
+Zenith hand-building each integration. Configure a server (command + args
 + env) in **Settings → Agent tools → MCP servers**; its tools appear in
 the agent loop automatically, prefixed `mcp__servername__toolname` so
 they can't collide with the built-in set.
@@ -467,17 +467,17 @@ Settings → Memory.
 
 `import_service.py`. **Settings → Data → Import** takes the
 `conversations.json` from a ChatGPT or Claude data export, auto-detects which
-it is, and creates a Cortex conversation per chat — original messages and
+it is, and creates a Zenith conversation per chat — original messages and
 timestamps preserved, so your history from other tools isn't stranded.
 
 ### Folder watcher
 
-`folder_service.py`. Point Cortex at a real directory (a notes vault, a
+`folder_service.py`. Point Zenith at a real directory (a notes vault, a
 repo) in **Settings → Folders** and it periodically re-indexes matching
 files (`.md`/`.txt`/`.py`/`.js`/`.ts`/`.json` by default) into RAG recall
 — no manual upload per file. This is the single biggest "you can't get
 this from a cloud chat tool" feature: your own notes become part of what
-Cortex knows without you doing anything after initial setup.
+Zenith knows without you doing anything after initial setup.
 
 - Recursive scan, skips noise directories (`.git`, `node_modules`,
   `__pycache__`, virtualenvs).
@@ -511,14 +511,14 @@ touching the keyboard (**Settings → Schedules**).
 
 ### Data export
 
-**Settings → Data**. Everything Cortex knows about you, in a format you
+**Settings → Data**. Everything Zenith knows about you, in a format you
 can actually read and keep:
 
 - **JSON** — complete machine-readable dump (every conversation with full
   message history, memories, personas).
 - **Markdown** — one readable `.md` file per conversation, zipped, plus
   `memories.md` and `personas.md`. Good for archiving or reading outside
-  Cortex entirely.
+  Zenith entirely.
 
 Both are plain stdlib (`json`/`zipfile`) — no new dependencies, runs
 entirely against your own backend.
@@ -572,7 +572,7 @@ people using the same machine can't open your chats.
 
 ## Desktop app
 
-Cortex can be packaged as a native, double-click desktop app — no terminal,
+Zenith can be packaged as a native, double-click desktop app — no terminal,
 no `docker compose`. The build has been run and verified on Linux; macOS /
 Windows follow the same steps (see [`DESKTOP.md`](DESKTOP.md)).
 
@@ -581,7 +581,7 @@ Windows follow the same steps (see [`DESKTOP.md`](DESKTOP.md)).
 - **Frozen backend** — PyInstaller bundles the whole FastAPI backend into a
   single ~147 MB executable, so end users need neither Python nor Docker.
 - **Persistence** — the SQLite DB lives in the OS app-data dir
-  (`~/.local/share/dev.cortex.desktop`, `~/Library/Application Support/…`,
+  (`~/.local/share/dev.zenith.desktop`, `~/Library/Application Support/…`,
   `%APPDATA%\…`); closing the app never wipes anything.
 - **Ollama stays external** (weights are too large to bundle). The app
   expects Ollama running on the host, same as the Docker deployment.
@@ -645,7 +645,7 @@ Grouped by area; see `app/core/config.py` for the authoritative list and
 
 ## Safety model
 
-Cortex is a **personal, single-user tool** — the safety model reflects
+Zenith is a **personal, single-user tool** — the safety model reflects
 that, not a multi-tenant SaaS product:
 
 - **Agent mode is off by default.** You opt in explicitly, and pick an
@@ -688,7 +688,7 @@ that, not a multi-tenant SaaS product:
   A real syscall sandbox was investigated and shelved (Docker's default
   seccomp blocks the nested user namespaces bwrap/firejail need); details in
   [`docs/NOT_BUILT.md`](docs/NOT_BUILT.md).
-- **Image generation needs your own Stable Diffusion server** — Cortex ships
+- **Image generation needs your own Stable Diffusion server** — Zenith ships
   the integration, not a diffusion model. Off until you set `image_gen_url`.
 - **No OS-level "computer use."** Browser automation (drive a web UI) is
   built; controlling arbitrary *native desktop apps* by screen capture +

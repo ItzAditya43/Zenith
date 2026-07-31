@@ -2,7 +2,7 @@
 tools from external MCP servers, not just the built-in bash/file/web
 set. Servers run as local subprocesses over stdio (the standard way to
 run MCP servers locally — no hosted/paid MCP service involved, same
-"free by construction" posture as everything else in Cortex).
+"free by construction" posture as everything else in Zenith).
 
 Each server is configured once (command + args + env) in Settings.
 Connections are stateless-per-call: a fresh stdio subprocess is spawned,

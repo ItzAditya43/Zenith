@@ -22,8 +22,8 @@ const BASE = resolveBase();
 // stored in sessionStorage and sent on every request so the backend's lock
 // middleware lets it through.
 function unlockHeaders() {
-  const token = sessionStorage.getItem("cortex-unlock");
-  return token ? { "X-Cortex-Unlock": token } : {};
+  const token = sessionStorage.getItem("zenith-unlock");
+  return token ? { "X-Zenith-Unlock": token } : {};
 }
 
 async function request(path, options = {}) {

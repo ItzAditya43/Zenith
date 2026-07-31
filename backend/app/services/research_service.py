@@ -36,7 +36,7 @@ _RESEARCH_TOOLS = {
     "fetch_url": "Fetch and read a URL's content. Args: url (string).",
 }
 
-_SYSTEM_PROMPT = """You are Cortex in Deep Research mode: instead of answering from a single
+_SYSTEM_PROMPT = """You are Zenith in Deep Research mode: instead of answering from a single
 search, you investigate a topic across multiple steps and write a structured report.
 
 Available tools:

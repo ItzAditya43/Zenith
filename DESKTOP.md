@@ -1,15 +1,15 @@
-# Packaging Cortex as a desktop app
+# Packaging Zenith as a desktop app
 
-This turns the Docker-based Cortex stack into a single installable desktop app
+This turns the Docker-based Zenith stack into a single installable desktop app
 (`.dmg` / `.msi` / `.AppImage`) that launches with a double-click — no
 terminal, no `docker compose`. It uses **Tauri** (native OS webview, ~a few MB,
 no bundled Chromium) as the shell and a **PyInstaller**-frozen backend as a
 Tauri *sidecar* so end users don't need Python.
 
 > **Status: built and verified on Linux (x86_64).** This was compiled
-> end-to-end: PyInstaller produced a working 147 MB `cortex-backend` binary
+> end-to-end: PyInstaller produced a working 147 MB `zenith-backend` binary
 > (boots the real app, `/api/health` → 200), and `tauri build` produced both
-> `Cortex_0.1.0_amd64.deb` (~151 MB) and a portable `Cortex_0.1.0_amd64.AppImage`
+> `Zenith_0.1.0_amd64.deb` (~151 MB) and a portable `Zenith_0.1.0_amd64.AppImage`
 > (~243 MB), each containing the Tauri shell (links system webkit2gtk — no
 > bundled Chromium) and the backend sidecar. **Verified by launching the built
 > app: it spawns the sidecar, which binds `127.0.0.1:8420` and serves
@@ -27,8 +27,8 @@ Tauri *sidecar* so end users don't need Python.
 - **Launch:** a normal app icon. The shell spawns the backend sidecar on
   `127.0.0.1:8420`, then shows the window (the built frontend).
 - **Persistence:** the SQLite DB lives in the OS app-data dir
-  (`~/Library/Application Support/dev.cortex.app` on macOS,
-  `%APPDATA%/dev.cortex.app` on Windows, `~/.local/share/dev.cortex.app` on
+  (`~/Library/Application Support/dev.zenith.app` on macOS,
+  `%APPDATA%/dev.zenith.app` on Windows, `~/.local/share/dev.zenith.app` on
   Linux). Closing the app never wipes anything — same persistence model as the
   Docker volume today.
 - **Ollama stays external.** Model weights are far too large to bundle; the app
@@ -48,21 +48,21 @@ Tauri *sidecar* so end users don't need Python.
 ```bash
 cd backend
 pip install -r requirements.txt pyinstaller
-pyinstaller cortex-backend.spec
-# -> dist/cortex-backend            (Linux/macOS)
-# -> dist/cortex-backend.exe        (Windows)
+pyinstaller zenith-backend.spec
+# -> dist/zenith-backend            (Linux/macOS)
+# -> dist/zenith-backend.exe        (Windows)
 ```
 
 Smoke-test the binary before bundling:
 
 ```bash
-CORTEX_DATA_DIR=/tmp/cortex-test CORTEX_PORT=8420 ./dist/cortex-backend
+CORTEX_DATA_DIR=/tmp/zenith-test CORTEX_PORT=8420 ./dist/zenith-backend
 curl http://127.0.0.1:8420/api/health
 ```
 
 If it fails to start, it's almost always a missing hidden import from a lazily
 loaded dep (faster-whisper/ctranslate2, onnxruntime, av, sqlite-vec). Add it to
-`hiddenimports`/`binaries` in `cortex-backend.spec` and rebuild.
+`hiddenimports`/`binaries` in `zenith-backend.spec` and rebuild.
 
 ## 2. Drop the binary in as a Tauri sidecar
 
@@ -71,9 +71,9 @@ Tauri names sidecars per target triple. Copy the frozen binary in and rename it:
 ```bash
 mkdir -p desktop/src-tauri/binaries
 # e.g. on Apple silicon:
-cp backend/dist/cortex-backend desktop/src-tauri/binaries/cortex-backend-aarch64-apple-darwin
-# Linux x86_64:  cortex-backend-x86_64-unknown-linux-gnu
-# Windows:       cortex-backend-x86_64-pc-windows-msvc.exe
+cp backend/dist/zenith-backend desktop/src-tauri/binaries/zenith-backend-aarch64-apple-darwin
+# Linux x86_64:  zenith-backend-x86_64-unknown-linux-gnu
+# Windows:       zenith-backend-x86_64-pc-windows-msvc.exe
 ```
 
 (Find your triple with `rustc -vV | grep host`.)
