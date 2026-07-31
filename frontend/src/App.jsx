@@ -1255,7 +1255,7 @@ export default function App() {
           />
           {messages.length === 0 && (
             <div className="empty-state">
-              <div className="empty-state-mark" />
+              <img className="empty-state-mark" src="/icon-192.png" alt="" />
               <h2>Everything runs on your machine.</h2>
               <p>
                 Type, drop an image, upload a document, or hold the mic — Zenith reads
