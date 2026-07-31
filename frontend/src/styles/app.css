@@ -762,6 +762,33 @@
   margin-top: 1px;
 }
 
+/* ============ Mode-dependent visual language: agent runs read as a
+   build log, not a chat bubble — monospace, left rail, no rounded
+   "said something" chrome. Prose (if any) still renders above it. ============ */
+.msg-bubble-agent {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-hairline);
+  border-left: 2px solid var(--signal-tool, var(--signal, #d97757));
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.build-log {
+  margin: var(--space-1) 0;
+}
+.build-log-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-2);
+}
+.build-log .tool-calls {
+  margin: 0;
+}
+
 /* ============ Agent tool-call cards ============ */
 .tool-calls {
   display: flex;
