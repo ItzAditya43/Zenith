@@ -477,6 +477,28 @@ def _tool_calls_run_id_column(conn: sqlite3.Connection) -> None:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_tool_calls_run ON tool_calls(run_id)")
 
 
+def _usage_events_table(conn: sqlite3.Connection) -> None:
+    """One row per completed chat turn — model, token count (SSE token-chunk
+    count, same methodology the live status-rail tok/s already uses
+    client-side, just persisted server-side so it survives past one
+    session), and timing. Powers the usage/diagnostics dashboard: token
+    throughput and latency trends over time, not just a live snapshot."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS usage_events (
+            id TEXT PRIMARY KEY,
+            model TEXT NOT NULL,
+            role TEXT,
+            token_count INTEGER NOT NULL,
+            duration_ms INTEGER NOT NULL,
+            first_token_ms INTEGER,
+            created_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_usage_events_created ON usage_events(created_at);
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -520,6 +542,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (20, "research_reports_table", _research_reports_table),
     (21, "group_chat_column", _group_chat_column),
     (22, "tool_calls_run_id_column", _tool_calls_run_id_column),
+    (23, "usage_events_table", _usage_events_table),
 ]
 
 
