@@ -77,6 +77,25 @@
   background: var(--bg-panel-raised);
   color: var(--text-primary);
 }
+.icon-btn.is-active {
+  color: var(--signal-general);
+  background: var(--signal-general-dim);
+}
+
+/* Header icon clusters — grouped into one pill instead of N separate
+   bordered buttons, so the header reads as a designed control, not an
+   enumerated toolbar. */
+.header-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  background: var(--bg-inset);
+  border-radius: var(--radius-full);
+}
+.header-tool-group .icon-btn {
+  border-radius: var(--radius-full);
+}
 
 .new-chat-btn {
   display: flex;
@@ -85,20 +104,26 @@
   justify-content: center;
   padding: var(--space-3);
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-soft);
-  color: var(--text-primary);
+  border: none;
+  background: var(--signal-general);
+  color: var(--text-on-accent);
   font-size: var(--text-sm);
-  font-weight: 500;
+  font-weight: 600;
   margin-bottom: var(--space-4);
-  transition: border-color var(--dur-fast), background var(--dur-fast);
+  box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--signal-general) 45%, transparent);
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast), filter var(--dur-fast);
 }
 .new-chat-btn:hover {
-  background: var(--bg-panel-raised);
-  border-color: var(--signal-general);
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px -2px color-mix(in srgb, var(--signal-general) 55%, transparent);
+}
+.new-chat-btn:active {
+  transform: translateY(0);
 }
 .new-chat-plus {
   font-size: 1.1em;
-  color: var(--signal-general);
+  color: var(--text-on-accent);
 }
 
 .conversation-list {
@@ -115,10 +140,11 @@
   margin: 0 0 var(--space-1);
   padding: 0 var(--space-3);
   font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
   color: var(--text-tertiary);
+  opacity: 0.75;
 }
 .conversation-item {
   display: flex;
@@ -127,10 +153,11 @@
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
+  border-left: 2px solid transparent;
   cursor: pointer;
   color: var(--text-secondary);
   font-size: var(--text-sm);
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
 }
 .conversation-item:hover {
   background: var(--bg-panel-raised);
@@ -139,6 +166,7 @@
 .conversation-item-active {
   background: var(--signal-general-dim);
   color: var(--text-primary);
+  border-left-color: var(--signal-general);
 }
 .conversation-title {
   overflow: hidden;
@@ -1178,17 +1206,21 @@
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   background: var(--signal-general);
   color: var(--text-on-accent);
   font-size: 1em;
-  transition: opacity var(--dur-fast), transform var(--dur-fast);
+  box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--signal-general) 50%, transparent);
+  transition: opacity var(--dur-fast), transform var(--dur-fast), box-shadow var(--dur-fast), filter var(--dur-fast);
 }
 .composer-send-btn:hover:not(:disabled) {
-  transform: scale(1.05);
+  transform: scale(1.06);
+  filter: brightness(1.06);
+  box-shadow: 0 4px 16px -2px color-mix(in srgb, var(--signal-general) 60%, transparent);
 }
 .composer-send-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
+  box-shadow: none;
   cursor: default;
 }
 
@@ -2924,14 +2956,28 @@
 }
 
 .model-override-picker {
-  max-width: 140px;
+  max-width: 130px;
+  height: 36px;
   font-size: var(--text-xs);
+  font-weight: 500;
   color: var(--text-secondary);
-  background: var(--bg-inset);
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-sm);
-  padding: 4px 6px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-2);
   flex-shrink: 0;
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.model-override-picker:hover,
+.model-override-picker:focus-visible {
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+  outline: none;
+}
+.model-override-picker.is-active {
+  color: var(--signal-general);
+  background: var(--signal-general-dim);
 }
 
 /* Usage dashboard bar charts */
