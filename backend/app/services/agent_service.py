@@ -1048,6 +1048,7 @@ async def run_agent_turn(
 
     client = OllamaClient()
     final_text: str | None = None
+    tool_seq: list[str] = []
 
     # Plan-first mode: the model drafts a plan, you approve it once, then it
     # executes the whole thing unattended (no per-tool-call gates). Distinct
@@ -1121,6 +1122,7 @@ async def run_agent_turn(
         risk = classify_risk(tool, args)
         diff, previous_content, had_previous_file = _preview_diff(tool, args, workdir)
         call_id = _log_call(conversation_id, tool, args, risk, diff, previous_content, had_previous_file)
+        tool_seq.append(tool)
         yield {"type": "tool_call", "id": call_id, "tool": tool, "args": args, "risk": risk, "diff": diff}
 
         needs_approval = effective_mode == "manual" or (effective_mode == "semi" and risk == "risky")
@@ -1208,6 +1210,15 @@ async def run_agent_turn(
     for chunk in re.findall(r"\S+\s*", final_text):
         yield {"type": "token", "text": chunk}
 
+    new_skill = None
+    if tool_seq:
+        signature = "|".join(tool_seq)
+        try:
+            new_skill = storage.record_skill_run(conversation_id, signature, tool_seq, user_text)
+        except Exception as exc:
+            log.warning("agent.skill_detection_failed", error=str(exc))
+
     yield {"type": "done", "full_text": final_text, "model": decision.model,
            "role": decision.role, "reason": decision.reason,
-           "parent_id": assistant_parent_id, "checkpointed": checkpointed}
+           "parent_id": assistant_parent_id, "checkpointed": checkpointed,
+           "new_skill": new_skill}

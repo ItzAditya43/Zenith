@@ -290,3 +290,27 @@ async def preview_route(text: str = "", has_image: bool = False, has_video: bool
         "reason": decision.reason,
         "confidence": decision.confidence,
     }
+
+@router.get("/skills")
+async def list_skills():
+    """Auto-detected + manually-saved reusable agent playbooks. See
+    storage.record_skill_run for the detection heuristic."""
+    from app.db import storage
+    return storage.list_skills()
+
+
+@router.post("/skills")
+async def create_skill(body: dict):
+    from app.db import storage
+    name = str(body.get("name", "")).strip()
+    prompt_template = str(body.get("prompt_template", "")).strip()
+    if not name or not prompt_template:
+        raise HTTPException(422, "name and prompt_template are required.")
+    return storage.save_skill_manual(name, prompt_template, str(body.get("description", "")))
+
+
+@router.delete("/skills/{skill_id}")
+async def remove_skill(skill_id: str):
+    from app.db import storage
+    storage.delete_skill(skill_id)
+    return {"ok": True}

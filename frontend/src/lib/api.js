@@ -220,6 +220,9 @@ export const api = {
       method: "DELETE",
     }).then((r) => r.json()),
 
+  listSkills: () => request("/api/skills").then((r) => r.json()),
+  deleteSkill: (id) => request(`/api/skills/${id}`, { method: "DELETE" }),
+
   listMemories: () => request("/api/memories").then((r) => r.json()),
   addMemory: (content, category = "fact") =>
     request("/api/memories", {
