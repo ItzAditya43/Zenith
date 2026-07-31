@@ -466,6 +466,17 @@ def _group_chat_column(conn: sqlite3.Connection) -> None:
         cur.execute("ALTER TABLE messages ADD COLUMN speaker_persona_id TEXT")
 
 
+def _tool_calls_run_id_column(conn: sqlite3.Connection) -> None:
+    """Groups every tool call made during one agent turn under a shared
+    `run_id` (the user message id that triggered the run) so a whole run's
+    file edits can be undone in one action, not just one file at a time."""
+    cur = conn.cursor()
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(tool_calls)").fetchall()]
+    if "run_id" not in cols:
+        cur.execute("ALTER TABLE tool_calls ADD COLUMN run_id TEXT")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tool_calls_run ON tool_calls(run_id)")
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -508,6 +519,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (19, "email_flags_table", _email_flags_table),
     (20, "research_reports_table", _research_reports_table),
     (21, "group_chat_column", _group_chat_column),
+    (22, "tool_calls_run_id_column", _tool_calls_run_id_column),
 ]
 
 

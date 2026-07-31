@@ -251,18 +251,18 @@ async def _await_approval(call_id: str, timeout: float) -> bool:
 def _log_call(
     conversation_id: str, tool: str, args: dict, risk: str,
     diff: str | None = None, previous_content: str | None = None,
-    had_previous_file: bool | None = None,
+    had_previous_file: bool | None = None, run_id: str | None = None,
 ) -> str:
     call_id = str(uuid.uuid4())
     with _conn() as conn:
         conn.execute(
             """INSERT INTO tool_calls
                (id, conversation_id, tool, args, risk, status, created_at,
-                diff, previous_content, had_previous_file)
-               VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
+                diff, previous_content, had_previous_file, run_id)
+               VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)""",
             (call_id, conversation_id, tool, json.dumps(args)[:MAX_ARG_LOG_CHARS], risk, time.time(),
              diff, previous_content,
-             None if had_previous_file is None else int(had_previous_file)),
+             None if had_previous_file is None else int(had_previous_file), run_id),
         )
     return call_id
 
@@ -325,6 +325,44 @@ def revert_tool_call(call_id: str) -> str:
     with _conn() as conn:
         conn.execute("UPDATE tool_calls SET status = 'reverted' WHERE id = ?", (call_id,))
     return msg
+
+
+def list_runs(conversation_id: str) -> list[dict]:
+    """Groups this conversation's tool calls by run_id (one agent turn) so
+    the UI can offer 'undo this whole run' instead of only one file at a
+    time. Runs with no revertible edits are omitted."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT run_id, MIN(created_at) AS started_at, COUNT(*) AS call_count,
+                      SUM(CASE WHEN tool IN ('edit_file','write_file') AND status = 'executed' THEN 1 ELSE 0 END) AS revertible_count
+               FROM tool_calls
+               WHERE conversation_id = ? AND run_id IS NOT NULL
+               GROUP BY run_id
+               ORDER BY started_at DESC""",
+            (conversation_id,),
+        ).fetchall()
+    return [dict(r) for r in rows if r["revertible_count"] > 0]
+
+
+def revert_run(run_id: str) -> list[str]:
+    """Undoes every file edit made during one agent run, most-recent-first
+    — so if step 3 depended on step 2's edit, unwinding in reverse order
+    restores each file to what it looked like right before this run
+    touched it, same end state as if the run never happened."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id FROM tool_calls
+               WHERE run_id = ? AND tool IN ('edit_file','write_file') AND status = 'executed'
+               ORDER BY created_at DESC""",
+            (run_id,),
+        ).fetchall()
+    messages = []
+    for row in rows:
+        try:
+            messages.append(revert_tool_call(row["id"]))
+        except AgentError as exc:
+            messages.append(f"Skipped: {exc}")
+    return messages
 
 
 def _preview_diff(tool: str, args: dict, workdir: str | None) -> tuple[str | None, str | None, bool | None]:
@@ -972,6 +1010,7 @@ async def run_agent_turn(
     user_text: str,
     attachment_ids: list[str],
     history_last_model: str | None = None,
+    model_override: str | None = None,
 ) -> AsyncIterator[dict]:
     """Async generator of structured events for the SSE layer to wrap:
     route, tool_call, tool_pending, tool_result, tool_denied, token, done,
@@ -996,10 +1035,16 @@ async def run_agent_turn(
     mcp_by_name = {t["agent_tool_name"]: t for t in mcp_tools}
 
     router = ModelRouter()
-    decision: RouteDecision = await router.decide(
-        text=user_text, has_image=ctx.has_image, has_video=ctx.has_video,
-        has_long_document=ctx.has_long_document, history_last_model=history_last_model,
-    )
+    if model_override:
+        decision = RouteDecision(
+            model=model_override, role="general", reason="Manually selected for this message.",
+            confidence=1.0,
+        )
+    else:
+        decision: RouteDecision = await router.decide(
+            text=user_text, has_image=ctx.has_image, has_video=ctx.has_video,
+            has_long_document=ctx.has_long_document, history_last_model=history_last_model,
+        )
     parent_for_user = storage.get_last_active_message_id(conversation_id)
     user_msg = storage.add_message(
         conversation_id, "user", user_text,
@@ -1123,7 +1168,7 @@ async def run_agent_turn(
 
         risk = classify_risk(tool, args)
         diff, previous_content, had_previous_file = _preview_diff(tool, args, workdir)
-        call_id = _log_call(conversation_id, tool, args, risk, diff, previous_content, had_previous_file)
+        call_id = _log_call(conversation_id, tool, args, risk, diff, previous_content, had_previous_file, run_id=assistant_parent_id)
         tool_seq.append(tool)
         yield {"type": "tool_call", "id": call_id, "tool": tool, "args": args, "risk": risk, "diff": diff}
 

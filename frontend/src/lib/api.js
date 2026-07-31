@@ -368,6 +368,7 @@ export const api = {
     request(`/api/agent/tool-calls/${id}/revert`, { method: "POST" }).then((r) => r.json()),
   listToolCalls: (conversationId) =>
     request(`/api/agent/tool-calls?conversation_id=${encodeURIComponent(conversationId)}`).then((r) => r.json()),
+  revertRun: (runId) => request(`/api/agent/runs/${runId}/revert`, { method: "POST" }).then((r) => r.json()),
 
   listModels: () => request("/api/models").then((r) => r.json()),
   pullModel: (name, onEvent) => streamSSE("/api/models/pull", { name }, onEvent),
