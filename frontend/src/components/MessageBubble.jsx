@@ -268,7 +268,9 @@ export default function MessageBubble({
   return (
     <div className={`msg-row ${isUser ? "msg-row-user" : "msg-row-assistant"}`}>
       <div
-        className={`msg-bubble ${isUser ? "msg-bubble-user" : "msg-bubble-assistant"}`}
+        className={`msg-bubble ${isUser ? "msg-bubble-user" : "msg-bubble-assistant"} ${
+          !isUser && message.toolCalls?.length > 0 ? "msg-bubble-agent" : ""
+        }`}
         data-role={!isUser ? message.route_role : undefined}
       >
         {!isUser && message.model && (
@@ -288,10 +290,18 @@ export default function MessageBubble({
         )}
 
         {!isUser && message.toolCalls?.length > 0 && (
-          <div className="tool-calls">
-            {message.toolCalls.map((call) => (
-              <ToolCallCard key={call.id} call={call} onApprove={onApproveTool} onDeny={onDenyTool} onRevert={onRevertTool} />
-            ))}
+          <div className="build-log">
+            <div className="build-log-header">
+              <Icon name="terminal" size={12} />
+              <span>
+                {message.toolCalls.length} step{message.toolCalls.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="tool-calls">
+              {message.toolCalls.map((call) => (
+                <ToolCallCard key={call.id} call={call} onApprove={onApproveTool} onDeny={onDenyTool} onRevert={onRevertTool} />
+              ))}
+            </div>
           </div>
         )}
 
