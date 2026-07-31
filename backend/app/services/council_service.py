@@ -49,7 +49,7 @@ async def run_council(
     ctx = await build_turn_context(attachment_ids)
     history = storage.get_messages(conversation_id)
     messages = _build_messages(history, user_text, ctx)
-    system_text = await _build_system_context(conversation_id, user_text)
+    system_text, _sys_citations = await _build_system_context(conversation_id, user_text)
     if system_text:
         messages.insert(0, {"role": "system", "content": system_text})
 

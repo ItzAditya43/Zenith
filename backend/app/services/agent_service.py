@@ -988,7 +988,7 @@ async def run_agent_turn(
 
     ctx = await build_turn_context(attachment_ids)
     history = storage.get_messages(conversation_id)
-    system_text = await _build_system_context(conversation_id, user_text)
+    system_text, _sys_citations = await _build_system_context(conversation_id, user_text)
     workdir = storage.get_conversation_workdir(conversation_id)
 
     from app.services import mcp_service

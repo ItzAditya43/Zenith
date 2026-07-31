@@ -384,18 +384,29 @@ export default function MessageBubble({
 
         {!isUser && message.sources?.length > 0 && (
           <div className="msg-sources">
-            {message.sources.map((s, i) => (
-              <a
-                key={s.url + i}
-                className="msg-source-chip"
-                href={s.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={s.url}
-              >
-                <Icon name="link" size={12} /> {s.title || s.url}
-              </a>
-            ))}
+            {message.sources.map((s, i) =>
+              s.url ? (
+                <a
+                  key={s.url + i}
+                  className="msg-source-chip"
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={s.url}
+                >
+                  <Icon name="link" size={12} /> {s.title || s.url}
+                </a>
+              ) : (
+                <span
+                  key={(s.source_id || "") + i}
+                  className="msg-source-chip msg-source-chip-recall"
+                  title={s.text}
+                >
+                  <Icon name={s.kind === "document" ? "file-text" : "layers"} size={12} />{" "}
+                  {s.kind === "document" ? s.source_id : s.kind === "folder" ? "watched folder" : "past conversation"}
+                </span>
+              )
+            )}
           </div>
         )}
 
