@@ -92,6 +92,8 @@ export default function Composer({
   imageAvailable = false,
   onError = () => {},
   seedText = null,
+  continuousVoice = false,
+  autoListenNonce = null,
 }) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState([]); // [{id, filename, kind, uploading}]
@@ -130,13 +132,27 @@ export default function Composer({
     setMicError(null);
     try {
       const result = await api.transcribe(blob);
-      setText((t) => (t ? `${t} ${result.text}` : result.text));
+      // Continuous mode is a hands-free loop: skip the "review before
+      // sending" step and go straight to send, same as a typed Enter.
+      if (continuousVoice && result.text?.trim()) {
+        onSend(result.text.trim(), [], null, false, false, false, null);
+      } else {
+        setText((t) => (t ? `${t} ${result.text}` : result.text));
+      }
     } catch (err) {
       setMicError(`Transcription failed: ${err.message}`);
     } finally {
       setTranscribing(false);
     }
   };
+
+  // Continuous voice mode: once the assistant's spoken reply finishes,
+  // App.jsx bumps this nonce to hand the mic back automatically.
+  useEffect(() => {
+    if (autoListenNonce == null || !continuousVoice) return;
+    setMicError(null);
+    start().catch(() => {});
+  }, [autoListenNonce]);
 
   const handleFiles = async (files) => {
     for (const file of files) {
