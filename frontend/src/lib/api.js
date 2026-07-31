@@ -240,6 +240,21 @@ export const api = {
       body: JSON.stringify({ to, subject, body, in_reply_to: inReplyTo }),
     }).then((r) => r.json()),
 
+  listTodos: () => request("/api/todos").then((r) => r.json()),
+  createTodo: (text, dueTs = null) =>
+    request("/api/todos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, due_ts: dueTs }),
+    }).then((r) => r.json()),
+  updateTodo: (id, patch) =>
+    request(`/api/todos/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then((r) => r.json()),
+  deleteTodo: (id) => request(`/api/todos/${id}`, { method: "DELETE" }),
+
   listNotes: () => request("/api/notes").then((r) => r.json()),
   createNote: (content, color = "default") =>
     request("/api/notes", {
