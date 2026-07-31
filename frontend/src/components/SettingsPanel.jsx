@@ -68,6 +68,7 @@ export default function SettingsPanel({
   const [emailDetail, setEmailDetail] = useState(null);
   const [emailDraft, setEmailDraft] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
+  const [emailResearch, setEmailResearch] = useState(null);
   const [personas, setPersonas] = useState([]);
   const [newPersonaName, setNewPersonaName] = useState("");
   const [newPersonaIcon, setNewPersonaIcon] = useState("");
@@ -440,8 +441,9 @@ export default function SettingsPanel({
   const draftEmailReply = async (id) => {
     setEmailBusy(true);
     try {
-      const { draft } = await api.emailDraftReply(id);
-      setEmailDraft(draft);
+      const result = await api.emailDraftReply(id);
+      setEmailDraft(result.draft);
+      setEmailResearch(result.research_query ? result : null);
     } catch (err) {
       setEmailMessagesError(err.message);
     } finally {
@@ -1115,6 +1117,13 @@ export default function SettingsPanel({
                                 </button>
                               </div>
                               {emailDetail.summary && <p className="setting-hint">{emailDetail.summary}</p>}
+                              {emailResearch && (
+                                <p className="setting-hint">
+                                  Researched "{emailResearch.research_query}" before drafting
+                                  {emailResearch.research_sources?.length > 0 &&
+                                    ` — ${emailResearch.research_sources.length} source(s) used.`}
+                                </p>
+                              )}
                               {emailDraft && (
                                 <>
                                   <textarea

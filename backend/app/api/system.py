@@ -369,8 +369,9 @@ async def email_summarize(message_id: str, folder: str = "INBOX"):
 async def email_draft_reply(message_id: str, body: dict, folder: str = "INBOX"):
     from app.services import email_service
     try:
-        draft = await email_service.draft_reply(message_id, body.get("instruction", ""), folder)
-        return {"draft": draft}
+        return await email_service.draft_reply(
+            message_id, body.get("instruction", ""), folder, body.get("auto_research", True)
+        )
     except email_service.EmailError as exc:
         raise HTTPException(400, str(exc))
 

@@ -175,7 +175,38 @@ async def summarize(message_id: str, folder: str = "INBOX") -> str:
     return await OllamaClient().chat(model, [{"role": "user", "content": prompt}])
 
 
-async def draft_reply(message_id: str, instruction: str = "", folder: str = "INBOX") -> str:
+async def _research_query_for(msg: dict) -> str | None:
+    """Asks the model whether this looks like a routine inquiry worth a
+    quick web search before drafting (e.g. "what's your return policy",
+    "when does X ship") — vs. something personal/contextual where a web
+    search would be noise. Returns a search query, or None."""
+    from app.services.ollama_client import OllamaClient
+    from app.services.router import ModelRegistry, ModelRouter
+
+    registry = ModelRegistry()
+    installed = await registry.models()
+    router = ModelRouter(registry=registry)
+    model = router._match_capability("small_fast", installed) or (installed[0] if installed else None)  # noqa: SLF001
+    if not model:
+        return None
+    prompt = (
+        "Does answering this email require looking up a factual/current-events "
+        "answer (e.g. a product spec, a policy, an address, a public fact)? If "
+        "yes, respond with ONLY a short web search query. If no (it's personal, "
+        "opinion-based, or answerable from context alone), respond with exactly: NONE\n\n"
+        f"Subject: {msg['subject']}\n\n{msg['body'][:1000]}"
+    )
+    out = (await OllamaClient().chat(model, [{"role": "user", "content": prompt}])).strip()
+    if not out or out.upper().startswith("NONE"):
+        return None
+    return out.strip('"')
+
+
+async def draft_reply(message_id: str, instruction: str = "", folder: str = "INBOX", auto_research: bool = True) -> dict:
+    """Returns {"draft": str, "research_query": str | None, "research_sources": [...]}
+    — a reply drafted directly from the email, optionally informed by a quick
+    web search when the message looks like a routine factual inquiry. The
+    draft is always returned for review; nothing here sends anything."""
     from app.services.ollama_client import OllamaClient
     from app.services.router import ModelRegistry, ModelRouter
 
@@ -186,13 +217,33 @@ async def draft_reply(message_id: str, instruction: str = "", folder: str = "INB
     model = router._match_capability("general", installed) or (installed[0] if installed else None)  # noqa: SLF001
     if not model:
         raise EmailError("No local model available to draft with.")
+
+    research_query = None
+    research_block = ""
+    sources: list[dict] = []
+    if auto_research and not instruction:
+        try:
+            research_query = await _research_query_for(msg)
+            if research_query:
+                from app.services import web_service
+                results = await web_service.search(research_query)
+                sources = results[:3]
+                if sources:
+                    research_block = "\n\nRelevant information found via web search:\n" + "\n".join(
+                        f"- {r.get('title', '')}: {r.get('snippet', '')}" for r in sources
+                    )
+        except Exception as exc:
+            log.warning("email.auto_research_failed", error=str(exc))
+
     prompt = (
         "Draft a reply to this email. Be concise and professional. "
         + (f"Additional instruction: {instruction}\n\n" if instruction else "\n")
-        + f"Original from: {msg['from']}\nSubject: {msg['subject']}\n\n{msg['body']}\n\n"
-        "Return ONLY the reply body text, no subject line, no signature placeholder."
+        + f"Original from: {msg['from']}\nSubject: {msg['subject']}\n\n{msg['body']}"
+        + research_block
+        + "\n\nReturn ONLY the reply body text, no subject line, no signature placeholder."
     )
-    return await OllamaClient().chat(model, [{"role": "user", "content": prompt}])
+    draft = await OllamaClient().chat(model, [{"role": "user", "content": prompt}])
+    return {"draft": draft, "research_query": research_query, "research_sources": sources}
 
 
 def send_message(to: str, subject: str, body: str, in_reply_to: str | None = None) -> None:
