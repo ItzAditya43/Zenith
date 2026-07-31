@@ -3,6 +3,7 @@ import ModelBadge from "./ModelBadge";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import RegenerationDiff from "./RegenerationDiff.jsx";
 
 const KIND_ICON = { image: "image", video: "video", document: "file-text", audio: "headphones" };
 const TOOL_ICON = {
@@ -158,6 +159,7 @@ function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
 }
 
 function BranchSwitcher({ siblings, activeId, onSwitch }) {
+  const [comparing, setComparing] = useState(false);
   if (!siblings || siblings.length < 2) return null;
   const idx = siblings.findIndex((s) => s.id === activeId);
   const pos = idx >= 0 ? idx : 0;
@@ -166,17 +168,30 @@ function BranchSwitcher({ siblings, activeId, onSwitch }) {
     onSwitch?.(next.id);
   };
   return (
-    <div className="branch-switcher">
-      <button onClick={() => go(-1)} title="Previous version">
-        <Icon name="chevron-left" size={13} />
-      </button>
-      <span>
-        {pos + 1}/{siblings.length}
-      </span>
-      <button onClick={() => go(1)} title="Next version">
-        <Icon name="chevron-right" size={13} />
-      </button>
-    </div>
+    <>
+      <div className="branch-switcher">
+        <button onClick={() => go(-1)} title="Previous version">
+          <Icon name="chevron-left" size={13} />
+        </button>
+        <span>
+          {pos + 1}/{siblings.length}
+        </span>
+        <button onClick={() => go(1)} title="Next version">
+          <Icon name="chevron-right" size={13} />
+        </button>
+        <button onClick={() => setComparing(true)} title="Compare versions side by side" className="branch-switcher-compare">
+          <Icon name="layers" size={12} />
+        </button>
+      </div>
+      {comparing && (
+        <RegenerationDiff
+          siblings={siblings}
+          initialLeftId={siblings[Math.max(0, pos - 1)].id}
+          initialRightId={activeId}
+          onClose={() => setComparing(false)}
+        />
+      )}
+    </>
   );
 }
 
