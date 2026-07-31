@@ -2,21 +2,24 @@
   Cortex design tokens.
 
   Direction: "a local nervous system" — not a generic dark-mode SaaS chat.
-  Base is a graphite-indigo void (not pure black), because the whole product's
-  pitch is "your own compute, your own models" — it should feel like an
-  instrument panel, not a website. Accent colors map 1:1 to the router's
-  capability buckets, so color becomes information: the user learns to read
-  "teal = general text", "violet = vision", "amber = voice/audio",
-  "coral = code" at a glance, across the badge, the ambient background, and
-  the composer state — one system, reused everywhere instead of decorative.
+  Eight full themes, each a complete re-skin (surface, text, signal colors,
+  fonts, radius, shadow) rather than a single dark/light binary with an
+  accent-color layer on top. Every theme keeps the same *meaning* for the
+  five signal colors (teal-ish=general, violet-ish=vision, coral-ish=code,
+  amber-ish=voice, sky-ish=reasoning) so the "color = information" system
+  still works, but each theme is free to tune hue/brightness/saturation to
+  fit its own mood — that's what makes eight different palettes feel
+  intentional instead of one skin with a hue-rotate filter.
 
-  A parallel [data-theme="light"] block re-skins the same token names so the
-  whole UI flips between dark and light from a single source of truth. The
-  toggle in App.jsx flips data-theme on <html>.
+  Fonts are self-hosted (see main.jsx) — no CDN calls, consistent with the
+  rest of the app staying fully local.
+
+  App.jsx sets [data-theme="..."] on <html>. :root holds the default theme
+  (Midnight Glass) so anything not yet re-themed still renders correctly.
 */
 
 :root {
-  /* Surface */
+  /* ===== Midnight Glass (default) ===== */
   --bg-void: #0a0c12;
   --bg-base: #0d1017;
   --bg-panel: #12151f;
@@ -25,25 +28,20 @@
   --border-hairline: rgba(148, 163, 184, 0.09);
   --border-soft: rgba(148, 163, 184, 0.16);
 
-  /* Glass (sidebar / settings / floating surfaces) */
   --glass-bg: rgba(18, 21, 31, 0.72);
   --glass-border: rgba(148, 163, 184, 0.16);
   --glass-blur: 22px;
 
-  /* Text — kept just short of pure white against the near-black base;
-     max contrast reads harsher and is more fatiguing over long sessions
-     than a slightly softened value at the same apparent brightness. */
   --text-primary: #dde1ea;
   --text-secondary: #9aa3b8;
   --text-tertiary: #626b81;
   --text-on-accent: #06090f;
 
-  /* Signal colors — one per router capability bucket */
-  --signal-general: #4dd9c0;   /* teal    */
-  --signal-vision: #8b7fe8;    /* violet  */
-  --signal-code: #ef8b6f;      /* coral   */
-  --signal-voice: #e8b23d;     /* amber   */
-  --signal-reasoning: #6fb1ef; /* sky     */
+  --signal-general: #4dd9c0;
+  --signal-vision: #8b7fe8;
+  --signal-code: #ef8b6f;
+  --signal-voice: #e8b23d;
+  --signal-reasoning: #6fb1ef;
   --signal-danger: #ef6f6f;
 
   --signal-general-dim: rgba(77, 217, 192, 0.14);
@@ -52,7 +50,6 @@
   --signal-voice-dim: rgba(232, 178, 61, 0.14);
   --signal-reasoning-dim: rgba(111, 177, 239, 0.14);
 
-  /* Type */
   --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -64,7 +61,6 @@
   --text-lg: 1.375rem;
   --text-xl: 1.875rem;
 
-  /* Space */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -73,14 +69,12 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  /* Radius — soft but not pill-shaped; instrument-panel rather than bubbly */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
   --radius-xl: 24px;
   --radius-full: 999px;
 
-  /* Motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --dur-fast: 120ms;
@@ -91,81 +85,351 @@
   --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.45);
   --shadow-glow: 0 0 0 1px var(--border-soft), 0 8px 30px rgba(0, 0, 0, 0.35);
 
-  /* Static background depth (replaces the old animated particle field) */
   --bg-glow-1: rgba(77, 217, 192, 0.05);
   --bg-glow-2: rgba(139, 127, 232, 0.045);
 }
 
-/* ============ Light theme ============
-   Re-maps the same token names to a luminous, paper-like palette so every
-   component that reads tokens re-skins automatically — no per-component
-   overrides needed. */
-[data-theme="light"] {
-  --bg-void: #e7ebf2;
-  --bg-base: #f3f5fa;
-  --bg-panel: #ffffff;
-  --bg-panel-raised: #eef1f7;
-  --bg-inset: #f1f4f9;
-  --border-hairline: rgba(15, 23, 42, 0.07);
-  --border-soft: rgba(15, 23, 42, 0.12);
+/* ===== Terminal Noir — green-on-black CRT, sharp corners, monospace-first ===== */
+[data-theme="terminal-noir"] {
+  --bg-void: #030503;
+  --bg-base: #050805;
+  --bg-panel: #081008;
+  --bg-panel-raised: #0c150c;
+  --bg-inset: #040604;
+  --border-hairline: rgba(88, 255, 138, 0.1);
+  --border-soft: rgba(88, 255, 138, 0.22);
 
-  --glass-bg: rgba(255, 255, 255, 0.74);
-  --glass-border: rgba(15, 23, 42, 0.10);
+  --glass-bg: rgba(5, 10, 5, 0.8);
+  --glass-border: rgba(88, 255, 138, 0.18);
+  --glass-blur: 10px;
+
+  --text-primary: #b8ffce;
+  --text-secondary: #6fcf8e;
+  --text-tertiary: #3a7a4f;
+  --text-on-accent: #030503;
+
+  --signal-general: #58ff8a;
+  --signal-vision: #7dffc4;
+  --signal-code: #a6ff6f;
+  --signal-voice: #d9ff5c;
+  --signal-reasoning: #5cffd6;
+  --signal-danger: #ff6f6f;
+
+  --signal-general-dim: rgba(88, 255, 138, 0.14);
+  --signal-vision-dim: rgba(125, 255, 196, 0.14);
+  --signal-code-dim: rgba(166, 255, 111, 0.14);
+  --signal-voice-dim: rgba(217, 255, 92, 0.14);
+  --signal-reasoning-dim: rgba(92, 255, 214, 0.14);
+
+  --font-display: "JetBrains Mono", ui-monospace, monospace;
+  --font-body: "JetBrains Mono", ui-monospace, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+
+  --shadow-panel: 0 4px 16px rgba(0, 0, 0, 0.6);
+  --shadow-float: 0 12px 36px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 0 1px var(--border-soft), 0 0 24px rgba(88, 255, 138, 0.08);
+
+  --bg-glow-1: rgba(88, 255, 138, 0.04);
+  --bg-glow-2: rgba(88, 255, 138, 0.02);
+}
+
+/* ===== Command Center — navy instrument panel, cyan accent ===== */
+[data-theme="command-center"] {
+  --bg-void: #05080c;
+  --bg-base: #070b10;
+  --bg-panel: #0b1319;
+  --bg-panel-raised: #0e1822;
+  --bg-inset: #060a0e;
+  --border-hairline: rgba(0, 217, 255, 0.09);
+  --border-soft: rgba(0, 217, 255, 0.2);
+
+  --glass-bg: rgba(9, 15, 20, 0.78);
+  --glass-border: rgba(0, 217, 255, 0.16);
   --glass-blur: 18px;
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #94a3b8;
-  --text-on-accent: #06121a;
+  --text-primary: #d6e4ec;
+  --text-secondary: #7f97a6;
+  --text-tertiary: #4a5f6c;
+  --text-on-accent: #04141a;
 
-  --signal-general: #0fb89c;
+  --signal-general: #00d9ff;
+  --signal-vision: #7fa8ff;
+  --signal-code: #ff9d6f;
+  --signal-voice: #ffcf5c;
+  --signal-reasoning: #5cc8ff;
+  --signal-danger: #ff6f6f;
+
+  --signal-general-dim: rgba(0, 217, 255, 0.14);
+  --signal-vision-dim: rgba(127, 168, 255, 0.14);
+  --signal-code-dim: rgba(255, 157, 111, 0.14);
+  --signal-voice-dim: rgba(255, 207, 92, 0.14);
+  --signal-reasoning-dim: rgba(92, 200, 255, 0.14);
+
+  --font-display: "JetBrains Mono", ui-monospace, monospace;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --shadow-panel: 0 8px 28px rgba(0, 0, 0, 0.5);
+  --shadow-float: 0 16px 44px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 0 1px var(--border-soft), 0 0 20px rgba(0, 217, 255, 0.1);
+
+  --bg-glow-1: rgba(0, 217, 255, 0.045);
+  --bg-glow-2: rgba(127, 168, 255, 0.035);
+}
+
+/* ===== Deep Space — starfield-dark, violet accent ===== */
+[data-theme="deep-space"] {
+  --bg-void: #030308;
+  --bg-base: #05050c;
+  --bg-panel: #0a0a16;
+  --bg-panel-raised: #0f0f1e;
+  --bg-inset: #04040a;
+  --border-hairline: rgba(255, 255, 255, 0.06);
+  --border-soft: rgba(255, 255, 255, 0.1);
+
+  --glass-bg: rgba(8, 8, 16, 0.76);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-blur: 22px;
+
+  --text-primary: #e8e6ff;
+  --text-secondary: #9793c2;
+  --text-tertiary: #5a5680;
+  --text-on-accent: #06060f;
+
+  --signal-general: #7b6cff;
+  --signal-vision: #b48cff;
+  --signal-code: #ff8f9d;
+  --signal-voice: #ffce6f;
+  --signal-reasoning: #6fa8ff;
+  --signal-danger: #ff6f6f;
+
+  --signal-general-dim: rgba(123, 108, 255, 0.16);
+  --signal-vision-dim: rgba(180, 140, 255, 0.14);
+  --signal-code-dim: rgba(255, 143, 157, 0.14);
+  --signal-voice-dim: rgba(255, 206, 111, 0.14);
+  --signal-reasoning-dim: rgba(111, 168, 255, 0.14);
+
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-float: 0 20px 56px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 0 1px var(--border-soft), 0 0 28px rgba(123, 108, 255, 0.14);
+
+  --bg-glow-1: rgba(123, 108, 255, 0.06);
+  --bg-glow-2: rgba(111, 168, 255, 0.04);
+}
+
+/* ===== Brutalist Mono — stark light, hard edges, condensed display type ===== */
+[data-theme="brutalist-mono"] {
+  --bg-void: #e8e8e4;
+  --bg-base: #f2f2f0;
+  --bg-panel: #ffffff;
+  --bg-panel-raised: #f7f7f5;
+  --bg-inset: #ebebe8;
+  --border-hairline: #0a0a0a;
+  --border-soft: #0a0a0a;
+
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: #0a0a0a;
+  --glass-blur: 0px;
+
+  --text-primary: #0a0a0a;
+  --text-secondary: #3d3d3d;
+  --text-tertiary: #6b6b6b;
+  --text-on-accent: #f2f2f0;
+
+  --signal-general: #0a0a0a;
+  --signal-vision: #4b3fd6;
+  --signal-code: #c0432a;
+  --signal-voice: #a67c00;
+  --signal-reasoning: #1c5fa8;
+  --signal-danger: #c0432a;
+
+  --signal-general-dim: rgba(10, 10, 10, 0.08);
+  --signal-vision-dim: rgba(75, 63, 214, 0.1);
+  --signal-code-dim: rgba(192, 67, 42, 0.1);
+  --signal-voice-dim: rgba(166, 124, 0, 0.1);
+  --signal-reasoning-dim: rgba(28, 95, 168, 0.1);
+
+  --font-display: "Bebas Neue", "Space Grotesk", sans-serif;
+  --font-body: "IBM Plex Mono", ui-monospace, monospace;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+
+  --shadow-panel: none;
+  --shadow-float: 4px 4px 0 #0a0a0a;
+  --shadow-glow: 0 0 0 2px #0a0a0a;
+
+  --bg-glow-1: transparent;
+  --bg-glow-2: transparent;
+}
+
+/* ===== Zen Minimal — quiet, restrained, near-white ===== */
+[data-theme="zen-minimal"] {
+  --bg-void: #f2f2f2;
+  --bg-base: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-panel-raised: #f7f7f7;
+  --bg-inset: #f7f7f7;
+  --border-hairline: rgba(0, 0, 0, 0.06);
+  --border-soft: rgba(0, 0, 0, 0.1);
+
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-blur: 16px;
+
+  --text-primary: #1c1c1c;
+  --text-secondary: #63636b;
+  --text-tertiary: #a0a0a0;
+  --text-on-accent: #ffffff;
+
+  --signal-general: #1c1c1c;
   --signal-vision: #6d5fe0;
-  --signal-code: #e2643f;
-  --signal-voice: #c98a14;
-  --signal-reasoning: #2f86d6;
+  --signal-code: #d2643f;
+  --signal-voice: #b98a14;
+  --signal-reasoning: #2f7ed6;
   --signal-danger: #d64545;
 
-  --signal-general-dim: rgba(15, 184, 156, 0.12);
-  --signal-vision-dim: rgba(109, 95, 224, 0.12);
-  --signal-code-dim: rgba(226, 100, 63, 0.12);
-  --signal-voice-dim: rgba(201, 138, 20, 0.14);
-  --signal-reasoning-dim: rgba(47, 134, 214, 0.12);
+  --signal-general-dim: rgba(28, 28, 28, 0.06);
+  --signal-vision-dim: rgba(109, 95, 224, 0.1);
+  --signal-code-dim: rgba(210, 100, 63, 0.1);
+  --signal-voice-dim: rgba(185, 138, 20, 0.1);
+  --signal-reasoning-dim: rgba(47, 126, 214, 0.1);
 
-  --shadow-panel: 0 8px 32px rgba(15, 23, 42, 0.08);
-  --shadow-float: 0 24px 60px rgba(15, 23, 42, 0.14);
-  --shadow-glow: 0 0 0 1px var(--border-soft), 0 10px 30px rgba(15, 23, 42, 0.10);
+  --font-display: "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  --bg-glow-1: rgba(15, 184, 156, 0.05);
-  --bg-glow-2: rgba(109, 95, 224, 0.045);
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  --shadow-panel: 0 2px 12px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 0 1px var(--border-soft), 0 4px 16px rgba(0, 0, 0, 0.05);
+
+  --bg-glow-1: transparent;
+  --bg-glow-2: transparent;
 }
 
-/*
-  Accent themes. The primary accent (--signal-general, the de-facto brand
-  color used on the mark, primary buttons, cursors and the "general"
-  capability) can be re-hued without disturbing the other capability
-  signals. These blocks come after [data-theme="light"] so they win for the
-  tokens they touch in both light and dark — App.jsx sets data-accent on
-  <html> exactly like data-theme. "teal" is the default and needs no block.
-*/
-[data-accent="violet"] {
-  --signal-general: #8b7fe8;
-  --signal-general-dim: rgba(139, 127, 232, 0.14);
-  --bg-glow-1: rgba(139, 127, 232, 0.06);
+/* ===== Cyber Grid — magenta/cyan, loud, gridded ===== */
+[data-theme="cyber-grid"] {
+  --bg-void: #050308;
+  --bg-base: #08060f;
+  --bg-panel: #0e0a17;
+  --bg-panel-raised: #140e20;
+  --bg-inset: #06040b;
+  --border-hairline: rgba(255, 0, 229, 0.16);
+  --border-soft: rgba(0, 255, 247, 0.22);
+
+  --glass-bg: rgba(10, 6, 16, 0.78);
+  --glass-border: rgba(255, 46, 209, 0.2);
+  --glass-blur: 14px;
+
+  --text-primary: #f0e9ff;
+  --text-secondary: #a996c9;
+  --text-tertiary: #6a5f8c;
+  --text-on-accent: #08060f;
+
+  --signal-general: #00fff7;
+  --signal-vision: #d16fff;
+  --signal-code: #ff9d5c;
+  --signal-voice: #ffe65c;
+  --signal-reasoning: #5c9dff;
+  --signal-danger: #ff2ed1;
+
+  --signal-general-dim: rgba(0, 255, 247, 0.14);
+  --signal-vision-dim: rgba(209, 111, 255, 0.14);
+  --signal-code-dim: rgba(255, 157, 92, 0.14);
+  --signal-voice-dim: rgba(255, 230, 92, 0.14);
+  --signal-reasoning-dim: rgba(92, 157, 255, 0.14);
+
+  --font-display: "Space Grotesk", "Inter", sans-serif;
+  --font-body: "JetBrains Mono", ui-monospace, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --shadow-panel: 0 8px 28px rgba(0, 0, 0, 0.55);
+  --shadow-float: 0 16px 44px rgba(255, 46, 209, 0.12);
+  --shadow-glow: 0 0 0 1px var(--border-soft), 0 0 26px rgba(0, 255, 247, 0.12);
+
+  --bg-glow-1: rgba(255, 46, 209, 0.05);
+  --bg-glow-2: rgba(0, 255, 247, 0.045);
 }
-[data-accent="amber"] {
-  --signal-general: #e8b23d;
-  --signal-general-dim: rgba(232, 178, 61, 0.14);
-  --bg-glow-1: rgba(232, 178, 61, 0.06);
-}
-[data-accent="rose"] {
-  --signal-general: #ef6f9f;
-  --signal-general-dim: rgba(239, 111, 159, 0.14);
-  --bg-glow-1: rgba(239, 111, 159, 0.06);
-}
-[data-accent="sky"] {
-  --signal-general: #6fb1ef;
-  --signal-general-dim: rgba(111, 177, 239, 0.14);
-  --bg-glow-1: rgba(111, 177, 239, 0.06);
+
+/* ===== Slate — neutral dark, no glow, no signature effect ===== */
+[data-theme="slate"] {
+  --bg-void: #0e0f12;
+  --bg-base: #121316;
+  --bg-panel: #17181c;
+  --bg-panel-raised: #1c1e23;
+  --bg-inset: #101114;
+  --border-hairline: rgba(255, 255, 255, 0.07);
+  --border-soft: rgba(255, 255, 255, 0.12);
+
+  --glass-bg: rgba(23, 24, 28, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-blur: 16px;
+
+  --text-primary: #e4e5e8;
+  --text-secondary: #97999f;
+  --text-tertiary: #616369;
+  --text-on-accent: #0e0f12;
+
+  --signal-general: #8f97a3;
+  --signal-vision: #9c93d9;
+  --signal-code: #d8917a;
+  --signal-voice: #cbaa5c;
+  --signal-reasoning: #7fa3c9;
+  --signal-danger: #d67f7f;
+
+  --signal-general-dim: rgba(143, 151, 163, 0.14);
+  --signal-vision-dim: rgba(156, 147, 217, 0.14);
+  --signal-code-dim: rgba(216, 145, 122, 0.14);
+  --signal-voice-dim: rgba(203, 170, 92, 0.14);
+  --signal-reasoning-dim: rgba(127, 163, 201, 0.14);
+
+  --font-display: "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  --shadow-panel: 0 6px 24px rgba(0, 0, 0, 0.4);
+  --shadow-float: 0 14px 40px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 0 1px var(--border-soft), 0 6px 20px rgba(0, 0, 0, 0.3);
+
+  --bg-glow-1: transparent;
+  --bg-glow-2: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {

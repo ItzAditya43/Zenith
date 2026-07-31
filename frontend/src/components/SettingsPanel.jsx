@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import { ANIMATIONS, THEME_ANIMATIONS } from "../lib/ambientAnimations";
+
+const THEMES = [
+  { id: "midnight-glass", name: "Midnight Glass", bg: "#12151f", fg: "#dde1ea", accent: "#4dd9c0", font: "'Space Grotesk', sans-serif" },
+  { id: "terminal-noir", name: "Terminal Noir", bg: "#081008", fg: "#b8ffce", accent: "#58ff8a", font: "'JetBrains Mono', monospace" },
+  { id: "command-center", name: "Command Center", bg: "#0b1319", fg: "#d6e4ec", accent: "#00d9ff", font: "'JetBrains Mono', monospace" },
+  { id: "deep-space", name: "Deep Space", bg: "#0a0a16", fg: "#e8e6ff", accent: "#7b6cff", font: "'Space Grotesk', sans-serif" },
+  { id: "brutalist-mono", name: "Brutalist Mono", bg: "#f2f2f0", fg: "#0a0a0a", accent: "#0a0a0a", font: "'IBM Plex Mono', monospace" },
+  { id: "zen-minimal", name: "Zen Minimal", bg: "#ffffff", fg: "#1c1c1c", accent: "#1c1c1c", font: "'Inter', sans-serif" },
+  { id: "cyber-grid", name: "Cyber Grid", bg: "#0e0a17", fg: "#f0e9ff", accent: "#00fff7", font: "'JetBrains Mono', monospace" },
+  { id: "slate", name: "Slate", bg: "#17181c", fg: "#e4e5e8", accent: "#8f97a3", font: "'Inter', sans-serif" },
+];
 
 const ROLES = ["general", "code", "vision", "reasoning", "small_fast", "embedding"];
 const ROLE_LABEL = {
@@ -38,8 +50,8 @@ export default function SettingsPanel({
   onVoiceReplyChange,
   density,
   onDensityChange,
-  accent,
-  onAccentChange,
+  ambientAnim,
+  onAmbientChange,
   notificationsEnabled,
   onNotificationsChange,
   onImported,
@@ -723,27 +735,55 @@ export default function SettingsPanel({
                   remembered on this device.
                 </p>
 
-                <div className="setting-row">
+                <div className="setting-row setting-row-stack">
                   <div className="setting-meta">
                     <span className="setting-label">Theme</span>
-                    <span className="setting-hint">Dark is easiest on the eyes at night.</span>
+                    <span className="setting-hint">
+                      Eight full re-skins — colors, fonts, shapes, shadows — not just a
+                      light/dark toggle.
+                    </span>
                   </div>
-                  <div className="theme-choice">
-                    {["dark", "light"].map((t) => (
+                  <div className="theme-grid">
+                    {THEMES.map((t) => (
                       <button
-                        key={t}
-                        className={`theme-choice-btn ${theme === t ? "is-selected" : ""}`}
-                        onClick={() => onThemeChange(t)}
-                        aria-pressed={theme === t}
+                        key={t.id}
+                        className={`theme-card ${theme === t.id ? "is-selected" : ""}`}
+                        onClick={() => onThemeChange(t.id)}
+                        aria-pressed={theme === t.id}
+                        style={{ background: t.bg, color: t.fg, fontFamily: t.font }}
                       >
-                        <span className={`theme-swatch theme-swatch-${t}`} aria-hidden="true" />
-                        <span className="theme-choice-label">
-                          {t === "dark" ? "Dark" : "Light"}
+                        <span className="theme-card-swatches">
+                          <span style={{ background: t.accent }} />
                         </span>
+                        <span className="theme-card-label">{t.name}</span>
                       </button>
                     ))}
                   </div>
                 </div>
+
+                {THEME_ANIMATIONS[theme]?.length > 0 && (
+                  <div className="setting-row">
+                    <div className="setting-meta">
+                      <span className="setting-label">Ambient background</span>
+                      <span className="setting-hint">
+                        A subtle animated layer behind the chat. Off by default; only shown
+                        for animations that fit this theme.
+                      </span>
+                    </div>
+                    <select
+                      className="settings-input"
+                      value={ambientAnim}
+                      onChange={(e) => onAmbientChange(e.target.value)}
+                    >
+                      <option value="none">None</option>
+                      {ANIMATIONS.filter((a) => THEME_ANIMATIONS[theme].includes(a.id)).map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="setting-row">
                   <div className="setting-meta">
@@ -781,33 +821,6 @@ export default function SettingsPanel({
                           {d === "comfortable" ? "Comfortable" : "Compact"}
                         </span>
                       </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="setting-row">
-                  <div className="setting-meta">
-                    <span className="setting-label">Accent color</span>
-                    <span className="setting-hint">
-                      Re-hues the primary accent — brand mark, buttons, cursors — across both themes.
-                    </span>
-                  </div>
-                  <div className="accent-choice">
-                    {[
-                      { id: "teal", color: "#4dd9c0" },
-                      { id: "violet", color: "#8b7fe8" },
-                      { id: "sky", color: "#6fb1ef" },
-                      { id: "amber", color: "#e8b23d" },
-                      { id: "rose", color: "#ef6f9f" },
-                    ].map((a) => (
-                      <button
-                        key={a.id}
-                        className={`accent-swatch ${accent === a.id ? "is-selected" : ""}`}
-                        style={{ background: a.color }}
-                        onClick={() => onAccentChange(a.id)}
-                        aria-pressed={accent === a.id}
-                        title={a.id[0].toUpperCase() + a.id.slice(1)}
-                      />
                     ))}
                   </div>
                 </div>
