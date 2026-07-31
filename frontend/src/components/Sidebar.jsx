@@ -60,12 +60,22 @@ export default function Sidebar({
   projects = [],
   onCreateProject = () => {},
   onCreateInProject = () => {},
+  onOpenNotes,
+  onOpenTodos,
+  onOpenCalendar,
+  onOpenResearch,
 }) {
   const showSearchResults = searchResults !== null;
   const convResults = showSearchResults ? searchResults.conversations || [] : conversations;
   const docResults = showSearchResults ? searchResults.documents || [] : [];
   const memResults = showSearchResults ? searchResults.memories || [] : [];
-  const totalResults = convResults.length + docResults.length + memResults.length;
+  const noteResults = showSearchResults ? searchResults.notes || [] : [];
+  const todoResults = showSearchResults ? searchResults.todos || [] : [];
+  const eventResults = showSearchResults ? searchResults.calendar_events || [] : [];
+  const researchResults = showSearchResults ? searchResults.research_reports || [] : [];
+  const totalResults =
+    convResults.length + docResults.length + memResults.length +
+    noteResults.length + todoResults.length + eventResults.length + researchResults.length;
   const unassigned = conversations.filter((c) => !c.project_id);
   const groups = showSearchResults || collapsed ? null : groupByDate(unassigned);
 
@@ -152,6 +162,70 @@ export default function Sidebar({
                   >
                     <Icon name="layers" size={14} />
                     <span className="search-result-text">{m.content}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {noteResults.length > 0 && (
+              <div className="conversation-group">
+                <p className="conversation-group-label">Notes</p>
+                {noteResults.map((n) => (
+                  <button
+                    key={n.id}
+                    className="search-result-item"
+                    onClick={() => onOpenNotes?.()}
+                    title={n.content}
+                  >
+                    <Icon name="pencil" size={14} />
+                    <span className="search-result-text">{n.content}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {todoResults.length > 0 && (
+              <div className="conversation-group">
+                <p className="conversation-group-label">To-dos</p>
+                {todoResults.map((t) => (
+                  <button
+                    key={t.id}
+                    className="search-result-item"
+                    onClick={() => onOpenTodos?.()}
+                    title={t.text}
+                  >
+                    <Icon name="check" size={14} />
+                    <span className="search-result-text">{t.text}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {eventResults.length > 0 && (
+              <div className="conversation-group">
+                <p className="conversation-group-label">Calendar</p>
+                {eventResults.map((e) => (
+                  <button
+                    key={e.id}
+                    className="search-result-item"
+                    onClick={() => onOpenCalendar?.()}
+                    title={e.title}
+                  >
+                    <Icon name="clock" size={14} />
+                    <span className="search-result-text">{e.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {researchResults.length > 0 && (
+              <div className="conversation-group">
+                <p className="conversation-group-label">Research</p>
+                {researchResults.map((r) => (
+                  <button
+                    key={r.id}
+                    className="search-result-item"
+                    onClick={() => onOpenResearch?.()}
+                    title={r.query}
+                  >
+                    <Icon name="flask" size={14} />
+                    <span className="search-result-text">{r.query}</span>
                   </button>
                 ))}
               </div>

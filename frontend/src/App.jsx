@@ -1023,6 +1023,10 @@ export default function App() {
           projects={projects}
           onCreateProject={handleCreateProject}
           onCreateInProject={handleCreate}
+          onOpenNotes={() => setNotesOpen(true)}
+          onOpenTodos={() => setTodosOpen(true)}
+          onOpenCalendar={() => setCalendarOpen(true)}
+          onOpenResearch={() => setResearchOpen(true)}
         />
       )}
 

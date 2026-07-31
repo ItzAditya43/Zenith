@@ -826,11 +826,66 @@ def search_memories(q: str) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def search_notes(q: str) -> list[dict]:
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, content, color, pinned FROM notes WHERE content LIKE ? ORDER BY updated_at DESC LIMIT 20",
+            (like,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_todos(q: str) -> list[dict]:
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, text, done, due_ts FROM todos WHERE text LIKE ? ORDER BY created_at DESC LIMIT 20",
+            (like,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_calendar_events(q: str) -> list[dict]:
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, title, description, start_ts FROM calendar_events
+               WHERE title LIKE ? OR description LIKE ? ORDER BY start_ts DESC LIMIT 20""",
+            (like, like),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_research_reports(q: str) -> list[dict]:
+    if not q or not q.strip():
+        return []
+    like = f"%{q.strip()}%"
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, query, answer, created_at FROM research_reports
+               WHERE query LIKE ? OR answer LIKE ? ORDER BY created_at DESC LIMIT 20""",
+            (like, like),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def search_all(q: str) -> dict:
     """Unified search: conversations (message content), documents (filename
-    + chunk text), and memories (content) in one call, grouped by kind."""
+    + chunk text), memories, notes, to-dos, calendar events, and research
+    reports — everything the sidebar search bar can jump you to, in one call."""
     return {
         "conversations": search_conversations(q),
         "documents": search_documents(q),
         "memories": search_memories(q),
+        "notes": search_notes(q),
+        "todos": search_todos(q),
+        "calendar_events": search_calendar_events(q),
+        "research_reports": search_research_reports(q),
     }
