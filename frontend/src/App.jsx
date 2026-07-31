@@ -15,6 +15,8 @@ import NotesPanel from "./components/NotesPanel.jsx";
 import TodoPanel from "./components/TodoPanel.jsx";
 import ResearchDashboard from "./components/ResearchDashboard.jsx";
 import GroupChatPicker from "./components/GroupChatPicker.jsx";
+import AmbientCanvas from "./components/AmbientCanvas.jsx";
+import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
 
@@ -44,10 +46,10 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [theme, setTheme] = useState(
-    () => localStorage.getItem("cortex-theme") || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+    () => localStorage.getItem("cortex-theme") || "midnight-glass"
   );
   const [density, setDensity] = useState(() => localStorage.getItem("cortex-density") || "comfortable");
-  const [accent, setAccent] = useState(() => localStorage.getItem("cortex-accent") || "teal");
+  const [ambientAnim, setAmbientAnim] = useState(() => localStorage.getItem("cortex-ambient") || "none");
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     () => localStorage.getItem("cortex-notifications") === "1"
   );
@@ -112,6 +114,11 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("cortex-theme", theme);
+    // An animation picked under a previous theme might not fit this one
+    // (e.g. Stars under Zen Minimal) — drop back to none rather than
+    // showing something that doesn't belong.
+    const allowed = THEME_ANIMATIONS[theme] || [];
+    setAmbientAnim((a) => (allowed.includes(a) ? a : "none"));
   }, [theme]);
 
   useEffect(() => {
@@ -120,9 +127,8 @@ export default function App() {
   }, [density]);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-accent", accent);
-    localStorage.setItem("cortex-accent", accent);
-  }, [accent]);
+    localStorage.setItem("cortex-ambient", ambientAnim);
+  }, [ambientAnim]);
 
   // Poll for background scheduled-task completions while notifications are on,
   // so an unattended schedule that runs while you're in another tab still
@@ -922,9 +928,9 @@ export default function App() {
       action: handleCreate,
     });
     list.push({
-      id: "toggle-theme", group: "Actions", icon: theme === "dark" ? "sun" : "moon",
-      label: theme === "dark" ? "Switch to light theme" : "Switch to dark theme",
-      action: () => setTheme((t) => (t === "dark" ? "light" : "dark")),
+      id: "open-appearance", group: "Actions", icon: "sun",
+      label: "Change theme",
+      action: () => openSettingsAt("appearance"),
     });
     list.push({
       id: "toggle-sidebar", group: "Actions", icon: "panel-left",
@@ -999,6 +1005,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${focusMode ? "app-shell-focus" : ""}`}>
+      <AmbientCanvas animationId={ambientAnim} />
       {!focusMode && (
         <Sidebar
           conversations={conversations}
@@ -1133,17 +1140,11 @@ export default function App() {
             )}
             {!focusMode && (
               <button
-                className={`theme-toggle ${theme === "light" ? "theme-toggle-light" : ""}`}
-                onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-                title="Toggle theme"
-                role="switch"
-                aria-checked={theme === "light"}
+                className="icon-btn"
+                onClick={() => openSettingsAt("appearance")}
+                title="Change theme"
               >
-                <span className="theme-toggle-track">
-                  <span className="theme-toggle-thumb">
-                    <Icon name={theme === "dark" ? "moon" : "sun"} size={12} />
-                  </span>
-                </span>
+                <Icon name="sun" size={16} />
               </button>
             )}
             {!focusMode && (
@@ -1324,8 +1325,8 @@ export default function App() {
           onVoiceReplyChange={setVoiceReplyEnabled}
           density={density}
           onDensityChange={setDensity}
-          accent={accent}
-          onAccentChange={setAccent}
+          ambientAnim={ambientAnim}
+          onAmbientChange={setAmbientAnim}
           notificationsEnabled={notificationsEnabled}
           onNotificationsChange={enableNotifications}
           onImported={() => { refreshConversations(); showToast("Import complete — conversations added.", "success"); }}
