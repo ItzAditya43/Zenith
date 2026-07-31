@@ -409,3 +409,34 @@ async def email_flags_mark_seen():
     from app.db import storage
     storage.mark_email_flags_seen()
     return {"ok": True}
+
+
+@router.get("/usage/summary")
+async def usage_summary(days: int = 14):
+    """Token throughput and latency trends over time, plus disk usage —
+    the "how has this actually been performing" view, distinct from the
+    live-only status rail."""
+    import shutil
+    from pathlib import Path
+    from app.core.config import data_dir, db_path
+    from app.db import storage
+
+    summary = storage.usage_summary(days)
+
+    disk = {}
+    try:
+        disk["free_gb"] = round(shutil.disk_usage("/").free / (1024 ** 3), 1)
+    except Exception:
+        disk["free_gb"] = None
+    try:
+        disk["db_size_mb"] = round(Path(db_path()).stat().st_size / (1024 ** 2), 1)
+    except Exception:
+        disk["db_size_mb"] = None
+    try:
+        total = sum(f.stat().st_size for f in Path(data_dir()).rglob("*") if f.is_file())
+        disk["data_dir_size_mb"] = round(total / (1024 ** 2), 1)
+    except Exception:
+        disk["data_dir_size_mb"] = None
+
+    summary["disk"] = disk
+    return summary

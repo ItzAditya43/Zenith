@@ -221,6 +221,7 @@ export const api = {
     }).then((r) => r.json()),
 
   hardwareReport: () => request("/api/hardware").then((r) => r.json()),
+  usageSummary: (days = 14) => request(`/api/usage/summary?days=${days}`).then((r) => r.json()),
 
   emailTest: () => request("/api/email/test").then((r) => r.json()),
   emailFlags: () => request("/api/email/flags").then((r) => r.json()),

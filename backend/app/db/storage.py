@@ -732,6 +732,52 @@ def get_group_personas(conversation_id: str) -> list[str]:
         return []
 
 
+def record_usage_event(
+    model: str, role: str | None, token_count: int, duration_ms: int, first_token_ms: int | None
+) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO usage_events (id, model, role, token_count, duration_ms, first_token_ms, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (str(uuid.uuid4()), model, role, token_count, duration_ms, first_token_ms, time.time()),
+        )
+
+
+def usage_summary(days: int = 14) -> dict:
+    """Aggregates usage_events into: overall totals, a per-model
+    breakdown, and a daily time series — token throughput and latency
+    trends, not just a live snapshot."""
+    since = time.time() - days * 86400
+    with _conn() as conn:
+        totals = conn.execute(
+            """SELECT COUNT(*) AS turns, COALESCE(SUM(token_count), 0) AS tokens,
+                      COALESCE(AVG(duration_ms), 0) AS avg_duration_ms,
+                      COALESCE(AVG(first_token_ms), 0) AS avg_first_token_ms
+               FROM usage_events WHERE created_at >= ?""",
+            (since,),
+        ).fetchone()
+        by_model = conn.execute(
+            """SELECT model, COUNT(*) AS turns, COALESCE(SUM(token_count), 0) AS tokens,
+                      COALESCE(AVG(duration_ms), 0) AS avg_duration_ms
+               FROM usage_events WHERE created_at >= ?
+               GROUP BY model ORDER BY turns DESC""",
+            (since,),
+        ).fetchall()
+        daily = conn.execute(
+            """SELECT date(created_at, 'unixepoch') AS day, COUNT(*) AS turns,
+                      COALESCE(SUM(token_count), 0) AS tokens,
+                      COALESCE(AVG(duration_ms), 0) AS avg_duration_ms
+               FROM usage_events WHERE created_at >= ?
+               GROUP BY day ORDER BY day ASC""",
+            (since,),
+        ).fetchall()
+    return {
+        "totals": dict(totals),
+        "by_model": [dict(r) for r in by_model],
+        "daily": [dict(r) for r in daily],
+    }
+
+
 def search_conversations(q: str) -> list[dict]:
     """Full-text search over message content. Returns distinct
     conversations with the matching snippet and message count. Uses
