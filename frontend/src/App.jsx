@@ -16,6 +16,8 @@ import TodoPanel from "./components/TodoPanel.jsx";
 import ResearchDashboard from "./components/ResearchDashboard.jsx";
 import GroupChatPicker from "./components/GroupChatPicker.jsx";
 import AmbientCanvas from "./components/AmbientCanvas.jsx";
+import OnboardingTour from "./components/OnboardingTour.jsx";
+import WhatsNewPanel from "./components/WhatsNewPanel.jsx";
 import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
@@ -68,6 +70,14 @@ export default function App() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(
+    () => !localStorage.getItem("cortex-onboarded")
+  );
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const dismissOnboarding = () => {
+    localStorage.setItem("cortex-onboarded", "1");
+    setOnboardingOpen(false);
+  };
   const [groupPersonaIds, setGroupPersonaIds] = useState([]);
   const [groupPickerOpen, setGroupPickerOpen] = useState(false);
   const [groupStreaming, setGroupStreaming] = useState(false);
@@ -933,6 +943,11 @@ export default function App() {
       action: () => openSettingsAt("appearance"),
     });
     list.push({
+      id: "whats-new", group: "Actions", icon: "bolt",
+      label: "What's new",
+      action: () => setWhatsNewOpen(true),
+    });
+    list.push({
       id: "toggle-sidebar", group: "Actions", icon: "panel-left",
       label: sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar",
       action: () => setSidebarCollapsed((v) => !v),
@@ -1176,6 +1191,8 @@ export default function App() {
           </div>
         </header>
 
+        {onboardingOpen && <OnboardingTour onClose={dismissOnboarding} />}
+        {whatsNewOpen && <WhatsNewPanel onClose={() => setWhatsNewOpen(false)} />}
         {calendarOpen && <CalendarPanel onClose={() => setCalendarOpen(false)} />}
         {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}
         {todosOpen && <TodoPanel onClose={() => setTodosOpen(false)} />}
