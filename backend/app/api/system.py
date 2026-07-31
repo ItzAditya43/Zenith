@@ -314,3 +314,16 @@ async def remove_skill(skill_id: str):
     from app.db import storage
     storage.delete_skill(skill_id)
     return {"ok": True}
+
+
+@router.get("/hardware")
+async def hardware_report():
+    """Detected CPU/RAM/GPU + a fit rating for installed models and a
+    small cookbook of recommended models sized to what this machine can
+    actually run. Heuristic, not a guarantee — see hardware_service."""
+    from app.services import hardware_service
+    from app.services.router import ModelRegistry
+
+    registry = ModelRegistry()
+    installed = await registry.models()
+    return hardware_service.score_models(installed)
