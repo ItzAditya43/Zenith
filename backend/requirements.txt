@@ -18,6 +18,10 @@ faster-whisper==1.1.1
 piper-tts==1.4.2
 pyttsx3==2.98
 aiofiles==24.1.0
+# Multi-device sync crypto (AES-GCM, scrypt, HKDF) — already pulled in
+# transitively before this pin; pinned explicitly now that sync_service
+# imports it directly.
+cryptography>=42.0.0
 python-magic==0.4.27
 beautifulsoup4==4.12.3
 lxml==5.3.0
