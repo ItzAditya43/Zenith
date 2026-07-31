@@ -2242,3 +2242,95 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Branch tree panel */
+.branch-tree-panel {
+  position: absolute;
+  top: 52px;
+  right: var(--space-4);
+  z-index: 25;
+  width: min(420px, calc(100vw - 2 * var(--space-4)));
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+.branch-tree-header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-panel);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.branch-tree-empty {
+  padding: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.branch-tree-list {
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.branch-tree-point {
+  display: flex;
+  gap: var(--space-2);
+}
+.branch-tree-stem {
+  width: 2px;
+  border-radius: 1px;
+  background: var(--border-hairline);
+  flex-shrink: 0;
+}
+.branch-tree-versions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+.branch-tree-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: left;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.branch-tree-chip:hover,
+.branch-tree-chip.is-hovered {
+  background: var(--bg-hover);
+}
+.branch-tree-chip.is-active {
+  border-color: var(--signal-general);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.branch-tree-chip-idx {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--signal-general);
+}
+.branch-tree-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.branch-tree-toggle.is-active {
+  color: var(--signal-general);
+}

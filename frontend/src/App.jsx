@@ -8,6 +8,7 @@ import ToastStack from "./components/ToastStack";
 import Icon from "./components/Icon.jsx";
 import LockScreen from "./components/LockScreen.jsx";
 import StatusRail from "./components/StatusRail.jsx";
+import BranchTree from "./components/BranchTree.jsx";
 import { api } from "./lib/api";
 
 export default function App() {
@@ -48,6 +49,7 @@ export default function App() {
   const [councilModels, setCouncilModels] = useState([]);
   const [personas, setPersonas] = useState([]);
   const [branches, setBranches] = useState({});
+  const [branchTreeOpen, setBranchTreeOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
@@ -944,6 +946,15 @@ export default function App() {
           <h1>{activeConversation?.title || "Cortex"}</h1>
           <StatusRail genStats={genStats} />
           <div className="header-actions">
+            {Object.values(branches).some((s) => s.length > 1) && (
+              <button
+                className={`icon-btn branch-tree-toggle ${branchTreeOpen ? "is-active" : ""}`}
+                onClick={() => setBranchTreeOpen((v) => !v)}
+                title="Branch tree — see and switch between alternate versions"
+              >
+                <Icon name="layers" size={16} />
+              </button>
+            )}
             <button
               className={`icon-btn focus-toggle-btn ${focusMode ? "is-active" : ""}`}
               onClick={() => setFocusMode((v) => !v)}
@@ -1006,6 +1017,18 @@ export default function App() {
             )}
           </div>
         </header>
+
+        {branchTreeOpen && (
+          <BranchTree
+            branches={branches}
+            messages={messages}
+            onSwitchBranch={(id) => {
+              handleSwitchBranch(id);
+              setBranchTreeOpen(false);
+            }}
+            onClose={() => setBranchTreeOpen(false)}
+          />
+        )}
 
         {connectionError && (
           <div className="banner-error">
