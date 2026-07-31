@@ -42,3 +42,16 @@ async def revert(call_id: str):
     except agent_service.AgentError as exc:
         raise HTTPException(400, str(exc))
     return {"ok": True, "message": message}
+
+
+@router.get("/runs")
+async def list_runs(conversation_id: str):
+    """Agent runs (one per user turn) that made at least one revertible
+    file edit — powers the 'undo this whole run' affordance."""
+    return agent_service.list_runs(conversation_id)
+
+
+@router.post("/runs/{run_id}/revert")
+async def revert_run(run_id: str):
+    messages = agent_service.revert_run(run_id)
+    return {"ok": True, "messages": messages}

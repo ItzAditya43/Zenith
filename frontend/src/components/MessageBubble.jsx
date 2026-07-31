@@ -250,9 +250,11 @@ export default function MessageBubble({
   onSwitchBranch,
   onOpenEditor,
   personas,
+  onRunReverted,
 }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+  const [undoingRun, setUndoingRun] = useState(false);
   const [shared, setShared] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(message.content || "");
@@ -333,6 +335,24 @@ export default function MessageBubble({
               <span>
                 {message.toolCalls.length} step{message.toolCalls.length === 1 ? "" : "s"}
               </span>
+              {message.toolCalls.some((c) => ["edit_file", "write_file"].includes(c.tool) && c.status === "done") && (
+                <button
+                  className="build-log-undo-all-btn"
+                  disabled={undoingRun}
+                  onClick={async () => {
+                    if (!window.confirm("Undo every file edit from this run?")) return;
+                    setUndoingRun(true);
+                    try {
+                      await api.revertRun(message.parent_id);
+                      onRunReverted?.();
+                    } finally {
+                      setUndoingRun(false);
+                    }
+                  }}
+                >
+                  {undoingRun ? "Undoing…" : "Undo whole run"}
+                </button>
+              )}
             </div>
             <div className="tool-calls">
               {message.toolCalls.map((call) => (

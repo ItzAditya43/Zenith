@@ -913,6 +913,22 @@
 .build-log .tool-calls {
   margin: 0;
 }
+.build-log-undo-all-btn {
+  margin-left: auto;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-hairline);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.build-log-undo-all-btn:hover {
+  color: var(--signal-danger);
+  border-color: var(--signal-danger);
+}
 
 /* ============ Agent tool-call cards ============ */
 .tool-calls {

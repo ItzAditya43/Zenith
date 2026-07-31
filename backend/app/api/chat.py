@@ -502,6 +502,7 @@ async def _agent_event_gen(body: ChatRequest, request: Request) -> AsyncIterator
         async for ev in agent_service.run_agent_turn(
             body.conversation_id, body.message, body.attachment_ids,
             history_last_model=history_last_model,
+            model_override=body.model_override,
         ):
             etype = ev.get("type")
             if etype == "done":

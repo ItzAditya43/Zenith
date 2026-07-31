@@ -1292,6 +1292,10 @@ export default function App() {
               onSwitchBranch={handleSwitchBranch}
               onDeleteMessage={handleDeleteMessage}
               onOpenEditor={(text, lang) => setOpenDoc({ text, lang })}
+              onRunReverted={() => {
+                showToast("Run undone — files restored.", "success");
+                selectConversation(activeId);
+              }}
               personas={personas}
             />
           ))}
