@@ -726,6 +726,9 @@ export default function App() {
           if (event.checkpointed) {
             showToast("Run paused at the step limit — send a message to continue.", "info", 6000);
           }
+          if (event.new_skill) {
+            showToast(`New skill saved: "${event.new_skill.name}" — find it in Settings → Skills.`, "info", 6000);
+          }
           setConversations((cs) =>
             cs.map((c) => (c.id === activeId ? { ...c, updated_at: Date.now() / 1000 } : c))
           );
@@ -1146,6 +1149,7 @@ export default function App() {
           notificationsEnabled={notificationsEnabled}
           onNotificationsChange={enableNotifications}
           onImported={() => { refreshConversations(); showToast("Import complete — conversations added.", "success"); }}
+          onUseSkill={(prompt) => setSeedText({ text: prompt, nonce: Date.now() })}
           initialSection={settingsInitialSection}
         />
       )}

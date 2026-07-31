@@ -353,6 +353,89 @@ def delete_message(conversation_id: str, message_id: str) -> int:
     return len(to_delete)
 
 
+def record_skill_run(
+    conversation_id: str, signature: str, tool_sequence: list[str], prompt_template: str
+) -> dict | None:
+    """Called once per completed agent turn with that turn's ordered tool-name
+    signature. The first time a signature is seen it's just noted; the second
+    time the exact same sequence recurs, it's auto-promoted into a saved
+    skill — that repetition is the signal a real reusable playbook exists.
+    Returns the newly-created skill dict, or None if nothing new was saved."""
+    with _conn() as conn:
+        existing = conn.execute("SELECT * FROM skills WHERE signature = ?", (signature,)).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE skills SET use_count = use_count + 1 WHERE signature = ?", (signature,)
+            )
+            return None
+        # Heuristic promotion: a distinctive (2+ step) sequence recurring at
+        # all is worth surfacing; single-tool sequences are too generic.
+        if len(tool_sequence) < 2:
+            return None
+        seen_before = conn.execute(
+            "SELECT value FROM schema_meta WHERE key = ?", (f"skillseen:{signature}",)
+        ).fetchone()
+        if not seen_before:
+            conn.execute(
+                "INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)",
+                (f"skillseen:{signature}", conversation_id),
+            )
+            return None
+        skill_id = str(uuid.uuid4())
+        name = " → ".join(tool_sequence[:4]) + ("…" if len(tool_sequence) > 4 else "")
+        now = time.time()
+        conn.execute(
+            """INSERT INTO skills
+               (id, name, description, signature, prompt_template, tool_sequence,
+                source_conversation_id, auto_detected, use_count, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1, 2, ?)""",
+            (skill_id, name, f"Auto-detected: repeats the {len(tool_sequence)}-step "
+             f"{'/'.join(tool_sequence)} sequence.", signature, prompt_template,
+             json.dumps(tool_sequence), conversation_id, now),
+        )
+        return {
+            "id": skill_id, "name": name, "signature": signature,
+            "prompt_template": prompt_template, "tool_sequence": tool_sequence,
+            "source_conversation_id": conversation_id, "auto_detected": 1,
+            "use_count": 2, "created_at": now,
+        }
+
+
+def list_skills() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute("SELECT * FROM skills ORDER BY use_count DESC, created_at DESC").fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["tool_sequence"] = json.loads(d["tool_sequence"])
+        out.append(d)
+    return out
+
+
+def delete_skill(skill_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM skills WHERE id = ?", (skill_id,))
+
+
+def save_skill_manual(name: str, prompt_template: str, description: str = "") -> dict:
+    with _conn() as conn:
+        skill_id = str(uuid.uuid4())
+        signature = f"manual:{skill_id}"
+        now = time.time()
+        conn.execute(
+            """INSERT INTO skills
+               (id, name, description, signature, prompt_template, tool_sequence,
+                source_conversation_id, auto_detected, use_count, created_at)
+               VALUES (?, ?, ?, ?, ?, '[]', NULL, 0, 0, ?)""",
+            (skill_id, name, description, signature, prompt_template, now),
+        )
+    return {
+        "id": skill_id, "name": name, "description": description, "signature": signature,
+        "prompt_template": prompt_template, "tool_sequence": [], "auto_detected": 0,
+        "use_count": 0, "created_at": now,
+    }
+
+
 def search_conversations(q: str) -> list[dict]:
     """Full-text search over message content. Returns distinct
     conversations with the matching snippet and message count. Uses

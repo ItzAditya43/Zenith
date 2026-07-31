@@ -305,6 +305,31 @@ def _agent_checkpoints_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _skills_table(conn: sqlite3.Connection) -> None:
+    """Reusable agent playbooks. Most are auto-detected: when the same
+    ordered sequence of tool names recurs across agent-mode turns, the
+    triggering prompt + tool sequence gets saved here so it can be
+    replayed as a starting template instead of the agent (and user)
+    re-deriving the same plan from scratch every time."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS skills (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            signature TEXT NOT NULL,
+            prompt_template TEXT NOT NULL,
+            tool_sequence TEXT NOT NULL,
+            source_conversation_id TEXT,
+            auto_detected INTEGER NOT NULL DEFAULT 1,
+            use_count INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_signature ON skills(signature);
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -339,6 +364,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (11, "conversation_workdir", _conversation_workdir),
     (12, "tool_call_diff_columns", _tool_call_diff_columns),
     (13, "agent_checkpoints_table", _agent_checkpoints_table),
+    (14, "skills_table", _skills_table),
 ]
 
 
