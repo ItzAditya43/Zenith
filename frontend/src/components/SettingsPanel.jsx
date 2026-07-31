@@ -19,6 +19,7 @@ const SECTIONS = [
   { id: "personas", label: "Personas", icon: "masks" },
   { id: "agent", label: "Agent tools", icon: "bot" },
   { id: "skills", label: "Skills", icon: "bolt" },
+  { id: "email", label: "Email", icon: "at-sign" },
   { id: "council", label: "Council", icon: "users" },
   { id: "routing", label: "Model routing", icon: "target" },
   { id: "models", label: "Installed models", icon: "grid" },
@@ -55,6 +56,18 @@ export default function SettingsPanel({
   const [skills, setSkills] = useState([]);
   const [skillsError, setSkillsError] = useState(null);
   const [hardware, setHardware] = useState(null);
+  const [emailForm, setEmailForm] = useState({
+    email_imap_host: "", email_imap_port: 993, email_smtp_host: "", email_smtp_port: 587,
+    email_username: "", email_password: "",
+  });
+  const [emailTestStatus, setEmailTestStatus] = useState(null);
+  const [emailTesting, setEmailTesting] = useState(false);
+  const [emailMessages, setEmailMessages] = useState([]);
+  const [emailMessagesError, setEmailMessagesError] = useState(null);
+  const [openEmailId, setOpenEmailId] = useState(null);
+  const [emailDetail, setEmailDetail] = useState(null);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
   const [personas, setPersonas] = useState([]);
   const [newPersonaName, setNewPersonaName] = useState("");
   const [newPersonaIcon, setNewPersonaIcon] = useState("");
@@ -158,6 +171,12 @@ export default function SettingsPanel({
       setHost(c.ollama_host);
       setSystemPrompt(c.system_prompt || "");
       setCheckCommand(c.agent_check_command || "");
+      setEmailForm({
+        email_imap_host: c.email_imap_host || "", email_imap_port: c.email_imap_port || 993,
+        email_smtp_host: c.email_smtp_host || "", email_smtp_port: c.email_smtp_port || 587,
+        email_username: c.email_username || "", email_password: c.email_password || "",
+      });
+      if (c.email_enabled) refreshEmailInbox();
     });
     api.lockStatus().then(({ enabled }) => setLockEnabled(enabled)).catch(() => {});
     refreshModels();
@@ -364,6 +383,84 @@ export default function SettingsPanel({
   const saveCheckCommand = async (command) => {
     const updated = await api.patchConfig({ agent_check_command: command });
     setConfig(updated);
+  };
+
+  const refreshEmailInbox = () => {
+    api.emailMessages().then((m) => {
+      setEmailMessages(m);
+      setEmailMessagesError(null);
+    }).catch((err) => setEmailMessagesError(err.message));
+  };
+
+  const saveEmailConfig = async (enable) => {
+    const updated = await api.patchConfig({ ...emailForm, email_enabled: enable });
+    setConfig(updated);
+    if (enable) refreshEmailInbox();
+  };
+
+  const testEmailConnection = async () => {
+    setEmailTesting(true);
+    setEmailTestStatus(null);
+    try {
+      await saveEmailConfig(true);
+      await api.emailTest();
+      setEmailTestStatus({ ok: true, message: "Connected." });
+      refreshEmailInbox();
+    } catch (err) {
+      setEmailTestStatus({ ok: false, message: err.message });
+    } finally {
+      setEmailTesting(false);
+    }
+  };
+
+  const openEmail = async (id) => {
+    setOpenEmailId(id);
+    setEmailDetail(null);
+    setEmailDraft("");
+    try {
+      const detail = await api.emailMessage(id);
+      setEmailDetail(detail);
+    } catch (err) {
+      setEmailMessagesError(err.message);
+    }
+  };
+
+  const summarizeEmail = async (id) => {
+    setEmailBusy(true);
+    try {
+      const { summary } = await api.emailSummarize(id);
+      setEmailDetail((d) => ({ ...d, summary }));
+    } catch (err) {
+      setEmailMessagesError(err.message);
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const draftEmailReply = async (id) => {
+    setEmailBusy(true);
+    try {
+      const { draft } = await api.emailDraftReply(id);
+      setEmailDraft(draft);
+    } catch (err) {
+      setEmailMessagesError(err.message);
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const sendEmailReply = async () => {
+    if (!emailDetail || !emailDraft.trim()) return;
+    setEmailBusy(true);
+    try {
+      await api.emailSend(emailDetail.from, emailDetail.subject, emailDraft.trim(), emailDetail.id);
+      setEmailDraft("");
+      setOpenEmailId(null);
+    } catch (err) {
+      setEmailMessagesError(err.message);
+    } finally {
+      setEmailBusy(false);
+    }
   };
 
   const handlePull = async (overrideName) => {
@@ -906,6 +1003,146 @@ export default function SettingsPanel({
                     </li>
                   )}
                 </ul>
+              </section>
+            )}
+
+            {activeSection === "email" && (
+              <section className="settings-section">
+                <h3 className="settings-section-title">Email</h3>
+                <p className="settings-section-desc">
+                  Connect your own IMAP/SMTP account — no third-party mail API. Credentials are
+                  stored the same way as other local settings (plaintext in Cortex's own config
+                  file, not encrypted at rest — use an app password if your provider supports
+                  one). Summaries and reply drafts run on your local model; nothing sends until
+                  you review and hit send.
+                </p>
+                <div className="settings-row">
+                  <input
+                    className="settings-input"
+                    placeholder="IMAP host (e.g. imap.gmail.com)"
+                    value={emailForm.email_imap_host}
+                    onChange={(e) => setEmailForm((f) => ({ ...f, email_imap_host: e.target.value }))}
+                  />
+                  <input
+                    className="settings-input"
+                    style={{ maxWidth: "90px" }}
+                    placeholder="Port"
+                    type="number"
+                    value={emailForm.email_imap_port}
+                    onChange={(e) => setEmailForm((f) => ({ ...f, email_imap_port: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="settings-row" style={{ marginTop: "0.5rem" }}>
+                  <input
+                    className="settings-input"
+                    placeholder="SMTP host (e.g. smtp.gmail.com)"
+                    value={emailForm.email_smtp_host}
+                    onChange={(e) => setEmailForm((f) => ({ ...f, email_smtp_host: e.target.value }))}
+                  />
+                  <input
+                    className="settings-input"
+                    style={{ maxWidth: "90px" }}
+                    placeholder="Port"
+                    type="number"
+                    value={emailForm.email_smtp_port}
+                    onChange={(e) => setEmailForm((f) => ({ ...f, email_smtp_port: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="settings-row" style={{ marginTop: "0.5rem" }}>
+                  <input
+                    className="settings-input"
+                    placeholder="Email address"
+                    value={emailForm.email_username}
+                    onChange={(e) => setEmailForm((f) => ({ ...f, email_username: e.target.value }))}
+                  />
+                  <input
+                    className="settings-input"
+                    placeholder="App password"
+                    type="password"
+                    value={emailForm.email_password}
+                    onChange={(e) => setEmailForm((f) => ({ ...f, email_password: e.target.value }))}
+                  />
+                </div>
+                <div className="settings-row" style={{ marginTop: "0.75rem" }}>
+                  <button className="settings-btn-primary" onClick={testEmailConnection} disabled={emailTesting}>
+                    {emailTesting ? "Testing…" : "Save & test connection"}
+                  </button>
+                  {config?.email_enabled && (
+                    <button className="text-btn" onClick={() => saveEmailConfig(false)}>
+                      Disconnect
+                    </button>
+                  )}
+                </div>
+                {emailTestStatus && (
+                  <p className={emailTestStatus.ok ? "setting-hint" : "settings-error"}>
+                    {emailTestStatus.message}
+                  </p>
+                )}
+
+                {config?.email_enabled && (
+                  <>
+                    <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                      Inbox
+                    </h3>
+                    {emailMessagesError && <p className="settings-error">{emailMessagesError}</p>}
+                    <button className="text-btn" onClick={refreshEmailInbox} style={{ marginBottom: "0.5rem" }}>
+                      Refresh
+                    </button>
+                    <ul className="model-list">
+                      {emailMessages.map((m) => (
+                        <li key={m.id} style={{ display: "block" }}>
+                          <div
+                            className="settings-row"
+                            style={{ cursor: "pointer", justifyContent: "space-between" }}
+                            onClick={() => openEmail(openEmailId === m.id ? null : m.id)}
+                          >
+                            <span className="model-name" style={{ flex: 1 }}>
+                              {m.subject || "(no subject)"}
+                              <span style={{ display: "block", fontSize: "0.75em", color: "var(--text-tertiary)" }}>
+                                {m.from} — {m.snippet}
+                              </span>
+                            </span>
+                          </div>
+                          {openEmailId === m.id && emailDetail && (
+                            <div style={{ padding: "0.5rem 0" }}>
+                              <pre className="plan-card-body">{emailDetail.body}</pre>
+                              <div className="settings-row">
+                                <button className="text-btn" onClick={() => summarizeEmail(m.id)} disabled={emailBusy}>
+                                  Summarize
+                                </button>
+                                <button className="text-btn" onClick={() => draftEmailReply(m.id)} disabled={emailBusy}>
+                                  Draft reply
+                                </button>
+                              </div>
+                              {emailDetail.summary && <p className="setting-hint">{emailDetail.summary}</p>}
+                              {emailDraft && (
+                                <>
+                                  <textarea
+                                    className="settings-input"
+                                    style={{ width: "100%", minHeight: "100px", marginTop: "0.5rem" }}
+                                    value={emailDraft}
+                                    onChange={(e) => setEmailDraft(e.target.value)}
+                                  />
+                                  <button
+                                    className="settings-btn-primary"
+                                    style={{ marginTop: "0.5rem" }}
+                                    onClick={sendEmailReply}
+                                    disabled={emailBusy}
+                                  >
+                                    Send
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                      {emailMessages.length === 0 && !emailMessagesError && (
+                        <li className="model-empty">No messages loaded yet.</li>
+                      )}
+                    </ul>
+                  </>
+                )}
               </section>
             )}
 

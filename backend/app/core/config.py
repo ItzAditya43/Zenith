@@ -117,6 +117,20 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "image_gen_steps": 20,
     "image_gen_size": 512,
     "image_gen_timeout_seconds": 180,
+    # --- Email (IMAP/SMTP over your own account — no third-party mail API,
+    # runs the same "everything stays on your machine" way as the rest of
+    # the app). Off until configured. Credentials are stored in plaintext
+    # in config.json, same trust model as the rest of local settings — this
+    # is a personal-use app, not a multi-tenant one. Use an app password,
+    # not your real account password, where the provider supports it. ---
+    "email_enabled": False,
+    "email_imap_host": "",
+    "email_imap_port": 993,
+    "email_smtp_host": "",
+    "email_smtp_port": 587,
+    "email_username": "",
+    "email_password": "",
+    "email_fetch_count": 20,
     # --- App-level passcode lock (gates the UI/API on a shared machine —
     # not at-rest encryption; the SQLite file itself is still readable by
     # anyone with filesystem access). Off until the user sets a passcode. ---
