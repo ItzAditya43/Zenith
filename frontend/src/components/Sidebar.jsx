@@ -83,7 +83,7 @@ export default function Sidebar({
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
       <div className="sidebar-header">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
+          <img className="brand-mark" src="/icon-192.png" alt="" aria-hidden="true" />
           {!collapsed && <span className="brand-name">Zenith</span>}
         </div>
         <button className="icon-btn" onClick={onToggleCollapse} title="Toggle sidebar">

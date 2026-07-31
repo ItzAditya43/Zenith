@@ -45,10 +45,10 @@
   gap: var(--space-2);
 }
 .brand-mark {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 6px;
-  background: linear-gradient(135deg, var(--signal-general), var(--signal-vision));
+  object-fit: cover;
   flex-shrink: 0;
 }
 .brand-name {
