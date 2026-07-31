@@ -97,11 +97,11 @@ export const api = {
   base: BASE,
 
   listConversations: () => request("/api/conversations").then((r) => r.json()),
-  createConversation: (title = "New chat") =>
+  createConversation: (title = "New chat", projectId = null) =>
     request("/api/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, project_id: projectId }),
     }).then((r) => r.json()),
   renameConversation: (id, title) =>
     request(`/api/conversations/${id}`, {
@@ -218,6 +218,21 @@ export const api = {
   deleteMessage: (conversationId, messageId) =>
     request(`/api/conversations/${conversationId}/messages/${messageId}`, {
       method: "DELETE",
+    }).then((r) => r.json()),
+
+  listProjects: () => request("/api/projects").then((r) => r.json()),
+  createProject: (name, workdir) =>
+    request("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, workdir }),
+    }).then((r) => r.json()),
+  deleteProject: (id) => request(`/api/projects/${id}`, { method: "DELETE" }),
+  setConversationProject: (conversationId, projectId) =>
+    request(`/api/conversations/${conversationId}/project`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: projectId }),
     }).then((r) => r.json()),
 
   listSkills: () => request("/api/skills").then((r) => r.json()),

@@ -57,13 +57,17 @@ export default function Sidebar({
   searchQuery,
   onSearch,
   searchResults,
+  projects = [],
+  onCreateProject = () => {},
+  onCreateInProject = () => {},
 }) {
   const showSearchResults = searchResults !== null;
   const convResults = showSearchResults ? searchResults.conversations || [] : conversations;
   const docResults = showSearchResults ? searchResults.documents || [] : [];
   const memResults = showSearchResults ? searchResults.memories || [] : [];
   const totalResults = convResults.length + docResults.length + memResults.length;
-  const groups = showSearchResults || collapsed ? null : groupByDate(conversations);
+  const unassigned = conversations.filter((c) => !c.project_id);
+  const groups = showSearchResults || collapsed ? null : groupByDate(unassigned);
 
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -77,7 +81,7 @@ export default function Sidebar({
         </button>
       </div>
 
-      <button className="new-chat-btn" onClick={onCreate}>
+      <button className="new-chat-btn" onClick={() => onCreate()}>
         <span className="new-chat-plus"><Icon name="plus" size={15} /></span>
         {!collapsed && <span>New chat</span>}
       </button>
@@ -158,6 +162,43 @@ export default function Sidebar({
           </>
         ) : (
           <>
+            {!collapsed && projects.length > 0 &&
+              projects.map((p) => {
+                const items = conversations.filter((c) => c.project_id === p.id);
+                return (
+                  <div className="conversation-group" key={p.id}>
+                    <p className="conversation-group-label conversation-group-label-project">
+                      <Icon name="folder" size={11} /> {p.name}
+                      <button
+                        className="conversation-group-add-btn"
+                        onClick={() => onCreateInProject(p.id)}
+                        title={`New chat in ${p.name}`}
+                      >
+                        <Icon name="plus" size={10} />
+                      </button>
+                    </p>
+                    {items.map((c) => (
+                      <ConversationItem
+                        key={c.id}
+                        c={c}
+                        active={c.id === activeId}
+                        collapsed={collapsed}
+                        showDelete
+                        onSelect={onSelect}
+                        onDelete={onDelete}
+                      />
+                    ))}
+                    {items.length === 0 && (
+                      <p className="conversation-empty conversation-empty-project">No chats yet.</p>
+                    )}
+                  </div>
+                );
+              })}
+            {!collapsed && (
+              <button className="sidebar-new-project-btn" onClick={onCreateProject}>
+                <Icon name="plus" size={12} /> New project
+              </button>
+            )}
             {groups
               ? groups.map((group) => (
                   <div className="conversation-group" key={group.label}>

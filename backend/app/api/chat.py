@@ -51,7 +51,32 @@ async def search_all(q: str = ""):
 
 @router.post("/conversations")
 async def create_conversation(body: ConversationCreate):
-    return storage.create_conversation(body.title)
+    return storage.create_conversation(body.title, body.project_id)
+
+
+@router.patch("/conversations/{conversation_id}/project")
+async def set_conversation_project(conversation_id: str, body: dict):
+    storage.set_conversation_project(conversation_id, body.get("project_id"))
+    return {"ok": True}
+
+
+@router.get("/projects")
+async def list_projects():
+    return storage.list_projects()
+
+
+@router.post("/projects")
+async def create_project(body: dict):
+    name = str(body.get("name", "")).strip()
+    if not name:
+        raise HTTPException(422, "name is required.")
+    return storage.create_project(name, body.get("workdir"))
+
+
+@router.delete("/projects/{project_id}")
+async def remove_project(project_id: str):
+    storage.delete_project(project_id)
+    return {"ok": True}
 
 
 @router.get("/conversations/{conversation_id}/messages")
