@@ -91,6 +91,14 @@ async def activate_branch(conversation_id: str, message_id: str):
     return {"ok": True, "messages": storage.get_messages(conversation_id)}
 
 
+@router.delete("/conversations/{conversation_id}/messages/{message_id}")
+async def delete_message(conversation_id: str, message_id: str):
+    """Delete a message and its whole downstream subtree; returns the
+    refreshed active message list."""
+    deleted = storage.delete_message(conversation_id, message_id)
+    return {"ok": True, "deleted": deleted, "messages": storage.get_messages(conversation_id)}
+
+
 @router.patch("/conversations/{conversation_id}/persona")
 async def set_conversation_persona(conversation_id: str, body: ConversationPersonaSet):
     from app.services import persona_service
