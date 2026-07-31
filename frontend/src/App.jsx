@@ -13,6 +13,7 @@ import DocumentEditor from "./components/DocumentEditor.jsx";
 import CalendarPanel from "./components/CalendarPanel.jsx";
 import NotesPanel from "./components/NotesPanel.jsx";
 import TodoPanel from "./components/TodoPanel.jsx";
+import ResearchDashboard from "./components/ResearchDashboard.jsx";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
 
@@ -63,6 +64,7 @@ export default function App() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
+  const [researchOpen, setResearchOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
@@ -1027,6 +1029,15 @@ export default function App() {
                 <Icon name="check" size={16} />
               </button>
             )}
+            {!focusMode && (
+              <button
+                className={`icon-btn ${researchOpen ? "is-active" : ""}`}
+                onClick={() => setResearchOpen((v) => !v)}
+                title="Research reports"
+              >
+                <Icon name="flask" size={16} />
+              </button>
+            )}
             <button
               className={`icon-btn focus-toggle-btn ${focusMode ? "is-active" : ""}`}
               onClick={() => setFocusMode((v) => !v)}
@@ -1106,6 +1117,7 @@ export default function App() {
         {calendarOpen && <CalendarPanel onClose={() => setCalendarOpen(false)} />}
         {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}
         {todosOpen && <TodoPanel onClose={() => setTodosOpen(false)} />}
+        {researchOpen && <ResearchDashboard onClose={() => setResearchOpen(false)} />}
 
         {branchTreeOpen && (
           <BranchTree

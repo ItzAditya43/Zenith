@@ -560,12 +560,15 @@ async def _research_event_gen(body: ChatRequest, request: Request) -> AsyncItera
     except Exception:
         history_last_model = getattr(request.app.state, "last_route_model", None)
 
+    collected_sources: list[dict] = []
     try:
         async for ev in research_service.run_deep_research(
             body.conversation_id, body.message, body.attachment_ids,
             history_last_model=history_last_model,
         ):
             etype = ev.get("type")
+            if etype == "sources":
+                collected_sources = ev.get("sources", [])
             if etype == "done":
                 full_text = ev["full_text"]
                 if not full_text.strip():
@@ -583,6 +586,13 @@ async def _research_event_gen(body: ChatRequest, request: Request) -> AsyncItera
                     )
                 except Exception as exc:
                     log.warning("chat.research_rag_index_failed", error=str(exc))
+                try:
+                    report = storage.create_research_report(
+                        body.conversation_id, body.message, full_text, collected_sources
+                    )
+                    yield _sse({"type": "research_report_saved", "report_id": report["id"]})
+                except Exception as exc:
+                    log.warning("chat.research_report_save_failed", error=str(exc))
                 try:
                     from app.services import memory_service
                     asyncio.create_task(
@@ -738,3 +748,53 @@ async def update_todo(todo_id: str, body: dict):
 async def remove_todo(todo_id: str):
     storage.delete_todo(todo_id)
     return {"ok": True}
+
+
+@router.get("/research/reports")
+async def list_research_reports():
+    return storage.list_research_reports()
+
+
+@router.get("/research/reports/{report_id}")
+async def get_research_report(report_id: str):
+    report = storage.get_research_report(report_id)
+    if not report:
+        raise HTTPException(404, "No such report.")
+    return report
+
+
+@router.delete("/research/reports/{report_id}")
+async def remove_research_report(report_id: str):
+    storage.delete_research_report(report_id)
+    return {"ok": True}
+
+
+@router.post("/research/reports/{report_id}/ask")
+async def ask_research_report(report_id: str, body: dict):
+    """Follow-up question against a saved report — grounded in the
+    original answer + sources, not a fresh unscoped chat turn."""
+    report = storage.get_research_report(report_id)
+    if not report:
+        raise HTTPException(404, "No such report.")
+    question = str(body.get("question", "")).strip()
+    if not question:
+        raise HTTPException(422, "question is required.")
+
+    from app.services.router import ModelRegistry, ModelRouter
+    registry = ModelRegistry()
+    installed = await registry.models()
+    router_ = ModelRouter(registry=registry)
+    model = router_._match_capability("general", installed) or (installed[0] if installed else None)  # noqa: SLF001
+    if not model:
+        raise HTTPException(503, "No local model available.")
+
+    sources_block = "\n".join(f"- {s.get('title', '')}: {s.get('url', '')}" for s in report["sources"])
+    prompt = (
+        f"You previously researched: {report['query']}\n\n"
+        f"Your findings:\n{report['answer']}\n\n"
+        f"Sources:\n{sources_block}\n\n"
+        f"Follow-up question: {question}\n\n"
+        "Answer using the research above; say so if it doesn't cover the question."
+    )
+    answer = await OllamaClient().chat(model, [{"role": "user", "content": prompt}])
+    return {"answer": answer}

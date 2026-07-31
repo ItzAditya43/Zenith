@@ -433,6 +433,24 @@ def _email_flags_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _research_reports_table(conn: sqlite3.Connection) -> None:
+    """Deep research gets a persistent home instead of just landing in
+    the chat thread — a saved report (query, synthesized answer, sources)
+    you can reopen later and ask follow-ups against, in its own panel."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS research_reports (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT,
+            query TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            sources TEXT NOT NULL DEFAULT '[]',
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -473,6 +491,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (17, "notes_table", _notes_table),
     (18, "todos_table", _todos_table),
     (19, "email_flags_table", _email_flags_table),
+    (20, "research_reports_table", _research_reports_table),
 ]
 
 
