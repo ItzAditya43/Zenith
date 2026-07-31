@@ -665,3 +665,25 @@ async def _with_heartbeat(stream: AsyncIterator[str], interval: float) -> AsyncI
             yield task.result()
         except StopAsyncIteration:
             return
+
+@router.get("/calendar/events")
+async def list_calendar_events(from_ts: float | None = None, to_ts: float | None = None):
+    return storage.list_calendar_events(from_ts, to_ts)
+
+
+@router.post("/calendar/events")
+async def create_calendar_event(body: dict):
+    title = str(body.get("title", "")).strip()
+    start_ts = body.get("start_ts")
+    if not title or start_ts is None:
+        raise HTTPException(422, "title and start_ts are required.")
+    return storage.create_calendar_event(
+        title, float(start_ts), body.get("end_ts"), body.get("description", ""),
+        bool(body.get("all_day", False)), body.get("source_conversation_id"),
+    )
+
+
+@router.delete("/calendar/events/{event_id}")
+async def remove_calendar_event(event_id: str):
+    storage.delete_calendar_event(event_id)
+    return {"ok": True}

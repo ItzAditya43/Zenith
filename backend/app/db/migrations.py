@@ -355,6 +355,27 @@ def _projects_table(conn: sqlite3.Connection) -> None:
         cur.execute("ALTER TABLE memories ADD COLUMN project_id TEXT")
 
 
+def _calendar_events_table(conn: sqlite3.Connection) -> None:
+    """A plain local calendar — no Google/Outlook OAuth, no external
+    service. Events the agent creates from conversation ("remind me
+    Tuesday at 3") land in the same table the Calendar UI reads."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS calendar_events (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            start_ts REAL NOT NULL,
+            end_ts REAL,
+            all_day INTEGER NOT NULL DEFAULT 0,
+            source_conversation_id TEXT,
+            created_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_ts);
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -391,6 +412,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (13, "agent_checkpoints_table", _agent_checkpoints_table),
     (14, "skills_table", _skills_table),
     (15, "projects_table", _projects_table),
+    (16, "calendar_events_table", _calendar_events_table),
 ]
 
 
