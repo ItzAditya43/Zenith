@@ -242,6 +242,31 @@ export const api = {
       body: JSON.stringify({ to, subject, body, in_reply_to: inReplyTo }),
     }).then((r) => r.json()),
 
+  syncPairStart: () => request("/api/sync/pair/start", { method: "POST" }).then((r) => r.json()),
+  syncPairBundle: (baseUrl, code) =>
+    fetch(`${baseUrl}/api/sync/pair/bundle?code=${encodeURIComponent(code)}`).then((r) => {
+      if (!r.ok) throw new Error("Invalid, expired, or already-used code.");
+      return r.json();
+    }),
+  syncPairComplete: (code, encryptedSecret) =>
+    request("/api/sync/pair/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, encrypted_secret: encryptedSecret }),
+    }).then((r) => r.json()),
+  syncExport: (passphrase) =>
+    request("/api/sync/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passphrase }),
+    }).then((r) => r.json()),
+  syncImport: (passphrase, blob) =>
+    request("/api/sync/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passphrase, blob }),
+    }).then((r) => r.json()),
+
   getGroupPersonas: (conversationId) =>
     request(`/api/conversations/${conversationId}/group-personas`).then((r) => r.json()),
   setGroupPersonas: (conversationId, personaIds) =>
