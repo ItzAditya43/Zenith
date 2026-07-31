@@ -242,6 +242,16 @@ export const api = {
       body: JSON.stringify({ to, subject, body, in_reply_to: inReplyTo }),
     }).then((r) => r.json()),
 
+  listResearchReports: () => request("/api/research/reports").then((r) => r.json()),
+  getResearchReport: (id) => request(`/api/research/reports/${id}`).then((r) => r.json()),
+  deleteResearchReport: (id) => request(`/api/research/reports/${id}`, { method: "DELETE" }),
+  askResearchReport: (id, question) =>
+    request(`/api/research/reports/${id}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    }).then((r) => r.json()),
+
   listTodos: () => request("/api/todos").then((r) => r.json()),
   createTodo: (text, dueTs = null) =>
     request("/api/todos", {

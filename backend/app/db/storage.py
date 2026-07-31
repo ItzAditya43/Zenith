@@ -674,6 +674,43 @@ def mark_email_flags_seen() -> None:
         conn.execute("UPDATE email_flags SET seen = 1 WHERE seen = 0")
 
 
+def create_research_report(conversation_id: str | None, query: str, answer: str, sources: list[dict]) -> dict:
+    rid = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO research_reports (id, conversation_id, query, answer, sources, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (rid, conversation_id, query, answer, json.dumps(sources), now),
+        )
+    return {"id": rid, "conversation_id": conversation_id, "query": query, "answer": answer, "sources": sources, "created_at": now}
+
+
+def list_research_reports() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute("SELECT * FROM research_reports ORDER BY created_at DESC").fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["sources"] = json.loads(d["sources"])
+        out.append(d)
+    return out
+
+
+def get_research_report(report_id: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM research_reports WHERE id = ?", (report_id,)).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    d["sources"] = json.loads(d["sources"])
+    return d
+
+
+def delete_research_report(report_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM research_reports WHERE id = ?", (report_id,))
+
+
 def search_conversations(q: str) -> list[dict]:
     """Full-text search over message content. Returns distinct
     conversations with the matching snippet and message count. Uses
