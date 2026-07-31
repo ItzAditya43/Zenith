@@ -2881,3 +2881,18 @@
   color: var(--signal-general, #d97757);
   margin-bottom: var(--space-1);
 }
+
+.msg-image-attachment {
+  display: block;
+  max-width: 260px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-hairline);
+}
+.msg-image-attachment img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 260px;
+  object-fit: cover;
+}
