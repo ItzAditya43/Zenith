@@ -2160,3 +2160,85 @@
   background: var(--signal-danger-dim, rgba(229, 72, 77, 0.12));
   color: var(--signal-danger, #e5484d);
 }
+
+/* --- Status rail (live system state) --- */
+.status-rail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: var(--space-3);
+  flex-shrink: 0;
+}
+.status-rail-gen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--signal-general-dim);
+  background: var(--bg-inset);
+  font-size: var(--text-xs);
+}
+.status-rail-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--signal-general);
+  animation: status-rail-pulse 1.2s ease-in-out infinite;
+}
+@keyframes status-rail-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+.status-rail-model {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+.status-rail-tps {
+  color: var(--signal-general);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.status-rail-activity {
+  position: relative;
+}
+.status-rail-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+.status-rail-btn:hover,
+.status-rail-btn.is-open {
+  color: var(--text-primary);
+  border-color: var(--signal-general);
+}
+.status-rail-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-width: 320px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: var(--space-2);
+  z-index: 20;
+}
+.status-rail-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

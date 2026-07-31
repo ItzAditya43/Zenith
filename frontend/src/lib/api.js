@@ -249,6 +249,7 @@ export const api = {
   deleteModel: (name) =>
     request(`/api/models/${name}`, { method: "DELETE" }).then((r) => r.json()),
   imageStatus: () => request("/api/images/status").then((r) => r.json()),
+  activity: () => request("/api/activity").then((r) => r.json()),
   generateImage: (prompt, negative = "") =>
     request("/api/images/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },

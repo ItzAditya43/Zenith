@@ -118,6 +118,38 @@ async def health():
     return payload
 
 
+@router.get("/activity")
+async def activity():
+    """What's actually running right now, across the whole backend (not
+    scoped to one conversation) — powers the header's live status rail.
+    Cheap in-memory reads, no I/O, safe to poll frequently."""
+    from app.services import agent_service, browser_service, schedule_service
+
+    shell_sessions = [
+        {"id": s["id"], "command": s["command"], "alive": s["alive"], "conversation_id": s["conversation_id"]}
+        for s in agent_service._shell_sessions.values()
+    ]
+    browser_sessions = [
+        {"conversation_id": cid, "url": s["url"]}
+        for cid, s in browser_service._browser_sessions.items()
+    ]
+    due_schedules = []
+    try:
+        due_schedules = [
+            {"id": s["id"], "name": s["name"]}
+            for s in schedule_service.list_schedules()
+            if s.get("enabled") and s.get("next_run_at") and s["next_run_at"] <= time.time() + 60
+        ]
+    except Exception:
+        pass
+    return {
+        "shell_sessions": shell_sessions,
+        "browser_sessions": browser_sessions,
+        "due_schedules": due_schedules,
+        "count": len(shell_sessions) + len(browser_sessions),
+    }
+
+
 @router.get("/models")
 async def models():
     """Lists installed Ollama models along with which capability role(s)
