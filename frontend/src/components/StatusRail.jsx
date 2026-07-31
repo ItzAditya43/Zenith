@@ -21,6 +21,7 @@ export default function StatusRail({ genStats }) {
   }, []);
 
   const busyCount = activity?.count || 0;
+  const urgentEmails = activity?.urgent_emails || 0;
 
   return (
     <div className="status-rail">
@@ -29,6 +30,12 @@ export default function StatusRail({ genStats }) {
           <span className="status-rail-pulse" />
           <span className="status-rail-model">{genStats.model}</span>
           <span className="status-rail-tps">{genStats.tokPerSec.toFixed(0)} tok/s</span>
+        </span>
+      )}
+      {urgentEmails > 0 && (
+        <span className="status-rail-urgent" title={`${urgentEmails} urgent email(s) flagged`}>
+          <Icon name="at-sign" size={12} />
+          {urgentEmails}
         </span>
       )}
       {busyCount > 0 && (

@@ -607,6 +607,36 @@ def delete_todo(todo_id: str) -> None:
         conn.execute("DELETE FROM todos WHERE id = ?", (todo_id,))
 
 
+def is_email_flagged_seen(message_id: str) -> bool:
+    with _conn() as conn:
+        row = conn.execute("SELECT 1 FROM email_flags WHERE message_id = ?", (message_id,)).fetchone()
+        return row is not None
+
+
+def record_email_flag(message_id: str, subject: str, sender: str, reason: str, urgent: bool) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT OR IGNORE INTO email_flags
+               (message_id, subject, sender, reason, urgent, seen, flagged_at)
+               VALUES (?, ?, ?, ?, ?, 0, ?)""",
+            (message_id, subject, sender, reason, 1 if urgent else 0, time.time()),
+        )
+
+
+def list_urgent_email_flags(unseen_only: bool = True) -> list[dict]:
+    with _conn() as conn:
+        sql = "SELECT * FROM email_flags WHERE urgent = 1"
+        if unseen_only:
+            sql += " AND seen = 0"
+        sql += " ORDER BY flagged_at DESC"
+        return [dict(r) for r in conn.execute(sql).fetchall()]
+
+
+def mark_email_flags_seen() -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE email_flags SET seen = 1 WHERE seen = 0")
+
+
 def search_conversations(q: str) -> list[dict]:
     """Full-text search over message content. Returns distinct
     conversations with the matching snippet and message count. Uses

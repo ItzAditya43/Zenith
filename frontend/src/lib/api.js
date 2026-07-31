@@ -223,6 +223,8 @@ export const api = {
   hardwareReport: () => request("/api/hardware").then((r) => r.json()),
 
   emailTest: () => request("/api/email/test").then((r) => r.json()),
+  emailFlags: () => request("/api/email/flags").then((r) => r.json()),
+  markEmailFlagsSeen: () => request("/api/email/flags/mark-seen", { method: "POST" }),
   emailMessages: () => request("/api/email/messages").then((r) => r.json()),
   emailMessage: (id) => request(`/api/email/messages/${id}`).then((r) => r.json()),
   emailSummarize: (id) =>

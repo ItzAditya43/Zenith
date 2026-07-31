@@ -2789,3 +2789,15 @@
 .note-pin-active {
   color: var(--signal-general, #d97757);
 }
+
+.status-rail-urgent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--signal-danger, #d64545) 18%, transparent);
+  color: var(--signal-danger, #d64545);
+}
