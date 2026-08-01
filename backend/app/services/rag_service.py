@@ -290,7 +290,7 @@ def _retrieve_vec(qvec: list[float], filters: _Filters, top_k: int) -> list[dict
         cur.execute(
             f"""
             SELECT chunks.id, chunks.text, chunks.source_id, chunks.conversation_id,
-                   vec_distance_cosine(vec_chunks.embedding, ?) AS d
+                   vec_distance_cosine(vec_chunks.embedding, ?) AS d, chunks.chunk_index
             FROM vec_chunks
             INNER JOIN chunks ON chunks.id = vec_chunks.chunk_id
             WHERE 1=1{where}
@@ -300,7 +300,7 @@ def _retrieve_vec(qvec: list[float], filters: _Filters, top_k: int) -> list[dict
             (_vec_blob(qvec), *filters.params, top_k),
         )
         return [
-            {"text": r[1], "source_id": r[2], "conversation_id": r[3], "score": float(r[4])}
+            {"text": r[1], "source_id": r[2], "conversation_id": r[3], "score": float(r[4]), "chunk_index": r[5]}
             for r in cur.fetchall()
         ]
     except Exception as exc:
@@ -322,14 +322,14 @@ def _retrieve_fallback(query: str, filters: _Filters, top_k: int) -> list[dict]:
     sql = (
         f"SELECT * FROM ("
         f"  SELECT chunks.text, chunks.source_id, chunks.conversation_id,"
-        f"         ({like_score}) AS s, chunks.created_at AS ca"
+        f"         ({like_score}) AS s, chunks.created_at AS ca, chunks.chunk_index"
         f"  FROM chunks WHERE 1=1{where}"
         f") WHERE s > 0 ORDER BY s DESC, ca DESC LIMIT ?"
     )
     cur = _conn().cursor()
     cur.execute(sql, (*params, *filters.params, top_k))
     return [
-        {"text": r[0], "source_id": r[1], "conversation_id": r[2], "score": float(r[3])}
+        {"text": r[0], "source_id": r[1], "conversation_id": r[2], "score": float(r[3]), "chunk_index": r[5]}
         for r in cur.fetchall()
     ]
 

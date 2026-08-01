@@ -312,7 +312,10 @@ async def run_turn(
                         user_text + "\n\n" + rendered
                     ).strip()
                     doc_citations.extend(
-                        {"kind": "document", "text": c["text"][:300], "source_id": att["name"]}
+                        {
+                            "kind": "document", "text": c["text"][:300], "source_id": att["name"],
+                            "attachment_id": att["id"], "chunk_index": c.get("chunk_index"),
+                        }
                         for c in chunks
                     )
         except Exception as exc:
