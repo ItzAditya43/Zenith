@@ -309,7 +309,7 @@ export default function Sidebar({
       </nav>
 
       <button className="settings-btn" onClick={onOpenSettings}>
-        <span className="settings-icon" aria-hidden="true" />
+        <Icon name="settings" size={16} />
         {!collapsed && <span>Settings</span>}
       </button>
     </aside>
