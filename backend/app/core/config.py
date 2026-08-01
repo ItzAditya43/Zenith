@@ -141,6 +141,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "http://127.0.0.1:5173",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        # The desktop app's webview — Tauri v2 serves the frontend from its
+        # own custom scheme, not localhost, so without these the bundled
+        # backend silently CORS-blocks every request from the installed app.
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
     ],
     # Multi-device access: when on, also accept requests from private-LAN and
     # Tailscale (*.ts.net) origins so you can open Zenith from a phone/laptop

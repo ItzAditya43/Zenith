@@ -25,6 +25,19 @@ body {
   overflow: hidden;
 }
 
+/* Native <select> controls otherwise fall back to OS chrome for both the
+   closed control and the options popup — invisible/unreadable text on
+   dark themes since the browser doesn't infer this from our CSS vars. */
+select {
+  background-color: var(--bg-inset);
+  color: var(--text-primary);
+  border: 1px solid var(--border-hairline);
+}
+select option {
+  background-color: var(--bg-panel);
+  color: var(--text-primary);
+}
+
 ::selection {
   background: var(--signal-general-dim);
   color: var(--text-primary);

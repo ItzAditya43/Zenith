@@ -19,6 +19,12 @@
 */
 
 :root {
+  /* Tells the browser/webview to render native form-control chrome
+     (select popups, scrollbars, etc.) in dark mode — without this, every
+     dark theme's <select> dropdown opens with the OS's light-theme
+     styling regardless of our CSS, since browsers don't infer this from
+     background-color alone. Light themes below override it back to light. */
+  color-scheme: dark;
   /* ===== Midnight Glass (default) ===== */
   --bg-void: #0a0c12;
   --bg-base: #0d1017;
@@ -238,6 +244,7 @@
 
 /* ===== Brutalist Mono — stark light, hard edges, condensed display type ===== */
 [data-theme="brutalist-mono"] {
+  color-scheme: light;
   --bg-void: #e8e8e4;
   --bg-base: #f2f2f0;
   --bg-panel: #ffffff;
@@ -287,6 +294,7 @@
 
 /* ===== Zen Minimal — quiet, restrained, near-white ===== */
 [data-theme="zen-minimal"] {
+  color-scheme: light;
   --bg-void: #f2f2f2;
   --bg-base: #ffffff;
   --bg-panel: #ffffff;
