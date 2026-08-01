@@ -73,16 +73,29 @@ def add_memory(content: str, category: str = "fact",
         count = conn.execute("SELECT COUNT(*) AS c FROM memories").fetchone()["c"]
         if count >= cap:
             # Evict the oldest so memory stays bounded.
-            conn.execute(
-                "DELETE FROM memories WHERE id IN ("
-                "SELECT id FROM memories ORDER BY created_at ASC LIMIT 1)"
-            )
+            evicted = conn.execute(
+                "SELECT id FROM memories ORDER BY created_at ASC LIMIT 1"
+            ).fetchone()
+            conn.execute("DELETE FROM memories WHERE id IN (SELECT id FROM memories ORDER BY created_at ASC LIMIT 1)")
+            if evicted:
+                try:
+                    from app.services import rag_service
+                    rag_service.delete_memory_chunks(evicted["id"])
+                except Exception as exc:
+                    log.debug("memory.evict_chunk_cleanup_failed", error=str(exc))
         conn.execute(
             """INSERT INTO memories
                (id, content, category, source_conversation_id, enabled, created_at, updated_at, project_id)
                VALUES (?, ?, ?, ?, 1, ?, ?, ?)""",
             (mid, content, category, source_conversation_id, now, now, project_id),
         )
+    # Embed for retrieval-based injection — best-effort, memory still works
+    # (via the recency fallback below) if no embedding model is configured.
+    try:
+        from app.services import rag_service
+        rag_service.index_memory(mid, content)
+    except Exception as exc:
+        log.debug("memory.index_failed", error=str(exc))
     log.info("memory.added", content=content[:80])
     return {"id": mid, "content": content, "category": category,
             "source_conversation_id": source_conversation_id,
@@ -92,6 +105,11 @@ def add_memory(content: str, category: str = "fact",
 def delete_memory(memory_id: str) -> None:
     with _conn() as conn:
         conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+    try:
+        from app.services import rag_service
+        rag_service.delete_memory_chunks(memory_id)
+    except Exception as exc:
+        log.debug("memory.delete_chunk_cleanup_failed", error=str(exc))
 
 
 def set_enabled(memory_id: str, enabled: bool) -> None:
@@ -105,22 +123,53 @@ def set_enabled(memory_id: str, enabled: bool) -> None:
 def clear_memories() -> int:
     with _conn() as conn:
         cur = conn.execute("DELETE FROM memories")
-        return cur.rowcount
+    try:
+        from app.services import rag_service
+        rag_service.clear_memory_chunks()
+    except Exception as exc:
+        log.debug("memory.clear_chunk_cleanup_failed", error=str(exc))
+    return cur.rowcount
 
 
-def memory_block(project_id: str | None = None) -> str:
-    """Render enabled memories as a system-prompt section. Empty string
-    when memory is off or there's nothing stored. Project-scoped memories
-    only surface for conversations in that same project; global (unscoped)
-    memories always surface."""
+def memory_block(project_id: str | None = None, query: str | None = None) -> str:
+    """Render memories relevant to `query` as a system-prompt section,
+    instead of dumping every stored memory into every turn. At small
+    counts (<= top_k) everything just gets included — retrieval overhead
+    isn't worth it until there's actually something to filter. Falls back
+    to most-recent-first if no query is given or no embedding model is
+    configured (same degrade-gracefully pattern as document RAG).
+    Project-scoped memories only surface for conversations in that same
+    project; global (unscoped) memories always surface."""
     if not bool(settings.get("memory_enabled", True)):
         return ""
-    mems = [
+    visible = [
         m for m in list_memories()
         if m["enabled"] and (not m.get("project_id") or m.get("project_id") == project_id)
     ]
-    if not mems:
+    if not visible:
         return ""
+
+    top_k = int(settings.get("memory_recall_top_k", 12))
+    if len(visible) <= top_k:
+        mems = visible
+    else:
+        mems = None
+        if query and query.strip():
+            try:
+                from app.services import rag_service
+                visible_ids = {m["id"] for m in visible}
+                by_id = {m["id"]: m for m in visible}
+                hits = rag_service.retrieve(query, source_kind="memory", top_k=top_k)
+                picked = [by_id[h["source_id"]] for h in hits if h["source_id"] in visible_ids]
+                if picked:
+                    mems = picked
+            except Exception as exc:
+                log.debug("memory.retrieval_failed", error=str(exc))
+        if mems is None:
+            # No query, no embedding model, or retrieval came back empty —
+            # most-recent-first is a reasonable, cheap default.
+            mems = sorted(visible, key=lambda m: m["created_at"], reverse=True)[:top_k]
+
     lines = "\n".join(f"- {m['content']}" for m in mems)
     return (
         "Things you remember about the user from previous conversations "

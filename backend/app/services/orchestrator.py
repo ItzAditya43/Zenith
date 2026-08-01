@@ -140,7 +140,7 @@ async def _build_system_context(conversation_id: str, user_text: str) -> tuple[s
         from app.services import memory_service
         conv = await asyncio.to_thread(storage.get_conversation, conversation_id)
         project_id = conv.get("project_id") if conv else None
-        block = await asyncio.to_thread(memory_service.memory_block, project_id)
+        block = await asyncio.to_thread(memory_service.memory_block, project_id, user_text)
         if block:
             parts.append(block)
     except Exception as exc:
