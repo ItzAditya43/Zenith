@@ -255,9 +255,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    api
-      .listConversations()
-      .then(async (list) => {
+    // The desktop app's bundled backend can take a moment to finish
+    // booting after the window appears — retry a few times before
+    // surfacing a connection error, instead of failing permanently on
+    // whatever request happens to fire first.
+    let cancelled = false;
+    const loadWithRetry = async (attempt = 0) => {
+      try {
+        const list = await api.listConversations();
+        if (cancelled) return;
         setConversations(list);
         if (list.length > 0) {
           selectConversation(list[0].id);
@@ -266,8 +272,20 @@ export default function App() {
           setConversations([conv]);
           setActiveId(conv.id);
         }
-      })
-      .catch((err) => setConnectionError(err.message));
+        setConnectionError(null);
+      } catch (err) {
+        if (cancelled) return;
+        if (attempt < 6) {
+          setTimeout(() => loadWithRetry(attempt + 1), 700);
+        } else {
+          setConnectionError(err.message);
+        }
+      }
+    };
+    loadWithRetry();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const [isNearBottom, setIsNearBottom] = useState(true);
