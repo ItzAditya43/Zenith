@@ -24,7 +24,16 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Boot splash: shown until React mounts and removes it, so first
+           paint is the brand mark instead of a blank frame. -->
+      <div id="boot-splash" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0d1017;z-index:9999;">
+        <img src="/icon-192.png" width="56" height="56" style="border-radius:14px;animation:boot-pulse 1.4s ease-in-out infinite;" alt="" />
+      </div>
+      <style>
+        @keyframes boot-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+      </style>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
