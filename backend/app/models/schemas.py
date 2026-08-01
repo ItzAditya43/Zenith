@@ -75,6 +75,7 @@ class ConfigPatch(StrictModel):
     ui_experimental: Optional[bool] = None
     memory_enabled: Optional[bool] = None
     memory_max_items: Optional[int] = Field(default=None, ge=10, le=2000)
+    memory_recall_top_k: Optional[int] = Field(default=None, ge=1, le=100)
     system_prompt: Optional[str] = Field(default=None, max_length=8000)
     recall_enabled: Optional[bool] = None
     recall_top_k: Optional[int] = Field(default=None, ge=1, le=10)

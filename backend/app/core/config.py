@@ -180,6 +180,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # --- Personal assistant / memory ---
     "memory_enabled": True,          # extract + inject long-term user facts
     "memory_max_items": 200,
+    "memory_recall_top_k": 12,       # above this many stored memories, inject only the most relevant instead of all
     "system_prompt": "",             # user persona / standing instructions
     "recall_enabled": True,          # cross-conversation retrieval
     "recall_top_k": 3,

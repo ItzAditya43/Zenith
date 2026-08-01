@@ -204,6 +204,24 @@ def delete_folder_chunks(path: str) -> None:
         conn.execute("DELETE FROM chunks WHERE source_kind = 'folder' AND source_id = ?", (path,))
 
 
+def index_memory(memory_id: str, content: str) -> None:
+    """Embeds one memory so injection can retrieve only what's relevant
+    to the current message instead of dumping every stored memory into
+    every system prompt. A memory is short enough to be its own single
+    chunk — no splitting needed."""
+    index_document(memory_id, content, source_kind="memory")
+
+
+def delete_memory_chunks(memory_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM chunks WHERE source_kind = 'memory' AND source_id = ?", (memory_id,))
+
+
+def clear_memory_chunks() -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM chunks WHERE source_kind = 'memory'")
+
+
 def _vec_blob(vec: list[float]) -> bytes:
     """Pack a float list into the binary representation sqlite-vec expects."""
     import struct
