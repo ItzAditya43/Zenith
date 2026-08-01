@@ -169,6 +169,13 @@ def _cors_origins() -> list[str]:
             "http://127.0.0.1:5173",
             "http://localhost:8000",
             "http://127.0.0.1:8000",
+            # The desktop app's webview — Tauri v2 serves the frontend from
+            # its own custom scheme, not localhost, so without these the
+            # bundled backend silently CORS-blocks every request from the
+            # installed app (config/models/schedules all "fail to load").
+            "tauri://localhost",
+            "http://tauri.localhost",
+            "https://tauri.localhost",
         ]
     return list(origins)
 
