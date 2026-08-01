@@ -744,10 +744,30 @@
   align-items: center;
   gap: 4px;
   cursor: default;
+  font-family: inherit;
 }
 .msg-source-chip-recall:hover {
   color: var(--text-secondary);
   border-color: var(--border-hairline);
+}
+button.msg-source-chip-recall {
+  cursor: pointer;
+}
+button.msg-source-chip-recall:hover {
+  color: var(--signal-general);
+  border-color: var(--signal-general);
+}
+.doc-preview-text {
+  padding: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  color: var(--text-secondary);
+}
+.doc-preview-text mark {
+  background: var(--signal-general-dim);
+  color: var(--text-primary);
+  border-radius: 3px;
 }
 
 /* ============ Model badge ============ */

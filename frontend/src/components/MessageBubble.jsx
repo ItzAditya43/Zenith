@@ -4,6 +4,7 @@ import MarkdownRenderer from "./MarkdownRenderer";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
 import RegenerationDiff from "./RegenerationDiff.jsx";
+import DocumentPreview from "./DocumentPreview.jsx";
 
 const KIND_ICON = { image: "image", video: "video", document: "file-text", audio: "headphones" };
 const TOOL_ICON = {
@@ -20,6 +21,7 @@ const EDITABLE_DOC_EXTS = [".txt", ".md", ".csv", ".json"];
 function DocumentChip({ attachment: a }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null); // { filename, download_url } | { error }
+  const [previewOpen, setPreviewOpen] = useState(false);
   const editable = a.kind === "document" && EDITABLE_DOC_EXTS.some((ext) => a.name?.toLowerCase().endsWith(ext));
 
   const handleEdit = async () => {
@@ -53,10 +55,15 @@ function DocumentChip({ attachment: a }) {
 
   return (
     <div className="doc-chip-wrap">
-      <span className="msg-attachment-chip">
+      <span className="msg-attachment-chip" onClick={() => setPreviewOpen(true)} style={{ cursor: "pointer" }}>
         <Icon name={KIND_ICON[a.kind] || "paperclip"} size={14} /> {a.name}
         {editable && (
-          <button className="doc-chip-edit-btn" onClick={handleEdit} disabled={busy} title="Edit this document">
+          <button
+            className="doc-chip-edit-btn"
+            onClick={(e) => { e.stopPropagation(); handleEdit(); }}
+            disabled={busy}
+            title="Edit this document"
+          >
             {busy ? "…" : <Icon name="pencil" size={13} />}
           </button>
         )}
@@ -76,6 +83,9 @@ function DocumentChip({ attachment: a }) {
         <span className="doc-chip-result doc-chip-error">
           <Icon name="alert-triangle" size={13} /> {result.error}
         </span>
+      )}
+      {previewOpen && (
+        <DocumentPreview attachmentId={a.id} filename={a.name} onClose={() => setPreviewOpen(false)} />
       )}
     </div>
   );
@@ -255,6 +265,7 @@ export default function MessageBubble({
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [undoingRun, setUndoingRun] = useState(false);
+  const [previewSource, setPreviewSource] = useState(null);
   const [shared, setShared] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(message.content || "");
@@ -416,18 +427,35 @@ export default function MessageBubble({
                 >
                   <Icon name="link" size={12} /> {s.title || s.url}
                 </a>
+              ) : s.kind === "document" && s.attachment_id ? (
+                <button
+                  key={s.attachment_id + i}
+                  className="msg-source-chip msg-source-chip-recall"
+                  title={`Click to preview — used: "${s.text}"`}
+                  onClick={() => setPreviewSource(s)}
+                >
+                  <Icon name="file-text" size={12} /> {s.source_id}
+                </button>
               ) : (
                 <span
                   key={(s.source_id || "") + i}
                   className="msg-source-chip msg-source-chip-recall"
                   title={s.text}
                 >
-                  <Icon name={s.kind === "document" ? "file-text" : "layers"} size={12} />{" "}
-                  {s.kind === "document" ? s.source_id : s.kind === "folder" ? "watched folder" : "past conversation"}
+                  <Icon name="layers" size={12} />{" "}
+                  {s.kind === "folder" ? "watched folder" : "past conversation"}
                 </span>
               )
             )}
           </div>
+        )}
+        {previewSource && (
+          <DocumentPreview
+            attachmentId={previewSource.attachment_id}
+            filename={previewSource.source_id}
+            highlightText={previewSource.text}
+            onClose={() => setPreviewSource(null)}
+          />
         )}
 
         {message.interrupted && (
