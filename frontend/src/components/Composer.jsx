@@ -95,6 +95,7 @@ export default function Composer({
   continuousVoice = false,
   autoListenNonce = null,
   installedModels = [],
+  centered = false,
 }) {
   const [text, setText] = useState("");
   const [modelOverride, setModelOverride] = useState("");
@@ -275,7 +276,7 @@ export default function Composer({
 
   return (
     <div
-      className={`composer ${dragging ? "composer-dragging" : ""}`}
+      className={`composer ${dragging ? "composer-dragging" : ""} ${centered ? "composer-centered" : ""}`}
       onDragOver={(e) => {
         e.preventDefault();
         setDragging(true);
