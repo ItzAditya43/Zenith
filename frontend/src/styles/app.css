@@ -807,6 +807,9 @@ button.msg-source-chip-recall:hover {
 /* ============ Composer ============ */
 .composer {
   padding: var(--space-4) var(--space-6) var(--space-5);
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
 }
 .composer-attachments {
   display: flex;
