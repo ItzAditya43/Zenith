@@ -1342,6 +1342,7 @@ export default function App() {
         )}
 
         <Composer
+          centered={messages.length === 0}
           onSend={handleSend}
           onStop={handleStop}
           disabled={!activeId}
