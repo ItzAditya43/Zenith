@@ -265,15 +265,6 @@
   display: flex;
   flex-direction: column;
 }
-/* Before the first message, sit near the vertical middle (like most
-   modern chat apps) instead of pinned to the bottom of an empty page —
-   once a conversation starts, the composer flow reverts to normal. */
-.chat-column:has(.composer-centered) {
-  justify-content: center;
-}
-.chat-column:has(.composer-centered) .chat-scroll {
-  flex: 0 1 auto;
-}
 
 /* Interactive live document editor — Artifacts-style side panel */
 .doc-editor-panel {

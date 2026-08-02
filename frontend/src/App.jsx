@@ -237,7 +237,15 @@ export default function App() {
   // the lock screen before anything else loads.
   useEffect(() => {
     refreshProjects();
-    api.listModels().then((ms) => setInstalledModels(ms.map((m) => m.name))).catch(() => {});
+    const loadModels = (attempt = 0) => {
+      api
+        .listModels()
+        .then((ms) => setInstalledModels(ms.map((m) => m.name)))
+        .catch(() => {
+          if (attempt < 6) setTimeout(() => loadModels(attempt + 1), 700);
+        });
+    };
+    loadModels();
   }, []);
 
   useEffect(() => {
@@ -1342,7 +1350,6 @@ export default function App() {
         )}
 
         <Composer
-          centered={messages.length === 0}
           onSend={handleSend}
           onStop={handleStop}
           disabled={!activeId}
