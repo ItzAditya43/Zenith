@@ -44,7 +44,7 @@ function ModePicker({ mode, setMode, agentAvailable, councilAvailable, imageAvai
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={current.hint}
+        title={`${current.label} — ${current.hint}`}
       >
         <Icon name={current.icon} size={15} />
         <span className="mode-picker-label">{current.label}</span>
@@ -106,9 +106,9 @@ function ModelPicker({ models, value, onChange }) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title="Answer this one message with a specific model instead of auto-routing"
+        title={value ? `Model: ${value}` : "Auto (model routing)"}
       >
-        <span className="mode-picker-label">{value || "Auto"}</span>
+        <Icon name="bolt" size={15} />
         <span className="mode-picker-caret" aria-hidden="true">
           <Icon name={open ? "chevron-up" : "chevron-down"} size={13} />
         </span>
