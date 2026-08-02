@@ -81,6 +81,74 @@ function ModePicker({ mode, setMode, agentAvailable, councilAvailable, imageAvai
   );
 }
 
+function ModelPicker({ models, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const onEscape = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [open]);
+
+  return (
+    <div className="mode-picker" ref={ref}>
+      <button
+        className={`model-override-btn ${value ? "is-active" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title="Answer this one message with a specific model instead of auto-routing"
+      >
+        <span className="mode-picker-label">{value || "Auto"}</span>
+        <span className="mode-picker-caret" aria-hidden="true">
+          <Icon name={open ? "chevron-up" : "chevron-down"} size={13} />
+        </span>
+      </button>
+      {open && (
+        <ul className="mode-picker-menu model-override-menu" role="listbox">
+          <li>
+            <button
+              className={`mode-picker-option ${!value ? "is-selected" : ""}`}
+              role="option"
+              aria-selected={!value}
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+            >
+              <span className="mode-picker-option-label">Auto</span>
+            </button>
+          </li>
+          {models.map((m) => (
+            <li key={m}>
+              <button
+                className={`mode-picker-option ${m === value ? "is-selected" : ""}`}
+                role="option"
+                aria-selected={m === value}
+                onClick={() => {
+                  onChange(m);
+                  setOpen(false);
+                }}
+              >
+                <span className="mode-picker-option-label">{m}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function Composer({
   onSend,
   onStop,
@@ -338,19 +406,7 @@ export default function Composer({
           imageAvailable={imageAvailable}
         />
         {installedModels.length > 0 && (
-          <select
-            className={`model-override-picker ${modelOverride ? "is-active" : ""}`}
-            value={modelOverride}
-            onChange={(e) => setModelOverride(e.target.value)}
-            title="Answer this one message with a specific model instead of auto-routing"
-          >
-            <option value="">Auto</option>
-            {installedModels.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+          <ModelPicker models={installedModels} value={modelOverride} onChange={setModelOverride} />
         )}
         <input
           ref={fileInputRef}
