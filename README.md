@@ -136,8 +136,8 @@ processes because Ollama doesn't serve those model types.
 1. [Ollama](https://ollama.com) running locally with at least one model
    pulled (`ollama pull llama3.2`).
 2. `ffmpeg` on your PATH (video frame/audio extraction).
-3. Docker + Docker Compose (recommended), or Python 3.11+ and Node 18+ for
-   a manual run.
+3. Docker + Docker Compose (recommended), or Python 3.11-3.13 and Node
+   18+ for a manual run (`./install.sh` checks these for you).
 
 **Docker (recommended):**
 
@@ -152,18 +152,18 @@ container instead. If Ollama shows unreachable from the container, check
 that it's bound to more than `127.0.0.1` (`OLLAMA_HOST=0.0.0.0:11434
 ollama serve`) — a common gotcha, not a Zenith bug.
 
-**Manual:**
+**Manual — one-shot setup:**
 
 ```bash
-# Backend
-cd backend
-./run.sh   # creates a venv, installs requirements, starts uvicorn on :8420
+./install.sh   # checks Python 3.11-3.13 / Node 18+, sets up backend venv +
+                # deps and frontend deps + .env — prints the two run commands
+```
 
-# Frontend (separate terminal)
-cd frontend
-npm install
-cp .env.example .env
-npm run dev
+Then, in two terminals:
+
+```bash
+cd backend && ./run.sh    # starts uvicorn on :8420
+cd frontend && npm run dev
 ```
 
 A Piper voice is optional — download a `.onnx` + `.onnx.json` pair from
