@@ -1,9 +1,9 @@
-fastapi==0.115.6
-# mcp pulls in a newer starlette that breaks fastapi's pin; pinned here
-# explicitly so a future `pip install` doesn't silently re-break it.
-# (mcp also pulls sse-starlette for ITS server-side SSE transport, which
-# we don't use — only the stdio client — so that conflict is harmless.)
-starlette>=0.40.0,<0.42.0
+fastapi==0.128.0
+# On Python 3.14, mcp requires starlette>=0.48.0 (it only needs starlette
+# >=0.27 on older Pythons). fastapi 0.115.x capped starlette below that, so
+# `pip install` couldn't satisfy both — bumped fastapi to a version whose
+# own starlette range (>=0.40,<0.51) overlaps mcp's, on every Python version.
+starlette>=0.40.0,<0.51.0
 uvicorn[standard]==0.34.0
 mcp==1.28.1
 httpx==0.28.1
