@@ -499,6 +499,53 @@ def _usage_events_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _conversation_pin_tags_share(conn: sqlite3.Connection) -> None:
+    """Pinning, free-form tags, and shareable read-only links — all
+    lightweight conversation metadata, same additive-column pattern as
+    `workdir`/`project_id`. `tags` is a JSON array string (SQLite has no
+    native array type); `share_token` is nullable and unique when set —
+    a conversation is shareable only once a token has been issued."""
+    cur = conn.cursor()
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(conversations)").fetchall()]
+    if "pinned" not in cols:
+        cur.execute("ALTER TABLE conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+    if "tags" not in cols:
+        cur.execute("ALTER TABLE conversations ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+    if "share_token" not in cols:
+        cur.execute("ALTER TABLE conversations ADD COLUMN share_token TEXT")
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_conversations_share_token "
+        "ON conversations(share_token) WHERE share_token IS NOT NULL"
+    )
+
+
+def _project_agent_mode(conn: sqlite3.Connection) -> None:
+    """Per-project autonomy override — a project can pin agent_mode to
+    something different from the global default (e.g. always full-auto
+    in a scratch repo, always manual in dotfiles). NULL means "use the
+    global agent_mode setting", same fallback as before this migration."""
+    cur = conn.cursor()
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(projects)").fetchall()]
+    if "agent_mode" not in cols:
+        cur.execute("ALTER TABLE projects ADD COLUMN agent_mode TEXT")
+
+
+def _snippets_table(conn: sqlite3.Connection) -> None:
+    """Reusable prompt/message snippets — inserted into the composer,
+    distinct from personas (which are system-prompt-level, applied for a
+    whole conversation) since these are message-level, one-off inserts."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS snippets (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -543,6 +590,9 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (21, "group_chat_column", _group_chat_column),
     (22, "tool_calls_run_id_column", _tool_calls_run_id_column),
     (23, "usage_events_table", _usage_events_table),
+    (24, "conversation_pin_tags_share", _conversation_pin_tags_share),
+    (25, "project_agent_mode", _project_agent_mode),
+    (26, "snippets_table", _snippets_table),
 ]
 
 

@@ -18,6 +18,35 @@ const TOOL_ICON = {
 };
 const EDITABLE_DOC_EXTS = [".txt", ".md", ".csv", ".json"];
 
+// Reasoning models (deepseek-r1, qwq, …) emit their scratch-work wrapped in
+// <think>...</think> before the real answer. Split it out so it renders as
+// a collapsible trace instead of dumping raw reasoning into the reply —
+// handles an unterminated tag too (still streaming mid-thought).
+function splitThinking(content) {
+  if (!content || !content.includes("<think>")) return { trace: null, rest: content };
+  const start = content.indexOf("<think>") + "<think>".length;
+  const endIdx = content.indexOf("</think>");
+  if (endIdx === -1) {
+    return { trace: content.slice(start), rest: "", thinking: true };
+  }
+  const trace = content.slice(start, endIdx);
+  const rest = content.slice(0, content.indexOf("<think>")) + content.slice(endIdx + "</think>".length);
+  return { trace, rest };
+}
+
+function ThinkingTrace({ trace, thinking }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="thinking-trace">
+      <button className="thinking-trace-toggle" onClick={() => setOpen((v) => !v)}>
+        <Icon name={open ? "chevron-down" : "chevron-right"} size={12} />
+        {thinking ? "Thinking…" : "Reasoning"}
+      </button>
+      {open && <pre className="thinking-trace-body">{trace}</pre>}
+    </div>
+  );
+}
+
 function DocumentChip({ attachment: a }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null); // { filename, download_url } | { error }
@@ -397,7 +426,15 @@ export default function MessageBubble({
               </span>
             ) : (
               <>
-                <MarkdownRenderer content={message.content} onOpenEditor={onOpenEditor} />
+                {(() => {
+                  const { trace, rest, thinking } = splitThinking(message.content);
+                  return (
+                    <>
+                      {trace && <ThinkingTrace trace={trace} thinking={thinking} />}
+                      <MarkdownRenderer content={rest} onOpenEditor={onOpenEditor} />
+                    </>
+                  );
+                })()}
                 {message.streaming && <span className="cursor-blink" data-role={message.route_role} />}
               </>
             )}

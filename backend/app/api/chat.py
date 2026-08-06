@@ -80,6 +80,87 @@ async def remove_project(project_id: str):
     return {"ok": True}
 
 
+@router.patch("/projects/{project_id}/agent-mode")
+async def set_project_agent_mode(project_id: str, body: dict):
+    """Per-project autonomy override for agent mode — None/omitted falls
+    back to the global `agent_mode` setting (see agent_service.py)."""
+    mode = body.get("agent_mode")
+    if mode is not None and mode not in ("manual", "semi", "full", "plan"):
+        raise HTTPException(422, "agent_mode must be one of manual/semi/full/plan, or null.")
+    storage.set_project_agent_mode(project_id, mode)
+    return {"ok": True}
+
+
+@router.patch("/conversations/{conversation_id}/pin")
+async def set_conversation_pinned(conversation_id: str, body: dict):
+    storage.set_conversation_pinned(conversation_id, bool(body.get("pinned")))
+    return {"ok": True}
+
+
+@router.patch("/conversations/{conversation_id}/tags")
+async def set_conversation_tags(conversation_id: str, body: dict):
+    tags = body.get("tags")
+    if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
+        raise HTTPException(422, "tags must be a list of strings.")
+    storage.set_conversation_tags(conversation_id, tags[:20])
+    return {"ok": True}
+
+
+@router.post("/conversations/{conversation_id}/share")
+async def share_conversation(conversation_id: str):
+    if not storage.get_conversation(conversation_id):
+        raise HTTPException(404, "No such conversation.")
+    token = storage.create_share_link(conversation_id)
+    return {"token": token}
+
+
+@router.delete("/conversations/{conversation_id}/share")
+async def unshare_conversation(conversation_id: str):
+    storage.revoke_share_link(conversation_id)
+    return {"ok": True}
+
+
+@router.get("/share/{token}")
+async def view_shared_conversation(token: str):
+    """Public, read-only — deliberately not behind the passcode-lock
+    middleware (see main.py's lock allowlist) so a link works for anyone
+    it's sent to, the same trust model as "anyone with the link can view"
+    sharing elsewhere. Returns just enough to render: title + messages,
+    no working directory, tags, or other owner-only metadata."""
+    conv = storage.get_conversation_by_share_token(token)
+    if not conv:
+        raise HTTPException(404, "This link is invalid or has been revoked.")
+    messages = storage.get_messages(conv["id"])
+    return {
+        "title": conv["title"],
+        "created_at": conv["created_at"],
+        "messages": [
+            {"role": m["role"], "content": m["content"], "model": m.get("model"), "created_at": m["created_at"]}
+            for m in messages
+        ],
+    }
+
+
+@router.get("/snippets")
+async def list_snippets():
+    return storage.list_snippets()
+
+
+@router.post("/snippets")
+async def create_snippet(body: dict):
+    title = str(body.get("title", "")).strip()
+    content = str(body.get("content", "")).strip()
+    if not title or not content:
+        raise HTTPException(422, "title and content are required.")
+    return storage.create_snippet(title[:200], content[:20_000])
+
+
+@router.delete("/snippets/{snippet_id}")
+async def remove_snippet(snippet_id: str):
+    storage.delete_snippet(snippet_id)
+    return {"ok": True}
+
+
 @router.get("/conversations/{conversation_id}/messages")
 async def conversation_messages(conversation_id: str):
     return storage.get_messages(conversation_id)

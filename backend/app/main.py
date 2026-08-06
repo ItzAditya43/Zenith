@@ -263,6 +263,7 @@ class PasscodeLock(BaseHTTPMiddleware):
             or path in self._ALLOW
             or path.startswith("/docs")
             or path.startswith("/api/lock/")  # status/verify/set/disable stay reachable
+            or path.startswith("/api/share/")  # public read-only shared-conversation links
             or not path.startswith("/api/")
         ):
             return await call_next(request)

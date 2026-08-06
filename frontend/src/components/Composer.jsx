@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
@@ -12,10 +12,11 @@ const MODES = [
   { id: "research", icon: "flask", label: "Deep Research", hint: "Multi-step investigation and a written report, instead of a quick answer." },
   { id: "agent", icon: "bot", label: "Agent", hint: "Zenith can run commands and read/write files across multiple steps.", requires: "agentAvailable" },
   { id: "council", icon: "users", label: "Council", hint: "Ask all your configured models at once, compare the answers.", requires: "councilAvailable" },
+  { id: "compare", icon: "layers", label: "Compare 2", hint: "Ask two specific models this one message, side by side — no Settings setup needed.", requires: "compareAvailable" },
   { id: "image", icon: "image", label: "Image", hint: "Generate an image from your prompt with a local Stable Diffusion server.", requires: "imageAvailable" },
 ];
 
-function ModePicker({ mode, setMode, agentAvailable, councilAvailable, imageAvailable }) {
+function ModePicker({ mode, setMode, agentAvailable, councilAvailable, imageAvailable, compareAvailable }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -33,7 +34,7 @@ function ModePicker({ mode, setMode, agentAvailable, councilAvailable, imageAvai
     };
   }, [open]);
 
-  const availability = { agentAvailable, councilAvailable, imageAvailable };
+  const availability = { agentAvailable, councilAvailable, imageAvailable, compareAvailable };
   const available = MODES.filter((m) => !m.requires || availability[m.requires]);
   const current = MODES.find((m) => m.id === mode) || MODES[0];
 
@@ -164,6 +165,9 @@ export default function Composer({
   autoListenNonce = null,
   installedModels = [],
   centered = false,
+  messages = [],
+  contextWindow = 8192,
+  maxContextMessages = 24,
 }) {
   const [text, setText] = useState("");
   const [modelOverride, setModelOverride] = useState("");
@@ -172,6 +176,15 @@ export default function Composer({
   const [dragging, setDragging] = useState(false);
   const [micError, setMicError] = useState(null);
   const [mode, setMode] = useState("off");
+  const [compareA, setCompareA] = useState("");
+  const [compareB, setCompareB] = useState("");
+
+  useEffect(() => {
+    if (mode === "compare" && installedModels.length >= 2 && !compareA && !compareB) {
+      setCompareA(installedModels[0]);
+      setCompareB(installedModels[1]);
+    }
+  }, [mode, installedModels]);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const { recording, error: recorderError, supported, stream, start, stop, cancel } = useVoiceRecorder();
@@ -247,6 +260,7 @@ export default function Composer({
     if (disabled) return;
     if (!text.trim() && pending.length === 0) return;
     if (pending.some((a) => a.uploading)) return;
+    const isCompare = mode === "compare" && compareA && compareB && compareA !== compareB;
     onSend(
       text.trim(),
       pending.map((a) => a.id),
@@ -255,9 +269,10 @@ export default function Composer({
       mode === "agent" && agentAvailable,
       mode === "research",
       null,
-      mode === "council" && councilAvailable,
+      (mode === "council" && councilAvailable) || isCompare,
       mode === "image" && imageAvailable,
-      modelOverride || null
+      modelOverride || null,
+      isCompare ? [compareA, compareB] : null
     );
     setText("");
     setPending([]);
@@ -336,6 +351,18 @@ export default function Composer({
     }
   };
 
+  // Rough estimate only (chars/4, same ballpark heuristic used across the
+  // industry for a quick gauge — actual tokenization is model-specific).
+  // Mirrors the backend's own truncation window (max_context_messages) so
+  // the percentage roughly tracks what will actually get sent.
+  const contextUsage = useMemo(() => {
+    const recent = messages.slice(-maxContextMessages);
+    const chars = recent.reduce((sum, m) => sum + (m.content?.length || 0), 0) + text.length;
+    const tokens = Math.ceil(chars / 4);
+    const limit = contextWindow || 8192;
+    return { tokens, limit, pct: Math.round((tokens / limit) * 100) };
+  }, [messages, text, maxContextMessages, contextWindow]);
+
   const micTitle = !supported
     ? "Microphone not supported"
     : recording
@@ -404,8 +431,16 @@ export default function Composer({
           agentAvailable={agentAvailable}
           councilAvailable={councilAvailable}
           imageAvailable={imageAvailable}
+          compareAvailable={installedModels.length >= 2}
         />
-        {installedModels.length > 0 && (
+        {mode === "compare" && installedModels.length >= 2 && (
+          <>
+            <ModelPicker models={installedModels} value={compareA} onChange={setCompareA} />
+            <span className="compare-vs">vs</span>
+            <ModelPicker models={installedModels} value={compareB} onChange={setCompareB} />
+          </>
+        )}
+        {mode !== "compare" && installedModels.length > 0 && (
           <ModelPicker models={installedModels} value={modelOverride} onChange={setModelOverride} />
         )}
         <input
@@ -463,6 +498,12 @@ export default function Composer({
           <Icon name="send" size={16} />
         </button>
       </div>
+      )}
+      {!recording && !transcribing && contextUsage.pct >= 40 && (
+        <div className="composer-context-bar" title={`~${contextUsage.tokens.toLocaleString()} tokens of an estimated ${contextUsage.limit.toLocaleString()}-token context window (rough estimate — actual tokenization varies by model)`}>
+          <div className="composer-context-fill" style={{ width: `${Math.min(contextUsage.pct, 100)}%` }} data-level={contextUsage.pct >= 90 ? "high" : contextUsage.pct >= 70 ? "medium" : "low"} />
+          <span>{contextUsage.pct}% of context window</span>
+        </div>
       )}
     </div>
   );

@@ -309,6 +309,12 @@ it) — a per-call Cmd+Z.
   **once** in a plan card, then the whole plan runs unattended. Reject and
   nothing runs. This is the signature Claude-Code plan-mode experience.
 
+**Per-project autonomy override** — a project can pin its own mode (the
+bot icon next to a project's name in the sidebar), overriding the global
+setting for every conversation in it: always plan-first in your dotfiles,
+always full-auto in a scratch repo. Unset (the default) falls back to the
+global `agent_mode` setting.
+
 **Test/lint feedback loop.** Set a check command (e.g. `pytest -q`,
 `npm test`) in Settings; the agent can call `run_checks` any time, and with
 **auto-check** on it runs automatically after every file edit and the
@@ -426,6 +432,12 @@ working directory is bound.
 - Plain text only, 2MB cap per file — this is a lightweight editor for
   config/code/notes, not a full IDE (no language server, no syntax
   highlighting yet).
+- **Git status/diff + run** — toolbar buttons show `git status`/`git
+  diff` for the bound directory (reusing agent mode's own git runner)
+  and execute the configured check command (Settings → Agent tools),
+  streaming output into a pane below the editor — no model turn, no
+  approval gate, just the same "run a command and see the result" loop
+  a terminal gives you.
 - ⌘S / Ctrl+S saves the active tab.
 
 ### Document editing
@@ -575,6 +587,27 @@ people using the same machine can't open your chats.
   all header chrome except the title, centers a narrower reading column.
 - **Date-grouped sidebar** (Today / Previous 7 days / Previous 30 days /
   Older) instead of one flat list.
+- **Pinned conversations + free-form tags** — pin a chat to float it above
+  the date groups; tag any chat with your own labels (shown as chips in
+  the sidebar), independent of the project grouping above.
+- **Shareable read-only links** — generate a public, unauthenticated link
+  to one conversation (title + messages only, no working directory or
+  tags); revoke it any time. Bypasses the passcode lock by design (a
+  link only works if you hand it out) but still respects shared-secret
+  auth if that's enabled — see Safety model.
+- **Prompt/snippet library** — save reusable message templates and insert
+  them into the composer, separate from personas (which apply for a
+  whole conversation, system-prompt level).
+- **Ad-hoc 2-model compare** — the composer's mode picker has a
+  **Compare 2** option that fans one message out to any two installed
+  models side by side, without pre-configuring Settings → Council.
+- **Context window indicator** — a rough usage bar appears in the
+  composer once a conversation's estimated token count crosses 40% of
+  the model's context window (chars/4 heuristic — a gauge, not an exact
+  count).
+- **Reasoning trace** — replies from models that emit `<think>` blocks
+  (deepseek-r1, qwq, …) show a collapsible "Reasoning" toggle instead of
+  dumping raw scratch-work into the visible answer.
 - **One consistent SVG icon system** (`Icon.jsx`) — every emoji glyph was
   replaced with a single thin-stroke `currentColor` set, so the UI reads as
   a deliberate product rather than a generic "AI wrapper" across every OS.

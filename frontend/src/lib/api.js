@@ -354,6 +354,56 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_id: projectId }),
     }).then((r) => r.json()),
+  setProjectAgentMode: (projectId, agentMode) =>
+    request(`/api/projects/${projectId}/agent-mode`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent_mode: agentMode }),
+    }).then((r) => r.json()),
+
+  setConversationPinned: (conversationId, pinned) =>
+    request(`/api/conversations/${conversationId}/pin`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned }),
+    }).then((r) => r.json()),
+  setConversationTags: (conversationId, tags) =>
+    request(`/api/conversations/${conversationId}/tags`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tags }),
+    }).then((r) => r.json()),
+
+  shareConversation: (conversationId) =>
+    request(`/api/conversations/${conversationId}/share`, { method: "POST" }).then((r) => r.json()),
+  unshareConversation: (conversationId) =>
+    request(`/api/conversations/${conversationId}/share`, { method: "DELETE" }).then((r) => r.json()),
+  getSharedConversation: (token) =>
+    fetch(`${BASE}/api/share/${token}`).then((r) => {
+      if (!r.ok) throw new Error("This link is invalid or has been revoked.");
+      return r.json();
+    }),
+  shareUrl: (token) => `${window.location.origin}${window.location.pathname}#/share/${token}`,
+
+  listSnippets: () => request("/api/snippets").then((r) => r.json()),
+  createSnippet: (title, content) =>
+    request("/api/snippets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, content }),
+    }).then((r) => r.json()),
+  deleteSnippet: (id) => request(`/api/snippets/${id}`, { method: "DELETE" }),
+
+  gitStatus: (conversationId) =>
+    request(`/api/conversations/${conversationId}/git/status`).then((r) => r.json()),
+  gitDiff: (conversationId, path = "") =>
+    request(`/api/conversations/${conversationId}/git/diff?path=${encodeURIComponent(path)}`).then((r) => r.json()),
+  runChecks: (conversationId, command = null) =>
+    request(`/api/conversations/${conversationId}/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(command ? { command } : {}),
+    }).then((r) => r.json()),
 
   listSkills: () => request("/api/skills").then((r) => r.json()),
   deleteSkill: (id) => request(`/api/skills/${id}`, { method: "DELETE" }),

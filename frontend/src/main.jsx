@@ -19,10 +19,16 @@ import "@fontsource/bebas-neue/400.css";
 import "./styles/global.css";
 import "./styles/app.css";
 import App from "./App.jsx";
+import SharedConversationView from "./components/SharedConversationView.jsx";
+
+// No router dependency for one route: a share link is just a hash the
+// backend never sees (#/share/<token>), so a plain string check is all
+// that's needed to swap the whole app out for the read-only view.
+const shareMatch = window.location.hash.match(/^#\/share\/(.+)$/);
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <App />
+    {shareMatch ? <SharedConversationView token={shareMatch[1]} /> : <App />}
   </StrictMode>
 );
 
