@@ -77,7 +77,11 @@ def create_conversation(title: str = "New chat", project_id: str | None = None) 
             if proj and proj["workdir"]:
                 workdir = proj["workdir"]
                 conn.execute("UPDATE conversations SET workdir = ? WHERE id = ?", (workdir, cid))
-    return {"id": cid, "title": title, "created_at": now, "updated_at": now, "project_id": project_id, "workdir": workdir}
+    return {
+        "id": cid, "title": title, "created_at": now, "updated_at": now,
+        "project_id": project_id, "workdir": workdir, "pinned": False,
+        "tags": [], "share_token": None,
+    }
 
 
 def set_conversation_project(conversation_id: str, project_id: str | None) -> None:
@@ -112,18 +116,96 @@ def delete_project(project_id: str) -> None:
         conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
 
 
+def _row_to_conversation(r: sqlite3.Row) -> dict:
+    d = dict(r)
+    try:
+        d["tags"] = json.loads(d.get("tags") or "[]")
+    except (TypeError, ValueError):
+        d["tags"] = []
+    d["pinned"] = bool(d.get("pinned"))
+    return d
+
+
 def get_conversation(conversation_id: str) -> dict | None:
     with _conn() as conn:
         row = conn.execute("SELECT * FROM conversations WHERE id = ?", (conversation_id,)).fetchone()
-        return dict(row) if row else None
+        return _row_to_conversation(row) if row else None
 
 
 def list_conversations() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM conversations ORDER BY updated_at DESC"
+            # Pinned conversations float to the top, most-recent-first
+            # within each group.
+            "SELECT * FROM conversations ORDER BY pinned DESC, updated_at DESC"
         ).fetchall()
+        return [_row_to_conversation(r) for r in rows]
+
+
+def set_conversation_pinned(conversation_id: str, pinned: bool) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE conversations SET pinned = ? WHERE id = ?", (1 if pinned else 0, conversation_id))
+
+
+def set_conversation_tags(conversation_id: str, tags: list[str]) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE conversations SET tags = ? WHERE id = ?", (json.dumps(tags), conversation_id))
+
+
+def create_share_link(conversation_id: str) -> str:
+    """Issues a fresh share token, replacing any previous one — resharing
+    a conversation invalidates its old link rather than accumulating
+    live tokens nobody remembers granting."""
+    token = uuid.uuid4().hex
+    with _conn() as conn:
+        conn.execute("UPDATE conversations SET share_token = ? WHERE id = ?", (token, conversation_id))
+    return token
+
+
+def revoke_share_link(conversation_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE conversations SET share_token = NULL WHERE id = ?", (conversation_id,))
+
+
+def get_conversation_by_share_token(token: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM conversations WHERE share_token = ?", (token,)).fetchone()
+        return _row_to_conversation(row) if row else None
+
+
+def get_project_agent_mode(project_id: str | None) -> str | None:
+    if not project_id:
+        return None
+    with _conn() as conn:
+        row = conn.execute("SELECT agent_mode FROM projects WHERE id = ?", (project_id,)).fetchone()
+        return row["agent_mode"] if row else None
+
+
+def set_project_agent_mode(project_id: str, agent_mode: str | None) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE projects SET agent_mode = ? WHERE id = ?", (agent_mode, project_id))
+
+
+def list_snippets() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute("SELECT * FROM snippets ORDER BY created_at DESC").fetchall()
         return [dict(r) for r in rows]
+
+
+def create_snippet(title: str, content: str) -> dict:
+    sid = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO snippets (id, title, content, created_at) VALUES (?, ?, ?, ?)",
+            (sid, title, content, now),
+        )
+    return {"id": sid, "title": title, "content": content, "created_at": now}
+
+
+def delete_snippet(snippet_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM snippets WHERE id = ?", (snippet_id,))
 
 
 def _row_to_message(r: sqlite3.Row) -> dict:

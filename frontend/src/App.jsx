@@ -20,6 +20,7 @@ import OnboardingTour from "./components/OnboardingTour.jsx";
 import WhatsNewPanel from "./components/WhatsNewPanel.jsx";
 import UsageDashboard from "./components/UsageDashboard.jsx";
 import CodeEditorPanel from "./components/CodeEditorPanel.jsx";
+import SnippetsPanel from "./components/SnippetsPanel.jsx";
 import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
@@ -74,6 +75,9 @@ export default function App() {
   const [todosOpen, setTodosOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
+  const [snippetsOpen, setSnippetsOpen] = useState(false);
+  const [contextWindow, setContextWindow] = useState(8192);
+  const [maxContextMessages, setMaxContextMessages] = useState(24);
   const [onboardingOpen, setOnboardingOpen] = useState(
     () => !localStorage.getItem("zenith-onboarded")
   );
@@ -173,6 +177,8 @@ export default function App() {
     api.getConfig().then((c) => {
       setAgentAvailable(!!c.agent_enabled);
       setCouncilModels(c.council_models || []);
+      setContextWindow(c.default_context_window || 8192);
+      setMaxContextMessages(c.max_context_messages || 24);
     }).catch(() => {});
     api.listPersonas().then(setPersonas).catch(() => {});
   }, []);
@@ -204,6 +210,70 @@ export default function App() {
         cs.map((c) => (c.id === activeId ? { ...c, workdir: result.workdir } : c))
       );
       showToast(result.workdir ? `Working directory set: ${result.workdir}` : "Working directory cleared", "success");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
+  const handleShare = async () => {
+    if (!activeId) return;
+    try {
+      if (activeConversation?.share_token) {
+        await api.unshareConversation(activeId);
+        setConversations((cs) => cs.map((c) => (c.id === activeId ? { ...c, share_token: null } : c)));
+        showToast("Share link revoked.", "success");
+        return;
+      }
+      const { token } = await api.shareConversation(activeId);
+      setConversations((cs) => cs.map((c) => (c.id === activeId ? { ...c, share_token: token } : c)));
+      const url = api.shareUrl(token);
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast("Share link copied to clipboard.", "success");
+      } catch {
+        showToast(`Share link: ${url}`, "success");
+      }
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
+  const handleSetProjectAgentMode = async (project) => {
+    const input = window.prompt(
+      "Agent autonomy for this project (manual/semi/full/plan) — leave blank to use the global default:",
+      project.agent_mode || ""
+    );
+    if (input === null) return;
+    const mode = input.trim() || null;
+    if (mode && !["manual", "semi", "full", "plan"].includes(mode)) {
+      showToast("Must be one of: manual, semi, full, plan.", "error");
+      return;
+    }
+    try {
+      await api.setProjectAgentMode(project.id, mode);
+      setProjects((ps) => ps.map((p) => (p.id === project.id ? { ...p, agent_mode: mode } : p)));
+      showToast(mode ? `Agent autonomy pinned to "${mode}" for ${project.name}.` : `Agent autonomy reset to global default for ${project.name}.`, "success");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
+  const handleTogglePin = async (c) => {
+    try {
+      await api.setConversationPinned(c.id, !c.pinned);
+      setConversations((cs) => cs.map((x) => (x.id === c.id ? { ...x, pinned: !c.pinned } : x)));
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
+  const handleEditTags = async (c) => {
+    const input = window.prompt("Tags (comma-separated):", (c.tags || []).join(", "));
+    if (input === null) return;
+    const tags = input.split(",").map((t) => t.trim()).filter(Boolean);
+    try {
+      await api.setConversationTags(c.id, tags);
+      setConversations((cs) => cs.map((x) => (x.id === c.id ? { ...x, tags } : x)));
     } catch (err) {
       showToast(err.message, "error");
     }
@@ -531,13 +601,14 @@ export default function App() {
     }, 1200);
   };
 
-  const handleCouncilSend = async (text, attachmentIds) => {
-    if (!activeId || councilModels.length < 2) return;
+  const handleCouncilSend = async (text, attachmentIds, modelsOverride = null) => {
+    const models = modelsOverride && modelsOverride.length >= 2 ? modelsOverride : councilModels;
+    if (!activeId || models.length < 2) return;
     const userMsg = { id: `local-${Date.now()}`, role: "user", content: text, attachments: [] };
     const assistantMsg = {
       id: `local-assistant-${Date.now()}`,
       role: "assistant",
-      content: `Asking ${councilModels.length} models…`,
+      content: `Asking ${models.length} models…`,
       streaming: true,
       model: null,
       route_role: "council",
@@ -552,10 +623,10 @@ export default function App() {
 
     const progress = {}; // model -> chars streamed so far
     const renderProgress = () =>
-      councilModels.map((m) => `${m}: ${progress[m] || 0} chars`).join(" · ");
+      models.map((m) => `${m}: ${progress[m] || 0} chars`).join(" · ");
 
     await api.streamCouncil(
-      { conversationId: activeId, message: text, attachmentIds, models: councilModels },
+      { conversationId: activeId, message: text, attachmentIds, models },
       (event) => {
         if (event.type === "council_token") {
           progress[event.model] = (progress[event.model] || 0) + event.text.length;
@@ -671,10 +742,11 @@ export default function App() {
     regenerateOf = null,
     councilMode = false,
     imageMode = false,
-    modelOverride = null
+    modelOverride = null,
+    compareModels = null
   ) => {
     if (!activeId) return;
-    if (councilMode) return handleCouncilSend(text, attachmentIds);
+    if (councilMode) return handleCouncilSend(text, attachmentIds, compareModels);
     if (imageMode) return handleImageSend(text);
     if (groupPersonaIds.length >= 2) return handleGroupSend(text);
     const editOf = editContext?.messageId || null;
@@ -1075,6 +1147,9 @@ export default function App() {
           onOpenTodos={() => setTodosOpen(true)}
           onOpenCalendar={() => setCalendarOpen(true)}
           onOpenResearch={() => setResearchOpen(true)}
+          onTogglePin={handleTogglePin}
+          onEditTags={handleEditTags}
+          onSetProjectAgentMode={handleSetProjectAgentMode}
         />
       )}
 
@@ -1147,6 +1222,15 @@ export default function App() {
               )}
               {!focusMode && (
                 <button
+                  className={`icon-btn ${snippetsOpen ? "is-active" : ""}`}
+                  onClick={() => setSnippetsOpen((v) => !v)}
+                  title="Prompt snippets"
+                >
+                  <Icon name="copy" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
                   className={`icon-btn ${usageOpen ? "is-active" : ""}`}
                   onClick={() => setUsageOpen((v) => !v)}
                   title="Usage & diagnostics"
@@ -1175,6 +1259,15 @@ export default function App() {
                 title={`Open code editor for ${activeConversation.workdir}`}
               >
                 <Icon name="terminal" size={16} />
+              </button>
+            )}
+            {!focusMode && activeId && (
+              <button
+                className={`icon-btn ${activeConversation?.share_token ? "is-active" : ""}`}
+                onClick={handleShare}
+                title={activeConversation?.share_token ? "Revoke share link" : "Create a read-only share link"}
+              >
+                <Icon name="share" size={16} />
               </button>
             )}
             {!focusMode && personas.length > 0 && groupPersonaIds.length < 2 && (
@@ -1252,6 +1345,15 @@ export default function App() {
         {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}
         {todosOpen && <TodoPanel onClose={() => setTodosOpen(false)} />}
         {researchOpen && <ResearchDashboard onClose={() => setResearchOpen(false)} />}
+        {snippetsOpen && (
+          <SnippetsPanel
+            onClose={() => setSnippetsOpen(false)}
+            onInsert={(text) => {
+              setSeedText({ text, nonce: Date.now() });
+              setSnippetsOpen(false);
+            }}
+          />
+        )}
         {codeEditorOpen && activeConversation?.workdir && (
           <CodeEditorPanel
             conversationId={activeId}
@@ -1381,6 +1483,9 @@ export default function App() {
           installedModels={installedModels}
           continuousVoice={continuousVoice}
           autoListenNonce={autoListenNonce}
+          messages={messages}
+          contextWindow={contextWindow}
+          maxContextMessages={maxContextMessages}
         />
         </div>
 

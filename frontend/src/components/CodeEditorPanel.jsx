@@ -94,6 +94,38 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
 
   const activeTab = tabs.find((t) => t.path === activePath);
 
+  const [output, setOutput] = useState(null); // { label, text, loading }
+
+  const runGitStatus = async () => {
+    setOutput({ label: "git status", text: "", loading: true });
+    try {
+      const res = await api.gitStatus(conversationId);
+      setOutput({ label: "git status", text: res.output, loading: false });
+    } catch (err) {
+      setOutput({ label: "git status", text: err.message, loading: false });
+    }
+  };
+
+  const runGitDiff = async () => {
+    setOutput({ label: "git diff", text: "", loading: true });
+    try {
+      const res = await api.gitDiff(conversationId, activeTab?.path || "");
+      setOutput({ label: "git diff", text: res.output, loading: false });
+    } catch (err) {
+      setOutput({ label: "git diff", text: err.message, loading: false });
+    }
+  };
+
+  const runCheckCommand = async () => {
+    setOutput({ label: "run", text: "", loading: true });
+    try {
+      const res = await api.runChecks(conversationId);
+      setOutput({ label: "run", text: res.output, loading: false });
+    } catch (err) {
+      setOutput({ label: "run", text: err.message, loading: false });
+    }
+  };
+
   return (
     <div className="notes-overlay" onClick={onClose}>
       <div
@@ -103,9 +135,23 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
       >
         <div className="notes-header">
           <span>Code editor — {workdir}</span>
-          <button className="icon-btn" onClick={onClose} title="Close">
-            <Icon name="x" size={14} />
-          </button>
+          <div style={{ display: "flex", gap: "var(--space-1)" }}>
+            <button className="icon-btn" onClick={runGitStatus} title="git status">
+              <Icon name="grid" size={14} />
+              <span className="mode-picker-label" style={{ marginLeft: 4 }}>Status</span>
+            </button>
+            <button className="icon-btn" onClick={runGitDiff} title="git diff (active file, or whole repo if none open)">
+              <Icon name="layers" size={14} />
+              <span className="mode-picker-label" style={{ marginLeft: 4 }}>Diff</span>
+            </button>
+            <button className="icon-btn" onClick={runCheckCommand} title="Run the configured check command (Settings -> Agent tools)">
+              <Icon name="bolt" size={14} />
+              <span className="mode-picker-label" style={{ marginLeft: 4 }}>Run</span>
+            </button>
+            <button className="icon-btn" onClick={onClose} title="Close">
+              <Icon name="x" size={14} />
+            </button>
+          </div>
         </div>
         {error && <div className="settings-error">{error}</div>}
         <div className="code-editor-body">
@@ -160,6 +206,17 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
             )}
           </div>
         </div>
+        {output && (
+          <div className="code-editor-output">
+            <div className="code-editor-output-header">
+              <span>{output.label}</span>
+              <button className="icon-btn" onClick={() => setOutput(null)} title="Close">
+                <Icon name="x" size={12} />
+              </button>
+            </div>
+            <pre className="code-editor-output-body">{output.loading ? "Running…" : output.text || "(no output)"}</pre>
+          </div>
+        )}
       </div>
     </div>
   );

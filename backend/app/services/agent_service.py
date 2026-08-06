@@ -1019,7 +1019,13 @@ async def run_agent_turn(
     from app.db import storage
     from app.services.orchestrator import build_turn_context, _build_system_context
 
-    mode = settings.get("agent_mode", "manual")
+    conv = storage.get_conversation(conversation_id)
+    # A project can pin autonomy to something other than the global default
+    # (e.g. always full-auto in a scratch repo, always manual in dotfiles) —
+    # falls back to the global agent_mode setting when unset, same as before
+    # per-project overrides existed.
+    project_mode = storage.get_project_agent_mode(conv["project_id"] if conv else None)
+    mode = project_mode or settings.get("agent_mode", "manual")
     max_iters = int(settings.get("agent_max_iterations", 8))
     cmd_timeout = float(settings.get("agent_command_timeout_seconds", 60))
     max_chars = int(settings.get("agent_output_max_chars", 4000))

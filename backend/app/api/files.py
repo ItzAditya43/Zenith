@@ -101,3 +101,38 @@ async def write_file(conversation_id: str, body: FileWriteRequest, path: str = Q
     target.write_text(body.content, encoding="utf-8")
     log.info("files.write", conversation_id=conversation_id, path=path, bytes=len(body.content))
     return {"path": path, "saved": True}
+
+
+# --- Git status/diff + run-checks, for the code editor panel ---------------
+# Reuses agent_service's own git/check-command runners (same trust level:
+# read-only git inspection and the user's own configured check command, no
+# arbitrary shell — not the full `bash` tool agent mode exposes).
+
+from app.services.agent_service import _run_checks, _run_git  # noqa: E402
+
+
+@router.get("/conversations/{conversation_id}/git/status")
+async def git_status(conversation_id: str):
+    root = _workdir(conversation_id)
+    out = await _run_git({"op": "status"}, timeout=15, max_chars=8000, workdir=str(root))
+    return {"output": out}
+
+
+@router.get("/conversations/{conversation_id}/git/diff")
+async def git_diff(conversation_id: str, path: str = Query("")):
+    root = _workdir(conversation_id)
+    args = {"op": "diff"}
+    if path:
+        args["path"] = path
+    out = await _run_git(args, timeout=15, max_chars=20000, workdir=str(root))
+    return {"output": out}
+
+
+@router.post("/conversations/{conversation_id}/run")
+async def run_checks(conversation_id: str, body: dict | None = None):
+    """Runs the configured check command (Settings -> Agent tools), or an
+    explicit one-off `command` in the request body, in the bound working
+    directory."""
+    root = _workdir(conversation_id)
+    out = await _run_checks(body or {}, workdir=str(root))
+    return {"output": out}

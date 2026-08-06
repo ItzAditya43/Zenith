@@ -19,26 +19,62 @@ function groupByDate(conversations) {
   return buckets.filter((b) => b.items.length > 0);
 }
 
-function ConversationItem({ c, active, collapsed, showDelete, onSelect, onDelete }) {
+function ConversationItem({ c, active, collapsed, showDelete, onSelect, onDelete, onTogglePin, onEditTags }) {
   return (
     <div
       className={`conversation-item ${active ? "conversation-item-active" : ""}`}
       onClick={() => onSelect(c.id)}
     >
+      {!collapsed && c.pinned && <Icon name="target" size={11} className="conversation-pin-icon" />}
       <span className="conversation-title">
         {collapsed ? c.title[0]?.toUpperCase() : c.title}
+        {!collapsed && c.tags?.length > 0 && (
+          <span className="conversation-tags">
+            {c.tags.map((t) => (
+              <span key={t} className="conversation-tag-chip">{t}</span>
+            ))}
+          </span>
+        )}
       </span>
-      {!collapsed && showDelete && (
-        <button
-          className="conversation-delete"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(c.id);
-          }}
-          title="Delete conversation"
-        >
-          <Icon name="x" size={13} />
-        </button>
+      {!collapsed && (
+        <div className="conversation-item-actions">
+          {onTogglePin && (
+            <button
+              className={`conversation-action-btn ${c.pinned ? "is-active" : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePin(c);
+              }}
+              title={c.pinned ? "Unpin" : "Pin to top"}
+            >
+              <Icon name="target" size={12} />
+            </button>
+          )}
+          {onEditTags && (
+            <button
+              className="conversation-action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditTags(c);
+              }}
+              title="Edit tags"
+            >
+              <Icon name="wrench" size={12} />
+            </button>
+          )}
+          {showDelete && (
+            <button
+              className="conversation-delete"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(c.id);
+              }}
+              title="Delete conversation"
+            >
+              <Icon name="x" size={13} />
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -64,6 +100,9 @@ export default function Sidebar({
   onOpenTodos,
   onOpenCalendar,
   onOpenResearch,
+  onTogglePin = null,
+  onEditTags = null,
+  onSetProjectAgentMode = null,
 }) {
   const showSearchResults = searchResults !== null;
   const convResults = showSearchResults ? searchResults.conversations || [] : conversations;
@@ -77,7 +116,9 @@ export default function Sidebar({
     convResults.length + docResults.length + memResults.length +
     noteResults.length + todoResults.length + eventResults.length + researchResults.length;
   const unassigned = conversations.filter((c) => !c.project_id);
-  const groups = showSearchResults || collapsed ? null : groupByDate(unassigned);
+  const pinned = unassigned.filter((c) => c.pinned);
+  const unpinned = unassigned.filter((c) => !c.pinned);
+  const groups = showSearchResults || collapsed ? null : groupByDate(unpinned);
 
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -243,6 +284,20 @@ export default function Sidebar({
                   <div className="conversation-group" key={p.id}>
                     <p className="conversation-group-label conversation-group-label-project">
                       <Icon name="folder" size={11} /> {p.name}
+                      {onSetProjectAgentMode && (
+                        <button
+                          className="conversation-group-add-btn"
+                          onClick={() => onSetProjectAgentMode(p)}
+                          title={
+                            p.agent_mode
+                              ? `Agent autonomy pinned to "${p.agent_mode}" in this project — click to change`
+                              : "Set a per-project agent autonomy override (defaults to the global setting)"
+                          }
+                        >
+                          <Icon name="bot" size={10} />
+                          {p.agent_mode && <span style={{ fontSize: "0.6em", marginLeft: 2 }}>{p.agent_mode}</span>}
+                        </button>
+                      )}
                       <button
                         className="conversation-group-add-btn"
                         onClick={() => onCreateInProject(p.id)}
@@ -273,6 +328,24 @@ export default function Sidebar({
                 <Icon name="plus" size={12} /> New project
               </button>
             )}
+            {!collapsed && !showSearchResults && pinned.length > 0 && (
+              <div className="conversation-group">
+                <p className="conversation-group-label">Pinned</p>
+                {pinned.map((c) => (
+                  <ConversationItem
+                    key={c.id}
+                    c={c}
+                    active={c.id === activeId}
+                    collapsed={collapsed}
+                    showDelete
+                    onSelect={onSelect}
+                    onDelete={onDelete}
+                    onTogglePin={onTogglePin}
+                    onEditTags={onEditTags}
+                  />
+                ))}
+              </div>
+            )}
             {groups
               ? groups.map((group) => (
                   <div className="conversation-group" key={group.label}>
@@ -286,6 +359,8 @@ export default function Sidebar({
                         showDelete
                         onSelect={onSelect}
                         onDelete={onDelete}
+                        onTogglePin={onTogglePin}
+                        onEditTags={onEditTags}
                       />
                     ))}
                   </div>
