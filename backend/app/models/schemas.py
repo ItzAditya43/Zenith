@@ -79,6 +79,8 @@ class ConfigPatch(StrictModel):
     system_prompt: Optional[str] = Field(default=None, max_length=8000)
     recall_enabled: Optional[bool] = None
     recall_top_k: Optional[int] = Field(default=None, ge=1, le=10)
+    web_search_backend: Optional[Literal["duckduckgo", "searxng"]] = None
+    searxng_url: Optional[str] = Field(default=None, max_length=500)
     web_search_max_results: Optional[int] = Field(default=None, ge=1, le=10)
     web_fetch_max_chars: Optional[int] = Field(default=None, ge=500, le=20_000)
     web_fetch_timeout_seconds: Optional[int] = Field(default=None, ge=2, le=60)

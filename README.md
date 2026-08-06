@@ -625,6 +625,7 @@ Grouped by area; see `app/core/config.py` for the authoritative list and
 | Memory | `system_prompt` | `""` | Global persona/standing instructions |
 | Memory | `recall_enabled`, `recall_top_k` | `True`, `3` | Cross-conversation recall |
 | RAG | `rag_enabled`, `rag_chunk_chars`, `rag_chunk_overlap`, `rag_top_k` | `True`, `1200`, `200`, `5` | Document/folder chunking + retrieval |
+| Web | `web_search_backend`, `searxng_url` | `duckduckgo`, `""` | `"searxng"` + a URL swaps in your own SearXNG instance instead of DDG's HTML scrape |
 | Web | `web_search_max_results`, `web_fetch_max_chars`, `web_fetch_timeout_seconds`, `web_fetch_max_urls_per_turn` | `5`, `4000`, `8`, `3` | Search/fetch limits |
 | Agent | `agent_enabled` | `False` | Master switch |
 | Agent | `agent_mode` | `manual` | `manual` \| `semi` \| `full` \| `plan` |

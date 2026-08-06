@@ -59,11 +59,47 @@ def extract_urls(text: str, limit: int = 3) -> list[str]:
 
 
 async def search(query: str, max_results: int | None = None) -> list[dict[str, str]]:
-    """DuckDuckGo HTML search (html.duckduckgo.com/html/ — the
-    JS-free endpoint DDG serves to non-JS clients, no API key required).
+    """Web search, routed by `web_search_backend`:
+
+      "duckduckgo" (default) -> html.duckduckgo.com/html/, the JS-free
+        endpoint DDG serves to non-JS clients — no API key, but its CSS
+        selectors are unofficial and can break if DDG redesigns the page.
+      "searxng" -> your own self-hosted SearXNG instance's JSON API
+        (`searxng_url`), a stable drop-in that avoids that fragility.
+
     Returns [{"title", "url", "snippet"}], best-effort empty list on any
     failure so a flaky network never fails the whole chat turn."""
     max_results = max_results or int(settings.get("web_search_max_results", 5))
+    if settings.get("web_search_backend", "duckduckgo") == "searxng":
+        return await _search_searxng(query, max_results)
+    return await _search_duckduckgo(query, max_results)
+
+
+async def _search_searxng(query: str, max_results: int) -> list[dict[str, str]]:
+    base = (settings.get("searxng_url") or "").rstrip("/")
+    if not base:
+        log.warning("web.searxng_not_configured")
+        return []
+    timeout = float(settings.get("web_fetch_timeout_seconds", 8))
+    try:
+        async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": _UA}) as client:
+            resp = await client.get(f"{base}/search", params={"q": query, "format": "json"})
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as exc:
+        log.warning("web.search_failed", query=query[:120], backend="searxng", error=str(exc))
+        return []
+    results = []
+    for r in data.get("results", [])[:max_results]:
+        results.append({
+            "title": r.get("title", ""),
+            "url": r.get("url", ""),
+            "snippet": r.get("content", ""),
+        })
+    return results
+
+
+async def _search_duckduckgo(query: str, max_results: int) -> list[dict[str, str]]:
     timeout = float(settings.get("web_fetch_timeout_seconds", 8))
     try:
         async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": _UA}) as client:

@@ -7,15 +7,19 @@ no bundled Chromium) as the shell and a **PyInstaller**-frozen backend as a
 Tauri *sidecar* so end users don't need Python.
 
 > **Status: built and verified on Linux (x86_64).** This was compiled
-> end-to-end: PyInstaller produced a working 147 MB `zenith-backend` binary
+> end-to-end: PyInstaller produced a working 147 MB `cortex-backend` binary
 > (boots the real app, `/api/health` → 200), and `tauri build` produced both
 > `Zenith_0.1.0_amd64.deb` (~151 MB) and a portable `Zenith_0.1.0_amd64.AppImage`
 > (~243 MB), each containing the Tauri shell (links system webkit2gtk — no
 > bundled Chromium) and the backend sidecar. **Verified by launching the built
 > app: it spawns the sidecar, which binds `127.0.0.1:8420` and serves
 > `/api/health` → 200.** Build artifacts are git-ignored (rebuild with the
-> steps below). macOS/Windows follow the same steps but haven't been run here —
-> expect to iterate on PyInstaller hidden-imports per-platform.
+> steps below). **Windows is built by CI** (`.github/workflows/ci.yml`,
+> `desktop-windows` job) on every push — PyInstaller freezes the backend to
+> `cortex-backend.exe`, then `cargo tauri build` produces the `.msi`/`.exe`
+> installers as uploaded artifacts; this hasn't been run on physical Windows
+> hardware, just GitHub's `windows-latest` runner. macOS hasn't been
+> attempted — expect to iterate on PyInstaller hidden-imports if you do.
 >
 > **AppImage tip:** on a host without FUSE (many sandboxes/CI), the AppImage
 > bundling step fails with `failed to run linuxdeploy`. Build it with
@@ -48,21 +52,21 @@ Tauri *sidecar* so end users don't need Python.
 ```bash
 cd backend
 pip install -r requirements.txt pyinstaller
-pyinstaller zenith-backend.spec
-# -> dist/zenith-backend            (Linux/macOS)
-# -> dist/zenith-backend.exe        (Windows)
+pyinstaller cortex-backend.spec
+# -> dist/cortex-backend            (Linux/macOS)
+# -> dist/cortex-backend.exe        (Windows)
 ```
 
 Smoke-test the binary before bundling:
 
 ```bash
-CORTEX_DATA_DIR=/tmp/zenith-test CORTEX_PORT=8420 ./dist/zenith-backend
+CORTEX_DATA_DIR=/tmp/zenith-test CORTEX_PORT=8420 ./dist/cortex-backend
 curl http://127.0.0.1:8420/api/health
 ```
 
 If it fails to start, it's almost always a missing hidden import from a lazily
 loaded dep (faster-whisper/ctranslate2, onnxruntime, av, sqlite-vec). Add it to
-`hiddenimports`/`binaries` in `zenith-backend.spec` and rebuild.
+`hiddenimports`/`binaries` in `cortex-backend.spec` and rebuild.
 
 ## 2. Drop the binary in as a Tauri sidecar
 
@@ -71,9 +75,9 @@ Tauri names sidecars per target triple. Copy the frozen binary in and rename it:
 ```bash
 mkdir -p desktop/src-tauri/binaries
 # e.g. on Apple silicon:
-cp backend/dist/zenith-backend desktop/src-tauri/binaries/zenith-backend-aarch64-apple-darwin
-# Linux x86_64:  zenith-backend-x86_64-unknown-linux-gnu
-# Windows:       zenith-backend-x86_64-pc-windows-msvc.exe
+cp backend/dist/cortex-backend desktop/src-tauri/binaries/cortex-backend-aarch64-apple-darwin
+# Linux x86_64:  cortex-backend-x86_64-unknown-linux-gnu
+# Windows:       cortex-backend-x86_64-pc-windows-msvc.exe
 ```
 
 (Find your triple with `rustc -vV | grep host`.)

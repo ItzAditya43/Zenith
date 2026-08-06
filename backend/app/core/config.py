@@ -179,6 +179,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # --- Deep Research (multi-step search/read/synthesize) ---
     "research_max_iterations": 10,
     # --- Web search / URL reading ---
+    # "duckduckgo" (default, no setup) or "searxng" (self-hosted, more
+    # stable — DDG's HTML endpoint is unofficial and can break on a redesign).
+    "web_search_backend": "duckduckgo",
+    "searxng_url": "",  # e.g. http://localhost:8080, only used when backend is "searxng"
     "web_search_max_results": 5,
     "web_fetch_max_chars": 4000,
     "web_fetch_timeout_seconds": 8,
