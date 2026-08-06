@@ -411,6 +411,23 @@ at each level," and the full tree is still there underneath.
   it, not just one message.
 - A `‹ 2/3 ›` switcher appears on any message that has siblings.
 
+### Code editor panel
+
+`app/api/files.py`. A file tree + multi-tab text editor for the
+conversation's bound working directory (the same folder set via the
+header's folder button for agent mode) — for quick edits that don't need
+a full agent turn. Opens from the terminal icon in the header once a
+working directory is bound.
+
+- Strictly scoped to that directory: every path is resolved and rejected
+  if it would escape it (`../`, absolute paths) — unlike agent mode's
+  file tools, which intentionally allow the full filesystem, this is a
+  direct, un-gated UI action, so it gets its own tighter boundary.
+- Plain text only, 2MB cap per file — this is a lightweight editor for
+  config/code/notes, not a full IDE (no language server, no syntax
+  highlighting yet).
+- ⌘S / Ctrl+S saves the active tab.
+
 ### Document editing
 
 `app/api/documents.py`. Click **✎** on a document chip, describe the
