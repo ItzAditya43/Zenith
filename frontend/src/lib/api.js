@@ -151,6 +151,17 @@ export const api = {
 
   exportUrl: (format) => `${BASE}/api/export/${format}`,
 
+  listWorkspaceFiles: (conversationId, path = "") =>
+    request(`/api/conversations/${conversationId}/files?path=${encodeURIComponent(path)}`).then((r) => r.json()),
+  readWorkspaceFile: (conversationId, path) =>
+    request(`/api/conversations/${conversationId}/files/content?path=${encodeURIComponent(path)}`).then((r) => r.json()),
+  writeWorkspaceFile: (conversationId, path, content) =>
+    request(`/api/conversations/${conversationId}/files/content?path=${encodeURIComponent(path)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    }).then((r) => r.json()),
+
   editDocument: (attachmentId, instruction) =>
     request(`/api/documents/${attachmentId}/edit`, {
       method: "POST",

@@ -19,6 +19,7 @@ import AmbientCanvas from "./components/AmbientCanvas.jsx";
 import OnboardingTour from "./components/OnboardingTour.jsx";
 import WhatsNewPanel from "./components/WhatsNewPanel.jsx";
 import UsageDashboard from "./components/UsageDashboard.jsx";
+import CodeEditorPanel from "./components/CodeEditorPanel.jsx";
 import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
@@ -72,6 +73,7 @@ export default function App() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
+  const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(
     () => !localStorage.getItem("zenith-onboarded")
   );
@@ -1166,6 +1168,15 @@ export default function App() {
                 <Icon name="folder" size={14} /> {activeConversation?.workdir ? activeConversation.workdir.split("/").pop() : "Set folder"}
               </button>
             )}
+            {!focusMode && activeConversation?.workdir && (
+              <button
+                className={`icon-btn ${codeEditorOpen ? "is-active" : ""}`}
+                onClick={() => setCodeEditorOpen((v) => !v)}
+                title={`Open code editor for ${activeConversation.workdir}`}
+              >
+                <Icon name="terminal" size={16} />
+              </button>
+            )}
             {!focusMode && personas.length > 0 && groupPersonaIds.length < 2 && (
               <select
                 className="persona-picker"
@@ -1241,6 +1252,13 @@ export default function App() {
         {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}
         {todosOpen && <TodoPanel onClose={() => setTodosOpen(false)} />}
         {researchOpen && <ResearchDashboard onClose={() => setResearchOpen(false)} />}
+        {codeEditorOpen && activeConversation?.workdir && (
+          <CodeEditorPanel
+            conversationId={activeId}
+            workdir={activeConversation.workdir}
+            onClose={() => setCodeEditorOpen(false)}
+          />
+        )}
         {usageOpen && <UsageDashboard onClose={() => setUsageOpen(false)} />}
         {groupPickerOpen && (
           <GroupChatPicker

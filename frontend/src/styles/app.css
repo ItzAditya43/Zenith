@@ -2840,6 +2840,108 @@ button.msg-source-chip-recall:hover {
   font-weight: 600;
   font-size: var(--text-sm);
 }
+.code-editor-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: none;
+  overflow: hidden;
+}
+.code-editor-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.code-editor-tree {
+  width: 220px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border-hairline);
+  padding: var(--space-2) 0;
+}
+.file-tree-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  padding: 3px var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-tree-row:hover {
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+}
+.code-editor-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.code-editor-tabs {
+  display: flex;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-hairline);
+  flex-shrink: 0;
+}
+.code-editor-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-2);
+  border-right: 1px solid var(--border-hairline);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.code-editor-tab.is-active {
+  background: var(--bg-panel-raised);
+  color: var(--signal-general);
+}
+.code-editor-tab-label {
+  color: inherit;
+}
+.code-editor-tab-close {
+  opacity: 0.6;
+}
+.code-editor-tab-close:hover {
+  opacity: 1;
+}
+.code-editor-textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  border: none;
+  padding: var(--space-3);
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  tab-size: 2;
+}
+.code-editor-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border-hairline);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.code-editor-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
 .notes-add-row {
   display: flex;
   gap: var(--space-2);
