@@ -138,6 +138,20 @@ def test_git_status_in_a_real_repo(client, tmp_path):
     assert "a.txt" in r.json()["output"]
 
 
+def test_routing_status_reports_inactive_without_embedding_model(client):
+    r = client.get("/api/routing/status")
+    assert r.status_code == 200
+    body = r.json()
+    assert "active" in body and "embedding_model" in body and "confidence_threshold" in body
+
+
+def test_chat_resume_404_when_nothing_running(client):
+    r = client.post("/api/conversations", json={"title": "t"})
+    cid = r.json()["id"]
+    r = client.get(f"/api/conversations/{cid}/chat/resume")
+    assert r.status_code == 404
+
+
 def test_run_checks_with_explicit_command(client, tmp_path):
     r = client.post("/api/conversations", json={"title": "t"})
     cid = r.json()["id"]

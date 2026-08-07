@@ -215,6 +215,20 @@ export default function App() {
     }
   };
 
+  const handleExtractProject = async () => {
+    if (!activeId) return;
+    try {
+      const result = await api.extractProject(activeId);
+      setConversations((cs) =>
+        cs.map((c) => (c.id === activeId ? { ...c, workdir: result.workdir } : c))
+      );
+      showToast(`Extracted ${result.files.length} file${result.files.length === 1 ? "" : "s"} to ${result.workdir}`, "success");
+      setCodeEditorOpen(true);
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
   const handleShare = async () => {
     if (!activeId) return;
     try {
@@ -1268,6 +1282,15 @@ export default function App() {
                 title={activeConversation?.share_token ? "Revoke share link" : "Create a read-only share link"}
               >
                 <Icon name="share" size={16} />
+              </button>
+            )}
+            {!focusMode && activeId && (
+              <button
+                className="icon-btn"
+                onClick={handleExtractProject}
+                title="Extract this conversation's code blocks into real files and open the code editor"
+              >
+                <Icon name="download" size={16} />
               </button>
             )}
             {!focusMode && personas.length > 0 && groupPersonaIds.length < 2 && (

@@ -1611,6 +1611,22 @@ button.msg-source-chip-recall:hover {
   color: var(--signal-danger);
   margin-top: var(--space-2);
 }
+.settings-notice {
+  font-size: var(--text-xs);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  margin: var(--space-2) 0;
+  line-height: 1.5;
+}
+.settings-notice-ok {
+  background: var(--signal-general-dim);
+  color: var(--text-secondary);
+}
+.settings-notice-warn {
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-hairline);
+}
 
 .settings-row {
   display: flex;

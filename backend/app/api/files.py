@@ -14,11 +14,14 @@ nothing to browse.
 """
 from __future__ import annotations
 
+import re
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
 
+from app.core.config import data_dir
 from app.core.logging import get_logger
 from app.db import storage
 from app.models.schemas import StrictModel
@@ -136,3 +139,101 @@ async def run_checks(conversation_id: str, body: dict | None = None):
     root = _workdir(conversation_id)
     out = await _run_checks(body or {}, workdir=str(root))
     return {"output": out}
+
+
+# --- Conversation -> runnable project extraction ---------------------------
+# "One-click": pull every fenced code block out of a conversation into real
+# files in a fresh directory, bind it as the conversation's working
+# directory, and git-init it — so the code editor panel, agent mode, and
+# git status/diff all work on it immediately, instead of code living only
+# as unsaved markdown in the chat transcript.
+
+_FENCE_RE = re.compile(r"```([a-zA-Z0-9_+-]*)\n(.*?)```", re.DOTALL)
+_FILENAME_HINT_RE = re.compile(r"^\s*(?:#|//|/\*)\s*(?:file|path)?:?\s*([\w./-]+\.\w+)\s*\*?/?\s*$", re.IGNORECASE)
+
+_LANG_EXT = {
+    "python": "py", "py": "py", "javascript": "js", "js": "js",
+    "typescript": "ts", "ts": "ts", "jsx": "jsx", "tsx": "tsx",
+    "html": "html", "css": "css", "scss": "scss", "json": "json",
+    "bash": "sh", "sh": "sh", "shell": "sh", "yaml": "yaml", "yml": "yaml",
+    "go": "go", "rust": "rs", "rs": "rs", "java": "java", "c": "c",
+    "cpp": "cpp", "c++": "cpp", "csharp": "cs", "cs": "cs", "ruby": "rb",
+    "php": "php", "sql": "sql", "toml": "toml", "markdown": "md", "md": "md",
+    "dockerfile": "Dockerfile",
+}
+
+
+def _extract_blocks(messages: list[dict]) -> list[dict]:
+    blocks = []
+    for m in messages:
+        if m["role"] != "assistant":
+            continue
+        for match in _FENCE_RE.finditer(m.get("content") or ""):
+            lang = (match.group(1) or "").strip().lower()
+            code = match.group(2)
+            if not code.strip():
+                continue
+            blocks.append({"lang": lang, "code": code})
+    return blocks
+
+
+def _assign_filename(block: dict, index: int, used: set[str]) -> str:
+    first_line = block["code"].splitlines()[0] if block["code"].splitlines() else ""
+    hinted = _FILENAME_HINT_RE.match(first_line)
+    if hinted:
+        name = hinted.group(1)
+        if name not in used:
+            return name
+    ext = _LANG_EXT.get(block["lang"], "txt")
+    base = f"snippet_{index}.{ext}" if ext != "Dockerfile" else "Dockerfile"
+    name = base
+    n = 2
+    while name in used:
+        name = f"snippet_{index}_{n}.{ext}"
+        n += 1
+    return name
+
+
+@router.post("/conversations/{conversation_id}/extract-project")
+async def extract_project(conversation_id: str):
+    conv = storage.get_conversation(conversation_id)
+    if not conv:
+        raise HTTPException(404, "No such conversation.")
+
+    messages = storage.get_messages(conversation_id)
+    blocks = _extract_blocks(messages)
+    if not blocks:
+        raise HTTPException(422, "No code blocks found in this conversation.")
+
+    slug = re.sub(r"[^a-z0-9]+", "-", (conv["title"] or "conversation").lower()).strip("-")[:40] or "conversation"
+    project_dir = data_dir() / "extracted" / f"{slug}-{int(time.time())}"
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    used: set[str] = set()
+    written = []
+    for i, block in enumerate(blocks, start=1):
+        name = _assign_filename(block, i, used)
+        used.add(name)
+        path = project_dir / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # A trailing newline was already stripped by the ```lang\n...``` fence
+        # match; code blocks in chat rarely end with one either.
+        path.write_text(block["code"].rstrip("\n") + "\n", encoding="utf-8")
+        written.append(name)
+
+    try:
+        import subprocess
+        subprocess.run(["git", "init", "-q"], cwd=project_dir, check=False, timeout=10)
+        subprocess.run(["git", "add", "-A"], cwd=project_dir, check=False, timeout=10)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "Extracted from Zenith conversation"],
+            cwd=project_dir, check=False, timeout=10,
+            env={"GIT_AUTHOR_NAME": "Zenith", "GIT_AUTHOR_EMAIL": "zenith@localhost",
+                 "GIT_COMMITTER_NAME": "Zenith", "GIT_COMMITTER_EMAIL": "zenith@localhost", "PATH": "/usr/bin:/bin"},
+        )
+    except Exception as exc:
+        log.debug("files.extract_git_init_failed", error=str(exc))
+
+    storage.set_conversation_workdir(conversation_id, str(project_dir))
+    log.info("files.extract_project", conversation_id=conversation_id, files=len(written), dir=str(project_dir))
+    return {"workdir": str(project_dir), "files": written}

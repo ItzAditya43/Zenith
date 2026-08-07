@@ -25,6 +25,7 @@ from app.models.schemas import (
 from app.services.ollama_client import OllamaClient, OllamaError
 from app.services.orchestrator import build_turn_context, run_turn
 from app.services.router import ModelRouter
+from app.services.stream_registry import registry
 
 log = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -381,166 +382,164 @@ async def chat(body: ChatRequest, request: Request):
 
     heartbeat = int(settings.get("sse_heartbeat_seconds", 15))
 
-    async def event_gen():
-        # Track which model is actually in flight so we can downgrade
-        # to the configured fallback if it dies mid-stream.
+    async def produce():
+        """Runs independently of the request that started it — see
+        stream_registry.py. A dropped connection no longer kills
+        generation or loses the reply; a `/resume` reconnect just
+        re-subscribes to the same run."""
+        key = body.conversation_id
         current_model = decision.model
         current_role = decision.role
         current_reason = decision.reason
         downgraded = False
-        yield _sse({
-            "type": "route",
-            "model": current_model,
-            "role": current_role,
-            "reason": current_reason,
-            "confidence": decision.confidence,
-        })
-        if web_sources:
-            yield _sse({"type": "sources", "sources": web_sources})
-        # Stash on app state so the next /api/route/preview call (and the
-        # next /api/chat) can be sticky.
-        try:
-            request.app.state.last_route_model = current_model
-        except Exception:
-            pass
-
         collected: list[str] = []
         turn_start = time.monotonic()
         first_token_ms: int | None = None
         try:
-            async for piece in _with_heartbeat(stream, heartbeat):
-                # A None from the wrapper means the model has been silent
-                # for `heartbeat` seconds — emit a comment frame so proxies
-                # with idle timeouts don't kill the connection during
-                # prompt eval / model load.
-                if piece is None:
-                    yield ":heartbeat\n\n"
-                    continue
-                if first_token_ms is None:
-                    first_token_ms = int((time.monotonic() - turn_start) * 1000)
-                collected.append(piece)
-                yield _sse({"type": "token", "text": piece})
-        except OllamaError as exc:
-            # Mid-stream failure on the chosen model — try the configured
-            # fallback once before giving up (Tier 1 #5).
-            if not downgraded:
-                fallback = await _pick_fallback(request, current_model)
-                if fallback and fallback != current_model:
-                    downgraded = True
-                    log.warning(
-                        "chat.model_downgrade",
-                        from_model=current_model,
-                        to_model=fallback,
-                        error=str(exc),
-                    )
-                    yield _sse({
-                        "type": "downgrade",
-                        "from": current_model,
-                        "to": fallback,
-                        "reason": f"Original model failed: {exc}",
-                    })
-                    try:
-                        client = OllamaClient()
-                        history = storage.get_messages(body.conversation_id)
-                        # Rebuild messages from the just-saved user turn
-                        # (the orchestrator already wrote the user message
-                        # before kicking off the stream).
-                        retry_stream = client.chat_stream(
-                            fallback,
-                            [m for m in history if m["role"] in {"user", "assistant"}][-int(settings.get("max_context_messages", 24)):],
-                        )
-                        async for piece in _with_heartbeat(retry_stream, heartbeat):
-                            if piece is None:
-                                yield ":heartbeat\n\n"
-                                continue
-                            collected.append(piece)
-                            yield _sse({"type": "token", "text": piece})
-                        # Promote the fallback as the "real" model for
-                        # the persisted message.
-                        current_model = fallback
-                    except Exception as exc2:
-                        log.error("chat.fallback_failed", error=str(exc2))
-                        yield _sse({
-                            "type": "error",
-                            "message": f"Both {current_model} and fallback failed: {exc2}",
-                        })
+            async with conversation_lock(key):
+                try:
+                    async for piece in _with_heartbeat(stream, heartbeat):
+                        if piece is None:
+                            continue  # heartbeats aren't replayed — a resumer doesn't need them
+                        if first_token_ms is None:
+                            first_token_ms = int((time.monotonic() - turn_start) * 1000)
+                        collected.append(piece)
+                        await registry.publish(key, _sse({"type": "token", "text": piece}))
+                except OllamaError as exc:
+                    if not downgraded:
+                        fallback = await _pick_fallback(request, current_model)
+                        if fallback and fallback != current_model:
+                            downgraded = True
+                            log.warning("chat.model_downgrade", from_model=current_model, to_model=fallback, error=str(exc))
+                            await registry.publish(key, _sse({
+                                "type": "downgrade", "from": current_model, "to": fallback,
+                                "reason": f"Original model failed: {exc}",
+                            }))
+                            try:
+                                client = OllamaClient()
+                                history = storage.get_messages(key)
+                                retry_stream = client.chat_stream(
+                                    fallback,
+                                    [m for m in history if m["role"] in {"user", "assistant"}][-int(settings.get("max_context_messages", 24)):],
+                                )
+                                async for piece in _with_heartbeat(retry_stream, heartbeat):
+                                    if piece is None:
+                                        continue
+                                    collected.append(piece)
+                                    await registry.publish(key, _sse({"type": "token", "text": piece}))
+                                current_model = fallback
+                            except Exception as exc2:
+                                log.error("chat.fallback_failed", error=str(exc2))
+                                await registry.publish(key, _sse({
+                                    "type": "error", "message": f"Both {current_model} and fallback failed: {exc2}",
+                                }))
+                                return
+                        else:
+                            await registry.publish(key, _sse({"type": "error", "message": str(exc)}))
+                            return
+                    else:
+                        await registry.publish(key, _sse({"type": "error", "message": str(exc)}))
                         return
-                else:
-                    yield _sse({"type": "error", "message": str(exc)})
+
+                full_text = "".join(collected)
+                if not full_text.strip():
+                    await registry.publish(key, _sse({"type": "error", "message": "Empty response from the model."}))
                     return
-            else:
-                yield _sse({"type": "error", "message": str(exc)})
-                return
 
-        # Don't persist a half-empty response on disconnect.
-        full_text = "".join(collected)
-        if not full_text.strip():
-            yield _sse({"type": "error", "message": "Empty response (client likely disconnected)."})
-            return
+                storage.add_message(
+                    key, "assistant", full_text,
+                    model=current_model, route_role=current_role, route_reason=current_reason,
+                    parent_id=assistant_parent_id,
+                )
+                try:
+                    from app.services import rag_service
+                    await asyncio.to_thread(rag_service.index_message, key, "assistant", full_text)
+                except Exception as exc:
+                    log.warning("chat.rag_index_failed", error=str(exc))
 
-        storage.add_message(
-            body.conversation_id, "assistant", full_text,
-            model=current_model, route_role=current_role, route_reason=current_reason,
-            parent_id=assistant_parent_id,
-        )
-        # Phase 5: index the assistant reply for cross-conversation memory.
-        try:
-            from app.services import rag_service
-            await asyncio.to_thread(
-                rag_service.index_message, body.conversation_id, "assistant", full_text
-            )
-        except Exception as exc:
-            log.warning("chat.rag_index_failed", error=str(exc))
+                try:
+                    from app.services import memory_service
+                    added = await memory_service.extract_from_text(body.message, key)
+                    if added:
+                        await registry.publish(key, _sse({
+                            "type": "memory_saved", "facts": [m["content"] for m in added],
+                        }))
+                except Exception as exc:
+                    log.debug("chat.memory_extract_failed", error=str(exc))
 
-        # Long-term memory: extract durable facts from the user's message.
-        # Awaited (not fire-and-forget) so the UI can show what was
-        # actually remembered — previously this ran invisibly in the
-        # background with zero user-facing feedback. Small/fast model,
-        # short prompt, so the added latency is minor; best-effort
-        # throughout, a failure here never blocks the turn finishing.
-        try:
-            from app.services import memory_service
-            added = await memory_service.extract_from_text(body.message, body.conversation_id)
-            if added:
-                yield _sse({
-                    "type": "memory_saved",
-                    "facts": [m["content"] for m in added],
-                })
-        except Exception as exc:
-            log.debug("chat.memory_extract_failed", error=str(exc))
+                if not getattr(request.app.state, "_titled_for", None):
+                    request.app.state._titled_for = set()
+                if key not in request.app.state._titled_for:
+                    request.app.state._titled_for.add(key)
+                    try:
+                        from app.services.title_service import maybe_generate_title
+                        maybe_generate_title(key, full_text)
+                    except Exception as exc:
+                        log.debug("chat.title_gen_failed", error=str(exc))
 
-        # Phase 6 #4: auto-generate a conversation title after the first
-        # assistant response (fire-and-forget — don't block the SSE close).
-        if not getattr(request.app.state, "_titled_for", None):
-            request.app.state._titled_for = set()
-        if body.conversation_id not in request.app.state._titled_for:
-            request.app.state._titled_for.add(body.conversation_id)
-            try:
-                from app.services.title_service import maybe_generate_title
-                maybe_generate_title(body.conversation_id, full_text)
-            except Exception as exc:
-                log.debug("chat.title_gen_failed", error=str(exc))
+                try:
+                    storage.record_usage_event(
+                        current_model, current_role, len(collected),
+                        int((time.monotonic() - turn_start) * 1000), first_token_ms,
+                    )
+                except Exception as exc:
+                    log.debug("chat.usage_record_failed", error=str(exc))
 
-        try:
-            storage.record_usage_event(
-                current_model, current_role, len(collected),
-                int((time.monotonic() - turn_start) * 1000), first_token_ms,
-            )
-        except Exception as exc:
-            log.debug("chat.usage_record_failed", error=str(exc))
-
-        yield _sse({"type": "done"})
-
-    async def guarded_gen():
-        # Tier 7 #2 — serialize turns per conversation.
-        try:
-            async with conversation_lock(body.conversation_id):
-                async for ev in event_gen():
-                    yield ev
+                await registry.publish(key, _sse({"type": "done"}))
         except TimeoutError as exc:
-            yield _sse({"type": "error", "message": str(exc)})
+            await registry.publish(key, _sse({"type": "error", "message": str(exc)}))
+        except Exception as exc:
+            log.error("chat.produce_failed", error=str(exc))
+            await registry.publish(key, _sse({"type": "error", "message": str(exc)}))
+        finally:
+            await registry.finish(key)
+            registry.cleanup_later(key)
 
-    return StreamingResponse(guarded_gen(), media_type="text/event-stream")
+    async def event_gen():
+        yield _sse({
+            "type": "route", "model": decision.model, "role": decision.role,
+            "reason": decision.reason, "confidence": decision.confidence,
+        })
+        if web_sources:
+            yield _sse({"type": "sources", "sources": web_sources})
+        try:
+            request.app.state.last_route_model = decision.model
+        except Exception:
+            pass
+
+        key = body.conversation_id
+        registry.start(key)
+        asyncio.create_task(produce())
+        q = await registry.subscribe(key)
+        while True:
+            frame = await q.get()
+            if frame is None:
+                break
+            yield frame
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
+
+
+@router.get("/conversations/{conversation_id}/chat/resume")
+async def resume_chat(conversation_id: str):
+    """Reconnects to an in-flight (or just-finished) generation for this
+    conversation after a dropped SSE connection — replays whatever was
+    already buffered, then continues live. 404 if there's nothing to
+    resume (never started, or the run aged out — see stream_registry.py),
+    which tells the client to give up and treat the reply as lost rather
+    than retry forever."""
+    q = await registry.subscribe(conversation_id)
+    if q is None:
+        raise HTTPException(404, "Nothing to resume for this conversation.")
+
+    async def gen():
+        while True:
+            frame = await q.get()
+            if frame is None:
+                break
+            yield frame
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @router.post("/council")

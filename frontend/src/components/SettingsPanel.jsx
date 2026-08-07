@@ -70,6 +70,7 @@ export default function SettingsPanel({
   const [skills, setSkills] = useState([]);
   const [skillsError, setSkillsError] = useState(null);
   const [hardware, setHardware] = useState(null);
+  const [routingStatus, setRoutingStatus] = useState(null);
   const [emailForm, setEmailForm] = useState({
     email_imap_host: "", email_imap_port: 993, email_smtp_host: "", email_smtp_port: 587,
     email_username: "", email_password: "",
@@ -166,6 +167,7 @@ export default function SettingsPanel({
         setModelsError(null);
       })
       .catch((err) => setModelsError(err.message));
+    api.getRoutingStatus().then(setRoutingStatus).catch(() => {});
   };
 
   const refreshPersonas = () => {
@@ -1628,6 +1630,13 @@ export default function SettingsPanel({
                     Refresh
                   </button>
                 </div>
+                {routingStatus && (
+                  <p className={`settings-notice ${routingStatus.active ? "settings-notice-ok" : "settings-notice-warn"}`}>
+                    {routingStatus.active
+                      ? `Semantic routing is active (using "${routingStatus.embedding_model}" — messages the keyword rules miss can still route correctly).`
+                      : "Semantic routing is inactive: no model is tagged into the \"embedding\" role, so routing falls back to keyword matching only. Pull an embedding model (e.g. `ollama pull nomic-embed-text`) to enable it."}
+                  </p>
+                )}
                 <div className="role-grid">
                   {ROLES.map((role) => (
                     <div className="role-card" data-role={role} key={role}>
