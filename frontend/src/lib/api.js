@@ -44,7 +44,49 @@ async function request(path, options = {}) {
   return res;
 }
 
-async function streamSSE(path, body, onEvent, signal) {
+/** Reads one SSE response body, forwarding parsed frames to onEvent.
+ * Returns "done" | "error" | "interrupted" (reader threw — the caller
+ * decides whether that's resumable) | "clean-end" (stream closed with
+ * no explicit done/error, e.g. an AbortError further up already handled). */
+async function consumeSSEBody(res, onEvent) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let sawTerminal = null;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data:")) continue;
+        try {
+          const ev = JSON.parse(line.slice(5).trim());
+          onEvent(ev);
+          if (ev.type === "done" || ev.type === "error") sawTerminal = ev.type;
+        } catch (_) {
+          /* ignore malformed chunk */
+        }
+      }
+    }
+  } catch (err) {
+    if (err && err.name === "AbortError") return "clean-end";
+    return "interrupted";
+  }
+  return sawTerminal || "clean-end";
+}
+
+/**
+ * A dropped connection (wifi blip, laptop sleep) used to lose the reply
+ * entirely — the backend now keeps generating in the background
+ * regardless (see stream_registry.py) and this reconnects to pick up
+ * where the first connection left off, instead of surfacing a dead-end
+ * error immediately.
+ */
+async function streamSSE(path, body, onEvent, signal, resumePath = null) {
   let res;
   try {
     res = await fetch(`${BASE}${path}`, {
@@ -67,30 +109,33 @@ async function streamSSE(path, body, onEvent, signal) {
     return;
   }
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop();
-      for (const part of parts) {
-        const line = part.trim();
-        if (!line.startsWith("data:")) continue;
-        try {
-          onEvent(JSON.parse(line.slice(5).trim()));
-        } catch (_) {
-          /* ignore malformed chunk */
-        }
-      }
+  let outcome = await consumeSSEBody(res, onEvent);
+  if (outcome !== "interrupted" || !resumePath || (signal && signal.aborted)) return;
+
+  // Retry the reconnect itself a few times (the drop might still be in
+  // progress — laptop still waking up, wifi still reassociating), not
+  // just the read.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+    if (signal && signal.aborted) return;
+    let resumeRes;
+    try {
+      resumeRes = await fetch(`${BASE}${resumePath}`, { headers: unlockHeaders(), signal });
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+      continue; // still down — try again
     }
-  } catch (err) {
-    if (err && err.name === "AbortError") return;
-    onEvent({ type: "error", message: `Stream interrupted: ${err.message || err}` });
+    if (resumeRes.status === 404) {
+      // Nothing left to resume (finished and aged out, or never
+      // started) — give up cleanly instead of retrying forever.
+      onEvent({ type: "error", message: "Connection dropped and the reply could not be recovered." });
+      return;
+    }
+    if (!resumeRes.ok || !resumeRes.body) continue;
+    outcome = await consumeSSEBody(resumeRes, onEvent);
+    if (outcome !== "interrupted") return;
   }
+  onEvent({ type: "error", message: "Connection dropped and could not be re-established." });
 }
 
 export const api = {
@@ -384,6 +429,8 @@ export const api = {
       return r.json();
     }),
   shareUrl: (token) => `${window.location.origin}${window.location.pathname}#/share/${token}`,
+  extractProject: (conversationId) =>
+    request(`/api/conversations/${conversationId}/extract-project`, { method: "POST" }).then((r) => r.json()),
 
   listSnippets: () => request("/api/snippets").then((r) => r.json()),
   createSnippet: (title, content) =>
@@ -433,6 +480,7 @@ export const api = {
   revertRun: (runId) => request(`/api/agent/runs/${runId}/revert`, { method: "POST" }).then((r) => r.json()),
 
   listModels: () => request("/api/models").then((r) => r.json()),
+  getRoutingStatus: () => request("/api/routing/status").then((r) => r.json()),
   pullModel: (name, onEvent) => streamSSE("/api/models/pull", { name }, onEvent),
   createModel: (spec, onEvent) => streamSSE("/api/models/create", spec, onEvent),
   deleteModel: (name) =>
@@ -537,7 +585,10 @@ export const api = {
         ...(modelOverride ? { model_override: modelOverride } : {}),
       },
       onEvent,
-      signal
+      signal,
+      // Resume is only wired up for the plain chat path on the backend —
+      // agent/deep-research turns have their own multi-step generators.
+      !agentMode && !deepResearch ? `/api/conversations/${conversationId}/chat/resume` : null
     );
   },
 

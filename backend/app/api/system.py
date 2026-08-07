@@ -180,6 +180,25 @@ async def models():
     return JSONResponse(enriched, headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
 
 
+@router.get("/routing/status")
+async def routing_status():
+    """Whether semantic (embedding-based) routing is actually active right
+    now, not just configured — it silently no-ops back to the regex
+    router whenever no model is tagged into the 'embedding' capability
+    bucket, which is easy to not notice since nothing errors. Surfaces
+    that state instead of leaving it invisible."""
+    from app.services.router import ModelRouter
+
+    router_ = ModelRouter()
+    installed = await router_.registry.models()
+    embed_model = router_._match_capability("embedding", installed)
+    return {
+        "active": embed_model is not None,
+        "embedding_model": embed_model,
+        "confidence_threshold": float(settings.get("router_confidence_threshold", 0.55)),
+    }
+
+
 @router.post("/models/refresh")
 async def models_refresh():
     """Force the ModelRegistry's TTL cache to bust. Useful after the
