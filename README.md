@@ -31,6 +31,7 @@ aspirational copy.
   - [MCP client support](#mcp-client-support)
   - [Council of models](#council-of-models)
   - [Conversation branching](#conversation-branching)
+  - [Code editor panel](#code-editor-panel)
   - [Document editing](#document-editing)
   - [Image generation](#image-generation)
   - [Model management](#model-management)
@@ -40,14 +41,21 @@ aspirational copy.
   - [Scheduled/recurring turns](#scheduledrecurring-turns)
   - [Data export](#data-export)
   - [Passcode lock](#passcode-lock)
+  - [Knowledge graph](#knowledge-graph)
+  - [Self-improving memory](#self-improving-memory)
+  - [Ambient daily digest](#ambient-daily-digest)
+  - [Automation rules + outbound webhooks](#automation-rules--outbound-webhooks)
+  - [Task board](#task-board)
   - [Interface](#interface)
 - [Desktop app](#desktop-app)
+- [Browser extension](#browser-extension)
 - [Mobile & multi-device](#mobile--multi-device)
 - [Configuration reference](#configuration-reference)
 - [Safety model](#safety-model)
 - [Known limitations](#known-limitations)
 - [Extending it](#extending-it)
 - [Development](#development)
+  - [Continuous integration](#continuous-integration)
 
 ---
 
@@ -80,8 +88,11 @@ zenith/
 ├── backend/     FastAPI (Python) — Ollama client, router, RAG, agent loop,
 │                MCP client, browser automation, image gen, STT/TTS, SQLite
 ├── frontend/    React + Vite — chat UI, command palette, settings, PWA
-└── desktop/     Tauri v2 shell — packages the above into a native app
-                 (see DESKTOP.md); the frozen backend runs as a sidecar
+├── desktop/     Tauri v2 shell — packages the above into a native app
+│                (see DESKTOP.md); the frozen backend runs as a sidecar;
+│                system tray + global hotkey live in src-tauri/src/main.rs
+└── extension/   Manifest V3 browser extension (load unpacked) — sends a
+                 page or selection into a new Zenith conversation
 ```
 
 Ollama itself is untouched — Zenith talks to it over its normal HTTP API
@@ -112,6 +123,14 @@ processes because Ollama doesn't serve those model types.
 | `app/services/web_service.py` | DuckDuckGo search + URL/GitHub/Reddit/YouTube reading |
 | `app/services/document_service.py` | Text extraction (PDF/DOCX/plain text) + instruction-driven editing |
 | `app/services/vision_service.py`, `whisper_service.py`, `tts_service.py` | Image encoding, speech-to-text, text-to-speech |
+| `app/services/stream_registry.py` | Decouples chat generation from the HTTP connection that started it — buffered, replayable, multi-subscriber, so a dropped connection can reconnect instead of losing the reply |
+| `app/services/events.py` | Internal event bus (`digest_generated`, `schedule_completed`, `urgent_email`, `memory_conflict_found`, `folder_file_added`) fanning out to webhooks and automation rules |
+| `app/services/webhook_service.py` | Fire-and-forget outbound POST to configured URLs on a real event |
+| `app/services/automation_service.py` | User-defined trigger → action rules on the same event bus (prompt into a persistent conversation, or a one-off webhook) |
+| `app/services/digest_service.py` | Ambient daily "what changed" summary, built from precise deltas (not fuzzy recall) |
+| `app/services/crypto_service.py` | AES-256-GCM encryption for sensitive `config.json` fields (email password, shared secret) using a local machine key |
+| `app/api/files.py` | Workspace file browser/editor for the code editor panel, conversation → runnable project extraction, ad-hoc local file search |
+| `app/api/graph.py` | Knowledge graph — real conversation/memory/document/project relationships already in the schema |
 | `app/db/storage.py` | SQLite persistence, including the branching (parent/active) model |
 | `app/db/migrations.py` | Ordered, idempotent schema migrations |
 
@@ -188,6 +207,16 @@ is a real decision, not a formality.
 ### Core chat & multimodal
 
 - **Streaming text chat** from any installed Ollama model.
+- **Resumable streams** — generation runs as an independent background
+  task (`stream_registry.py`), not tied to the lifetime of the specific
+  HTTP connection that started it. A dropped connection (wifi blip,
+  laptop sleep) no longer kills the turn or loses the reply: the frontend
+  automatically reconnects to `GET /api/conversations/{id}/chat/resume`,
+  replays whatever was buffered while it was gone, and keeps streaming
+  live from there; it gives up cleanly (not an infinite retry loop) once
+  the run is confirmed gone (`404`). Verified live against real Ollama by
+  cutting a connection mid-generation and confirming the reconnect
+  produced the rest of the reply, correctly persisted.
 - **Images** — attach a photo/screenshot; routed to your vision model
   (llava, qwen2-vl, whatever you've pulled).
 - **Documents** — PDF/DOCX/TXT/MD/CSV/JSON get text-extracted; long
@@ -492,6 +521,17 @@ results, not just conversation titles:
 Document hits jump to their source conversation; memory hits open
 Settings → Memory.
 
+**Ad-hoc local file search** (`GET /api/search/local-files`, wired into
+the [code editor panel](#code-editor-panel)'s file tree) complements
+this for "I know roughly where this file is, I just haven't added it as
+a watched folder": give it a directory path and a query, and it greps
+that one tree right now (case-insensitive, filename and content), bounded
+to 2000 files scanned / 50 matches so an unexpectedly large directory
+can't hang the request. Nothing is indexed or remembered between
+calls — a deliberately scoped alternative to a full OS-wide search index,
+which would need a background crawler and a permissions model neither of
+which exist here.
+
 ### Import from ChatGPT / Claude
 
 `import_service.py`. **Settings → Data → Import** takes the
@@ -627,6 +667,13 @@ change it.
   run an action (new chat/theme/density/focus), or open a specific
   Settings section directly. Built fresh from current state each time it
   opens.
+- **Quick actions** (Settings → surfaced via the snippets panel's "Quick
+  actions" tab, `/api/quick-actions`) — your own named commands, one
+  keystroke away in the command palette: a saved prompt template that
+  either fills the composer for review or sends immediately
+  ("auto-send"). The in-app analog to a plugin system — MCP already
+  covers external tool plugins (see [MCP client support](#mcp-client-support)),
+  this covers "my own reusable prompt" without writing an MCP server for it.
 - **Toast notifications** — low-key corner notifications for background
   events that used to be invisible: auto-titling, memory saves, upload
   failures.
@@ -692,7 +739,49 @@ Windows follow the same steps (see [`DESKTOP.md`](DESKTOP.md)).
   expects Ollama running on the host, same as the Docker deployment.
 - Verified end-to-end: launching the built app spawns the backend sidecar,
   which binds `127.0.0.1:8420` and serves `/api/health` → 200. Linux builds
-  produce a `.deb` and a portable `.AppImage`.
+  produce a `.deb` and a portable `.AppImage`; Windows `.msi`/`.exe` builds
+  on `windows-latest` via CI (`.github/workflows/ci.yml`, `desktop-windows`
+  job) — see [Continuous integration](#continuous-integration).
+- **System tray icon** — Show/Quit menu, so the app can live in the
+  background instead of only existing as a window you have to keep open.
+- **Global hotkey** — `Ctrl/Cmd+Shift+Z` toggles the main window's
+  visibility from anywhere in the OS, not just when Zenith already has
+  focus (`tauri-plugin-global-shortcut`). Both registered in
+  `desktop/src-tauri/src/main.rs`'s `setup()`; either failing to register
+  would abort the whole app's startup, so a successful launch is itself
+  the verification that both work.
+
+## Browser extension
+
+`extension/` — a minimal Manifest V3 extension (not published to any
+store; install unpacked, see [`extension/README.md`](extension/README.md))
+that sends the current page or a text selection into a new Zenith
+conversation from wherever you're reading, instead of copy-pasting a URL
+into the composer.
+
+- **Send this page** — creates a conversation and asks Zenith to read and
+  summarize the tab's URL; the extension doesn't extract page content
+  itself, it hands the link to Zenith's existing URL-reading feature
+  (`web_service.py`).
+- **Send selected text** — grabs the current text selection via
+  `chrome.scripting.executeScript` and sends it with the source URL for
+  context.
+- **Fire-and-forget by design** — the extension POSTs the turn and closes
+  immediately without waiting for or displaying the reply; open Zenith
+  itself to read it. This works because backend generation is decoupled
+  from whichever connection started it (`stream_registry.py` — the same
+  mechanism behind [resumable chat streams](#core-chat--multimodal)):
+  verified live by cancelling the response body mid-request the exact way
+  the extension does and confirming the full reply still generated and
+  persisted correctly.
+- **No build step** — three plain files (`manifest.json`, `popup.html`,
+  `popup.js`), no bundler, no npm dependency; there's exactly one feature
+  here, so a build pipeline would be pure overhead.
+- Talks to `http://localhost:8420` by default (configurable in the
+  popup, saved to the extension's local storage) via a static
+  `host_permissions` grant in the manifest, which lets the extension's
+  own popup/background pages bypass browser-side CORS for that origin —
+  no backend CORS changes needed.
 
 ## Mobile & multi-device
 
@@ -764,8 +853,12 @@ that, not a multi-tenant SaaS product:
   (editing your real code, running your real commands) in exchange for
   taking the guardrails off. Start with a scoped workspace mount if
   you're not sure.
-- **Scheduled turns can never use agent mode** — unattended + unsupervised
-  + shell access is a combination this project deliberately refuses.
+- **Scheduled turns and automation rules can never use agent mode** —
+  unattended + unsupervised + shell access is a combination this project
+  deliberately refuses, for both the clock-triggered case (schedules) and
+  the event-triggered case (automation rules' "prompt" action). Both are
+  restricted to chat/research mode; the model can write you a report, not
+  run commands nobody's watching.
 - **MCP tools are always risky-classified** — you don't know what an
   external server's tool actually does, so it always gets the same
   approval gate as `write_file`, regardless of your agent mode setting.
@@ -777,7 +870,21 @@ that, not a multi-tenant SaaS product:
   multi-user/permission model — it's one shared secret for the whole API.
 - **Passcode lock** gates the UI/API on a shared machine (a real `423`
   middleware, not UI theater) — but it's a login gate, **not** at-rest
-  encryption. The database file stays readable with filesystem access.
+  encryption. The database file (conversations, memories, documents)
+  stays readable with filesystem access; real database encryption would
+  need SQLCipher and would break FTS5 search, a tradeoff explicitly not
+  taken on here.
+- **Credentials are encrypted at rest** (`crypto_service.py`) —
+  `email_password` and `auth_shared_secret` in `config.json` are
+  AES-256-GCM encrypted using a local machine key
+  (`data/.machine_key`, generated once, `0600` permissions), transparent
+  to the rest of the app (every call site still just reads the plaintext
+  value in memory). This is narrower than full database encryption on
+  purpose: credentials are few, small, and don't need to be searchable,
+  so they get real protection without the FTS5 tradeoff above. Copying
+  `config.json` to another machine without the key file leaves those two
+  fields unreadable ciphertext; it does not protect against another
+  process running as the same OS user as Zenith on the same machine.
 
 ## Known limitations
 
@@ -837,7 +944,7 @@ that, not a multi-tenant SaaS product:
 ```bash
 cd backend
 source .venv/bin/activate
-pytest tests -q          # 18 tests, one requires Ollama reachable
+pytest tests -q          # 73 tests, one requires Ollama reachable
 ```
 
 ```bash
@@ -845,8 +952,23 @@ cd frontend
 npm run build             # production build + bundle-size check
 ```
 
-The test suite covers storage/branching, the router, search, and a full
-chat round-trip against a real (or mocked) Ollama. One test
-(`test_app_boots_and_health`) requires Ollama to actually be reachable —
-it's not a flake if it fails with Ollama stopped, that's the expected
-contract of the health endpoint.
+The test suite covers storage/branching, the router, search, a full chat
+round-trip against a real (or mocked) Ollama, the stream registry
+(publish/replay/finish semantics for [resumable streams](#core-chat--multimodal)),
+[automation rules + webhooks](#automation-rules--outbound-webhooks) (with a
+fake `httpx` transport, no real network calls), the code editor's [ad-hoc
+file search](#unified-search) and [project extraction](#code-editor-panel),
+and the [encrypted-credential](#safety-model) round-trip (on-disk ciphertext,
+in-memory plaintext, backward-compatible with pre-existing plaintext values).
+One test (`test_app_boots_and_health`) requires Ollama to actually be
+reachable — it's not a flake if it fails with Ollama stopped, that's the
+expected contract of the health endpoint.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` — three jobs on every push/PR: backend tests
+(`pytest -q`), frontend build (`npm run build`), and a `desktop-windows`
+job that freezes the backend with PyInstaller and runs `cargo tauri build`
+on `windows-latest`, uploading the resulting `.msi`/`.exe` as workflow
+artifacts. This is how Windows desktop builds are verified — see
+[Desktop app](#desktop-app).
