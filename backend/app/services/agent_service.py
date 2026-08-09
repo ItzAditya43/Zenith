@@ -136,6 +136,24 @@ TOOLS: dict[str, dict[str, str]] = {
                         "(boolean, optional, default true — stage everything first). For 'branch': "
                         "name (string, optional — create/switch to it; omit to list branches)."
     },
+    "note_add": {
+        "description": "Save a note for the user. Args: content (string), color (string, optional)."
+    },
+    "note_update": {
+        "description": "Update an existing note's content and/or color. Args: note_id (string), "
+                        "content (string, optional), color (string, optional)."
+    },
+    "note_delete": {"description": "Delete a note. Args: note_id (string)."},
+    "todo_add": {
+        "description": "Add a to-do item for the user. Args: text (string), due_ts (number, optional "
+                        "— unix seconds)."
+    },
+    "todo_update": {
+        "description": "Update a to-do's text, status, or due date. Args: todo_id (string), text "
+                        "(string, optional), status (one of 'todo'/'in_progress'/'done', optional), "
+                        "due_ts (number, optional)."
+    },
+    "todo_delete": {"description": "Delete a to-do item. Args: todo_id (string)."},
 }
 
 _SYSTEM_PROMPT_HEADER = """You are Zenith operating in agent mode: you can use tools across multiple
@@ -191,7 +209,11 @@ def classify_risk(tool: str, args: dict[str, Any]) -> str:
     """Returns "safe" or "risky". Safe calls auto-run in "semi" mode;
     risky calls always pause for approval outside "full" mode."""
     if tool in ("read_file", "list_dir", "web_search", "fetch_url", "shell_output", "shell_list", "shell_kill",
-                "browser_get_text", "browser_close"):
+                "browser_get_text", "browser_close", "note_add", "note_update", "todo_add", "todo_update"):
+        # Notes/to-dos are low-stakes personal-list edits (trivially
+        # reversible from the Notes/To-do panels), not filesystem/shell
+        # side effects — safe to auto-run in semi mode like a read. Only
+        # deletion (below, "risky") isn't easily undone.
         return "safe"
     if tool in ("write_file", "edit_file", "shell_write_stdin", "browser_navigate", "browser_click", "browser_type"):
         # Navigating/clicking/typing can trigger real side effects (form
@@ -859,6 +881,64 @@ async def _run_browser_close(conversation_id: str) -> str:
     return "Closed the browser session." if closed else "No browser session was open."
 
 
+def _run_note_add(args: dict) -> str:
+    from app.db import storage
+    content = str(args.get("content", "")).strip()
+    if not content:
+        return "Error: content is required."
+    note = storage.create_note(content, args.get("color", "default"))
+    return f"Saved note {note['id']}."
+
+
+def _run_note_update(args: dict) -> str:
+    from app.db import storage
+    note_id = str(args.get("note_id", "")).strip()
+    if not note_id:
+        return "Error: note_id is required."
+    storage.update_note(note_id, args.get("content"), args.get("color"))
+    return f"Updated note {note_id}."
+
+
+def _run_note_delete(args: dict) -> str:
+    from app.db import storage
+    note_id = str(args.get("note_id", "")).strip()
+    if not note_id:
+        return "Error: note_id is required."
+    storage.delete_note(note_id)
+    return f"Deleted note {note_id}."
+
+
+def _run_todo_add(args: dict) -> str:
+    from app.db import storage
+    text = str(args.get("text", "")).strip()
+    if not text:
+        return "Error: text is required."
+    todo = storage.create_todo(text, args.get("due_ts"))
+    return f"Added to-do {todo['id']}: {text}"
+
+
+def _run_todo_update(args: dict) -> str:
+    from app.db import storage
+    todo_id = str(args.get("todo_id", "")).strip()
+    if not todo_id:
+        return "Error: todo_id is required."
+    status = args.get("status")
+    if status is not None and status not in storage.TODO_STATUSES:
+        return f"Error: status must be one of {storage.TODO_STATUSES}."
+    due_ts = args["due_ts"] if "due_ts" in args else "__unset__"
+    storage.update_todo(todo_id, args.get("text"), None, due_ts, status)
+    return f"Updated to-do {todo_id}."
+
+
+def _run_todo_delete(args: dict) -> str:
+    from app.db import storage
+    todo_id = str(args.get("todo_id", "")).strip()
+    if not todo_id:
+        return "Error: todo_id is required."
+    storage.delete_todo(todo_id)
+    return f"Deleted to-do {todo_id}."
+
+
 async def _execute_tool(
     tool: str, args: dict, timeout: float, max_chars: int, workdir: str | None = None,
     conversation_id: str | None = None,
@@ -901,6 +981,18 @@ async def _execute_tool(
         return await _run_browser_get_text(args, conversation_id, max_chars)
     if tool == "browser_close":
         return await _run_browser_close(conversation_id)
+    if tool == "note_add":
+        return _run_note_add(args)
+    if tool == "note_update":
+        return _run_note_update(args)
+    if tool == "note_delete":
+        return _run_note_delete(args)
+    if tool == "todo_add":
+        return _run_todo_add(args)
+    if tool == "todo_update":
+        return _run_todo_update(args)
+    if tool == "todo_delete":
+        return _run_todo_delete(args)
     return f"Error: unknown tool '{tool}'."
 
 

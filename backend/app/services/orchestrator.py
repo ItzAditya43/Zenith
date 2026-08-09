@@ -189,6 +189,32 @@ async def _build_system_context(conversation_id: str, user_text: str) -> tuple[s
                 )
         except Exception as exc:
             log.debug("orchestrator.folder_recall_failed", error=str(exc))
+    # Notes and to-dos are otherwise invisible to chat unless you paste
+    # them in — surfacing a compact summary every turn (not just in agent
+    # mode, and with no LLM call needed since it's just a DB read) is what
+    # makes "what's on my to-do list?" or "what did I note about X"
+    # actually answerable without opening those panels yourself.
+    if bool(settings.get("notes_todos_context_enabled", True)):
+        try:
+            from app.db import storage
+            notes = await asyncio.to_thread(storage.list_notes)
+            todos = await asyncio.to_thread(storage.list_todos)
+            section_lines = []
+            if notes:
+                rendered = "\n".join(f"- [id={n['id']}] {n['content'][:200]}" for n in notes[:20])
+                section_lines.append("Notes:\n" + rendered)
+            open_todos = [t for t in todos if not t.get("done")]
+            if open_todos:
+                rendered = "\n".join(f"- [id={t['id']}] ({t.get('status', 'todo')}) {t['text']}" for t in open_todos[:30])
+                section_lines.append("Open to-dos:\n" + rendered)
+            if section_lines:
+                parts.append(
+                    "The user's own notes and to-do list (in agent mode, use the exact id "
+                    "shown with note_update/note_delete/todo_update/todo_delete to modify "
+                    "one):\n\n" + "\n\n".join(section_lines)
+                )
+        except Exception as exc:
+            log.debug("orchestrator.notes_todos_context_failed", error=str(exc))
     return "\n\n".join(parts), citations
 
 
