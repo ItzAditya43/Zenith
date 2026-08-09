@@ -1,4 +1,4 @@
-// Cortex desktop shell (Tauri v2).
+// Zenith desktop shell (Tauri v2).
 //
 // Responsibilities:
 //   1. Spawn the frozen Python backend (PyInstaller sidecar) on startup,
@@ -102,5 +102,5 @@ fn main() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("error while running Cortex");
+        .expect("error while running Zenith");
 }
