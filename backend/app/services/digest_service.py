@@ -69,7 +69,16 @@ async def _build_and_store() -> dict | None:
         log.warning("digest.generate_failed", error=str(exc))
         return None
 
-    return storage.create_digest(text.strip(), len(files), len(memories))
+    digest = storage.create_digest(text.strip(), len(files), len(memories))
+    try:
+        from app.services import events
+        await events.emit("digest_generated", {
+            "digest_id": digest["id"], "files_changed": digest["files_changed"],
+            "memories_added": digest["memories_added"],
+        })
+    except Exception as exc:
+        log.debug("digest.event_emit_failed", error=str(exc))
+    return digest
 
 
 async def run_now() -> dict | None:

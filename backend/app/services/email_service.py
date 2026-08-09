@@ -317,4 +317,11 @@ async def scan_for_urgent(limit: int = 10) -> int:
         storage.record_email_flag(m["id"], m["subject"], m["from"], reason, urgent)
         if urgent:
             new_urgent += 1
+            try:
+                from app.services import events
+                await events.emit("urgent_email", {
+                    "subject": m["subject"], "from": m["from"], "reason": reason,
+                })
+            except Exception as exc:
+                log.debug("email.event_emit_failed", error=str(exc))
     return new_urgent

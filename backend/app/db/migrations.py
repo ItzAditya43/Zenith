@@ -565,6 +565,58 @@ def _digests_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _webhooks_table(conn: sqlite3.Connection) -> None:
+    """Outbound notifications for real backend events (see events.py) —
+    lets your own scripts/tools on the same machine react to what Zenith
+    is doing without polling."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS webhooks (
+            id TEXT PRIMARY KEY,
+            url TEXT NOT NULL,
+            event_types TEXT NOT NULL DEFAULT '[]',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
+def _automation_rules_table(conn: sqlite3.Connection) -> None:
+    """User-defined trigger -> action rules on top of the same event bus
+    webhooks use — e.g. "when a file lands in my inbox folder, summarize
+    it into my Notes project" without hand-writing a schedule prompt or
+    a webhook receiver."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS automation_rules (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            trigger_type TEXT NOT NULL,
+            trigger_config TEXT NOT NULL DEFAULT '{}',
+            action_type TEXT NOT NULL,
+            action_config TEXT NOT NULL DEFAULT '{}',
+            conversation_id TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            last_fired_at REAL,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
+def _todo_status_column(conn: sqlite3.Connection) -> None:
+    """A Kanban-style status column for the existing todos table (was
+    just a done/not-done checklist) — 'todo' / 'in_progress' / 'done',
+    defaulting existing rows from their current `done` flag so nothing
+    already tracked silently disappears from a board view."""
+    cur = conn.cursor()
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(todos)").fetchall()]
+    if "status" not in cols:
+        cur.execute("ALTER TABLE todos ADD COLUMN status TEXT NOT NULL DEFAULT 'todo'")
+        cur.execute("UPDATE todos SET status = 'done' WHERE done = 1")
+
+
 def _memory_conflicts_table(conn: sqlite3.Connection) -> None:
     """Flagged contradictions between two stored memories ("uses fish
     shell" vs "uses zsh") — memory only ever accumulated before this;
@@ -633,6 +685,9 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (26, "snippets_table", _snippets_table),
     (27, "memory_conflicts_table", _memory_conflicts_table),
     (28, "digests_table", _digests_table),
+    (29, "webhooks_table", _webhooks_table),
+    (30, "automation_rules_table", _automation_rules_table),
+    (31, "todo_status_column", _todo_status_column),
 ]
 
 

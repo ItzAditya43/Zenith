@@ -829,13 +829,19 @@ async def create_todo(body: dict):
     text = str(body.get("text", "")).strip()
     if not text:
         raise HTTPException(422, "text is required.")
-    return storage.create_todo(text, body.get("due_ts"))
+    status = body.get("status", "todo")
+    if status not in storage.TODO_STATUSES:
+        raise HTTPException(422, f"status must be one of {storage.TODO_STATUSES}")
+    return storage.create_todo(text, body.get("due_ts"), status)
 
 
 @router.patch("/todos/{todo_id}")
 async def update_todo(todo_id: str, body: dict):
     due_ts = body["due_ts"] if "due_ts" in body else "__unset__"
-    storage.update_todo(todo_id, body.get("text"), body.get("done"), due_ts)
+    status = body.get("status")
+    if status is not None and status not in storage.TODO_STATUSES:
+        raise HTTPException(422, f"status must be one of {storage.TODO_STATUSES}")
+    storage.update_todo(todo_id, body.get("text"), body.get("done"), due_ts, status)
     return {"ok": True}
 
 

@@ -100,6 +100,7 @@ def scan_folder(folder: dict) -> dict:
         return {"scanned": 0, "indexed": 0, "errors": [f"Folder no longer exists: {root}"]}
 
     seen_paths: set[str] = set()
+    new_files: list[str] = []
     for path in root.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in exts:
             continue
@@ -120,6 +121,8 @@ def scan_folder(folder: dict) -> dict:
             with _conn() as conn:
                 _upsert_file_record(conn, abs_path, folder["id"], mtime)
             indexed += 1
+            if existing is None:
+                new_files.append(abs_path)
         except Exception as exc:
             errors.append(f"{path}: {exc}")
 
@@ -140,14 +143,21 @@ def scan_folder(folder: dict) -> dict:
         )
     log.info("folder.scanned", folder_id=folder["id"], path=folder["path"],
               scanned=scanned, indexed=indexed, errors=len(errors))
-    return {"scanned": scanned, "indexed": indexed, "errors": errors}
+    return {"scanned": scanned, "indexed": indexed, "errors": errors, "new_files": new_files}
 
 
 async def scan_all_enabled() -> None:
     import asyncio
+    from app.services import events
+
     for folder in list_watched_folders():
         if folder["enabled"]:
             try:
-                await asyncio.to_thread(scan_folder, folder)
+                result = await asyncio.to_thread(scan_folder, folder)
+                if result.get("new_files"):
+                    await events.emit("folder_file_added", {
+                        "folder_id": folder["id"], "folder_path": folder["path"],
+                        "files": result["new_files"],
+                    })
             except Exception as exc:
                 log.warning("folder.scan_failed", folder_id=folder["id"], error=str(exc))

@@ -295,6 +295,12 @@ async def review_conflicts() -> list[dict]:
             row = create_memory_conflict(mems[a]["id"], mems[b]["id"], str(reason)[:300])
             created.append(row)
         log.info("memory.conflict_review", scanned=len(mems), found=len(created))
+        if created:
+            try:
+                from app.services import events
+                await events.emit("memory_conflict_found", {"count": len(created)})
+            except Exception as exc:
+                log.debug("memory.event_emit_failed", error=str(exc))
         return created
     except Exception as exc:
         log.warning("memory.conflict_review_failed", error=str(exc))
