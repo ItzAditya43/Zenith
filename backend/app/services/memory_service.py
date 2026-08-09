@@ -110,6 +110,11 @@ def delete_memory(memory_id: str) -> None:
         rag_service.delete_memory_chunks(memory_id)
     except Exception as exc:
         log.debug("memory.delete_chunk_cleanup_failed", error=str(exc))
+    try:
+        from app.db.storage import clear_memory_conflicts_for
+        clear_memory_conflicts_for(memory_id)
+    except Exception as exc:
+        log.debug("memory.conflict_cleanup_failed", error=str(exc))
 
 
 def set_enabled(memory_id: str, enabled: bool) -> None:
@@ -218,6 +223,81 @@ async def extract_from_text(user_text: str,
         return added
     except Exception as exc:
         log.debug("memory.extract_failed", error=str(exc))
+        return []
+
+
+_CONFLICT_REVIEW_PROMPT = """Below is a numbered list of facts a personal AI assistant remembers
+about its user. Some may contradict each other because the user's situation changed and the
+old fact was never removed (e.g. "uses fish shell" vs "uses zsh", "lives in Berlin" vs "lives
+in Lisbon"). Find pairs that genuinely contradict — not just related or similar facts, only
+ones that can't both be true at once.
+
+Respond with ONLY a JSON array of objects: [{"a": <index>, "b": <index>, "reason": "<short reason>"}].
+Return [] if you find no contradictions. No prose, no markdown fence.
+
+Facts:
+"""
+
+
+async def review_conflicts() -> list[dict]:
+    """Scans enabled memories for pairwise contradictions with a small
+    model and persists any found as unresolved `memory_conflicts` rows —
+    an explicit, on-demand action (Settings -> Memory -> "Review for
+    conflicts"), not automatic on every save, since an LLM scan over
+    every memory isn't cheap enough to run silently and constantly.
+    Returns the newly created conflict rows."""
+    mems = [m for m in list_memories(include_disabled=False)]
+    if len(mems) < 2:
+        return []
+    try:
+        from app.db.storage import create_memory_conflict
+        from app.services.router import ModelRegistry, ModelRouter
+
+        registry = ModelRegistry()
+        installed = await registry.models()
+        r = ModelRouter(registry=registry)
+        model = None
+        # Unlike per-message fact extraction, this compares every pair of
+        # memories for a genuine contradiction — small_fast models (tuned
+        # for one-line "did they say anything worth remembering" calls)
+        # tend to produce malformed JSON on this multi-item comparison
+        # task, so prefer the general-purpose model first.
+        for role in ("general", "small_fast"):
+            model = r._match_capability(role, installed)  # noqa: SLF001
+            if model:
+                break
+        if not model and installed:
+            model = installed[0]
+        if not model:
+            return []
+
+        numbered = "\n".join(f"{i}. {m['content']}" for i, m in enumerate(mems))
+        out = await OllamaClient().chat(
+            model, [{"role": "user", "content": _CONFLICT_REVIEW_PROMPT + numbered}]
+        )
+        # Non-greedy: a small model's reply sometimes has trailing prose
+        # with its own brackets after the JSON array, which a greedy
+        # match would swallow and then fail to parse as one JSON value.
+        m_json = re.search(r"\[.*?\]", out, re.DOTALL)
+        if not m_json:
+            return []
+        pairs = json.loads(m_json.group(0))
+
+        created = []
+        for pair in pairs:
+            if not isinstance(pair, dict):
+                continue
+            a, b, reason = pair.get("a"), pair.get("b"), pair.get("reason", "")
+            if not isinstance(a, int) or not isinstance(b, int) or a == b:
+                continue
+            if not (0 <= a < len(mems)) or not (0 <= b < len(mems)):
+                continue
+            row = create_memory_conflict(mems[a]["id"], mems[b]["id"], str(reason)[:300])
+            created.append(row)
+        log.info("memory.conflict_review", scanned=len(mems), found=len(created))
+        return created
+    except Exception as exc:
+        log.warning("memory.conflict_review_failed", error=str(exc))
         return []
 
 

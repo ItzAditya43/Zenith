@@ -566,6 +566,35 @@ people using the same machine can't open your chats.
   need SQLCipher and would break FTS search; that tradeoff is documented,
   not silently made.
 
+### Knowledge graph
+
+`app/api/graph.py`. A grouped-column view (projects / conversations /
+memories / documents) with lines for real relationships already in the
+schema — memory extracted from a conversation, a document attached to
+one, a conversation scoped to a project. Not a fabricated or inferred
+graph, and not a physics-based force layout (that's a lot of moving
+parts for "what connects to what") — click a conversation node to jump
+to it, hover any node to highlight its edges.
+
+### Self-improving memory
+
+`memory_service.review_conflicts()`. Long-term memory only ever
+accumulated before this — "Review for contradictions" (Settings →
+Memory & persona) asks a model to scan enabled memories for pairs that
+can't both be true ("uses fish shell" vs "uses zsh") and flags them for
+you to dismiss, an explicit on-demand scan rather than automatic on
+every save (an LLM pass over every memory isn't free enough to run
+silently and constantly).
+
+### Ambient daily digest
+
+`digest_service.py`. Opt-in (Settings → Memory & persona → Daily
+digest), off by default. Once a day, an unprompted "what changed"
+summary is generated from precise deltas — files the folder watcher
+re-indexed and memories added since the last digest — not fuzzy
+similarity search, so it names actual changed files. Generate one
+manually any time from the sun icon in the header.
+
 ### Interface
 
 - **Command palette (⌘K)** — jump to any conversation, switch persona,
@@ -674,6 +703,7 @@ Grouped by area; see `app/core/config.py` for the authoritative list and
 | Memory | `memory_enabled`, `memory_max_items` | `True`, `200` | Long-term fact extraction |
 | Memory | `system_prompt` | `""` | Global persona/standing instructions |
 | Memory | `recall_enabled`, `recall_top_k` | `True`, `3` | Cross-conversation recall |
+| Digest | `digest_enabled`, `digest_interval_hours` | `False`, `24` | Ambient daily "what changed" summary |
 | RAG | `rag_enabled`, `rag_chunk_chars`, `rag_chunk_overlap`, `rag_top_k` | `True`, `1200`, `200`, `5` | Document/folder chunking + retrieval |
 | Web | `web_search_backend`, `searxng_url` | `duckduckgo`, `""` | `"searxng"` + a URL swaps in your own SearXNG instance instead of DDG's HTML scrape |
 | Web | `web_search_max_results`, `web_fetch_max_chars`, `web_fetch_timeout_seconds`, `web_fetch_max_urls_per_turn` | `5`, `4000`, `8`, `3` | Search/fetch limits |

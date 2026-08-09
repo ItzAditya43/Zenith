@@ -213,6 +213,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "doc_chunk_chars": 6000,
     # --- Attachment TTL (also drives the sweeper) ---
     "attachment_ttl_hours": 72,
+    # --- Ambient daily digest ---
+    "digest_enabled": False,     # off by default — an unprompted background LLM call
+    "digest_interval_hours": 24,
+    "digest_check_interval_seconds": 3600,  # how often the background task checks if one's due
     # --- Frontend / experimental ---
     "ui_experimental": False,
 }

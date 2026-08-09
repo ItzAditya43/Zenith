@@ -21,6 +21,8 @@ import WhatsNewPanel from "./components/WhatsNewPanel.jsx";
 import UsageDashboard from "./components/UsageDashboard.jsx";
 import CodeEditorPanel from "./components/CodeEditorPanel.jsx";
 import SnippetsPanel from "./components/SnippetsPanel.jsx";
+import KnowledgeGraphPanel from "./components/KnowledgeGraphPanel.jsx";
+import DigestPanel from "./components/DigestPanel.jsx";
 import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
@@ -76,6 +78,8 @@ export default function App() {
   const [researchOpen, setResearchOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [snippetsOpen, setSnippetsOpen] = useState(false);
+  const [graphOpen, setGraphOpen] = useState(false);
+  const [digestOpen, setDigestOpen] = useState(false);
   const [contextWindow, setContextWindow] = useState(8192);
   const [maxContextMessages, setMaxContextMessages] = useState(24);
   const [onboardingOpen, setOnboardingOpen] = useState(
@@ -1245,6 +1249,24 @@ export default function App() {
               )}
               {!focusMode && (
                 <button
+                  className={`icon-btn ${graphOpen ? "is-active" : ""}`}
+                  onClick={() => setGraphOpen((v) => !v)}
+                  title="Knowledge graph — how conversations, memories, and documents connect"
+                >
+                  <Icon name="share" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${digestOpen ? "is-active" : ""}`}
+                  onClick={() => setDigestOpen((v) => !v)}
+                  title="Daily digest"
+                >
+                  <Icon name="sun" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
                   className={`icon-btn ${usageOpen ? "is-active" : ""}`}
                   onClick={() => setUsageOpen((v) => !v)}
                   title="Usage & diagnostics"
@@ -1377,6 +1399,13 @@ export default function App() {
             }}
           />
         )}
+        {graphOpen && (
+          <KnowledgeGraphPanel
+            onClose={() => setGraphOpen(false)}
+            onOpenConversation={(id) => selectConversation(id)}
+          />
+        )}
+        {digestOpen && <DigestPanel onClose={() => setDigestOpen(false)} />}
         {codeEditorOpen && activeConversation?.workdir && (
           <CodeEditorPanel
             conversationId={activeId}

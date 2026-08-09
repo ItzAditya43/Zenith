@@ -104,6 +104,112 @@ def create_project(name: str, workdir: str | None = None) -> dict:
     return {"id": pid, "name": name, "workdir": workdir, "created_at": now}
 
 
+def create_memory_conflict(memory_id_a: str, memory_id_b: str, reason: str) -> dict:
+    cid = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO memory_conflicts (id, memory_id_a, memory_id_b, reason, resolved, created_at) "
+            "VALUES (?, ?, ?, ?, 0, ?)",
+            (cid, memory_id_a, memory_id_b, reason, now),
+        )
+    return {"id": cid, "memory_id_a": memory_id_a, "memory_id_b": memory_id_b, "reason": reason, "resolved": False, "created_at": now}
+
+
+def list_memory_conflicts(unresolved_only: bool = True) -> list[dict]:
+    with _conn() as conn:
+        sql = "SELECT * FROM memory_conflicts"
+        if unresolved_only:
+            sql += " WHERE resolved = 0"
+        sql += " ORDER BY created_at DESC"
+        rows = conn.execute(sql).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["resolved"] = bool(d["resolved"])
+            out.append(d)
+        return out
+
+
+def resolve_memory_conflict(conflict_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE memory_conflicts SET resolved = 1 WHERE id = ?", (conflict_id,))
+
+
+def clear_memory_conflicts_for(memory_id: str) -> None:
+    """Called when a memory is deleted/disabled — a conflict referencing
+    a memory that no longer exists (or is no longer active) isn't
+    actionable, so drop it rather than leave a dangling reference."""
+    with _conn() as conn:
+        conn.execute(
+            "DELETE FROM memory_conflicts WHERE memory_id_a = ? OR memory_id_b = ?",
+            (memory_id, memory_id),
+        )
+
+
+def recently_indexed_files(since_ts: float) -> list[dict]:
+    """Files the folder watcher (re-)indexed since `since_ts`, joined
+    with their folder — the precise delta the daily digest is built
+    from, not a fuzzy recall approximation."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT wf.path, wf.folder_id, wf.indexed_at, f.path AS folder_path "
+            "FROM watched_files wf JOIN watched_folders f ON f.id = wf.folder_id "
+            "WHERE wf.indexed_at >= ? ORDER BY wf.indexed_at DESC",
+            (since_ts,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def recent_memories(since_ts: float) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM memories WHERE created_at >= ? AND enabled = 1 ORDER BY created_at DESC",
+            (since_ts,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def create_digest(content: str, files_changed: int, memories_added: int) -> dict:
+    did = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO digests (id, content, files_changed, memories_added, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (did, content, files_changed, memories_added, now),
+        )
+    return {"id": did, "content": content, "files_changed": files_changed,
+            "memories_added": memories_added, "created_at": now}
+
+
+def list_digests(limit: int = 30) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM digests ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def latest_digest() -> dict | None:
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM digests ORDER BY created_at DESC LIMIT 1").fetchone()
+        return dict(row) if row else None
+
+
+def list_all_attachments() -> list[dict]:
+    """Every attachment with a filename and its owning conversation —
+    powers the knowledge-graph view's document nodes/edges. Orphaned
+    attachments (conversation_id NULL, awaiting the sweeper) are excluded,
+    same as they'd be invisible everywhere else in the UI."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, filename, kind, conversation_id, created_at FROM attachments "
+            "WHERE conversation_id IS NOT NULL ORDER BY created_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def list_projects() -> list[dict]:
     with _conn() as conn:
         return [dict(r) for r in conn.execute("SELECT * FROM projects ORDER BY created_at DESC").fetchall()]

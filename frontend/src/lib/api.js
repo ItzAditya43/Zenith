@@ -429,6 +429,10 @@ export const api = {
       return r.json();
     }),
   shareUrl: (token) => `${window.location.origin}${window.location.pathname}#/share/${token}`,
+  getKnowledgeGraph: () => request("/api/graph").then((r) => r.json()),
+  getLatestDigest: () => request("/api/digest/latest").then((r) => r.json()),
+  getDigestHistory: () => request("/api/digest/history").then((r) => r.json()),
+  runDigestNow: () => request("/api/digest/run-now", { method: "POST" }).then((r) => r.json()),
   extractProject: (conversationId) =>
     request(`/api/conversations/${conversationId}/extract-project`, { method: "POST" }).then((r) => r.json()),
 
@@ -470,6 +474,9 @@ export const api = {
     }),
   deleteMemory: (id) => request(`/api/memories/${id}`, { method: "DELETE" }),
   clearMemories: () => request("/api/memories", { method: "DELETE" }),
+  reviewMemoryConflicts: () => request("/api/memories/review-conflicts", { method: "POST" }).then((r) => r.json()),
+  listMemoryConflicts: () => request("/api/memories/conflicts").then((r) => r.json()),
+  resolveMemoryConflict: (id) => request(`/api/memories/conflicts/${id}/resolve`, { method: "POST" }),
 
   approveToolCall: (id) => request(`/api/agent/tool-calls/${id}/approve`, { method: "POST" }),
   denyToolCall: (id) => request(`/api/agent/tool-calls/${id}/deny`, { method: "POST" }),
