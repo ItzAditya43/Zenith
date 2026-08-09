@@ -80,6 +80,7 @@ export default function App() {
   const [snippetsOpen, setSnippetsOpen] = useState(false);
   const [graphOpen, setGraphOpen] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
+  const [quickActions, setQuickActions] = useState([]);
   const [contextWindow, setContextWindow] = useState(8192);
   const [maxContextMessages, setMaxContextMessages] = useState(24);
   const [onboardingOpen, setOnboardingOpen] = useState(
@@ -185,6 +186,7 @@ export default function App() {
       setMaxContextMessages(c.max_context_messages || 24);
     }).catch(() => {});
     api.listPersonas().then(setPersonas).catch(() => {});
+    api.listQuickActions().then(setQuickActions).catch(() => {});
   }, []);
 
   const handlePersonaChange = async (personaId) => {
@@ -1135,8 +1137,21 @@ export default function App() {
         action: () => selectConversation(c.id),
       });
     }
+    for (const a of quickActions) {
+      list.push({
+        id: `quick-action-${a.id}`, group: "Quick actions", icon: a.auto_send ? "bolt" : "copy",
+        label: a.name,
+        action: () => {
+          if (a.auto_send) {
+            handleSend(a.prompt_template, []);
+          } else {
+            setSeedText({ text: a.prompt_template, nonce: Date.now() });
+          }
+        },
+      });
+    }
     return list;
-  }, [conversations, personas, activeConversation, theme, sidebarCollapsed, voiceReplyEnabled, focusMode, density]);
+  }, [conversations, personas, activeConversation, theme, sidebarCollapsed, voiceReplyEnabled, focusMode, density, quickActions]);
 
   if (!lockChecked) return null; // avoid a flash of the app before we know
   if (locked) return <LockScreen onUnlocked={() => window.location.reload()} />;
@@ -1241,7 +1256,10 @@ export default function App() {
               {!focusMode && (
                 <button
                   className={`icon-btn ${snippetsOpen ? "is-active" : ""}`}
-                  onClick={() => setSnippetsOpen((v) => !v)}
+                  onClick={() => {
+                    setSnippetsOpen((v) => !v);
+                    api.listQuickActions().then(setQuickActions).catch(() => {});
+                  }}
                   title="Prompt snippets"
                 >
                   <Icon name="copy" size={16} />
@@ -1396,6 +1414,14 @@ export default function App() {
             onInsert={(text) => {
               setSeedText({ text, nonce: Date.now() });
               setSnippetsOpen(false);
+            }}
+            onRunQuickAction={(action) => {
+              setSnippetsOpen(false);
+              if (action.auto_send) {
+                handleSend(action.prompt_template, []);
+              } else {
+                setSeedText({ text: action.prompt_template, nonce: Date.now() });
+              }
             }}
           />
         )}

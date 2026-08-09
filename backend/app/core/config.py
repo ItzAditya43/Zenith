@@ -222,6 +222,21 @@ DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 
+def _decrypt_sensitive(data: dict[str, Any]) -> None:
+    """In-place: sensitive fields are encrypted on disk, plaintext in
+    memory — see crypto_service.py. Every other line of code that calls
+    `settings.get("email_password")` etc. never needs to know this
+    happens; it's transparent at the load/save boundary."""
+    try:
+        from app.services.crypto_service import SENSITIVE_KEYS, decrypt, is_encrypted
+        for key in SENSITIVE_KEYS:
+            val = data.get(key)
+            if isinstance(val, str) and is_encrypted(val):
+                data[key] = decrypt(val)
+    except Exception:
+        pass  # crypto_service unavailable at very-early import time — degrade to plaintext
+
+
 def _load() -> dict[str, Any]:
     cp = config_path()
     if cp.exists():
@@ -233,6 +248,7 @@ def _load() -> dict[str, Any]:
             for key in ("capability_keywords", "model_overrides"):
                 if key in stored and isinstance(stored[key], dict):
                     merged[key] = {**merged[key], **stored[key]}
+            _decrypt_sensitive(merged)
             return merged
         except Exception:
             pass
@@ -262,7 +278,17 @@ class Settings:
         return self._data
 
     def save(self) -> None:
-        config_path().write_text(json.dumps(self._data, indent=2))
+        to_write = dict(self._data)
+        try:
+            from app.services.crypto_service import SENSITIVE_KEYS, encrypt
+            for key in SENSITIVE_KEYS:
+                val = to_write.get(key)
+                if isinstance(val, str) and val:
+                    to_write[key] = encrypt(val)
+        except Exception as exc:
+            from app.core.logging import get_logger
+            get_logger(__name__).warning("config.encrypt_on_save_failed", error=str(exc))
+        config_path().write_text(json.dumps(to_write, indent=2))
 
     def reload(self) -> None:
         """Re-read `config.json` from disk into memory.

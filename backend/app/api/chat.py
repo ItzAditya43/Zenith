@@ -162,6 +162,26 @@ async def remove_snippet(snippet_id: str):
     return {"ok": True}
 
 
+@router.get("/quick-actions")
+async def list_quick_actions():
+    return storage.list_quick_actions()
+
+
+@router.post("/quick-actions")
+async def create_quick_action(body: dict):
+    name = str(body.get("name", "")).strip()
+    prompt_template = str(body.get("prompt_template", "")).strip()
+    if not name or not prompt_template:
+        raise HTTPException(422, "name and prompt_template are required.")
+    return storage.create_quick_action(name[:100], prompt_template[:5000], bool(body.get("auto_send")))
+
+
+@router.delete("/quick-actions/{quick_action_id}")
+async def remove_quick_action(quick_action_id: str):
+    storage.delete_quick_action(quick_action_id)
+    return {"ok": True}
+
+
 @router.get("/conversations/{conversation_id}/messages")
 async def conversation_messages(conversation_id: str):
     return storage.get_messages(conversation_id)

@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Zenith Clipper",
+  "version": "0.1.0",
+  "description": "Send the current page or a text selection straight into your local Zenith instance.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Send to Zenith"
+  },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://localhost:8420/*", "http://127.0.0.1:8420/*"],
+  "icons": {
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

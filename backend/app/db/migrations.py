@@ -617,6 +617,24 @@ def _todo_status_column(conn: sqlite3.Connection) -> None:
         cur.execute("UPDATE todos SET status = 'done' WHERE done = 1")
 
 
+def _quick_actions_table(conn: sqlite3.Connection) -> None:
+    """User-defined commands surfaced in the command palette (⌘K) — the
+    lightweight, in-app analog to a plugin system: MCP already covers
+    external tool plugins, this covers "my own reusable prompt, one
+    keystroke away" without writing an MCP server for it."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS quick_actions (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            prompt_template TEXT NOT NULL,
+            auto_send INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
 def _memory_conflicts_table(conn: sqlite3.Connection) -> None:
     """Flagged contradictions between two stored memories ("uses fish
     shell" vs "uses zsh") — memory only ever accumulated before this;
@@ -688,6 +706,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (29, "webhooks_table", _webhooks_table),
     (30, "automation_rules_table", _automation_rules_table),
     (31, "todo_status_column", _todo_status_column),
+    (32, "quick_actions_table", _quick_actions_table),
 ]
 
 
