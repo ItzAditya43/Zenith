@@ -76,6 +76,7 @@ class ConfigPatch(StrictModel):
     memory_enabled: Optional[bool] = None
     memory_max_items: Optional[int] = Field(default=None, ge=10, le=2000)
     memory_recall_top_k: Optional[int] = Field(default=None, ge=1, le=100)
+    notes_todos_context_enabled: Optional[bool] = None
     digest_enabled: Optional[bool] = None
     digest_interval_hours: Optional[int] = Field(default=None, ge=1, le=168)
     system_prompt: Optional[str] = Field(default=None, max_length=8000)

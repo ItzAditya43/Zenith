@@ -152,20 +152,20 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
         style={{ width: "min(1100px, calc(100vw - 3rem))", height: "min(720px, calc(100vh - 3rem))" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="notes-header">
-          <span>Code editor — {workdir}</span>
-          <div style={{ display: "flex", gap: "var(--space-1)" }}>
-            <button className="icon-btn" onClick={runGitStatus} title="git status">
+        <div className="notes-header code-editor-header">
+          <span className="code-editor-header-title" title={workdir}>Code editor — {workdir}</span>
+          <div className="code-editor-toolbar">
+            <button className="code-editor-toolbar-btn" onClick={runGitStatus} title="git status">
               <Icon name="grid" size={14} />
-              <span className="mode-picker-label" style={{ marginLeft: 4 }}>Status</span>
+              <span>Status</span>
             </button>
-            <button className="icon-btn" onClick={runGitDiff} title="git diff (active file, or whole repo if none open)">
+            <button className="code-editor-toolbar-btn" onClick={runGitDiff} title="git diff (active file, or whole repo if none open)">
               <Icon name="layers" size={14} />
-              <span className="mode-picker-label" style={{ marginLeft: 4 }}>Diff</span>
+              <span>Diff</span>
             </button>
-            <button className="icon-btn" onClick={runCheckCommand} title="Run the configured check command (Settings -> Agent tools)">
+            <button className="code-editor-toolbar-btn" onClick={runCheckCommand} title="Run the configured check command (Settings -> Agent tools)">
               <Icon name="bolt" size={14} />
-              <span className="mode-picker-label" style={{ marginLeft: 4 }}>Run</span>
+              <span>Run</span>
             </button>
             <button className="icon-btn" onClick={onClose} title="Close">
               <Icon name="x" size={14} />

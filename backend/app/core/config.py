@@ -193,6 +193,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "memory_recall_top_k": 12,       # above this many stored memories, inject only the most relevant instead of all
     "system_prompt": "",             # user persona / standing instructions
     "recall_enabled": True,          # cross-conversation retrieval
+    "notes_todos_context_enabled": True,  # surface notes/open to-dos in every turn's context
     "recall_top_k": 3,
     # --- RAG / long-term memory ---
     "rag_enabled": True,
