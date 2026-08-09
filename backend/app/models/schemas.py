@@ -126,6 +126,19 @@ class MemoryToggle(StrictModel):
     enabled: bool
 
 
+class WebhookCreate(StrictModel):
+    url: str = Field(min_length=1, max_length=500)
+    event_types: list[str] = Field(min_length=1, max_length=10)
+
+
+class AutomationRuleCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=200)
+    trigger_type: str = Field(min_length=1, max_length=60)
+    trigger_config: dict = Field(default_factory=dict)
+    action_type: str = Field(min_length=1, max_length=20)
+    action_config: dict = Field(default_factory=dict)
+
+
 class PersonaCreate(StrictModel):
     name: str = Field(min_length=1, max_length=60)
     system_prompt: str = Field(min_length=1, max_length=8000)

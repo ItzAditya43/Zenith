@@ -197,6 +197,92 @@ def latest_digest() -> dict | None:
         return dict(row) if row else None
 
 
+def _row_to_webhook(r) -> dict:
+    d = dict(r)
+    d["event_types"] = json.loads(d["event_types"] or "[]")
+    d["enabled"] = bool(d["enabled"])
+    return d
+
+
+def list_webhooks(enabled_only: bool = False) -> list[dict]:
+    with _conn() as conn:
+        sql = "SELECT * FROM webhooks" + (" WHERE enabled = 1" if enabled_only else "") + " ORDER BY created_at DESC"
+        rows = conn.execute(sql).fetchall()
+        return [_row_to_webhook(r) for r in rows]
+
+
+def create_webhook(url: str, event_types: list[str]) -> dict:
+    wid = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO webhooks (id, url, event_types, enabled, created_at) VALUES (?, ?, ?, 1, ?)",
+            (wid, url, json.dumps(event_types), now),
+        )
+    return {"id": wid, "url": url, "event_types": event_types, "enabled": True, "created_at": now}
+
+
+def set_webhook_enabled(webhook_id: str, enabled: bool) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE webhooks SET enabled = ? WHERE id = ?", (1 if enabled else 0, webhook_id))
+
+
+def delete_webhook(webhook_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM webhooks WHERE id = ?", (webhook_id,))
+
+
+def _row_to_rule(r) -> dict:
+    d = dict(r)
+    d["trigger_config"] = json.loads(d["trigger_config"] or "{}")
+    d["action_config"] = json.loads(d["action_config"] or "{}")
+    d["enabled"] = bool(d["enabled"])
+    return d
+
+
+def list_automation_rules(enabled_only: bool = False) -> list[dict]:
+    with _conn() as conn:
+        sql = "SELECT * FROM automation_rules" + (" WHERE enabled = 1" if enabled_only else "") + " ORDER BY created_at DESC"
+        rows = conn.execute(sql).fetchall()
+        return [_row_to_rule(r) for r in rows]
+
+
+def create_automation_rule(name: str, trigger_type: str, trigger_config: dict,
+                            action_type: str, action_config: dict) -> dict:
+    rid = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO automation_rules "
+            "(id, name, trigger_type, trigger_config, action_type, action_config, enabled, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+            (rid, name, trigger_type, json.dumps(trigger_config), action_type, json.dumps(action_config), now),
+        )
+    return {"id": rid, "name": name, "trigger_type": trigger_type, "trigger_config": trigger_config,
+            "action_type": action_type, "action_config": action_config, "conversation_id": None,
+            "enabled": True, "last_fired_at": None, "created_at": now}
+
+
+def set_automation_rule_conversation(rule_id: str, conversation_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE automation_rules SET conversation_id = ? WHERE id = ?", (conversation_id, rule_id))
+
+
+def set_automation_rule_enabled(rule_id: str, enabled: bool) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE automation_rules SET enabled = ? WHERE id = ?", (1 if enabled else 0, rule_id))
+
+
+def delete_automation_rule(rule_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM automation_rules WHERE id = ?", (rule_id,))
+
+
+def mark_automation_rule_fired(rule_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE automation_rules SET last_fired_at = ? WHERE id = ?", (time.time(), rule_id))
+
+
 def list_all_attachments() -> list[dict]:
     """Every attachment with a filename and its owning conversation —
     powers the knowledge-graph view's document nodes/edges. Orphaned
@@ -790,15 +876,20 @@ def delete_note(note_id: str) -> None:
         conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
 
 
-def create_todo(text: str, due_ts: float | None = None) -> dict:
+TODO_STATUSES = ("todo", "in_progress", "done")
+
+
+def create_todo(text: str, due_ts: float | None = None, status: str = "todo") -> dict:
     tid = str(uuid.uuid4())
     now = time.time()
+    done = 1 if status == "done" else 0
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO todos (id, text, done, due_ts, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?)",
-            (tid, text, due_ts, now, now),
+            "INSERT INTO todos (id, text, done, due_ts, created_at, updated_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (tid, text, done, due_ts, now, now, status),
         )
-    return {"id": tid, "text": text, "done": 0, "due_ts": due_ts, "created_at": now, "updated_at": now}
+    return {"id": tid, "text": text, "done": done, "due_ts": due_ts, "created_at": now,
+            "updated_at": now, "status": status}
 
 
 def list_todos() -> list[dict]:
@@ -809,14 +900,25 @@ def list_todos() -> list[dict]:
         return [dict(r) for r in rows]
 
 
-def update_todo(todo_id: str, text: str | None = None, done: bool | None = None, due_ts: float | None = "__unset__") -> None:
+def update_todo(todo_id: str, text: str | None = None, done: bool | None = None,
+                 due_ts: float | None = "__unset__", status: str | None = None) -> None:
     fields, params = [], []
     if text is not None:
         fields.append("text = ?")
         params.append(text)
-    if done is not None:
+    if status is not None:
+        # The Kanban status and the legacy done checkbox stay in sync —
+        # dragging a card to "Done" checks it off, checking it off moves
+        # it to "Done", regardless of which UI made the change.
+        fields.append("status = ?")
+        params.append(status)
+        fields.append("done = ?")
+        params.append(1 if status == "done" else 0)
+    elif done is not None:
         fields.append("done = ?")
         params.append(1 if done else 0)
+        fields.append("status = ?")
+        params.append("done" if done else "todo")
     if due_ts != "__unset__":
         fields.append("due_ts = ?")
         params.append(due_ts)

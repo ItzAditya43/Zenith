@@ -595,6 +595,32 @@ re-indexed and memories added since the last digest — not fuzzy
 similarity search, so it names actual changed files. Generate one
 manually any time from the sun icon in the header.
 
+### Automation rules + outbound webhooks
+
+`events.py`, `webhook_service.py`, `automation_service.py` — one
+internal event bus, two consumers (Settings → Automation):
+
+- **Webhooks** — POST a JSON payload to a URL on your own machine when a
+  real event happens: `digest_generated`, `schedule_completed`,
+  `urgent_email`, `memory_conflict_found`, `folder_file_added`. Lets your
+  own scripts react instead of polling the API.
+- **Automation rules** — trigger → action on the same events, entirely
+  in-app: "when a file lands in this folder, summarize it" without
+  writing a webhook receiver. Actions are **prompt** (sends a message
+  into a persistent per-rule conversation, chat/research mode only —
+  never agent, same reason scheduled turns never run unattended agent
+  mode) or **webhook** (a one-off URL for that rule specifically).
+  `{event_data}` in a prompt is substituted with the triggering event's
+  data.
+
+### Task board
+
+Todos (Settings-adjacent, opened from the header) now have a Kanban
+**status** (`todo` / `in_progress` / `done`) alongside the original
+checklist — switch to "Board" view to drag cards between columns; the
+legacy done checkbox and the board status stay in sync either way you
+change it.
+
 ### Interface
 
 - **Command palette (⌘K)** — jump to any conversation, switch persona,

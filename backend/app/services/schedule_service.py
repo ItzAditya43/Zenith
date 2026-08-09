@@ -164,6 +164,14 @@ async def run_schedule(schedule: dict) -> dict:
                 (finished, finished + schedule["interval_minutes"] * 60, schedule["id"]),
             )
         log.info("schedule.run_succeeded", schedule_id=schedule["id"], name=schedule["name"])
+        try:
+            from app.services import events
+            await events.emit("schedule_completed", {
+                "schedule_id": schedule["id"], "name": schedule["name"],
+                "summary": full_text[:500],
+            })
+        except Exception as exc:
+            log.debug("schedule.event_emit_failed", error=str(exc))
         return {"id": run_id, "status": "success", "summary": full_text[:500]}
     except Exception as exc:
         finished = time.time()

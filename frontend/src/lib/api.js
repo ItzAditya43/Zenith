@@ -430,6 +430,35 @@ export const api = {
     }),
   shareUrl: (token) => `${window.location.origin}${window.location.pathname}#/share/${token}`,
   getKnowledgeGraph: () => request("/api/graph").then((r) => r.json()),
+  getAutomationEventTypes: () => request("/api/automation/event-types").then((r) => r.json()),
+  listWebhooks: () => request("/api/webhooks").then((r) => r.json()),
+  createWebhook: (url, eventTypes) =>
+    request("/api/webhooks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, event_types: eventTypes }),
+    }).then((r) => r.json()),
+  toggleWebhook: (id, enabled) =>
+    request(`/api/webhooks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }),
+  deleteWebhook: (id) => request(`/api/webhooks/${id}`, { method: "DELETE" }),
+  listAutomationRules: () => request("/api/automation/rules").then((r) => r.json()),
+  createAutomationRule: (rule) =>
+    request("/api/automation/rules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(rule),
+    }).then((r) => r.json()),
+  toggleAutomationRule: (id, enabled) =>
+    request(`/api/automation/rules/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }),
+  deleteAutomationRule: (id) => request(`/api/automation/rules/${id}`, { method: "DELETE" }),
   getLatestDigest: () => request("/api/digest/latest").then((r) => r.json()),
   getDigestHistory: () => request("/api/digest/history").then((r) => r.json()),
   runDigestNow: () => request("/api/digest/run-now", { method: "POST" }).then((r) => r.json()),

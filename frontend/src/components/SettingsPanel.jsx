@@ -40,6 +40,7 @@ const SECTIONS = [
   { id: "data", label: "Data", icon: "download" },
   { id: "folders", label: "Folders", icon: "folder" },
   { id: "schedules", label: "Schedules", icon: "clock" },
+  { id: "automation", label: "Automation", icon: "wrench" },
   { id: "about", label: "About", icon: "info" },
 ];
 
@@ -112,6 +113,20 @@ export default function SettingsPanel({
   const [runningSchedule, setRunningSchedule] = useState(null);
   const [expandedSchedule, setExpandedSchedule] = useState(null);
   const [scheduleRuns, setScheduleRuns] = useState({});
+  const [eventTypes, setEventTypes] = useState([]);
+  const [webhooks, setWebhooks] = useState([]);
+  const [webhooksError, setWebhooksError] = useState(null);
+  const [newWebhookUrl, setNewWebhookUrl] = useState("");
+  const [newWebhookEvents, setNewWebhookEvents] = useState([]);
+  const [rules, setRules] = useState([]);
+  const [rulesError, setRulesError] = useState(null);
+  const [newRuleName, setNewRuleName] = useState("");
+  const [newRuleTrigger, setNewRuleTrigger] = useState("");
+  const [newRuleFolderId, setNewRuleFolderId] = useState("");
+  const [newRuleActionType, setNewRuleActionType] = useState("prompt");
+  const [newRulePrompt, setNewRulePrompt] = useState("");
+  const [newRuleMode, setNewRuleMode] = useState("chat");
+  const [newRuleWebhookUrl, setNewRuleWebhookUrl] = useState("");
   const [mcpServers, setMcpServers] = useState([]);
   const [mcpError, setMcpError] = useState(null);
   const [newMcpName, setNewMcpName] = useState("");
@@ -233,6 +248,7 @@ export default function SettingsPanel({
     refreshFolders();
     refreshSchedules();
     refreshMcpServers();
+    refreshAutomation();
   }, []);
 
   const refreshMcpServers = () => {
@@ -279,6 +295,73 @@ export default function SettingsPanel({
     } finally {
       setMcpToolsChecking(null);
     }
+  };
+
+  const refreshAutomation = () => {
+    api.getAutomationEventTypes().then((types) => {
+      setEventTypes(types);
+      if (!newRuleTrigger && types.length) setNewRuleTrigger(types[0]);
+    }).catch(() => {});
+    api.listWebhooks().then((w) => { setWebhooks(w); setWebhooksError(null); }).catch((err) => setWebhooksError(err.message));
+    api.listAutomationRules().then((r) => { setRules(r); setRulesError(null); }).catch((err) => setRulesError(err.message));
+  };
+
+  const addWebhook = async () => {
+    if (!newWebhookUrl.trim() || newWebhookEvents.length === 0) return;
+    try {
+      await api.createWebhook(newWebhookUrl.trim(), newWebhookEvents);
+      setNewWebhookUrl("");
+      setNewWebhookEvents([]);
+      refreshAutomation();
+    } catch (err) {
+      setWebhooksError(err.message);
+    }
+  };
+
+  const toggleWebhook = async (id, enabled) => {
+    setWebhooks((ws) => ws.map((w) => (w.id === id ? { ...w, enabled } : w)));
+    await api.toggleWebhook(id, enabled);
+  };
+
+  const deleteWebhook = async (id) => {
+    await api.deleteWebhook(id);
+    refreshAutomation();
+  };
+
+  const addRule = async () => {
+    if (!newRuleName.trim() || !newRuleTrigger) return;
+    const actionConfig =
+      newRuleActionType === "prompt"
+        ? { prompt: newRulePrompt.trim(), mode: newRuleMode }
+        : { url: newRuleWebhookUrl.trim() };
+    if (newRuleActionType === "prompt" && !actionConfig.prompt) return;
+    if (newRuleActionType === "webhook" && !actionConfig.url) return;
+    try {
+      await api.createAutomationRule({
+        name: newRuleName.trim(),
+        trigger_type: newRuleTrigger,
+        trigger_config: newRuleTrigger === "folder_file_added" && newRuleFolderId.trim() ? { folder_id: newRuleFolderId.trim() } : {},
+        action_type: newRuleActionType,
+        action_config: actionConfig,
+      });
+      setNewRuleName("");
+      setNewRulePrompt("");
+      setNewRuleWebhookUrl("");
+      setNewRuleFolderId("");
+      refreshAutomation();
+    } catch (err) {
+      setRulesError(err.message);
+    }
+  };
+
+  const toggleRule = async (id, enabled) => {
+    setRules((rs) => rs.map((r) => (r.id === id ? { ...r, enabled } : r)));
+    await api.toggleAutomationRule(id, enabled);
+  };
+
+  const deleteRule = async (id) => {
+    await api.deleteAutomationRule(id);
+    refreshAutomation();
   };
 
   const refreshSchedules = () => {
@@ -2194,6 +2277,141 @@ export default function SettingsPanel({
                   {schedules.length === 0 && !schedulesError && (
                     <li className="model-empty">No schedules yet.</li>
                   )}
+                </ul>
+              </section>
+            )}
+
+            {activeSection === "automation" && (
+              <section className="settings-section">
+                <h3 className="settings-section-title">Webhooks</h3>
+                <p className="settings-section-desc">
+                  POST a small JSON payload to a URL on your own machine when something real
+                  happens — a digest is generated, a schedule finishes, an urgent email is
+                  flagged, a memory conflict is found, or a watched folder gets a new file.
+                </p>
+                <div className="setting-row setting-row-stack">
+                  <input
+                    className="settings-input"
+                    placeholder="http://localhost:9000/hook"
+                    value={newWebhookUrl}
+                    onChange={(e) => setNewWebhookUrl(e.target.value)}
+                  />
+                  <div className="settings-row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+                    {eventTypes.map((t) => (
+                      <label key={t} style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "var(--text-xs)" }}>
+                        <input
+                          type="checkbox"
+                          checked={newWebhookEvents.includes(t)}
+                          onChange={(e) =>
+                            setNewWebhookEvents((evs) =>
+                              e.target.checked ? [...evs, t] : evs.filter((x) => x !== t)
+                            )
+                          }
+                        />
+                        {t}
+                      </label>
+                    ))}
+                  </div>
+                  <button className="settings-btn-primary" onClick={addWebhook} style={{ alignSelf: "flex-end" }}>
+                    Add webhook
+                  </button>
+                </div>
+                {webhooksError && <p className="settings-error">{webhooksError}</p>}
+                <ul className="model-list" style={{ marginTop: "0.75rem" }}>
+                  {webhooks.map((w) => (
+                    <li key={w.id} style={{ opacity: w.enabled ? 1 : 0.5 }}>
+                      <span className="model-name" style={{ flex: 1 }}>
+                        {w.url}
+                        <span className="setting-hint" style={{ display: "block" }}>{w.event_types.join(", ")}</span>
+                      </span>
+                      <span className="settings-row" style={{ gap: "0.5rem" }}>
+                        <button className="text-btn" onClick={() => toggleWebhook(w.id, !w.enabled)}>
+                          {w.enabled ? "On" : "Off"}
+                        </button>
+                        <button className="icon-btn" onClick={() => deleteWebhook(w.id)} title="Delete">×</button>
+                      </span>
+                    </li>
+                  ))}
+                  {webhooks.length === 0 && !webhooksError && <li className="model-empty">No webhooks yet.</li>}
+                </ul>
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>Automation rules</h3>
+                <p className="settings-section-desc">
+                  Trigger -&gt; action, on top of the same events webhooks use. A "prompt" action
+                  sends a message into a persistent conversation (chat/research mode only —
+                  never agent, same reason schedules never run unattended agent turns). Use
+                  <code>{"{event_data}"}</code> in the prompt to reference what happened.
+                </p>
+                <div className="setting-row setting-row-stack">
+                  <div className="settings-row">
+                    <input
+                      className="settings-input"
+                      placeholder="Rule name"
+                      value={newRuleName}
+                      onChange={(e) => setNewRuleName(e.target.value)}
+                    />
+                    <select className="settings-select" value={newRuleTrigger} onChange={(e) => setNewRuleTrigger(e.target.value)}>
+                      {eventTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  {newRuleTrigger === "folder_file_added" && (
+                    <input
+                      className="settings-input"
+                      placeholder="Folder ID to filter on (optional — leave blank for any watched folder)"
+                      value={newRuleFolderId}
+                      onChange={(e) => setNewRuleFolderId(e.target.value)}
+                    />
+                  )}
+                  <select className="settings-select" value={newRuleActionType} onChange={(e) => setNewRuleActionType(e.target.value)}>
+                    <option value="prompt">Send a prompt</option>
+                    <option value="webhook">Call a webhook</option>
+                  </select>
+                  {newRuleActionType === "prompt" ? (
+                    <>
+                      <textarea
+                        className="settings-textarea"
+                        rows={2}
+                        placeholder="Prompt to run, e.g. Summarize this: {event_data}"
+                        value={newRulePrompt}
+                        onChange={(e) => setNewRulePrompt(e.target.value)}
+                      />
+                      <select className="settings-select" value={newRuleMode} onChange={(e) => setNewRuleMode(e.target.value)}>
+                        <option value="chat">Chat</option>
+                        <option value="research">Deep Research</option>
+                      </select>
+                    </>
+                  ) : (
+                    <input
+                      className="settings-input"
+                      placeholder="Webhook URL for this rule"
+                      value={newRuleWebhookUrl}
+                      onChange={(e) => setNewRuleWebhookUrl(e.target.value)}
+                    />
+                  )}
+                  <button className="settings-btn-primary" onClick={addRule} style={{ alignSelf: "flex-end" }}>
+                    Add rule
+                  </button>
+                </div>
+                {rulesError && <p className="settings-error">{rulesError}</p>}
+                <ul className="model-list" style={{ marginTop: "0.75rem" }}>
+                  {rules.map((r) => (
+                    <li key={r.id} style={{ opacity: r.enabled ? 1 : 0.5 }}>
+                      <span className="model-name" style={{ flex: 1 }}>
+                        {r.name}
+                        <span className="setting-hint" style={{ display: "block" }}>
+                          {r.trigger_type} → {r.action_type}
+                          {r.last_fired_at ? ` · last fired ${new Date(r.last_fired_at * 1000).toLocaleString()}` : " · never fired"}
+                        </span>
+                      </span>
+                      <span className="settings-row" style={{ gap: "0.5rem" }}>
+                        <button className="text-btn" onClick={() => toggleRule(r.id, !r.enabled)}>
+                          {r.enabled ? "On" : "Off"}
+                        </button>
+                        <button className="icon-btn" onClick={() => deleteRule(r.id)} title="Delete">×</button>
+                      </span>
+                    </li>
+                  ))}
+                  {rules.length === 0 && !rulesError && <li className="model-empty">No automation rules yet.</li>}
                 </ul>
               </section>
             )}
