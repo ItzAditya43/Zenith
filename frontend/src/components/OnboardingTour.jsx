@@ -1,9 +1,12 @@
 import Icon from "./Icon.jsx";
 
 const HIGHLIGHTS = [
-  { icon: "bot", title: "Agent mode", desc: "Let the model run shell commands, edit files, and use git — turn it on in Settings → Agent tools." },
-  { icon: "clock", title: "Calendar, notes, to-dos", desc: "Header icons next to the theme picker — a local Keep/Calendar/To-do suite, no account needed." },
+  { icon: "bot", title: "Agent mode", desc: "Let the model run shell commands, edit files, and use git — turn it on in Settings → Agent tools. Notes and to-dos are already answerable in plain chat, no setup needed." },
+  { icon: "clock", title: "Calendar, notes, to-dos", desc: "Header icons next to the theme picker — a local Keep/Calendar/To-do suite (with a drag-and-drop board view), no account needed." },
   { icon: "flask", title: "Deep research", desc: "Ask for a research-style answer and it saves as a reopenable report you can ask follow-ups against." },
+  { icon: "terminal", title: "Code editor + git", desc: "Bind a working directory (folder icon in the header) to get a file tree, editor, git status/diff, and one-click extraction of a conversation's code into real files." },
+  { icon: "share", title: "Knowledge graph + automation", desc: "See how your conversations, memories, and documents connect — and set up rules that react automatically (a new file, an urgent email, a daily digest)." },
+  { icon: "grid", title: "Model routing", desc: "Zenith auto-picks a model per message. Settings → Model routing shows which of your installed models actually fit your GPU comfortably." },
   { icon: "at-sign", title: "Email", desc: "Connect your own IMAP/SMTP account in Settings → Email for local summarize and draft-reply." },
   { icon: "sun", title: "8 themes", desc: "Settings → Appearance — full re-skins, not just light/dark, plus optional ambient backgrounds." },
   { icon: "share", title: "Multi-device sync", desc: "Settings → Sync — pair a second device with a one-time code, then export/import encrypted snapshots." },

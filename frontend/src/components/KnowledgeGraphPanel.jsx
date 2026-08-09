@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import { useEscapeToClose } from "../hooks/useEscapeToClose";
 
 const COLUMNS = [
   { type: "project", label: "Projects" },
@@ -23,6 +24,7 @@ export default function KnowledgeGraphPanel({ onClose, onOpenConversation }) {
   const [error, setError] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
   const containerRef = useRef(null);
+  useEscapeToClose(onClose);
 
   useEffect(() => {
     api.getKnowledgeGraph().then(setData).catch((err) => setError(err.message));
@@ -83,6 +85,9 @@ export default function KnowledgeGraphPanel({ onClose, onOpenConversation }) {
         className="notes-modal graph-modal"
         style={{ width: "min(1100px, calc(100vw - 3rem))", height: "min(720px, calc(100vh - 3rem))" }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Knowledge graph"
       >
         <div className="notes-header">
           <span>Knowledge graph — what's connected to what</span>

@@ -38,5 +38,13 @@
     "shortDescription": "Self-hosted local AI chat for Ollama",
     "longDescription": "Zenith is a local-first AI chat client that runs against your own Ollama models. No cloud, no accounts."
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/ItzAditya43/Zenith/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRGNkRFNTI0MTRBOEYzMEUKUldRTzg2Z1VKT1Z0VDNmTmU2NThOeUhpR1hkeEpIL2VTcDN3L0kxSVpWNVRJTzEzUEp4N08ybm8K"
+    }
+  }
 }

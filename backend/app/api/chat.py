@@ -401,6 +401,7 @@ async def chat(body: ChatRequest, request: Request):
         raise HTTPException(status_code=404, detail=str(exc))
 
     heartbeat = int(settings.get("sse_heartbeat_seconds", 15))
+    max_idle = float(settings.get("stream_idle_timeout_seconds", 120))
 
     async def produce():
         """Runs independently of the request that started it — see
@@ -418,7 +419,7 @@ async def chat(body: ChatRequest, request: Request):
         try:
             async with conversation_lock(key):
                 try:
-                    async for piece in _with_heartbeat(stream, heartbeat):
+                    async for piece in _with_heartbeat(stream, heartbeat, max_idle):
                         if piece is None:
                             continue  # heartbeats aren't replayed — a resumer doesn't need them
                         if first_token_ms is None:
@@ -442,7 +443,7 @@ async def chat(body: ChatRequest, request: Request):
                                     fallback,
                                     [m for m in history if m["role"] in {"user", "assistant"}][-int(settings.get("max_context_messages", 24)):],
                                 )
-                                async for piece in _with_heartbeat(retry_stream, heartbeat):
+                                async for piece in _with_heartbeat(retry_stream, heartbeat, max_idle):
                                     if piece is None:
                                         continue
                                     collected.append(piece)
@@ -769,22 +770,44 @@ def _sse(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
-async def _with_heartbeat(stream: AsyncIterator[str], interval: float) -> AsyncIterator[str | None]:
+async def _with_heartbeat(
+    stream: AsyncIterator[str], interval: float, max_idle_seconds: float | None = None,
+) -> AsyncIterator[str | None]:
     """Re-yields `stream`, interleaving a `None` whenever `interval` seconds
     pass without a token (the caller turns that into an SSE comment frame).
 
     The pending read is kept alive across heartbeat ticks (asyncio.wait,
     not wait_for) — cancelling `__anext__` on timeout would tear down the
-    underlying Ollama stream."""
+    underlying Ollama stream.
+
+    If `max_idle_seconds` is set and that much *total* idle time accumulates
+    with no token at all (not total generation time — a long reply that's
+    still actively streaming never trips this), the pending read is
+    cancelled and a TimeoutError raised. This is the fix for a real failure
+    mode: a model that's swapped out of VRAM and effectively hung (partial
+    CPU offload thrashing, or genuinely wedged) used to hold the
+    per-conversation lock forever, silently blocking every subsequent
+    message in that conversation behind a request that would never finish."""
     it = stream.__aiter__()
     pending: asyncio.Future | None = None
+    idle_elapsed = 0.0
     while True:
         if pending is None:
             pending = asyncio.ensure_future(it.__anext__())
-        done, _ = await asyncio.wait({pending}, timeout=interval if interval > 0 else None)
+        tick = interval if interval > 0 else None
+        done, _ = await asyncio.wait({pending}, timeout=tick)
         if not done:
+            idle_elapsed += tick or 0
+            if max_idle_seconds and idle_elapsed >= max_idle_seconds:
+                pending.cancel()
+                raise TimeoutError(
+                    f"No response from the model for {int(max_idle_seconds)}s — it may be "
+                    "stuck (a common cause: a model too large for your GPU, spilling onto "
+                    "slow CPU inference). Try a smaller model in Settings -> Model routing."
+                )
             yield None
             continue
+        idle_elapsed = 0.0
         task, pending = pending, None
         try:
             yield task.result()

@@ -12,6 +12,16 @@
 //   5. A global hotkey (Ctrl/Cmd+Shift+Z) that toggles the main window's
 //      visibility from anywhere on the OS — "summon Zenith" without
 //      alt-tabbing to find it.
+//   6. Auto-update: a "Check for Updates" tray menu item that checks
+//      GitHub Releases (see .github/workflows/release.yml for how builds
+//      get published there, signed with the keypair in DESKTOP.md) and
+//      shows a native dialog either way — found or already current.
+//      Deliberately does NOT auto-download-and-install: that's a bigger
+//      trust step (silently replacing the running binary) than this
+//      scaffold has been able to verify end-to-end without a real
+//      published release to test against. Checking + telling you is the
+//      verified-safe subset; wiring the actual install step is a
+//      follow-up once a release has actually shipped once.
 //
 // This is a reference scaffold — it has NOT been compiled in the environment
 // it was written in (no Rust toolchain there). Build per DESKTOP.md.
@@ -21,9 +31,12 @@
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
+use tauri_plugin_updater::UpdaterExt;
 use std::sync::Mutex;
 
 // Holds the running backend child so we can kill it on exit.
@@ -41,10 +54,47 @@ fn toggle_main_window(app: &tauri::AppHandle) {
     }
 }
 
+fn check_for_updates(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let updater = match app.updater() {
+            Ok(u) => u,
+            Err(e) => {
+                app.dialog().message(format!("Couldn't check for updates: {e}")).show(|_| {});
+                return;
+            }
+        };
+        match updater.check().await {
+            Ok(Some(update)) => {
+                let version = update.version.clone();
+                app.dialog()
+                    .message(format!(
+                        "A new version is available: {version}\n\nDownload it from the Releases page \
+                         (in-app auto-install isn't wired up yet)."
+                    ))
+                    .title("Update available")
+                    .show(|_| {});
+                let _ = app.opener().open_url(
+                    "https://github.com/ItzAditya43/Zenith/releases/latest",
+                    None::<&str>,
+                );
+            }
+            Ok(None) => {
+                app.dialog().message("You're on the latest version.").title("Up to date").show(|_| {});
+            }
+            Err(e) => {
+                app.dialog().message(format!("Couldn't check for updates: {e}")).show(|_| {});
+            }
+        }
+    });
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
         .manage(Backend(Mutex::new(None)))
         .setup(|app| {
             // App-data dir: ~/Library/Application Support/dev.zenith.desktop (macOS),
@@ -69,8 +119,9 @@ fn main() {
 
             // --- System tray ---
             let show_item = MenuItem::with_id(app, "show", "Show Zenith", true, None::<&str>)?;
+            let update_item = MenuItem::with_id(app, "check_update", "Check for Updates…", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let tray_menu = Menu::with_items(app, &[&show_item, &update_item, &quit_item])?;
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
@@ -78,6 +129,7 @@ fn main() {
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => toggle_main_window(app),
+                    "check_update" => check_for_updates(app.clone()),
                     "quit" => app.exit(0),
                     _ => {}
                 })

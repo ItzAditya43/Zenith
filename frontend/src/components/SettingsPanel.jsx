@@ -14,6 +14,55 @@ const THEMES = [
   { id: "slate", name: "Slate", bg: "#17181c", fg: "#e4e5e8", accent: "#8f97a3", font: "'Inter', sans-serif" },
 ];
 
+const FIT_RANK = { comfortable: 0, tight: 1, unknown: 2, will_struggle: 3 };
+
+/** Best already-installed, role-matching model for this hardware: prefer
+ * a better fit tier, then (within the same tier) the biggest model —
+ * more capable is better as long as it still comfortably fits. Returns
+ * null if nothing tagged for the role or no hardware report yet. */
+function recommendedModelForRole(role, models, hardware) {
+  if (!hardware?.installed?.length) return null;
+  const fitByName = Object.fromEntries(hardware.installed.map((m) => [m.name, m]));
+  const candidates = models
+    .filter((m) => m.roles?.includes(role))
+    .map((m) => ({ name: m.name, ...fitByName[m.name] }))
+    .filter((m) => m.fit);
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => {
+    const rankDiff = (FIT_RANK[a.fit] ?? 9) - (FIT_RANK[b.fit] ?? 9);
+    if (rankDiff !== 0) return rankDiff;
+    return (b.params_b || 0) - (a.params_b || 0);
+  });
+  return candidates[0];
+}
+
+// A curated starting point, not a live directory — the MCP ecosystem has
+// no central registry, so this is deliberately a short, hand-picked list
+// of well-known, keyless (no API account needed) servers that match
+// Zenith's "free by construction" posture, not an attempt at completeness.
+const POPULAR_MCP_SERVERS = [
+  {
+    name: "filesystem", command: "npx", args: "-y @modelcontextprotocol/server-filesystem /path/to/allow",
+    description: "Read/write access to a specific directory you choose — replace /path/to/allow before adding.",
+  },
+  {
+    name: "fetch", command: "npx", args: "-y @modelcontextprotocol/server-fetch",
+    description: "Fetch and read web pages as clean markdown/text.",
+  },
+  {
+    name: "memory", command: "npx", args: "-y @modelcontextprotocol/server-memory",
+    description: "A simple external knowledge-graph memory store, separate from Zenith's own memory.",
+  },
+  {
+    name: "sequential-thinking", command: "npx", args: "-y @modelcontextprotocol/server-sequential-thinking",
+    description: "Structured step-by-step reasoning scratchpad for harder problems.",
+  },
+  {
+    name: "git", command: "uvx", args: "mcp-server-git",
+    description: "Structured git operations via Python's uv — an alternative to Zenith's built-in git tool for a different repo.",
+  },
+];
+
 const ROLES = ["general", "code", "vision", "reasoning", "small_fast", "embedding"];
 const ROLE_LABEL = {
   general: "General chat",
@@ -1651,6 +1700,27 @@ export default function SettingsPanel({
                   they're always classified risky).
                 </p>
 
+                <p className="setting-hint" style={{ marginBottom: "0.4rem" }}>
+                  Popular servers (keyless, run locally via npx — click to fill in the form below,
+                  then adjust and add):
+                </p>
+                <div className="mcp-popular-list">
+                  {POPULAR_MCP_SERVERS.map((s) => (
+                    <button
+                      key={s.name}
+                      className="mcp-popular-chip"
+                      onClick={() => {
+                        setNewMcpName(s.name);
+                        setNewMcpCommand(s.command);
+                        setNewMcpArgs(s.args);
+                      }}
+                      title={s.description}
+                    >
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="settings-row">
                   <input
                     className="settings-input"
@@ -1785,25 +1855,39 @@ export default function SettingsPanel({
                   </p>
                 )}
                 <div className="role-grid">
-                  {ROLES.map((role) => (
-                    <div className="role-card" data-role={role} key={role}>
-                      <span className="role-card-dot" aria-hidden="true" />
-                      <span className="role-card-label">{ROLE_LABEL[role]}</span>
-                      <select
-                        className="role-card-select"
-                        value={config?.model_overrides?.[role] || ""}
-                        onChange={(e) => setOverride(role, e.target.value)}
-                        data-role={role}
-                      >
-                        <option value="">Auto-detect</option>
-                        {models.map((m) => (
-                          <option value={m.name} key={m.name}>
-                            {m.name} {m.roles?.length ? `(${m.roles.join(", ")})` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
+                  {ROLES.map((role) => {
+                    const recommended = recommendedModelForRole(role, models, hardware);
+                    const current = config?.model_overrides?.[role] || "";
+                    return (
+                      <div className="role-card" data-role={role} key={role}>
+                        <span className="role-card-dot" aria-hidden="true" />
+                        <span className="role-card-label">{ROLE_LABEL[role]}</span>
+                        <select
+                          className="role-card-select"
+                          value={current}
+                          onChange={(e) => setOverride(role, e.target.value)}
+                          data-role={role}
+                          aria-label={`Model for ${ROLE_LABEL[role]}`}
+                        >
+                          <option value="">Auto-detect</option>
+                          {models.map((m) => (
+                            <option value={m.name} key={m.name}>
+                              {m.name} {m.roles?.length ? `(${m.roles.join(", ")})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {recommended && recommended.name !== current && (
+                          <button
+                            className="text-btn role-card-recommend"
+                            onClick={() => setOverride(role, recommended.name)}
+                            title={`${recommended.name} — ${recommended.fit === "comfortable" ? "fits your GPU/RAM comfortably" : "the best fit available among your installed models"}`}
+                          >
+                            Use recommended: {recommended.name} ({recommended.fit.replace("_", " ")})
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             )}

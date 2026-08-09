@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import { useEscapeToClose } from "../hooks/useEscapeToClose";
 
 const COLUMNS = [
   { status: "todo", label: "To do" },
@@ -36,6 +37,17 @@ function BoardView({ todos, onMove, onRemove }) {
                   onDragStart={() => setDragId(t.id)}
                 >
                   <span>{t.text}</span>
+                  <select
+                    className="kanban-card-move"
+                    value={col.status}
+                    aria-label={`Move "${t.text}" to a different column`}
+                    title="Move to…"
+                    onChange={(e) => onMove(t.id, e.target.value)}
+                  >
+                    {COLUMNS.map((c) => (
+                      <option key={c.status} value={c.status}>{c.label}</option>
+                    ))}
+                  </select>
                   <button className="icon-btn" onClick={() => onRemove(t.id)} title="Delete">
                     <Icon name="x" size={12} />
                   </button>
@@ -52,6 +64,7 @@ export default function TodoPanel({ onClose }) {
   const [todos, setTodos] = useState([]);
   const [draft, setDraft] = useState("");
   const [view, setView] = useState("list"); // "list" | "board"
+  useEscapeToClose(onClose);
 
   const refresh = () => api.listTodos().then(setTodos).catch(() => {});
 
@@ -87,6 +100,9 @@ export default function TodoPanel({ onClose }) {
         className="notes-modal"
         style={{ width: view === "board" ? "min(760px, calc(100vw - 3rem))" : "min(480px, calc(100vw - 3rem))" }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="To-do"
       >
         <div className="notes-header">
           <span>To-do</span>

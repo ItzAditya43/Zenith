@@ -24,6 +24,16 @@ function ConversationItem({ c, active, collapsed, showDelete, onSelect, onDelete
     <div
       className={`conversation-item ${active ? "conversation-item-active" : ""}`}
       onClick={() => onSelect(c.id)}
+      role="button"
+      tabIndex={0}
+      aria-current={active ? "true" : undefined}
+      aria-label={c.title}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(c.id);
+        }
+      }}
     >
       {!collapsed && c.pinned && <Icon name="target" size={11} className="conversation-pin-icon" />}
       <span className="conversation-title">

@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+// Deliberately no Escape-to-close here, unlike the other panels: this
+// one has a text editor with unsaved changes in it, and Escape closing
+// the whole thing while you're mid-edit would be a data-loss trap.
 
 function FileTreeNode({ conversationId, entry, depth, onOpen }) {
   const [expanded, setExpanded] = useState(false);
@@ -151,6 +154,9 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
         className="notes-modal code-editor-modal"
         style={{ width: "min(1100px, calc(100vw - 3rem))", height: "min(720px, calc(100vh - 3rem))" }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Code editor — ${workdir}`}
       >
         <div className="notes-header code-editor-header">
           <span className="code-editor-header-title" title={workdir}>Code editor — {workdir}</span>
