@@ -546,6 +546,44 @@ def _snippets_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _digests_table(conn: sqlite3.Connection) -> None:
+    """Ambient daily digest — a background task (see main.py) generates
+    one of these per day (when `digest_enabled`) from precise deltas
+    (watched_files.indexed_at, memories.created_at since the last run),
+    not fuzzy recall, so the digest names actual changed files rather
+    than approximating from similarity search."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS digests (
+            id TEXT PRIMARY KEY,
+            content TEXT NOT NULL,
+            files_changed INTEGER NOT NULL DEFAULT 0,
+            memories_added INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
+def _memory_conflicts_table(conn: sqlite3.Connection) -> None:
+    """Flagged contradictions between two stored memories ("uses fish
+    shell" vs "uses zsh") — memory only ever accumulated before this;
+    a periodic review can now surface stale/conflicting facts instead of
+    silently injecting both into every prompt forever."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS memory_conflicts (
+            id TEXT PRIMARY KEY,
+            memory_id_a TEXT NOT NULL,
+            memory_id_b TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            resolved INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -593,6 +631,8 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (24, "conversation_pin_tags_share", _conversation_pin_tags_share),
     (25, "project_agent_mode", _project_agent_mode),
     (26, "snippets_table", _snippets_table),
+    (27, "memory_conflicts_table", _memory_conflicts_table),
+    (28, "digests_table", _digests_table),
 ]
 
 

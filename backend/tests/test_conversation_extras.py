@@ -138,6 +138,103 @@ def test_git_status_in_a_real_repo(client, tmp_path):
     assert "a.txt" in r.json()["output"]
 
 
+def test_digest_latest_is_null_when_none_generated(client):
+    r = client.get("/api/digest/latest")
+    assert r.status_code == 200
+    assert r.json() is None
+
+
+def test_digest_run_now_reports_nothing_new_when_nothing_changed(client):
+    r = client.post("/api/digest/run-now")
+    assert r.status_code == 200
+    assert r.json()["generated"] is False
+
+
+def test_digest_history_reflects_stored_digests(client):
+    from app.db import storage
+
+    storage.create_digest("Nothing much happened.", files_changed=0, memories_added=0)
+    r = client.get("/api/digest/history")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    assert body[0]["content"] == "Nothing much happened."
+
+    r = client.get("/api/digest/latest")
+    assert r.json()["content"] == "Nothing much happened."
+
+
+def test_memory_conflicts_empty_when_none_flagged(client):
+    r = client.get("/api/memories/conflicts")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_memory_conflict_resolve_is_idempotent(client):
+    r = client.post("/api/memories/conflicts/nonexistent/resolve")
+    assert r.status_code == 200  # no-op, not an error — matches other resolve-style endpoints
+
+
+def test_memory_conflict_full_round_trip(client):
+    from app.db import storage
+    from app.services import memory_service
+
+    a = memory_service.add_memory("uses fish shell")
+    b = memory_service.add_memory("uses zsh as their shell")
+    conflict = storage.create_memory_conflict(a["id"], b["id"], "Can't use two default shells at once.")
+
+    r = client.get("/api/memories/conflicts")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    assert body[0]["memory_a"]["id"] == a["id"]
+    assert body[0]["memory_b"]["id"] == b["id"]
+
+    r = client.post(f"/api/memories/conflicts/{conflict['id']}/resolve")
+    assert r.status_code == 200
+
+    r = client.get("/api/memories/conflicts")
+    assert r.json() == []
+
+
+def test_memory_conflict_dropped_if_a_memory_was_deleted(client):
+    from app.db import storage
+    from app.services import memory_service
+
+    a = memory_service.add_memory("likes tea")
+    b = memory_service.add_memory("likes coffee")
+    storage.create_memory_conflict(a["id"], b["id"], "reason")
+    memory_service.delete_memory(a["id"])
+
+    r = client.get("/api/memories/conflicts")
+    assert r.json() == []  # cleaned up, not shown broken
+
+
+def test_knowledge_graph_reflects_real_relationships(client):
+    from app.db import storage
+    from app.services import memory_service
+
+    proj = storage.create_project("demo")
+    conv = storage.create_conversation("Trip planning", project_id=proj["id"])
+    memory_service.add_memory("lives in Berlin", source_conversation_id=conv["id"], project_id=proj["id"])
+
+    r = client.get("/api/graph")
+    assert r.status_code == 200
+    body = r.json()
+
+    node_ids = {n["id"] for n in body["nodes"]}
+    assert f"project:{proj['id']}" in node_ids
+    assert f"conversation:{conv['id']}" in node_ids
+    assert any(n["type"] == "memory" and "Berlin" in n["label"] for n in body["nodes"])
+
+    edges = body["edges"]
+    assert {"from": f"conversation:{conv['id']}", "to": f"project:{proj['id']}", "kind": "in_project"} in edges
+    assert any(
+        e["kind"] == "extracted_from" and e["to"] == f"conversation:{conv['id']}"
+        for e in edges
+    )
+
+
 def test_routing_status_reports_inactive_without_embedding_model(client):
     r = client.get("/api/routing/status")
     assert r.status_code == 200

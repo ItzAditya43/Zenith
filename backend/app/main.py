@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent, chat, documents, export, files, folders, images, lock, mcp, memory, schedules, sync, system, upload, voice
+from app.api import agent, chat, digest, documents, export, files, folders, graph, images, lock, mcp, memory, schedules, sync, system, upload, voice
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.storage import init_db
@@ -73,6 +73,24 @@ async def _schedule_runner(interval_seconds: int) -> None:
         raise
 
 
+async def _digest_runner(interval_seconds: int) -> None:
+    """Checks whether an ambient daily digest is due and generates one if
+    so. Off entirely unless `digest_enabled` — digest_service.maybe_run_digest
+    checks that itself, same no-op-when-off pattern as the other loops."""
+    from app.services.digest_service import maybe_run_digest
+
+    try:
+        while True:
+            try:
+                await maybe_run_digest()
+            except Exception as exc:
+                log.warning("digest.runner_error", error=str(exc))
+            await asyncio.sleep(interval_seconds)
+    except asyncio.CancelledError:
+        log.info("digest.runner_stopped")
+        raise
+
+
 async def _email_triage_runner(interval_seconds: int) -> None:
     """Background inbox scan: flags urgent messages so you don't have to
     keep the inbox open to catch a signature deadline. Same fire-and-forget
@@ -128,6 +146,8 @@ async def lifespan(app: FastAPI):
     schedule_interval = int(settings.get("schedule_check_interval_seconds", 60))
     schedule_runner = asyncio.create_task(_schedule_runner(schedule_interval))
     email_triage_runner = asyncio.create_task(_email_triage_runner(300))
+    digest_interval = int(settings.get("digest_check_interval_seconds", 3600))
+    digest_runner = asyncio.create_task(_digest_runner(digest_interval))
     # Track the last model used in this process so the router can be
     # "sticky" — see ModelRouter.decide() and the /api/route/preview docstring.
     app.state.last_route_model = None
@@ -142,7 +162,8 @@ async def lifespan(app: FastAPI):
         folder_scanner.cancel()
         schedule_runner.cancel()
         email_triage_runner.cancel()
-        for task in (sweeper, folder_scanner, schedule_runner, email_triage_runner):
+        digest_runner.cancel()
+        for task in (sweeper, folder_scanner, schedule_runner, email_triage_runner, digest_runner):
             try:
                 await task
             except asyncio.CancelledError:
@@ -281,6 +302,8 @@ app.include_router(agent.router)
 app.include_router(export.router)
 app.include_router(documents.router)
 app.include_router(files.router)
+app.include_router(graph.router)
+app.include_router(digest.router)
 app.include_router(folders.router)
 app.include_router(schedules.router)
 app.include_router(mcp.router)

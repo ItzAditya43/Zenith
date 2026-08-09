@@ -67,6 +67,8 @@ export default function SettingsPanel({
   const [activeSection, setActiveSection] = useState(initialSection);
   const [memories, setMemories] = useState([]);
   const [memoriesError, setMemoriesError] = useState(null);
+  const [memoryConflicts, setMemoryConflicts] = useState([]);
+  const [reviewingConflicts, setReviewingConflicts] = useState(false);
   const [skills, setSkills] = useState([]);
   const [skillsError, setSkillsError] = useState(null);
   const [hardware, setHardware] = useState(null);
@@ -143,6 +145,25 @@ export default function SettingsPanel({
         setMemoriesError(null);
       })
       .catch((err) => setMemoriesError(err.message));
+    api.listMemoryConflicts().then(setMemoryConflicts).catch(() => {});
+  };
+
+  const reviewMemoryConflicts = async () => {
+    setReviewingConflicts(true);
+    try {
+      await api.reviewMemoryConflicts();
+      const conflicts = await api.listMemoryConflicts();
+      setMemoryConflicts(conflicts);
+    } catch (err) {
+      setMemoriesError(err.message);
+    } finally {
+      setReviewingConflicts(false);
+    }
+  };
+
+  const resolveMemoryConflict = async (id) => {
+    setMemoryConflicts((cs) => cs.filter((c) => c.id !== id));
+    await api.resolveMemoryConflict(id);
   };
 
   const refreshSkills = () => {
@@ -976,6 +997,24 @@ export default function SettingsPanel({
 
                 <div className="setting-row">
                   <div className="setting-meta">
+                    <span className="setting-label">Daily digest</span>
+                    <span className="setting-hint">
+                      Unprompted "what changed" summary from watched folders + new memories, once
+                      a day in the background. Generate one manually any time from the sun icon.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${config?.digest_enabled ? "switch-on" : ""}`}
+                    onClick={async () => setConfig(await api.patchConfig({ digest_enabled: !config?.digest_enabled }))}
+                    role="switch"
+                    aria-checked={!!config?.digest_enabled}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
                     <span className="setting-label">Recall past conversations</span>
                     <span className="setting-hint">
                       Surfaces relevant excerpts from other chats when they seem relevant.
@@ -988,6 +1027,31 @@ export default function SettingsPanel({
                     aria-checked={!!config?.recall_enabled}
                   >
                     <span className="switch-thumb" />
+                  </button>
+                </div>
+
+                {memoryConflicts.length > 0 && (
+                  <div className="settings-notice settings-notice-warn" style={{ marginTop: "1rem" }}>
+                    <strong>{memoryConflicts.length} possible contradiction{memoryConflicts.length === 1 ? "" : "s"}</strong>
+                    <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.1rem" }}>
+                      {memoryConflicts.map((c) => (
+                        <li key={c.id} style={{ marginBottom: "0.4rem" }}>
+                          "{c.memory_a.content}" vs "{c.memory_b.content}" — {c.reason}
+                          <button
+                            className="text-btn"
+                            style={{ marginLeft: "0.5rem" }}
+                            onClick={() => resolveMemoryConflict(c.id)}
+                          >
+                            Dismiss
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="settings-row" style={{ marginTop: "0.5rem" }}>
+                  <button className="text-btn" onClick={reviewMemoryConflicts} disabled={reviewingConflicts}>
+                    {reviewingConflicts ? "Reviewing…" : "Review for contradictions"}
                   </button>
                 </div>
 
