@@ -3033,6 +3033,13 @@ button.msg-source-chip-recall:hover {
   flex: 1;
   min-height: 0;
 }
+.code-editor-search {
+  padding: var(--space-2);
+}
+.code-editor-search-results {
+  display: flex;
+  flex-direction: column;
+}
 .code-editor-tree {
   width: 220px;
   flex-shrink: 0;

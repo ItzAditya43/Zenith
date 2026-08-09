@@ -138,6 +138,20 @@ def test_git_status_in_a_real_repo(client, tmp_path):
     assert "a.txt" in r.json()["output"]
 
 
+def test_quick_actions_crud(client):
+    r = client.post("/api/quick-actions", json={"name": "Explain error", "prompt_template": "Explain this: {clipboard}", "auto_send": True})
+    assert r.status_code == 200
+    qid = r.json()["id"]
+    assert r.json()["auto_send"] is True
+
+    r = client.get("/api/quick-actions")
+    assert any(q["id"] == qid for q in r.json())
+
+    r = client.delete(f"/api/quick-actions/{qid}")
+    assert r.status_code == 200
+    assert not any(q["id"] == qid for q in client.get("/api/quick-actions").json())
+
+
 def test_digest_latest_is_null_when_none_generated(client):
     r = client.get("/api/digest/latest")
     assert r.status_code == 200

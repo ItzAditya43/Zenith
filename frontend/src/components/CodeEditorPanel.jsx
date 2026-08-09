@@ -44,6 +44,25 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
   const [error, setError] = useState(null);
   const [tabs, setTabs] = useState([]); // { path, content, dirty, saving }
   const [activePath, setActivePath] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [searching, setSearching] = useState(false);
+
+  const runSearch = async () => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    setSearching(true);
+    try {
+      const res = await api.searchLocalFiles(workdir, searchQuery.trim());
+      setSearchResults(res.matches);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   useEffect(() => {
     api
@@ -156,9 +175,44 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
         {error && <div className="settings-error">{error}</div>}
         <div className="code-editor-body">
           <div className="code-editor-tree">
-            {rootEntries.map((e) => (
-              <FileTreeNode key={e.path} conversationId={conversationId} entry={e} depth={0} onOpen={openFile} />
-            ))}
+            <div className="code-editor-search">
+              <input
+                className="settings-input"
+                placeholder="Search files…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runSearch()}
+              />
+            </div>
+            {searchResults != null ? (
+              <div className="code-editor-search-results">
+                <button className="text-btn" onClick={() => { setSearchResults(null); setSearchQuery(""); }} style={{ margin: "0 0 0.5rem 0.5rem" }}>
+                  ← Back to tree
+                </button>
+                {searching && <div className="code-editor-empty">Searching…</div>}
+                {!searching && searchResults.length === 0 && (
+                  <div className="code-editor-empty" style={{ padding: "1rem" }}>No matches.</div>
+                )}
+                {searchResults.map((m) => (
+                  <button
+                    key={m.path}
+                    className="file-tree-row"
+                    style={{ flexDirection: "column", alignItems: "flex-start", paddingLeft: "0.5rem" }}
+                    onClick={() => openFile(m.path.startsWith(workdir) ? m.path.slice(workdir.length + 1) : m.path)}
+                    title={m.path}
+                  >
+                    <span style={{ fontWeight: 600 }}>{m.path.split("/").pop()}</span>
+                    {m.snippet && (
+                      <span style={{ fontSize: "0.7em", color: "var(--text-tertiary)", whiteSpace: "normal" }}>…{m.snippet}…</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              rootEntries.map((e) => (
+                <FileTreeNode key={e.path} conversationId={conversationId} entry={e} depth={0} onOpen={openFile} />
+              ))
+            )}
           </div>
           <div className="code-editor-main">
             {tabs.length > 0 && (

@@ -283,6 +283,33 @@ def mark_automation_rule_fired(rule_id: str) -> None:
         conn.execute("UPDATE automation_rules SET last_fired_at = ? WHERE id = ?", (time.time(), rule_id))
 
 
+def list_quick_actions() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute("SELECT * FROM quick_actions ORDER BY created_at DESC").fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["auto_send"] = bool(d["auto_send"])
+            out.append(d)
+        return out
+
+
+def create_quick_action(name: str, prompt_template: str, auto_send: bool) -> dict:
+    qid = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO quick_actions (id, name, prompt_template, auto_send, created_at) VALUES (?, ?, ?, ?, ?)",
+            (qid, name, prompt_template, 1 if auto_send else 0, now),
+        )
+    return {"id": qid, "name": name, "prompt_template": prompt_template, "auto_send": auto_send, "created_at": now}
+
+
+def delete_quick_action(quick_action_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM quick_actions WHERE id = ?", (quick_action_id,))
+
+
 def list_all_attachments() -> list[dict]:
     """Every attachment with a filename and its owning conversation —
     powers the knowledge-graph view's document nodes/edges. Orphaned

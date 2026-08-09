@@ -237,3 +237,57 @@ async def extract_project(conversation_id: str):
     storage.set_conversation_workdir(conversation_id, str(project_dir))
     log.info("files.extract_project", conversation_id=conversation_id, files=len(written), dir=str(project_dir))
     return {"workdir": str(project_dir), "files": written}
+
+
+# --- Ad-hoc local file search --------------------------------------------
+# A scoped alternative to a full OS-wide search index: no background
+# crawler, no permissions daemon, nothing persisted — you give an
+# explicit path each time and it greps that one directory tree right
+# now. Complements the sidebar's unified search (conversations/memories/
+# watched-folder docs) for "I know roughly where this file is, I just
+# haven't added it as a watched folder."
+
+_ADHOC_SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build"}
+_ADHOC_MAX_FILES_SCANNED = 2000
+_ADHOC_MAX_MATCHES = 50
+_ADHOC_MAX_FILE_BYTES = 5 * 1024 * 1024
+
+
+@router.get("/search/local-files")
+async def search_local_files(path: str = Query(...), q: str = Query(..., min_length=1)):
+    """Greps `q` (case-insensitive substring) across text files under
+    `path`, one directory tree, right now — not indexed, not remembered
+    between calls. Bounded scan (2000 files) and match count (50) so a
+    huge or unexpectedly deep directory can't hang the request."""
+    root = Path(path).expanduser()
+    if not root.exists() or not root.is_dir():
+        raise HTTPException(404, f"Not a directory (or not visible to the backend process): {path}")
+
+    needle = q.lower()
+    matches = []
+    scanned = 0
+    for p in root.rglob("*"):
+        if scanned >= _ADHOC_MAX_FILES_SCANNED or len(matches) >= _ADHOC_MAX_MATCHES:
+            break
+        if not p.is_file() or any(part in _ADHOC_SKIP_DIRS for part in p.parts):
+            continue
+        try:
+            if p.stat().st_size > _ADHOC_MAX_FILE_BYTES:
+                continue
+        except OSError:
+            continue
+        scanned += 1
+        if needle in p.name.lower():
+            matches.append({"path": str(p), "match": "filename", "snippet": None})
+            continue
+        try:
+            text = p.read_text(errors="ignore")
+        except (OSError, UnicodeDecodeError):
+            continue
+        idx = text.lower().find(needle)
+        if idx != -1:
+            start = max(0, idx - 60)
+            snippet = text[start:idx + len(q) + 60].replace("\n", " ")
+            matches.append({"path": str(p), "match": "content", "snippet": snippet})
+
+    return {"scanned": scanned, "truncated": scanned >= _ADHOC_MAX_FILES_SCANNED, "matches": matches}

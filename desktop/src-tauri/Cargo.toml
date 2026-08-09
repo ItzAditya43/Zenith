@@ -9,8 +9,9 @@ rust-version = "1.77"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-shell = "2"
+tauri-plugin-global-shortcut = "2"
 
 [features]
 # Bundling the frozen backend as a sidecar is on by default.

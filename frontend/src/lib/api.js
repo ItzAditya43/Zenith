@@ -430,6 +430,8 @@ export const api = {
     }),
   shareUrl: (token) => `${window.location.origin}${window.location.pathname}#/share/${token}`,
   getKnowledgeGraph: () => request("/api/graph").then((r) => r.json()),
+  searchLocalFiles: (path, q) =>
+    request(`/api/search/local-files?path=${encodeURIComponent(path)}&q=${encodeURIComponent(q)}`).then((r) => r.json()),
   getAutomationEventTypes: () => request("/api/automation/event-types").then((r) => r.json()),
   listWebhooks: () => request("/api/webhooks").then((r) => r.json()),
   createWebhook: (url, eventTypes) =>
@@ -473,6 +475,15 @@ export const api = {
       body: JSON.stringify({ title, content }),
     }).then((r) => r.json()),
   deleteSnippet: (id) => request(`/api/snippets/${id}`, { method: "DELETE" }),
+
+  listQuickActions: () => request("/api/quick-actions").then((r) => r.json()),
+  createQuickAction: (name, promptTemplate, autoSend) =>
+    request("/api/quick-actions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, prompt_template: promptTemplate, auto_send: autoSend }),
+    }).then((r) => r.json()),
+  deleteQuickAction: (id) => request(`/api/quick-actions/${id}`, { method: "DELETE" }),
 
   gitStatus: (conversationId) =>
     request(`/api/conversations/${conversationId}/git/status`).then((r) => r.json()),
