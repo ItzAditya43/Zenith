@@ -62,6 +62,7 @@ or enable it for free via GitHub Pages (Settings → Pages → deploy from
 - [Extending it](#extending-it)
 - [Development](#development)
   - [Continuous integration](#continuous-integration)
+- [License](#license)
 
 ---
 
@@ -1024,3 +1025,14 @@ job that freezes the backend with PyInstaller and runs `cargo tauri build`
 on `windows-latest`, uploading the resulting `.msi`/`.exe` as workflow
 artifacts. This is how Windows desktop builds are verified — see
 [Desktop app](#desktop-app).
+
+## License
+
+[GNU AGPL-3.0-or-later](LICENSE). The short version: you can use, modify,
+and self-host this freely — but if you run a modified version as a network
+service others can use (a hosted "Zenith Cloud", say), you have to publish
+your changes too. That's a deliberate choice, not a default: this project's
+whole premise is "your own compute, no cloud middleman," and a permissive
+license would let someone quietly rebuild the exact cloud-AI trust problem
+Zenith exists to avoid. MIT/Apache-style "no strings attached" reuse isn't
+the goal here.
