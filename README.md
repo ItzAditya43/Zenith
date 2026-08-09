@@ -14,6 +14,12 @@ Everything in this document reflects what's actually implemented and has
 been verified against a real running deployment — not a roadmap, not
 aspirational copy.
 
+This README is written for developers. If you're pointing someone
+non-technical at this project, [`docs/index.html`](docs/index.html) is a
+short, plain-language page explaining what it is and why — open it directly,
+or enable it for free via GitHub Pages (Settings → Pages → deploy from
+`/docs` on this branch).
+
 ---
 
 ## Table of contents
@@ -262,6 +268,23 @@ badge with the model used and why.
 - Add a keyword to `capability_keywords` (Settings, or directly in
   `data/config.json`) and any model containing it in its name gets
   auto-tagged — nothing is hardcoded to specific model names.
+- **Hardware-aware recommendations** (Settings → Model routing) — each role
+  card shows a "Use recommended: `<model>` (`<fit>`)" hint, computed by
+  cross-referencing your installed, role-tagged models against the same
+  hardware fit heuristic `/api/hardware` already used for the model
+  cookbook. Real problem this solves: a model too big for your GPU doesn't
+  error, it just spills onto CPU and can take minutes per reply or hang
+  outright — this surfaces the fix (a smaller, still-capable model) instead
+  of you having to notice the slowdown and guess.
+- **Stuck-generation watchdog** (`stream_idle_timeout_seconds`, default
+  120s) — a genuinely wedged model (the scenario above, or a truly hung
+  Ollama process) used to hold the per-conversation lock forever, silently
+  blocking every later message in that conversation behind a request that
+  would never finish. Idle time (not total generation time — a long reply
+  that's still actively streaming never trips this) beyond the configured
+  limit cancels the request, releases the lock, and reports a clear error
+  instead. The composer also shows an earlier, informational "taking longer
+  than usual" hint at 15s, well before the hard cutoff.
 
 ### Memory & personalization
 
@@ -413,6 +436,11 @@ they can't collide with the built-in set.
   approval gate as `bash`/`write_file`.
 - "Test connection" in Settings connects right now and lists what a
   configured server actually offers, as a config sanity check.
+- **Popular servers list** — the MCP ecosystem has no central registry, so
+  Settings → Agent tools → MCP servers shows a short, hand-picked list of
+  well-known, keyless servers (filesystem, fetch, memory, sequential-
+  thinking, git) as clickable chips that pre-fill the add form. Deliberately
+  a curated starting point, not an attempt at a live directory.
 
 ### Council of models
 
@@ -721,6 +749,19 @@ change it.
 - Calm, static background, real visual definition on assistant replies (a
   signal-colored left edge matching the routed model's capability color),
   softened text contrast for sustained reading.
+- **First-run tour** — a one-time (localStorage-tracked) map of what exists,
+  shown on first launch instead of dropping you into a blank app with 30+
+  features and no orientation.
+- **Accessibility pass** (real, not exhaustive — see caveats below) —
+  conversation list items are real keyboard-focusable/announceable targets
+  (`role="button"`, `Enter`/`Space` to activate, not just a mouse-only
+  `<div onClick>`); five modal panels gained `Escape`-to-close and
+  `role="dialog"`/`aria-modal` (the code editor and to-do panels
+  deliberately excluded/scoped where Escape could silently discard
+  in-progress typing); the Kanban board's drag-and-drop cards got a real
+  keyboard alternative (a per-card "move to column" control), not just a
+  fallback to the List view. Not claimed: a full WCAG audit hasn't been
+  done, and this covers surfaces touched this pass, not the whole app.
 
 ## Desktop app
 
@@ -750,6 +791,17 @@ Windows follow the same steps (see [`DESKTOP.md`](DESKTOP.md)).
   `desktop/src-tauri/src/main.rs`'s `setup()`; either failing to register
   would abort the whole app's startup, so a successful launch is itself
   the verification that both work.
+- **Auto-update** — a **"Check for Updates…"** tray item checks GitHub
+  Releases (`tauri-plugin-updater`) and shows a native dialog either way.
+  `.github/workflows/release.yml` builds, signs, and publishes Windows +
+  Linux installers as a draft GitHub Release whenever a `v*` tag is pushed,
+  generating the `latest.json` manifest the updater polls
+  ([`tauri-apps/tauri-action`](https://github.com/tauri-apps/tauri-action)).
+  The signing keypair's public half is committed (`tauri.conf.json`); the
+  private half exists only as encrypted GitHub Actions secrets, never in
+  the repo or on disk — see [`DESKTOP.md`](DESKTOP.md#auto-update) for the
+  full setup and how to rotate it. Deliberately checks-and-tells-you rather
+  than auto-installing — see that section for why.
 
 ## Browser extension
 

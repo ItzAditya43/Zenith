@@ -1,0 +1,98 @@
+name: Release
+
+# Builds and publishes signed desktop installers to a GitHub Release
+# whenever a version tag (v0.1.0, v0.2.0, ...) is pushed. This is what
+# the in-app "Check for Updates" (desktop/src-tauri/src/main.rs) reads
+# from — tauri-action generates the latest.json manifest the updater
+# plugin expects automatically.
+#
+# Requires two repo secrets before this will actually sign anything
+# (see DESKTOP.md "Auto-update" section for how they were generated):
+#   TAURI_SIGNING_PRIVATE_KEY           - the private half of the update
+#                                          signing keypair
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  - its password (blank string is
+#                                          fine if generated without one)
+# Without those secrets set, this workflow still builds installers but
+# tauri-action will skip signing and updates won't verify.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+          - platform: ubuntu-latest
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system deps
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Freeze backend with PyInstaller
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Freeze backend (Windows)
+        if: matrix.platform == 'windows-latest'
+        working-directory: backend
+        run: pyinstaller cortex-backend.spec --noconfirm
+
+      - name: Freeze backend (Linux)
+        if: matrix.platform == 'ubuntu-latest'
+        working-directory: backend
+        run: pyinstaller cortex-backend.spec --noconfirm
+
+      - name: Place backend sidecar (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          $triple = (rustc -vV | Select-String "^host:").ToString().Split(" ")[1]
+          New-Item -ItemType Directory -Force -Path desktop/src-tauri/binaries | Out-Null
+          Copy-Item backend/dist/cortex-backend.exe "desktop/src-tauri/binaries/cortex-backend-$triple.exe"
+
+      - name: Place backend sidecar (Linux)
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          triple=$(rustc -vV | grep '^host:' | cut -d' ' -f2)
+          mkdir -p desktop/src-tauri/binaries
+          cp backend/dist/cortex-backend "desktop/src-tauri/binaries/cortex-backend-$triple"
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "Zenith ${{ github.ref_name }}"
+          releaseBody: "See CHANGELOG.md for what's new."
+          releaseDraft: true
+          prerelease: false

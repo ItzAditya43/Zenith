@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import { useEscapeToClose } from "../hooks/useEscapeToClose";
 
 export default function DigestPanel({ onClose }) {
   const [history, setHistory] = useState([]);
   const [error, setError] = useState(null);
   const [running, setRunning] = useState(false);
+  useEscapeToClose(onClose);
 
   const refresh = () => api.getDigestHistory().then(setHistory).catch((err) => setError(err.message));
 
@@ -31,7 +33,14 @@ export default function DigestPanel({ onClose }) {
 
   return (
     <div className="notes-overlay" onClick={onClose}>
-      <div className="notes-modal" style={{ width: "min(560px, calc(100vw - 3rem))" }} onClick={(e) => e.stopPropagation()}>
+      <div
+        className="notes-modal"
+        style={{ width: "min(560px, calc(100vw - 3rem))" }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Daily digest"
+      >
         <div className="notes-header">
           <span>Daily digest</span>
           <button className="icon-btn" onClick={onClose} title="Close">

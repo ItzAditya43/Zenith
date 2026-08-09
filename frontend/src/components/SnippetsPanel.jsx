@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import { useEscapeToClose } from "../hooks/useEscapeToClose";
 
 export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
+  useEscapeToClose(onClose);
   const [tab, setTab] = useState("snippets"); // "snippets" | "actions"
   const [snippets, setSnippets] = useState([]);
   const [title, setTitle] = useState("");
@@ -50,7 +52,14 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
 
   return (
     <div className="notes-overlay" onClick={onClose}>
-      <div className="notes-modal" style={{ width: "min(560px, calc(100vw - 3rem))" }} onClick={(e) => e.stopPropagation()}>
+      <div
+        className="notes-modal"
+        style={{ width: "min(560px, calc(100vw - 3rem))" }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Snippets and quick actions"
+      >
         <div className="notes-header">
           <div style={{ display: "flex", gap: "0.25rem" }}>
             <button className={`text-btn ${tab === "snippets" ? "is-active" : ""}`} onClick={() => setTab("snippets")}>

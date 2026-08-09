@@ -94,18 +94,33 @@ Output installers land in `desktop/src-tauri/target/release/bundle/`.
 
 ## Auto-update
 
-Tauri ships a first-class updater — enable it once there's a release pipeline:
+**Status: wired up.** `tauri-plugin-updater` is registered in `main.rs`, with
+a system-tray **"Check for Updates…"** item that checks GitHub Releases and
+shows a native dialog either way (update found, or already current). Clicking
+it does **not** auto-download-and-install — that's a bigger trust step
+(silently replacing the running binary) than could be verified end-to-end
+without a real published release to test against; the checked-and-tell-you
+half is the verified-safe subset. Wiring the in-app install step is a
+reasonable follow-up once a release has actually shipped once.
 
-1. Add the updater plugin: `tauri-plugin-updater` (Cargo) + a `plugins.updater`
-   block in `tauri.conf.json` with your public key and an `endpoints` URL.
-2. Sign releases with `tauri signer generate` / `cargo tauri build --sign`.
-3. Host a `latest.json` manifest (GitHub Releases works) that the app polls.
+**The release pipeline** (`.github/workflows/release.yml`) builds and
+publishes signed Windows + Linux installers whenever a `v*` tag is pushed
+(e.g. `git tag v0.2.0 && git push --tags`), using
+[`tauri-apps/tauri-action`](https://github.com/tauri-apps/tauri-action) to
+freeze the backend, build the installer, sign it, and generate the
+`latest.json` manifest the updater plugin polls — all as a **draft** GitHub
+Release, so nothing goes public until you review and publish it manually.
 
-This is intentionally **not** wired up yet — it needs a real release/hosting
-pipeline (a place to publish signed builds + the update manifest), which is a
-distribution decision, not something meaningful to stub in code. Once you have
-a GitHub release flow, the updater is ~20 lines of config on top of this
-scaffold.
+**The signing keypair** was generated once via `tauri signer generate`. The
+public half lives in `tauri.conf.json`'s `plugins.updater.pubkey` (public
+keys are meant to be committed). The private half is **not** in the repo or
+on disk anywhere — it exists only as the `TAURI_SIGNING_PRIVATE_KEY` /
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` GitHub Actions secrets on this repo,
+set directly via `gh secret set` and never displayed or logged. If you ever
+need to rotate it: `npx tauri signer generate -w /tmp/new-key.pem`, update
+the `pubkey` in `tauri.conf.json`, then `gh secret set TAURI_SIGNING_PRIVATE_KEY
+< /tmp/new-key.pem` and delete the local file — the same pattern, not
+something to improvise differently.
 
 ## macOS note
 

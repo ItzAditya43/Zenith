@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zenith — a private AI that lives on your own computer</title>
+<meta name="description" content="Zenith is a self-hosted AI chat app. Your conversations never leave your machine, there's no account, no subscription, and no cloud." />
+<style>
+  :root {
+    --bg: #0d0f17;
+    --bg-panel: #141824;
+    --fg: #e4e7ef;
+    --fg-dim: #9aa1b5;
+    --accent: #4dd9c0;
+    --border: #232840;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f8fb;
+      --bg-panel: #ffffff;
+      --fg: #14161f;
+      --fg-dim: #565c72;
+      --accent: #0f9d86;
+      --border: #e2e5ee;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
+  .hero { text-align: center; margin-bottom: 3.5rem; }
+  .hero img { width: 84px; height: 84px; border-radius: 20px; margin-bottom: 1.25rem; }
+  h1 { font-size: 2.1rem; margin: 0 0 0.6rem; letter-spacing: -0.01em; }
+  .tagline { color: var(--fg-dim); font-size: 1.1rem; max-width: 46ch; margin: 0 auto; }
+  .pitch {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.75rem 2rem;
+    margin: 2.5rem 0;
+  }
+  .pitch p { margin: 0 0 0.9rem; }
+  .pitch p:last-child { margin-bottom: 0; }
+  .pitch strong { color: var(--accent); }
+  h2 { font-size: 1.15rem; margin: 2.5rem 0 0.9rem; }
+  ul.plain { padding-left: 1.2rem; margin: 0; }
+  ul.plain li { margin-bottom: 0.5rem; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+  .card h3 { margin: 0 0 0.5rem; font-size: 0.98rem; }
+  .card p { margin: 0; color: var(--fg-dim); font-size: 0.92rem; }
+  .cta {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.7rem 1.4rem;
+    background: var(--accent);
+    color: #06231e;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 999px;
+    font-size: 0.95rem;
+  }
+  .cta:hover { opacity: 0.9; }
+  .fineprint { color: var(--fg-dim); font-size: 0.85rem; margin-top: 3rem; text-align: center; }
+  .fineprint a { color: var(--fg-dim); }
+  code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.15em 0.4em; font-size: 0.9em; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <img src="icon.png" alt="" />
+      <h1>Zenith</h1>
+      <p class="tagline">A private AI chat app that runs entirely on your own computer — no account, no subscription, nothing sent to a company's servers.</p>
+    </div>
+
+    <div class="pitch">
+      <p>Most AI chat apps send everything you type to a company's servers, somewhere you can't see. <strong>Zenith doesn't.</strong> Everything — the chat, your files, your notes — stays on the computer it's running on.</p>
+      <p>You do need one thing: <a href="https://ollama.com" style="color:var(--accent)">Ollama</a>, a free program that runs AI models directly on your computer. Zenith is the friendly chat app on top of it.</p>
+    </div>
+
+    <h2>What it can do</h2>
+    <div class="cards">
+      <div class="card"><h3>💬 Chat</h3><p>Ask it anything, attach photos or documents, have it read a webpage for you.</p></div>
+      <div class="card"><h3>🧠 Remembers you</h3><p>Learns preferences and facts you mention over time, so you don't repeat yourself.</p></div>
+      <div class="card"><h3>📝 Notes &amp; to-dos</h3><p>A built-in notes and task list, and you can just ask it "what's on my to-do list?"</p></div>
+      <div class="card"><h3>🛠️ Can take action (optional)</h3><p>With your explicit permission, it can run commands, edit files, and use git — you approve every step, or set an autonomy level you trust.</p></div>
+      <div class="card"><h3>📱 Any device</h3><p>Desktop app for Windows/Linux, or open it in a browser on your phone.</p></div>
+      <div class="card"><h3>🆓 No subscription</h3><p>Free and open source. The only cost is your own computer's electricity.</p></div>
+    </div>
+
+    <h2>Get it</h2>
+    <ul class="plain">
+      <li><strong>Not sure where to start?</strong> Ask whoever pointed you here to install it for you — it takes them a few minutes.</li>
+      <li><strong>Setting it up yourself?</strong> See the <a href="../README.md" style="color:var(--accent)">full setup guide</a> — Docker, a desktop app, or a manual install, whichever you prefer.</li>
+    </ul>
+    <a class="cta" href="../README.md">Read the full guide →</a>
+
+    <p class="fineprint">
+      Open source, self-hosted, no tracking. <a href="https://github.com/ItzAditya43/Zenith">Source code on GitHub</a>.
+    </p>
+  </div>
+</body>
+</html>

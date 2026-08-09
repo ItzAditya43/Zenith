@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ModelBadge from "./ModelBadge";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { api } from "../lib/api";
@@ -32,6 +32,27 @@ function splitThinking(content) {
   const trace = content.slice(start, endIdx);
   const rest = content.slice(0, content.indexOf("<think>")) + content.slice(endIdx + "</think>".length);
   return { trace, rest };
+}
+
+// The backend gives up on a truly stuck model after stream_idle_timeout_
+// seconds (120s default) and reports a clear error — but 2 minutes of
+// silence with zero feedback is a long time to just stare at three dots.
+// This is a much earlier, purely informational heads-up; it never
+// cancels anything itself (Composer's Stop button already does that).
+function SlowReplyHint() {
+  const [elapsedMs, setElapsedMs] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const id = setInterval(() => setElapsedMs(Date.now() - start), 1000);
+    return () => clearInterval(id);
+  }, []);
+  if (elapsedMs < 15000) return null;
+  return (
+    <div className="slow-reply-hint">
+      Taking longer than usual ({Math.round(elapsedMs / 1000)}s) — possibly a model too large
+      for your GPU/RAM. You can stop and try a smaller one in Settings → Model routing.
+    </div>
+  );
 }
 
 function ThinkingTrace({ trace, thinking }) {
@@ -419,11 +440,14 @@ export default function MessageBubble({
         ) : (
           <div className="msg-content">
             {message.streaming && !message.content ? (
-              <span className="thinking-dots" data-role={message.route_role} aria-label="Thinking">
-                <span />
-                <span />
-                <span />
-              </span>
+              <>
+                <span className="thinking-dots" data-role={message.route_role} aria-label="Thinking">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+                <SlowReplyHint />
+              </>
             ) : (
               <>
                 {(() => {
