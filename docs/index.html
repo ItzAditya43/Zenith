@@ -3,112 +3,393 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Zenith — a private AI that lives on your own computer</title>
-<meta name="description" content="Zenith is a self-hosted AI chat app. Your conversations never leave your machine, there's no account, no subscription, and no cloud." />
+<title>Zenith — a private AI workspace that lives on your own computer</title>
+<meta name="description" content="Zenith is a self-hosted, local-first AI workspace built on your own Ollama models — chat, a coding agent, deep research, memory, and voice. No cloud, no accounts, nothing leaves your machine." />
+<link rel="icon" href="icon.png" />
 <style>
   :root {
-    --bg: #0d0f17;
-    --bg-panel: #141824;
-    --fg: #e4e7ef;
-    --fg-dim: #9aa1b5;
-    --accent: #4dd9c0;
-    --border: #232840;
+    --bg: #f7f8fb;
+    --bg-panel: #ffffff;
+    --bg-raised: #eef0f6;
+    --fg: #14161f;
+    --fg-dim: #565c72;
+    --fg-faint: #8b91a6;
+    --accent: #0f9d86;
+    --accent-fg: #ffffff;
+    --border: #e2e5ee;
+    --code-bg: #eef0f6;
+    --shadow: 0 1px 2px rgba(20, 22, 31, 0.04), 0 8px 24px rgba(20, 22, 31, 0.06);
   }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #f7f8fb;
-      --bg-panel: #ffffff;
-      --fg: #14161f;
-      --fg-dim: #565c72;
-      --accent: #0f9d86;
-      --border: #e2e5ee;
+  :root[data-theme="dark"] {
+    --bg: #0b0d14;
+    --bg-panel: #12141d;
+    --bg-raised: #1a1d29;
+    --fg: #e7e9f1;
+    --fg-dim: #9aa1b8;
+    --fg-faint: #656c82;
+    --accent: #4dd9c0;
+    --accent-fg: #04241d;
+    --border: #232636;
+    --code-bg: #1a1d29;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 30px rgba(0, 0, 0, 0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0d14;
+      --bg-panel: #12141d;
+      --bg-raised: #1a1d29;
+      --fg: #e7e9f1;
+      --fg-dim: #9aa1b8;
+      --fg-faint: #656c82;
+      --accent: #4dd9c0;
+      --accent-fg: #04241d;
+      --border: #232636;
+      --code-bg: #1a1d29;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 30px rgba(0, 0, 0, 0.35);
     }
   }
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--fg);
-    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
-  .hero { text-align: center; margin-bottom: 3.5rem; }
-  .hero img { width: 84px; height: 84px; border-radius: 20px; margin-bottom: 1.25rem; }
-  h1 { font-size: 2.1rem; margin: 0 0 0.6rem; letter-spacing: -0.01em; }
-  .tagline { color: var(--fg-dim); font-size: 1.1rem; max-width: 46ch; margin: 0 auto; }
-  .pitch {
-    background: var(--bg-panel);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.75rem 2rem;
-    margin: 2.5rem 0;
+  a { color: var(--accent); }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 1.5rem; }
+  code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.15em 0.45em; font-size: 0.88em; font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+
+  /* --- Nav --- */
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
   }
-  .pitch p { margin: 0 0 0.9rem; }
-  .pitch p:last-child { margin-bottom: 0; }
-  .pitch strong { color: var(--accent); }
-  h2 { font-size: 1.15rem; margin: 2.5rem 0 0.9rem; }
-  ul.plain { padding-left: 1.2rem; margin: 0; }
-  ul.plain li { margin-bottom: 0.5rem; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 0; }
+  .brand { display: flex; align-items: center; gap: 0.55rem; font-weight: 700; font-size: 1.05rem; text-decoration: none; color: var(--fg); }
+  .brand img { width: 26px; height: 26px; border-radius: 7px; }
+  .nav-links { display: flex; align-items: center; gap: 1.5rem; }
+  .nav-links a { color: var(--fg-dim); text-decoration: none; font-size: 0.9rem; font-weight: 500; }
+  .nav-links a:hover { color: var(--fg); }
+  .theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--bg-panel); color: var(--fg-dim);
+    cursor: pointer; font-size: 1rem;
+  }
+  .theme-toggle:hover { color: var(--fg); border-color: var(--accent); }
+  @media (max-width: 640px) { .nav-links a:not(.nav-github) { display: none; } }
+
+  /* --- Hero --- */
+  .hero { text-align: center; padding: 5rem 0 3.5rem; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.35rem 0.85rem; border-radius: 999px;
+    background: var(--bg-raised); border: 1px solid var(--border);
+    font-size: 0.78rem; font-weight: 600; color: var(--fg-dim);
+    margin-bottom: 1.5rem; letter-spacing: 0.01em;
+  }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  h1 { font-size: clamp(2.1rem, 5vw, 3.1rem); margin: 0 0 1rem; letter-spacing: -0.02em; font-weight: 800; }
+  h1 span { color: var(--accent); }
+  .tagline { color: var(--fg-dim); font-size: 1.2rem; max-width: 52ch; margin: 0 auto 2.25rem; }
+  .cta-row { display: flex; gap: 0.85rem; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.8rem 1.5rem; border-radius: 10px;
+    font-weight: 600; font-size: 0.95rem; text-decoration: none;
+    border: 1px solid transparent; transition: transform 0.15s, opacity 0.15s;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--accent); color: var(--accent-fg); }
+  .btn-primary:hover { opacity: 0.92; }
+  .btn-secondary { background: var(--bg-panel); color: var(--fg); border-color: var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); }
+
+  /* --- Sections --- */
+  section { padding: 3.5rem 0; }
+  section + section { border-top: 1px solid var(--border); }
+  .eyebrow { font-size: 0.8rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 0.6rem; }
+  h2 { font-size: clamp(1.5rem, 3vw, 1.9rem); margin: 0 0 0.75rem; letter-spacing: -0.01em; }
+  .section-desc { color: var(--fg-dim); font-size: 1.02rem; max-width: 62ch; margin: 0 0 2rem; }
+
+  /* --- Pitch --- */
+  .pitch-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 2.5rem; align-items: center; }
+  @media (max-width: 800px) { .pitch-grid { grid-template-columns: 1fr; } }
+  .pitch p { margin: 0 0 1rem; color: var(--fg-dim); font-size: 1.02rem; }
+  .pitch strong { color: var(--fg); }
+  .compare-box { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; box-shadow: var(--shadow); }
+  .compare-row { display: flex; align-items: flex-start; gap: 0.7rem; padding: 0.65rem 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+  .compare-row:last-child { border-bottom: none; }
+  .compare-row .x { color: #e0616f; flex-shrink: 0; }
+  .compare-row .check { color: var(--accent); flex-shrink: 0; }
+
+  /* --- Feature grid --- */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .cards { grid-template-columns: 1fr; } }
   .card {
-    background: var(--bg-panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.25rem;
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1.4rem; transition: border-color 0.15s, transform 0.15s;
   }
-  .card h3 { margin: 0 0 0.5rem; font-size: 0.98rem; }
-  .card p { margin: 0; color: var(--fg-dim); font-size: 0.92rem; }
-  .cta {
-    display: inline-block;
-    margin-top: 0.5rem;
-    padding: 0.7rem 1.4rem;
-    background: var(--accent);
-    color: #06231e;
-    font-weight: 600;
-    text-decoration: none;
-    border-radius: 999px;
-    font-size: 0.95rem;
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .card .icon { font-size: 1.4rem; margin-bottom: 0.6rem; display: block; }
+  .card h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+  .card p { margin: 0; color: var(--fg-dim); font-size: 0.88rem; line-height: 1.55; }
+
+  /* --- Install decision cards --- */
+  .install-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+  @media (max-width: 800px) { .install-grid { grid-template-columns: 1fr; } }
+  .install-card {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 1.75rem; display: flex; flex-direction: column;
   }
-  .cta:hover { opacity: 0.9; }
-  .fineprint { color: var(--fg-dim); font-size: 0.85rem; margin-top: 3rem; text-align: center; }
-  .fineprint a { color: var(--fg-dim); }
-  code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.15em 0.4em; font-size: 0.9em; }
+  .install-card.recommended { border-color: var(--accent); box-shadow: var(--shadow); position: relative; }
+  .install-card.recommended::before {
+    content: "Recommended"; position: absolute; top: -0.65rem; left: 1.5rem;
+    background: var(--accent); color: var(--accent-fg); font-size: 0.7rem; font-weight: 700;
+    padding: 0.25rem 0.6rem; border-radius: 999px; letter-spacing: 0.03em;
+  }
+  .install-card h3 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+  .install-card .sub { color: var(--fg-faint); font-size: 0.82rem; margin-bottom: 1rem; }
+  .install-card ul { margin: 0 0 1.25rem; padding-left: 1.1rem; color: var(--fg-dim); font-size: 0.88rem; flex: 1; }
+  .install-card li { margin-bottom: 0.45rem; }
+  .install-card a { font-size: 0.88rem; font-weight: 600; text-decoration: none; }
+  .install-card a:hover { text-decoration: underline; }
+
+  /* --- Hardware table --- */
+  table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--border); }
+  th { color: var(--fg-faint); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; background: var(--bg-raised); }
+  tr:last-child td { border-bottom: none; }
+  .fit-tag { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.76rem; font-weight: 600; }
+  .fit-comfortable { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+  .fit-tight { background: color-mix(in srgb, orange 20%, transparent); color: #b5720a; }
+  .fit-note { color: var(--fg-faint); font-size: 0.85rem; margin-top: 0.9rem; }
+
+  /* --- FAQ --- */
+  .faq-item { border-bottom: 1px solid var(--border); padding: 1.1rem 0; }
+  .faq-item:first-child { border-top: 1px solid var(--border); }
+  .faq-item summary { cursor: pointer; font-weight: 600; font-size: 0.98rem; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after { content: "+"; color: var(--fg-faint); font-size: 1.2rem; font-weight: 400; }
+  .faq-item[open] summary::after { content: "−"; }
+  .faq-item p { color: var(--fg-dim); margin: 0.75rem 0 0; font-size: 0.92rem; max-width: 68ch; }
+
+  /* --- Footer --- */
+  footer { padding: 3rem 0 4rem; }
+  .footer-grid { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 2rem; margin-bottom: 2.5rem; }
+  @media (max-width: 700px) { .footer-grid { grid-template-columns: 1fr 1fr; } }
+  .footer-col h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-faint); margin: 0 0 0.9rem; }
+  .footer-col a { display: block; color: var(--fg-dim); text-decoration: none; font-size: 0.9rem; margin-bottom: 0.6rem; }
+  .footer-col a:hover { color: var(--accent); }
+  .footer-brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .footer-brand img { width: 22px; height: 22px; border-radius: 6px; }
+  .footer-tagline { color: var(--fg-faint); font-size: 0.85rem; max-width: 32ch; }
+  .footer-bottom { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; padding-top: 1.75rem; border-top: 1px solid var(--border); color: var(--fg-faint); font-size: 0.82rem; }
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="hero">
-      <img src="icon.png" alt="" />
-      <h1>Zenith</h1>
-      <p class="tagline">A private AI chat app that runs entirely on your own computer — no account, no subscription, nothing sent to a company's servers.</p>
+
+<nav>
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top"><img src="icon.png" alt="" />Zenith</a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#hardware">Hardware</a>
+      <a href="#faq">FAQ</a>
+      <a class="nav-github" href="https://github.com/ItzAditya43/Zenith">GitHub</a>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle color theme" title="Toggle color theme">◐</button>
     </div>
-
-    <div class="pitch">
-      <p>Most AI chat apps send everything you type to a company's servers, somewhere you can't see. <strong>Zenith doesn't.</strong> Everything — the chat, your files, your notes — stays on the computer it's running on.</p>
-      <p>You do need one thing: <a href="https://ollama.com" style="color:var(--accent)">Ollama</a>, a free program that runs AI models directly on your computer. Zenith is the friendly chat app on top of it.</p>
-    </div>
-
-    <h2>What it can do</h2>
-    <div class="cards">
-      <div class="card"><h3>💬 Chat</h3><p>Ask it anything, attach photos or documents, have it read a webpage for you.</p></div>
-      <div class="card"><h3>🧠 Remembers you</h3><p>Learns preferences and facts you mention over time, so you don't repeat yourself.</p></div>
-      <div class="card"><h3>📝 Notes &amp; to-dos</h3><p>A built-in notes and task list, and you can just ask it "what's on my to-do list?"</p></div>
-      <div class="card"><h3>🛠️ Can take action (optional)</h3><p>With your explicit permission, it can run commands, edit files, and use git — you approve every step, or set an autonomy level you trust.</p></div>
-      <div class="card"><h3>📱 Any device</h3><p>Desktop app for Windows/Linux, or open it in a browser on your phone.</p></div>
-      <div class="card"><h3>🆓 No subscription</h3><p>Free and open source. The only cost is your own computer's electricity.</p></div>
-    </div>
-
-    <h2>Get it</h2>
-    <ul class="plain">
-      <li><strong>Not sure where to start?</strong> Ask whoever pointed you here to install it for you — it takes them a few minutes.</li>
-      <li><strong>Setting it up yourself?</strong> See the <a href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/README.md" style="color:var(--accent)">full setup guide</a> — Docker, a desktop app, or a manual install, whichever you prefer.</li>
-    </ul>
-    <a class="cta" href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/README.md">Read the full guide →</a>
-
-    <p class="fineprint">
-      Open source, self-hosted, no tracking. <a href="https://github.com/ItzAditya43/Zenith">Source code on GitHub</a>.
-    </p>
   </div>
+</nav>
+
+<div id="top"></div>
+<header class="hero wrap">
+  <span class="badge"><span class="dot"></span>Open source · AGPL-3.0 · Self-hosted</span>
+  <h1>Your own AI, on <span>your own computer</span>.</h1>
+  <p class="tagline">Zenith is a full AI workspace — chat, a coding agent, deep research, long-term memory, image generation, and voice — built on your own local Ollama models. Nothing you type ever leaves your machine.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="#install">Get started →</a>
+    <a class="btn btn-secondary" href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/README.md">Read the full docs</a>
+  </div>
+</header>
+
+<section class="wrap">
+  <div class="pitch-grid">
+    <div class="pitch">
+      <p class="eyebrow">Why Zenith</p>
+      <h2>Most AI chat apps run on someone else's computer.</h2>
+      <p>Every message you type, every file you attach, every question you ask — sent to a company's servers, stored somewhere you can't see, used for whatever their terms of service allow. <strong>Zenith doesn't do that.</strong></p>
+      <p>It runs entirely on hardware you control, talking only to <a href="https://ollama.com">Ollama</a> (a free, local model runner) on the same machine — or your own LAN. No account. No subscription. No cloud API key required, ever.</p>
+    </div>
+    <div class="compare-box">
+      <div class="compare-row"><span class="x">✕</span><span>Cloud AI chat apps send everything you type to a remote server</span></div>
+      <div class="compare-row"><span class="x">✕</span><span>Your data trains models or gets logged, per someone else's policy</span></div>
+      <div class="compare-row"><span class="x">✕</span><span>Monthly subscription, rate limits, or a paid tier for real use</span></div>
+      <div class="compare-row"><span class="check">✓</span><span><strong>Zenith runs 100% on your own hardware</strong>, nothing sent anywhere</span></div>
+      <div class="compare-row"><span class="check">✓</span><span>Free and open source — AGPL-3.0, forever</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="features">
+  <p class="eyebrow">Feature tour</p>
+  <h2>Everything a modern AI workspace should have</h2>
+  <p class="section-desc">Not a chatbot demo — a full daily-driver workspace, verified against a real running deployment.</p>
+  <div class="cards">
+    <div class="card"><span class="icon">💬</span><h3>Chat &amp; multimodal</h3><p>Streaming chat, images, documents, video — routed automatically to whichever installed model fits the message.</p></div>
+    <div class="card"><span class="icon">🤖</span><h3>Coding agent</h3><p>Bash, file edits with diff previews, persistent shells, real git — with an approval gate you control, from manual to full-auto.</p></div>
+    <div class="card"><span class="icon">🔎</span><h3>Deep research</h3><p>Multi-step web research that plans, searches, and writes a cited report — refuses to answer before it's actually searched.</p></div>
+    <div class="card"><span class="icon">🧠</span><h3>Long-term memory</h3><p>Learns durable facts about you over time and recalls them automatically — plus a conflict review for things that no longer add up.</p></div>
+    <div class="card"><span class="icon">🗂️</span><h3>Code editor + git</h3><p>A real file tree, editor, and git status/diff scoped to a working directory — extract a conversation's code into a runnable project in one click.</p></div>
+    <div class="card"><span class="icon">🕸️</span><h3>Knowledge graph</h3><p>See how conversations, memories, and documents actually connect — built from real relationships, not a guess.</p></div>
+    <div class="card"><span class="icon">⚡</span><h3>Automation &amp; webhooks</h3><p>Trigger → action rules on real backend events, plus outbound webhooks so your own scripts can react to what Zenith is doing.</p></div>
+    <div class="card"><span class="icon">🎙️</span><h3>Voice in &amp; out</h3><p>Hold the mic to talk, hear replies spoken back — including a hands-free continuous conversation mode.</p></div>
+    <div class="card"><span class="icon">🖼️</span><h3>Image generation</h3><p>Bring your own local Stable Diffusion server — generated images render right in the chat.</p></div>
+    <div class="card"><span class="icon">🔌</span><h3>MCP tool servers</h3><p>Connect external Model Context Protocol servers instead of waiting for a built-in integration — a curated starter list included.</p></div>
+    <div class="card"><span class="icon">🔒</span><h3>Passcode lock &amp; encryption</h3><p>Real API-level lock middleware for shared machines, plus AES-256-GCM encrypted credentials at rest.</p></div>
+    <div class="card"><span class="icon">🖥️</span><h3>Desktop app</h3><p>A real installable app with a system tray, global hotkey, and auto-update — not just a browser tab.</p></div>
+  </div>
+</section>
+
+<section class="wrap" id="install">
+  <p class="eyebrow">Get started</p>
+  <h2>Three ways to run it</h2>
+  <p class="section-desc">Pick whichever matches how comfortable you are with a terminal.</p>
+  <div class="install-grid">
+    <div class="install-card recommended">
+      <h3>🐳 Docker</h3>
+      <div class="sub">One command, fully containerized</div>
+      <ul>
+        <li>You already have Docker installed</li>
+        <li>You want the simplest, most reproducible setup</li>
+        <li><code>docker compose up -d --build</code> and you're done</li>
+      </ul>
+      <a href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/README.md#quick-start">Docker instructions →</a>
+    </div>
+    <div class="install-card">
+      <h3>🖥️ Desktop app</h3>
+      <div class="sub">Double-click, no terminal</div>
+      <ul>
+        <li>You want a normal app icon, tray, and hotkey</li>
+        <li>You'd rather not touch a command line at all</li>
+        <li>Windows <code>.msi</code>/Linux <code>.AppImage</code> built by CI</li>
+      </ul>
+      <a href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/DESKTOP.md">Desktop app guide →</a>
+    </div>
+    <div class="install-card">
+      <h3>⚙️ Manual</h3>
+      <div class="sub">Full control, no Docker</div>
+      <ul>
+        <li>You want the backend and frontend running directly</li>
+        <li>You're already comfortable with Python/Node</li>
+        <li>One script checks prerequisites and sets everything up</li>
+      </ul>
+      <a href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/README.md#quick-start">Manual setup →</a>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="hardware">
+  <p class="eyebrow">Before you install</p>
+  <h2>What hardware do you actually need?</h2>
+  <p class="section-desc">Zenith itself is lightweight — the real requirement is whatever Ollama model you plan to run. Settings → Model routing scores your actual installed models against your real GPU/RAM automatically; this is the general shape of it.</p>
+  <table>
+    <thead><tr><th>Your GPU VRAM (or RAM, CPU-only)</th><th>Comfortable model size</th><th>Still usable ("tight")</th></tr></thead>
+    <tbody>
+      <tr><td>No dedicated GPU / &lt; 4 GB</td><td><span class="fit-tag fit-comfortable">1–2B params</span></td><td><span class="fit-tag fit-tight">up to ~3B</span></td></tr>
+      <tr><td>4–8 GB (e.g. RTX 3050/3060 laptop)</td><td><span class="fit-tag fit-comfortable">3–4B params</span></td><td><span class="fit-tag fit-tight">up to ~8B</span></td></tr>
+      <tr><td>8–16 GB (e.g. RTX 4060 Ti/4070)</td><td><span class="fit-tag fit-comfortable">8–12B params</span></td><td><span class="fit-tag fit-tight">up to ~20B</span></td></tr>
+      <tr><td>16 GB+ (e.g. RTX 4090, workstation cards)</td><td><span class="fit-tag fit-comfortable">20B+ params</span></td><td><span class="fit-tag fit-tight">whatever fits</span></td></tr>
+    </tbody>
+  </table>
+  <p class="fit-note">Rough heuristic (~0.65GB per billion params at Q4 quantization, plus runtime overhead) — not a promise. A model too big for your GPU doesn't error, it just spills onto much slower CPU inference. Zenith's own stuck-generation watchdog catches and reports this instead of leaving you staring at a spinner.</p>
+</section>
+
+<section class="wrap" id="faq">
+  <p class="eyebrow">FAQ</p>
+  <h2>Common questions</h2>
+  <div class="faq-list">
+    <details class="faq-item" open>
+      <summary>Is it actually free?</summary>
+      <p>Yes — Zenith is open source under AGPL-3.0, no subscription, no paid tier, no usage limits. The only ongoing cost is your own computer's electricity. Optional features that touch the open web (search, page reading) use free, keyless endpoints, not paid APIs.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Does any of my data leave my computer?</summary>
+      <p>No, by default. Zenith only talks to your own local Ollama instance and, only when a feature that needs it is explicitly turned on for that message, the open web (search results, a page you asked it to read). There's no telemetry, no analytics, no account.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Do I need a powerful GPU?</summary>
+      <p>No — it runs on CPU-only setups too, just slower. See the hardware guide above; even modest laptop GPUs run small models comfortably.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Can I use it on my phone?</summary>
+      <p>Yes — it's an installable PWA, and there's a mobile-friendly responsive layout. Open it from your phone's browser over your LAN or Tailscale and add it to your home screen.</p>
+    </details>
+    <details class="faq-item">
+      <summary>What's the license, in plain terms?</summary>
+      <p>AGPL-3.0-or-later: you can use, modify, and self-host it freely. If you run a <em>modified</em> version as a network service others can use, you have to publish your changes too — a deliberate choice, matching the project's "no cloud middleman" philosophy.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Is this affiliated with Ollama?</summary>
+      <p>No — Zenith is an independent, unaffiliated client that talks to Ollama's own local API, the same way any other app on your machine would.</p>
+    </details>
+  </div>
+</section>
+
+<footer class="wrap">
+  <div class="footer-grid">
+    <div>
+      <div class="footer-brand"><img src="icon.png" alt="" />Zenith</div>
+      <p class="footer-tagline">A private, self-hosted AI workspace. Your own compute, your own models, your own data.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Get started</h4>
+      <a href="#install">Installation</a>
+      <a href="#hardware">Hardware guide</a>
+      <a href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/DESKTOP.md">Desktop app</a>
+    </div>
+    <div class="footer-col">
+      <h4>Project</h4>
+      <a href="#features">Features</a>
+      <a href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/README.md">Full documentation</a>
+      <a href="https://github.com/ItzAditya43/Zenith/issues">Report an issue</a>
+    </div>
+    <div class="footer-col">
+      <h4>Source</h4>
+      <a href="https://github.com/ItzAditya43/Zenith">GitHub repository</a>
+      <a href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/LICENSE">AGPL-3.0 license</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Zenith. Open source under AGPL-3.0.</span>
+    <span>Not affiliated with Ollama.</span>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById("themeToggle");
+    var saved = localStorage.getItem("zenith-site-theme");
+    if (saved) root.setAttribute("data-theme", saved);
+    function current() {
+      if (root.getAttribute("data-theme") === "dark") return "dark";
+      if (root.getAttribute("data-theme") === "light") return "light";
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    btn.addEventListener("click", function () {
+      var next = current() === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      localStorage.setItem("zenith-site-theme", next);
+    });
+  })();
+</script>
 </body>
 </html>
