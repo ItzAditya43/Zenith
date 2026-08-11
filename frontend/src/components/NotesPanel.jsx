@@ -24,6 +24,7 @@ function NoteCard({ note, onUpdate, onDelete }) {
               className={`note-color-dot note-color-${c} ${note.color === c ? "is-active" : ""}`}
               onClick={() => onUpdate(note.id, { color: c })}
               title={c}
+              aria-label={`Set color ${c}`}
             />
           ))}
         </div>
@@ -31,10 +32,11 @@ function NoteCard({ note, onUpdate, onDelete }) {
           className="icon-btn"
           onClick={() => onUpdate(note.id, { pinned: !note.pinned })}
           title={note.pinned ? "Unpin" : "Pin"}
+          aria-label={note.pinned ? "Unpin" : "Pin"}
         >
           <Icon name="bolt" size={13} className={note.pinned ? "note-pin-active" : ""} />
         </button>
-        <button className="icon-btn" onClick={() => onDelete(note.id)} title="Delete">
+        <button className="icon-btn" onClick={() => onDelete(note.id)} title="Delete" aria-label="Delete note">
           <Icon name="trash" size={13} />
         </button>
       </div>
@@ -77,10 +79,10 @@ export default function NotesPanel({ onClose }) {
 
   return (
     <div className="notes-overlay" onClick={onClose}>
-      <div className="notes-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="notes-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="notes-panel-title">
         <div className="notes-header">
-          <span>Notes</span>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <span id="notes-panel-title">Notes</span>
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>
@@ -88,6 +90,7 @@ export default function NotesPanel({ onClose }) {
           <textarea
             className="notes-add-input"
             placeholder="Take a note…"
+            aria-label="Take a note"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {

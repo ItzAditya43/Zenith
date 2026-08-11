@@ -59,7 +59,7 @@ export default function CommandPalette({ open, onClose, commands }) {
 
   return (
     <div className="cmdk-overlay" onClick={onClose}>
-      <div className="cmdk-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Command palette">
+      <div className="cmdk-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Command palette">
         <div className="cmdk-input-row">
           <span className="cmdk-input-icon" aria-hidden="true">
             <Icon name="command" size={15} />
@@ -68,6 +68,7 @@ export default function CommandPalette({ open, onClose, commands }) {
             ref={inputRef}
             className="cmdk-input"
             placeholder="Jump to a conversation, switch persona, open a setting…"
+            aria-label="Search commands"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}

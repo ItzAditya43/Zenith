@@ -31,9 +31,9 @@ export default function LockScreen({ onUnlocked }) {
 
   return (
     <div className="lock-screen">
-      <form className="lock-card" onSubmit={submit}>
+      <form className="lock-card" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="lock-screen-title">
         <div className="lock-mark" aria-hidden="true" />
-        <h1>Zenith is locked</h1>
+        <h1 id="lock-screen-title">Zenith is locked</h1>
         <p>Enter your passcode to continue.</p>
         <input
           type="password"
@@ -41,6 +41,7 @@ export default function LockScreen({ onUnlocked }) {
           value={passcode}
           onChange={(e) => setPasscode(e.target.value)}
           placeholder="Passcode"
+          aria-label="Passcode"
           autoFocus
         />
         {error && (

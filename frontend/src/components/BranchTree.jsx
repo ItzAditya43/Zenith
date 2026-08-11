@@ -19,10 +19,10 @@ export default function BranchTree({ branches, messages, onSwitchBranch, onClose
 
   if (points.length === 0) {
     return (
-      <div className="branch-tree-panel">
+      <div className="branch-tree-panel" role="dialog" aria-modal="true" aria-labelledby="branch-tree-title">
         <div className="branch-tree-header">
-          <span>Branches</span>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <span id="branch-tree-title">Branches</span>
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>
@@ -39,10 +39,10 @@ export default function BranchTree({ branches, messages, onSwitchBranch, onClose
   });
 
   return (
-    <div className="branch-tree-panel">
+    <div className="branch-tree-panel" role="dialog" aria-modal="true" aria-labelledby="branch-tree-title">
       <div className="branch-tree-header">
-        <span>Branches</span>
-        <button className="icon-btn" onClick={onClose} title="Close">
+        <span id="branch-tree-title">Branches</span>
+        <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
           <Icon name="x" size={14} />
         </button>
       </div>

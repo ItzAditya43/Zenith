@@ -74,6 +74,7 @@ export default function VoiceRecordingPanel({ stream, transcribing, onStop, onCa
       role="button"
       tabIndex={0}
       title="Tap to stop and transcribe"
+      aria-label="Tap to stop and transcribe"
       onClick={onStop}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onStop()}
     >
@@ -83,6 +84,7 @@ export default function VoiceRecordingPanel({ stream, transcribing, onStop, onCa
       <button
         className="voice-panel-cancel"
         title="Discard"
+        aria-label="Discard"
         onClick={(e) => {
           e.stopPropagation();
           onCancel();

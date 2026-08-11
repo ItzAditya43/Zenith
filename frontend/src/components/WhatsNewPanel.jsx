@@ -4,12 +4,19 @@ import Icon from "./Icon.jsx";
 export default function WhatsNewPanel({ onClose }) {
   return (
     <div className="calendar-overlay" onClick={onClose}>
-      <div className="calendar-modal" style={{ width: "min(560px, calc(100vw - 3rem))" }} onClick={(e) => e.stopPropagation()}>
+      <div
+        className="calendar-modal"
+        style={{ width: "min(560px, calc(100vw - 3rem))" }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="whats-new-title"
+      >
         <div className="calendar-header">
-          <span>
+          <span id="whats-new-title">
             <Icon name="bolt" size={14} /> What's new
           </span>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>

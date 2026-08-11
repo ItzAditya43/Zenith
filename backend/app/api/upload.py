@@ -63,8 +63,9 @@ async def upload(file: UploadFile, conversation_id: str | None = Form(None)):
 
 @router.post("/import")
 async def import_history(file: UploadFile):
-    """Import a ChatGPT or Claude conversations.json export into Zenith.
-    Auto-detects which of the two it is from the JSON shape."""
+    """Import a ChatGPT/Claude conversations.json, or a Zenith backup
+    produced by GET /api/export/json, into this instance. Auto-detects
+    which of the three it is from the JSON shape."""
     import json as _json
     from app.services import import_service
 
@@ -75,6 +76,12 @@ async def import_history(file: UploadFile):
         parsed_json = _json.loads(data.decode("utf-8", errors="ignore"))
     except _json.JSONDecodeError:
         raise HTTPException(400, "That file isn't valid JSON — upload the conversations.json from your export.")
+
+    if import_service.is_zenith_backup(parsed_json):
+        result = import_service.import_zenith_backup(parsed_json)
+        log.info("import_completed", source="zenith", **result)
+        return result
+
     try:
         normalized = import_service.detect_and_parse(parsed_json)
     except ValueError as exc:
@@ -82,7 +89,7 @@ async def import_history(file: UploadFile):
     if not normalized:
         raise HTTPException(400, "No importable conversations found in that file.")
     result = import_service.import_conversations(normalized)
-    log.info("import_completed", **result)
+    log.info("import_completed", source="chatgpt/claude", **result)
     return result
 
 

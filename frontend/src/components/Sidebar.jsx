@@ -56,6 +56,7 @@ function ConversationItem({ c, active, collapsed, showDelete, onSelect, onDelete
                 onTogglePin(c);
               }}
               title={c.pinned ? "Unpin" : "Pin to top"}
+              aria-label={c.pinned ? "Unpin" : "Pin to top"}
             >
               <Icon name="target" size={12} />
             </button>
@@ -68,6 +69,7 @@ function ConversationItem({ c, active, collapsed, showDelete, onSelect, onDelete
                 onEditTags(c);
               }}
               title="Edit tags"
+              aria-label="Edit tags"
             >
               <Icon name="wrench" size={12} />
             </button>
@@ -80,6 +82,7 @@ function ConversationItem({ c, active, collapsed, showDelete, onSelect, onDelete
                 onDelete(c.id);
               }}
               title="Delete conversation"
+              aria-label={`Delete conversation "${c.title}"`}
             >
               <Icon name="x" size={13} />
             </button>
@@ -137,12 +140,12 @@ export default function Sidebar({
           <img className="brand-mark" src="/icon-192.png" alt="" aria-hidden="true" />
           {!collapsed && <span className="brand-name">Zenith</span>}
         </div>
-        <button className="icon-btn" onClick={onToggleCollapse} title="Toggle sidebar">
+        <button className="icon-btn" onClick={onToggleCollapse} title="Toggle sidebar" aria-label="Toggle sidebar">
           <Icon name={collapsed ? "chevron-right" : "chevron-left"} size={15} />
         </button>
       </div>
 
-      <button className="new-chat-btn" onClick={() => onCreate()}>
+      <button className="new-chat-btn" onClick={() => onCreate()} aria-label="New chat">
         <span className="new-chat-plus"><Icon name="plus" size={15} /></span>
         {!collapsed && <span>New chat</span>}
       </button>
@@ -154,11 +157,12 @@ export default function Sidebar({
             className="sidebar-search"
             type="search"
             placeholder="Search chats, docs, memories…"
+            aria-label="Search chats, docs, memories"
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
           />
           {showSearchResults && (
-            <button className="sidebar-search-clear" onClick={() => onSearch("")} title="Clear">
+            <button className="sidebar-search-clear" onClick={() => onSearch("")} title="Clear" aria-label="Clear search">
               <Icon name="x" size={13} />
             </button>
           )}
@@ -303,6 +307,11 @@ export default function Sidebar({
                               ? `Agent autonomy pinned to "${p.agent_mode}" in this project — click to change`
                               : "Set a per-project agent autonomy override (defaults to the global setting)"
                           }
+                          aria-label={
+                            p.agent_mode
+                              ? `Agent autonomy pinned to "${p.agent_mode}" in this project — click to change`
+                              : "Set a per-project agent autonomy override (defaults to the global setting)"
+                          }
                         >
                           <Icon name="bot" size={10} />
                           {p.agent_mode && <span style={{ fontSize: "0.6em", marginLeft: 2 }}>{p.agent_mode}</span>}
@@ -312,6 +321,7 @@ export default function Sidebar({
                         className="conversation-group-add-btn"
                         onClick={() => onCreateInProject(p.id)}
                         title={`New chat in ${p.name}`}
+                        aria-label={`New chat in ${p.name}`}
                       >
                         <Icon name="plus" size={10} />
                       </button>
@@ -393,7 +403,7 @@ export default function Sidebar({
         )}
       </nav>
 
-      <button className="settings-btn" onClick={onOpenSettings}>
+      <button className="settings-btn" onClick={onOpenSettings} aria-label="Settings">
         <Icon name="settings" size={16} />
         {!collapsed && <span>Settings</span>}
       </button>

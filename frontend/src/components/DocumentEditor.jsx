@@ -37,20 +37,20 @@ export default function DocumentEditor({ doc, onClose, onSendBack }) {
   };
 
   return (
-    <div className="doc-editor-panel">
+    <div className="doc-editor-panel" role="dialog" aria-modal="true" aria-labelledby="doc-editor-title">
       <div className="doc-editor-header">
-        <span className="doc-editor-lang">
+        <span className="doc-editor-lang" id="doc-editor-title">
           <Icon name="pencil" size={13} /> {doc.lang}
           {dirty && <span className="doc-editor-dirty-dot" title="Unsaved changes" />}
         </span>
         <div className="doc-editor-actions">
-          <button className="icon-btn" onClick={copy} title="Copy">
+          <button className="icon-btn" onClick={copy} title="Copy" aria-label={copied ? "Copied" : "Copy"}>
             <Icon name={copied ? "check" : "copy"} size={14} />
           </button>
-          <button className="icon-btn" onClick={download} title="Download">
+          <button className="icon-btn" onClick={download} title="Download" aria-label="Download">
             <Icon name="download" size={14} />
           </button>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>

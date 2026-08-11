@@ -43,7 +43,7 @@ export default function DigestPanel({ onClose }) {
       >
         <div className="notes-header">
           <span>Daily digest</span>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>

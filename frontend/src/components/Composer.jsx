@@ -108,6 +108,7 @@ function ModelPicker({ models, value, onChange }) {
         aria-haspopup="listbox"
         aria-expanded={open}
         title={value ? `Model: ${value}` : "Auto (model routing)"}
+        aria-label={value ? `Model: ${value}` : "Auto (model routing)"}
       >
         <Icon name="bolt" size={15} />
         <span className="mode-picker-caret" aria-hidden="true">
@@ -390,7 +391,7 @@ export default function Composer({
       {micError && (
         <div className="composer-mic-error" role="alert">
           <span>{micError}</span>
-          <button onClick={() => setMicError(null)} title="Dismiss">
+          <button onClick={() => setMicError(null)} title="Dismiss" aria-label="Dismiss">
             <Icon name="x" size={13} />
           </button>
         </div>
@@ -401,7 +402,7 @@ export default function Composer({
           {pending.map((a) => (
             <span className="attachment-chip" key={a.id}>
               <Icon name={a.uploading ? "hourglass" : KIND_ICON[a.kind] || "paperclip"} size={13} /> {a.filename}
-              <button onClick={() => removeAttachment(a.id)} title="Remove">
+              <button onClick={() => removeAttachment(a.id)} title="Remove" aria-label={`Remove ${a.filename}`}>
                 <Icon name="x" size={12} />
               </button>
             </span>
@@ -422,6 +423,7 @@ export default function Composer({
           className="composer-icon-btn"
           onClick={() => fileInputRef.current?.click()}
           title="Attach image, document, or video"
+          aria-label="Attach image, document, or video"
         >
           <Icon name="paperclip" size={17} />
         </button>
@@ -464,6 +466,7 @@ export default function Composer({
               ? "Transcribing…"
               : "Message Zenith — attach files, or hold the mic to talk"
           }
+          aria-label="Message"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -472,7 +475,7 @@ export default function Composer({
         />
 
         {isStreaming ? (
-          <button className="composer-send-btn stop-btn" onClick={onStop} title="Stop generating">
+          <button className="composer-send-btn stop-btn" onClick={onStop} title="Stop generating" aria-label="Stop generating">
             <Icon name="square" size={14} />
           </button>
         ) : (
@@ -484,6 +487,7 @@ export default function Composer({
             onClick={handleMicClick}
             disabled={!supported}
             title={micTitle}
+            aria-label={micTitle}
           >
             <Icon name={recording ? "square" : "mic"} size={16} />
           </button>
@@ -494,6 +498,7 @@ export default function Composer({
           onClick={handleSend}
           disabled={disabled || (!text.trim() && pending.length === 0)}
           title="Send"
+          aria-label="Send"
         >
           <Icon name="send" size={16} />
         </button>

@@ -113,6 +113,7 @@ function DocumentChip({ attachment: a }) {
             onClick={(e) => { e.stopPropagation(); handleEdit(); }}
             disabled={busy}
             title="Edit this document"
+            aria-label="Edit this document"
           >
             {busy ? "…" : <Icon name="pencil" size={13} />}
           </button>
@@ -244,16 +245,16 @@ function BranchSwitcher({ siblings, activeId, onSwitch }) {
   return (
     <>
       <div className="branch-switcher">
-        <button onClick={() => go(-1)} title="Previous version">
+        <button onClick={() => go(-1)} title="Previous version" aria-label="Previous version">
           <Icon name="chevron-left" size={13} />
         </button>
         <span>
           {pos + 1}/{siblings.length}
         </span>
-        <button onClick={() => go(1)} title="Next version">
+        <button onClick={() => go(1)} title="Next version" aria-label="Next version">
           <Icon name="chevron-right" size={13} />
         </button>
-        <button onClick={() => setComparing(true)} title="Compare versions side by side" className="branch-switcher-compare">
+        <button onClick={() => setComparing(true)} title="Compare versions side by side" className="branch-switcher-compare" aria-label="Compare versions side by side">
           <Icon name="layers" size={12} />
         </button>
       </div>

@@ -30,16 +30,23 @@ export default function DocumentPreview({ attachmentId, filename, highlightText,
 
   return (
     <div className="calendar-overlay" onClick={onClose}>
-      <div className="calendar-modal" style={{ width: "min(760px, calc(100vw - 3rem))" }} onClick={(e) => e.stopPropagation()}>
+      <div
+        className="calendar-modal"
+        style={{ width: "min(760px, calc(100vw - 3rem))" }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="doc-preview-title"
+      >
         <div className="calendar-header">
-          <span>
+          <span id="doc-preview-title">
             <Icon name="file-text" size={14} /> {filename}
           </span>
           <div style={{ display: "flex", gap: "8px" }}>
-            <a className="icon-btn" href={url} target="_blank" rel="noopener noreferrer" download title="Download">
+            <a className="icon-btn" href={url} target="_blank" rel="noopener noreferrer" download title="Download" aria-label="Download">
               <Icon name="download" size={14} />
             </a>
-            <button className="icon-btn" onClick={onClose} title="Close">
+            <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
               <Icon name="x" size={14} />
             </button>
           </div>
