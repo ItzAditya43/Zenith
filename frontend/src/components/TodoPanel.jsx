@@ -48,7 +48,7 @@ function BoardView({ todos, onMove, onRemove }) {
                       <option key={c.status} value={c.status}>{c.label}</option>
                     ))}
                   </select>
-                  <button className="icon-btn" onClick={() => onRemove(t.id)} title="Delete">
+                  <button className="icon-btn" onClick={() => onRemove(t.id)} title="Delete" aria-label={`Delete "${t.text}"`}>
                     <Icon name="x" size={12} />
                   </button>
                 </div>
@@ -119,7 +119,7 @@ export default function TodoPanel({ onClose }) {
             >
               Board
             </button>
-            <button className="icon-btn" onClick={onClose} title="Close">
+            <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
               <Icon name="x" size={14} />
             </button>
           </div>
@@ -128,6 +128,7 @@ export default function TodoPanel({ onClose }) {
           <input
             className="settings-input"
             placeholder="Add a task…"
+            aria-label="Add a task"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addTodo()}
@@ -148,7 +149,7 @@ export default function TodoPanel({ onClose }) {
                     {t.text}
                   </span>
                 </label>
-                <button className="icon-btn" onClick={() => removeTodo(t.id)} title="Delete">
+                <button className="icon-btn" onClick={() => removeTodo(t.id)} title="Delete" aria-label={`Delete "${t.text}"`}>
                   <Icon name="x" size={13} />
                 </button>
               </li>

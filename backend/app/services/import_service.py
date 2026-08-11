@@ -106,6 +106,62 @@ def detect_and_parse(data) -> list[dict]:
     )
 
 
+def is_zenith_backup(data) -> bool:
+    """Sniff Zenith's own /api/export/json shape, so it can be routed to
+    import_zenith_backup instead of the ChatGPT/Claude parsers."""
+    return (
+        isinstance(data, dict)
+        and "conversations" in data
+        and isinstance(data.get("conversations"), list)
+        and ("memories" in data or "personas" in data)
+    )
+
+
+def import_zenith_backup(data: dict) -> dict:
+    """Re-import a full Zenith export (from /api/export/json) — the
+    Zenith-to-Zenith counterpart to the ChatGPT/Claude importers above.
+    Conversations/messages always create new rows (so importing twice just
+    duplicates them, same as re-importing a ChatGPT export would); memories
+    and personas dedupe via their own service-layer logic so re-running an
+    import is safe."""
+    from app.services import memory_service, persona_service
+
+    conversations = 0
+    messages = 0
+    for conv in data.get("conversations") or []:
+        if not isinstance(conv, dict):
+            continue
+        title = (conv.get("title") or "Imported chat")[:200]
+        c = storage.create_conversation(title)
+        id_map: dict[str, str] = {}
+        for m in conv.get("messages") or []:
+            if not isinstance(m, dict) or not m.get("role") or not m.get("content"):
+                continue
+            old_parent = m.get("parent_id")
+            new_msg = storage.add_message(
+                c["id"], m["role"], m["content"],
+                parent_id=id_map.get(old_parent), created_at=_parse_ts(m.get("created_at")),
+            )
+            if m.get("id"):
+                id_map[m["id"]] = new_msg["id"]
+            messages += 1
+        conversations += 1
+
+    memories = 0
+    for mem in data.get("memories") or []:
+        if isinstance(mem, dict) and mem.get("content"):
+            if memory_service.add_memory(mem["content"], category=mem.get("category", "fact")):
+                memories += 1
+
+    personas = 0
+    for p in data.get("personas") or []:
+        if isinstance(p, dict) and p.get("name") and p.get("system_prompt"):
+            persona_service.create_persona(p["name"], p["system_prompt"], icon=p.get("icon"))
+            personas += 1
+
+    return {"conversations": conversations, "messages": messages, "memories": memories, "personas": personas}
+
+
 def import_conversations(parsed: list[dict]) -> dict:
     """Create Zenith conversations from normalized data. Messages are chained
     linearly (each is the previous one's child) to match the branching

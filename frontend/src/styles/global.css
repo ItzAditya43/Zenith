@@ -19,7 +19,7 @@ body {
     var(--bg-void);
   color: var(--text-primary);
   font-family: var(--font-body);
-  font-size: var(--text-base);
+  font-size: calc(var(--text-base) * var(--font-scale, 1));
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
@@ -79,6 +79,23 @@ a {
   outline: 2px solid var(--signal-general);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 12px;
+  z-index: 10000;
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-float);
+  transition: top var(--dur-fast, 120ms) ease;
+}
+.skip-link:focus {
+  top: 12px;
 }
 
 code {

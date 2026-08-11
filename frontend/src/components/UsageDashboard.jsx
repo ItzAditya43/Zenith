@@ -28,10 +28,10 @@ export default function UsageDashboard({ onClose }) {
   if (!data) {
     return (
       <div className="calendar-overlay" onClick={onClose}>
-        <div className="calendar-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="calendar-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="usage-dashboard-title">
           <div className="calendar-header">
-            <span>Usage & diagnostics</span>
-            <button className="icon-btn" onClick={onClose}>
+            <span id="usage-dashboard-title">Usage & diagnostics</span>
+            <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
               <Icon name="x" size={14} />
             </button>
           </div>
@@ -46,10 +46,10 @@ export default function UsageDashboard({ onClose }) {
 
   return (
     <div className="calendar-overlay" onClick={onClose}>
-      <div className="calendar-modal" style={{ width: "min(680px, calc(100vw - 3rem))" }} onClick={(e) => e.stopPropagation()}>
+      <div className="calendar-modal" style={{ width: "min(680px, calc(100vw - 3rem))" }} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="usage-dashboard-title">
         <div className="calendar-header">
-          <span>Usage & diagnostics</span>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <span id="usage-dashboard-title">Usage & diagnostics</span>
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>

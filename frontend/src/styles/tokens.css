@@ -448,6 +448,65 @@
   }
 }
 
+/* ===== Accessibility overrides — Settings > Appearance > Accessibility ===== */
+
+:root {
+  --font-scale: 1;
+}
+
+html[data-reduce-motion] {
+  --dur-fast: 0ms;
+  --dur-base: 0ms;
+  --dur-slow: 0ms;
+}
+html[data-reduce-motion] *,
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+html[data-dyslexia-font] body,
+html[data-dyslexia-font] input,
+html[data-dyslexia-font] textarea {
+  font-family: "Comic Sans MS", "OpenDyslexic", "Comic Neue", var(--font-body), sans-serif;
+  letter-spacing: 0.01em;
+  line-height: 1.65;
+}
+
+html[data-underline-links] a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* High contrast: widen borders and force stronger text/background
+   separation on top of whichever theme is active, rather than a
+   separate ninth theme to maintain. */
+html[data-high-contrast] {
+  --text-primary: #ffffff;
+  --text-secondary: #f1f5f9;
+  --border-soft: rgba(255, 255, 255, 0.55);
+  --border-hairline: rgba(255, 255, 255, 0.35);
+  --bg-glow-1: transparent;
+  --bg-glow-2: transparent;
+}
+html[data-high-contrast] * {
+  text-shadow: none !important;
+}
+html[data-high-contrast] :focus-visible {
+  outline: 3px solid #ffff00;
+  outline-offset: 2px;
+}
+html[data-high-contrast] .icon-btn,
+html[data-high-contrast] button,
+html[data-high-contrast] input,
+html[data-high-contrast] textarea,
+html[data-high-contrast] select {
+  border: 1px solid var(--border-soft) !important;
+}
+
 /* helper: capability -> signal color, used via data-role attribute */
 [data-role="general"]    { --signal: var(--signal-general); --signal-dim: var(--signal-general-dim); }
 [data-role="vision"]     { --signal: var(--signal-vision); --signal-dim: var(--signal-vision-dim); }

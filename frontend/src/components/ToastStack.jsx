@@ -20,7 +20,12 @@ function Toast({ toast, onDismiss }) {
   }, [toast, onDismiss]);
 
   return (
-    <div className={`toast toast-${toast.type || "info"}`} onClick={onDismiss}>
+    <div
+      className={`toast toast-${toast.type || "info"}`}
+      onClick={onDismiss}
+      role={toast.type === "error" ? "alert" : "status"}
+      aria-live={toast.type === "error" ? "assertive" : "polite"}
+    >
       <span className="toast-icon" aria-hidden="true">
         <Icon name={ICON[toast.type] || ICON.info} size={16} />
       </span>

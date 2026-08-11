@@ -621,6 +621,12 @@ can actually read and keep:
 Both are plain stdlib (`json`/`zipfile`) — no new dependencies, runs
 entirely against your own backend.
 
+**Zenith-to-Zenith import.** The same JSON export re-imports on any Zenith
+instance from Settings → Data → Import — conversations, memories, and
+personas come back over. The same uploader also still auto-detects a
+ChatGPT/Claude `conversations.json`; all three formats are sniffed from the
+JSON shape, no format picker needed.
+
 ### Passcode lock
 
 `app/api/lock.py`. Optional passcode gate (**Settings → Data**) so other

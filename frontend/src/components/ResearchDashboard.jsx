@@ -52,11 +52,11 @@ export default function ResearchDashboard({ onClose }) {
 
   return (
     <div className="calendar-overlay" onClick={onClose}>
-      <div className="research-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="research-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="research-dashboard-title">
         <div className="research-list-pane">
           <div className="calendar-header">
-            <span>Research</span>
-            <button className="icon-btn" onClick={onClose} title="Close">
+            <span id="research-dashboard-title">Research</span>
+            <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
               <Icon name="x" size={14} />
             </button>
           </div>
@@ -71,7 +71,7 @@ export default function ResearchDashboard({ onClose }) {
                 <div className="calendar-event-title" style={{ maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {r.query}
                 </div>
-                <button className="icon-btn" onClick={(e) => { e.stopPropagation(); remove(r.id); }} title="Delete">
+                <button className="icon-btn" onClick={(e) => { e.stopPropagation(); remove(r.id); }} title="Delete" aria-label={`Delete report: ${r.query}`}>
                   <Icon name="x" size={13} />
                 </button>
               </li>
@@ -99,6 +99,7 @@ export default function ResearchDashboard({ onClose }) {
               <input
                 className="settings-input"
                 placeholder="Ask a follow-up…"
+                aria-label="Ask a follow-up"
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && ask()}

@@ -173,7 +173,7 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
               <Icon name="bolt" size={14} />
               <span>Run</span>
             </button>
-            <button className="icon-btn" onClick={onClose} title="Close">
+            <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
               <Icon name="x" size={14} />
             </button>
           </div>
@@ -185,6 +185,7 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
               <input
                 className="settings-input"
                 placeholder="Search files…"
+                aria-label="Search files"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && runSearch()}
@@ -229,7 +230,7 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
                       {t.path.split("/").pop()}
                       {t.dirty ? " •" : ""}
                     </button>
-                    <button className="code-editor-tab-close" onClick={() => closeTab(t.path)} title="Close">
+                    <button className="code-editor-tab-close" onClick={() => closeTab(t.path)} title="Close" aria-label={`Close tab ${t.path.split("/").pop()}`}>
                       <Icon name="x" size={11} />
                     </button>
                   </div>
@@ -270,7 +271,7 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
           <div className="code-editor-output">
             <div className="code-editor-output-header">
               <span>{output.label}</span>
-              <button className="icon-btn" onClick={() => setOutput(null)} title="Close">
+              <button className="icon-btn" onClick={() => setOutput(null)} title="Close" aria-label="Close output">
                 <Icon name="x" size={12} />
               </button>
             </div>

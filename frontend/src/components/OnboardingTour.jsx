@@ -18,10 +18,17 @@ const HIGHLIGHTS = [
 export default function OnboardingTour({ onClose }) {
   return (
     <div className="calendar-overlay" onClick={onClose}>
-      <div className="calendar-modal" style={{ width: "min(620px, calc(100vw - 3rem))" }} onClick={(e) => e.stopPropagation()}>
+      <div
+        className="calendar-modal"
+        style={{ width: "min(620px, calc(100vw - 3rem))" }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="onboarding-tour-title"
+      >
         <div className="calendar-header">
-          <span>Welcome to Zenith</span>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <span id="onboarding-tour-title">Welcome to Zenith</span>
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>

@@ -75,6 +75,7 @@ const ROLE_LABEL = {
 
 const SECTIONS = [
   { id: "appearance", label: "Appearance", icon: "sun" },
+  { id: "accessibility", label: "Accessibility", icon: "check" },
   { id: "connection", label: "Connection", icon: "bolt" },
   { id: "memory", label: "Memory & persona", icon: "layers" },
   { id: "personas", label: "Personas", icon: "masks" },
@@ -108,6 +109,16 @@ export default function SettingsPanel({
   onImported,
   initialSection = "appearance",
   onUseSkill = () => {},
+  fontScale = "1",
+  onFontScaleChange = () => {},
+  highContrast = false,
+  onHighContrastChange = () => {},
+  reduceMotion = false,
+  onReduceMotionChange = () => {},
+  dyslexiaFont = false,
+  onDyslexiaFontChange = () => {},
+  underlineLinks = false,
+  onUnderlineLinksChange = () => {},
 }) {
   const [config, setConfig] = useState(null);
   const [models, setModels] = useState([]);
@@ -786,7 +797,13 @@ export default function SettingsPanel({
     setImportStatus("");
     try {
       const res = await api.importHistory(file);
-      setImportStatus(`Imported ${res.conversations} conversation(s), ${res.messages} messages.`);
+      const extra = [];
+      if (res.memories) extra.push(`${res.memories} memories`);
+      if (res.personas) extra.push(`${res.personas} personas`);
+      setImportStatus(
+        `Imported ${res.conversations} conversation(s), ${res.messages} messages` +
+          (extra.length ? `, ${extra.join(", ")}.` : ".")
+      );
       onImported?.();
     } catch (err) {
       setImportStatus(err.message || "Import failed.");
@@ -851,6 +868,7 @@ export default function SettingsPanel({
         className="settings-panel"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label="Settings"
       >
         <div className="settings-header">
@@ -861,7 +879,7 @@ export default function SettingsPanel({
               <p className="settings-subtitle">Tune how Zenith runs on your machine</p>
             </div>
           </div>
-          <button className="icon-btn settings-close" onClick={onClose} title="Close (Esc)">
+          <button className="icon-btn settings-close" onClick={onClose} title="Close (Esc)" aria-label="Close">
             ×
           </button>
         </div>
@@ -930,6 +948,7 @@ export default function SettingsPanel({
                       className="settings-input"
                       value={ambientAnim}
                       onChange={(e) => onAmbientChange(e.target.value)}
+                      aria-label="Ambient background"
                     >
                       <option value="none">None</option>
                       {ANIMATIONS.filter((a) => THEME_ANIMATIONS[theme].includes(a.id)).map((a) => (
@@ -1001,6 +1020,110 @@ export default function SettingsPanel({
               </section>
             )}
 
+            {activeSection === "accessibility" && (
+              <section className="settings-section">
+                <h3 className="settings-section-title">Accessibility</h3>
+                <p className="settings-section-desc">
+                  These apply everywhere in Zenith, on top of whichever theme you've picked, and
+                  are remembered on this device.
+                </p>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Text size</span>
+                    <span className="setting-hint">Scales all text in the app, not just chat messages.</span>
+                  </div>
+                  <div className="theme-choice">
+                    {[
+                      { id: "0.875", label: "Small" },
+                      { id: "1", label: "Default" },
+                      { id: "1.15", label: "Large" },
+                      { id: "1.35", label: "X-Large" },
+                    ].map((o) => (
+                      <button
+                        key={o.id}
+                        className={`theme-choice-btn ${fontScale === o.id ? "is-selected" : ""}`}
+                        onClick={() => onFontScaleChange(o.id)}
+                        aria-pressed={fontScale === o.id}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">High contrast</span>
+                    <span className="setting-hint">
+                      Stronger text/background separation and bolder borders, for low-vision or
+                      bright-environment use.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${highContrast ? "switch-on" : ""}`}
+                    onClick={() => onHighContrastChange(!highContrast)}
+                    role="switch"
+                    aria-checked={!!highContrast}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Reduce motion</span>
+                    <span className="setting-hint">
+                      Turns off transitions, ambient backgrounds, and animated UI regardless of
+                      your OS setting.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${reduceMotion ? "switch-on" : ""}`}
+                    onClick={() => onReduceMotionChange(!reduceMotion)}
+                    role="switch"
+                    aria-checked={!!reduceMotion}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Dyslexia-friendly font</span>
+                    <span className="setting-hint">
+                      Switches body text to a font with wider letter spacing and looser line height.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${dyslexiaFont ? "switch-on" : ""}`}
+                    onClick={() => onDyslexiaFontChange(!dyslexiaFont)}
+                    role="switch"
+                    aria-checked={!!dyslexiaFont}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Always underline links</span>
+                    <span className="setting-hint">
+                      Helps distinguish links from regular text without relying on color alone.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${underlineLinks ? "switch-on" : ""}`}
+                    onClick={() => onUnderlineLinksChange(!underlineLinks)}
+                    role="switch"
+                    aria-checked={!!underlineLinks}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+              </section>
+            )}
+
             {activeSection === "connection" && (
               <section className="settings-section">
                 <h3 className="settings-section-title">Ollama connection</h3>
@@ -1042,6 +1165,7 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="http://localhost:7860"
+                    aria-label="Image generation server URL"
                     defaultValue={config?.image_gen_url || ""}
                     onBlur={async (e) => {
                       const updated = await api.patchConfig({ image_gen_url: e.target.value.trim() });
@@ -1093,6 +1217,7 @@ export default function SettingsPanel({
                     className="settings-textarea"
                     rows={4}
                     placeholder="e.g. Be terse. Prefer metric units. I'm a backend engineer, skip basic explanations."
+                    aria-label="Persona instructions"
                     value={systemPrompt}
                     onChange={(e) => setSystemPrompt(e.target.value)}
                   />
@@ -1191,6 +1316,7 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="Add a memory manually…"
+                    aria-label="Add a memory manually"
                     value={newMemory}
                     onChange={(e) => setNewMemory(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addMemory()}
@@ -1215,7 +1341,7 @@ export default function SettingsPanel({
                         >
                           {m.enabled ? "On" : "Off"}
                         </button>
-                        <button className="icon-btn" onClick={() => deleteMemory(m.id)} title="Forget">
+                        <button className="icon-btn" onClick={() => deleteMemory(m.id)} title="Forget" aria-label="Forget">
                           ×
                         </button>
                       </span>
@@ -1270,6 +1396,7 @@ export default function SettingsPanel({
                           className="icon-btn"
                           onClick={() => api.deleteSkill(s.id).then(refreshSkills)}
                           title="Delete"
+                          aria-label="Delete skill"
                         >
                           ×
                         </button>
@@ -1300,6 +1427,7 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="IMAP host (e.g. imap.gmail.com)"
+                    aria-label="IMAP host"
                     value={emailForm.email_imap_host}
                     onChange={(e) => setEmailForm((f) => ({ ...f, email_imap_host: e.target.value }))}
                   />
@@ -1307,6 +1435,7 @@ export default function SettingsPanel({
                     className="settings-input"
                     style={{ maxWidth: "90px" }}
                     placeholder="Port"
+                    aria-label="IMAP port"
                     type="number"
                     value={emailForm.email_imap_port}
                     onChange={(e) => setEmailForm((f) => ({ ...f, email_imap_port: Number(e.target.value) }))}
@@ -1316,6 +1445,7 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="SMTP host (e.g. smtp.gmail.com)"
+                    aria-label="SMTP host"
                     value={emailForm.email_smtp_host}
                     onChange={(e) => setEmailForm((f) => ({ ...f, email_smtp_host: e.target.value }))}
                   />
@@ -1323,6 +1453,7 @@ export default function SettingsPanel({
                     className="settings-input"
                     style={{ maxWidth: "90px" }}
                     placeholder="Port"
+                    aria-label="SMTP port"
                     type="number"
                     value={emailForm.email_smtp_port}
                     onChange={(e) => setEmailForm((f) => ({ ...f, email_smtp_port: Number(e.target.value) }))}
@@ -1332,12 +1463,14 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="Email address"
+                    aria-label="Email address"
                     value={emailForm.email_username}
                     onChange={(e) => setEmailForm((f) => ({ ...f, email_username: e.target.value }))}
                   />
                   <input
                     className="settings-input"
                     placeholder="App password"
+                    aria-label="App password"
                     type="password"
                     value={emailForm.email_password}
                     onChange={(e) => setEmailForm((f) => ({ ...f, email_password: e.target.value }))}
@@ -1407,6 +1540,7 @@ export default function SettingsPanel({
                                   <textarea
                                     className="settings-input"
                                     style={{ width: "100%", minHeight: "100px", marginTop: "0.5rem" }}
+                                    aria-label="Reply draft"
                                     value={emailDraft}
                                     onChange={(e) => setEmailDraft(e.target.value)}
                                   />
@@ -1469,12 +1603,14 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="Trusted device address, e.g. http://192.168.1.20:8420"
+                    aria-label="Trusted device address"
                     value={joinHost}
                     onChange={(e) => setJoinHost(e.target.value)}
                   />
                   <input
                     className="settings-input"
                     placeholder="Pairing code"
+                    aria-label="Pairing code"
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value)}
                   />
@@ -1495,6 +1631,7 @@ export default function SettingsPanel({
                     className="settings-input"
                     type="password"
                     placeholder="Sync passphrase (same on both devices)"
+                    aria-label="Sync passphrase"
                     value={syncPassphrase}
                     onChange={(e) => setSyncPassphrase(e.target.value)}
                   />
@@ -1509,6 +1646,7 @@ export default function SettingsPanel({
                     className="settings-input"
                     style={{ width: "100%", minHeight: "70px" }}
                     placeholder="Paste an exported snapshot's contents here to import…"
+                    aria-label="Snapshot to import"
                     value={importBlobText}
                     onChange={(e) => setImportBlobText(e.target.value)}
                   />
@@ -1541,6 +1679,7 @@ export default function SettingsPanel({
                       className="settings-input"
                       style={{ flex: "0 0 60px" }}
                       placeholder="Icon"
+                      aria-label="Persona icon"
                       value={newPersonaIcon}
                       onChange={(e) => setNewPersonaIcon(e.target.value)}
                       maxLength={4}
@@ -1548,6 +1687,7 @@ export default function SettingsPanel({
                     <input
                       className="settings-input"
                       placeholder="Name, e.g. Coding buddy"
+                      aria-label="Persona name"
                       value={newPersonaName}
                       onChange={(e) => setNewPersonaName(e.target.value)}
                     />
@@ -1556,6 +1696,7 @@ export default function SettingsPanel({
                     className="settings-textarea"
                     rows={3}
                     placeholder="System prompt for this persona…"
+                    aria-label="Persona system prompt"
                     value={newPersonaPrompt}
                     onChange={(e) => setNewPersonaPrompt(e.target.value)}
                   />
@@ -1574,7 +1715,7 @@ export default function SettingsPanel({
                         {p.icon ? `${p.icon} ` : ""}
                         {p.name}
                       </span>
-                      <button className="icon-btn" onClick={() => deletePersona(p.id)} title="Delete">
+                      <button className="icon-btn" onClick={() => deletePersona(p.id)} title="Delete" aria-label={`Delete persona ${p.name}`}>
                         ×
                       </button>
                     </li>
@@ -1663,6 +1804,7 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="e.g. pytest -q"
+                    aria-label="Check command"
                     value={checkCommand}
                     onChange={(e) => setCheckCommand(e.target.value)}
                     onBlur={(e) => saveCheckCommand(e.target.value.trim())}
@@ -1725,6 +1867,7 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="Name"
+                    aria-label="MCP server name"
                     value={newMcpName}
                     onChange={(e) => setNewMcpName(e.target.value)}
                     style={{ flex: "0 0 120px" }}
@@ -1732,12 +1875,14 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="Command, e.g. npx or /path/to/python"
+                    aria-label="MCP server command"
                     value={newMcpCommand}
                     onChange={(e) => setNewMcpCommand(e.target.value)}
                   />
                   <input
                     className="settings-input"
                     placeholder="Args (space-separated)"
+                    aria-label="MCP server args"
                     value={newMcpArgs}
                     onChange={(e) => setNewMcpArgs(e.target.value)}
                   />
@@ -1764,7 +1909,7 @@ export default function SettingsPanel({
                           <button className="text-btn" onClick={() => toggleMcpServer(s.id, !s.enabled)}>
                             {s.enabled ? "On" : "Off"}
                           </button>
-                          <button className="icon-btn" onClick={() => removeMcpServer(s.id)} title="Remove">
+                          <button className="icon-btn" onClick={() => removeMcpServer(s.id)} title="Remove" aria-label="Remove server">
                             ×
                           </button>
                         </span>
@@ -1930,6 +2075,7 @@ export default function SettingsPanel({
                             className="model-delete-btn"
                             onClick={() => handleDeleteModel(m.name)}
                             title="Delete model from Ollama"
+                            aria-label={`Delete model ${m.name} from Ollama`}
                           >
                             <Icon name="x" size={13} />
                           </button>
@@ -1987,6 +2133,7 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="model name, e.g. llama3.2:3b"
+                    aria-label="Model name to pull"
                     value={pullName}
                     onChange={(e) => setPullName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handlePull()}
@@ -2022,24 +2169,28 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="New model name, e.g. my-assistant"
+                    aria-label="New model name"
                     value={createForm.name}
                     onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
                   />
                   <input
                     className="settings-input"
                     placeholder="Base model (from), e.g. llama3.2:3b"
+                    aria-label="Base model"
                     value={createForm.from}
                     onChange={(e) => setCreateForm((f) => ({ ...f, from: e.target.value }))}
                   />
                   <input
                     className="settings-input"
                     placeholder="System prompt (optional)"
+                    aria-label="System prompt"
                     value={createForm.system}
                     onChange={(e) => setCreateForm((f) => ({ ...f, system: e.target.value }))}
                   />
                   <input
                     className="settings-input"
                     placeholder="Adapter path (optional, for LoRA)"
+                    aria-label="Adapter path"
                     value={createForm.adapter}
                     onChange={(e) => setCreateForm((f) => ({ ...f, adapter: e.target.value }))}
                   />
@@ -2142,19 +2293,20 @@ export default function SettingsPanel({
                   Import
                 </h3>
                 <p className="settings-section-desc">
-                  Bring your history over from another tool — upload the{" "}
-                  <code>conversations.json</code> from a ChatGPT or Claude data export. Zenith
-                  detects which it is automatically and creates a conversation for each chat.
+                  Bring your history over from another tool, or move it between two Zenith
+                  instances — upload a ChatGPT/Claude <code>conversations.json</code>, or a
+                  <code> zenith-export.json</code> downloaded from "Export as JSON" above (on this
+                  machine or another one). Zenith detects which it is automatically.
                 </p>
                 <div className="setting-row">
                   <div className="setting-meta">
-                    <span className="setting-label">Import from ChatGPT / Claude</span>
+                    <span className="setting-label">Import a file</span>
                     <span className="setting-hint">
                       {importStatus || "Your original messages and timestamps are preserved."}
                     </span>
                   </div>
                   <label className="settings-btn-primary" style={{ cursor: "pointer" }}>
-                    {importing ? "Importing…" : "Choose conversations.json"}
+                    {importing ? "Importing…" : "Choose a file"}
                     <input
                       type="file"
                       accept="application/json,.json"
@@ -2178,6 +2330,7 @@ export default function SettingsPanel({
                     className="settings-input"
                     type="password"
                     placeholder={lockEnabled ? "Current passcode (to change/disable)" : "Set a passcode (min 4 chars)"}
+                    aria-label={lockEnabled ? "Current passcode" : "Set a passcode"}
                     value={lockInput}
                     onChange={(e) => setLockInput(e.target.value)}
                   />
@@ -2209,6 +2362,7 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="/path/to/notes"
+                    aria-label="Folder path to watch"
                     value={newFolderPath}
                     onChange={(e) => setNewFolderPath(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addFolder()}
@@ -2241,7 +2395,7 @@ export default function SettingsPanel({
                         <button className="text-btn" onClick={() => toggleFolder(f.id, !f.enabled)}>
                           {f.enabled ? "On" : "Off"}
                         </button>
-                        <button className="icon-btn" onClick={() => removeFolder(f.id)} title="Stop watching">
+                        <button className="icon-btn" onClick={() => removeFolder(f.id)} title="Stop watching" aria-label="Stop watching folder">
                           ×
                         </button>
                       </span>
@@ -2270,6 +2424,7 @@ export default function SettingsPanel({
                     <input
                       className="settings-input"
                       placeholder="Name, e.g. Morning brief"
+                      aria-label="Schedule name"
                       value={newScheduleName}
                       onChange={(e) => setNewScheduleName(e.target.value)}
                     />
@@ -2278,6 +2433,7 @@ export default function SettingsPanel({
                       style={{ flex: "0 0 140px" }}
                       value={newScheduleMode}
                       onChange={(e) => setNewScheduleMode(e.target.value)}
+                      aria-label="Schedule mode"
                     >
                       <option value="chat">Chat</option>
                       <option value="research">Deep Research</option>
@@ -2287,6 +2443,7 @@ export default function SettingsPanel({
                     className="settings-textarea"
                     rows={2}
                     placeholder="Prompt to run each time…"
+                    aria-label="Prompt to run each time"
                     value={newSchedulePrompt}
                     onChange={(e) => setNewSchedulePrompt(e.target.value)}
                   />
@@ -2337,7 +2494,7 @@ export default function SettingsPanel({
                           <button className="text-btn" onClick={() => toggleSchedule(s.id, !s.enabled)}>
                             {s.enabled ? "On" : "Off"}
                           </button>
-                          <button className="icon-btn" onClick={() => deleteSchedule(s.id)} title="Delete">
+                          <button className="icon-btn" onClick={() => deleteSchedule(s.id)} title="Delete" aria-label="Delete schedule">
                             ×
                           </button>
                         </span>
@@ -2377,6 +2534,7 @@ export default function SettingsPanel({
                   <input
                     className="settings-input"
                     placeholder="http://localhost:9000/hook"
+                    aria-label="Webhook URL"
                     value={newWebhookUrl}
                     onChange={(e) => setNewWebhookUrl(e.target.value)}
                   />
@@ -2412,7 +2570,7 @@ export default function SettingsPanel({
                         <button className="text-btn" onClick={() => toggleWebhook(w.id, !w.enabled)}>
                           {w.enabled ? "On" : "Off"}
                         </button>
-                        <button className="icon-btn" onClick={() => deleteWebhook(w.id)} title="Delete">×</button>
+                        <button className="icon-btn" onClick={() => deleteWebhook(w.id)} title="Delete" aria-label="Delete webhook">×</button>
                       </span>
                     </li>
                   ))}
@@ -2431,10 +2589,11 @@ export default function SettingsPanel({
                     <input
                       className="settings-input"
                       placeholder="Rule name"
+                      aria-label="Rule name"
                       value={newRuleName}
                       onChange={(e) => setNewRuleName(e.target.value)}
                     />
-                    <select className="settings-select" value={newRuleTrigger} onChange={(e) => setNewRuleTrigger(e.target.value)}>
+                    <select className="settings-select" value={newRuleTrigger} onChange={(e) => setNewRuleTrigger(e.target.value)} aria-label="Rule trigger event">
                       {eventTypes.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
@@ -2442,11 +2601,12 @@ export default function SettingsPanel({
                     <input
                       className="settings-input"
                       placeholder="Folder ID to filter on (optional — leave blank for any watched folder)"
+                      aria-label="Folder ID to filter on"
                       value={newRuleFolderId}
                       onChange={(e) => setNewRuleFolderId(e.target.value)}
                     />
                   )}
-                  <select className="settings-select" value={newRuleActionType} onChange={(e) => setNewRuleActionType(e.target.value)}>
+                  <select className="settings-select" value={newRuleActionType} onChange={(e) => setNewRuleActionType(e.target.value)} aria-label="Rule action type">
                     <option value="prompt">Send a prompt</option>
                     <option value="webhook">Call a webhook</option>
                   </select>
@@ -2456,10 +2616,11 @@ export default function SettingsPanel({
                         className="settings-textarea"
                         rows={2}
                         placeholder="Prompt to run, e.g. Summarize this: {event_data}"
+                        aria-label="Prompt to run"
                         value={newRulePrompt}
                         onChange={(e) => setNewRulePrompt(e.target.value)}
                       />
-                      <select className="settings-select" value={newRuleMode} onChange={(e) => setNewRuleMode(e.target.value)}>
+                      <select className="settings-select" value={newRuleMode} onChange={(e) => setNewRuleMode(e.target.value)} aria-label="Rule mode">
                         <option value="chat">Chat</option>
                         <option value="research">Deep Research</option>
                       </select>
@@ -2468,6 +2629,7 @@ export default function SettingsPanel({
                     <input
                       className="settings-input"
                       placeholder="Webhook URL for this rule"
+                      aria-label="Webhook URL for this rule"
                       value={newRuleWebhookUrl}
                       onChange={(e) => setNewRuleWebhookUrl(e.target.value)}
                     />
@@ -2491,7 +2653,7 @@ export default function SettingsPanel({
                         <button className="text-btn" onClick={() => toggleRule(r.id, !r.enabled)}>
                           {r.enabled ? "On" : "Off"}
                         </button>
-                        <button className="icon-btn" onClick={() => deleteRule(r.id)} title="Delete">×</button>
+                        <button className="icon-btn" onClick={() => deleteRule(r.id)} title="Delete" aria-label="Delete rule">×</button>
                       </span>
                     </li>
                   ))}

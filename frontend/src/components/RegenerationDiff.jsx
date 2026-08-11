@@ -43,10 +43,16 @@ export default function RegenerationDiff({ siblings, initialLeftId, initialRight
 
   return (
     <div className="regen-diff-overlay" onClick={onClose}>
-      <div className="regen-diff-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="regen-diff-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="regen-diff-title"
+      >
         <div className="regen-diff-header">
-          <span>Compare versions</span>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <span id="regen-diff-title">Compare versions</span>
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>

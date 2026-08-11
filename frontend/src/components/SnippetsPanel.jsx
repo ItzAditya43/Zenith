@@ -69,7 +69,7 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
               Quick actions
             </button>
           </div>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>
@@ -80,12 +80,14 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
               <input
                 className="settings-input"
                 placeholder='Title (e.g. "Bug report template")'
+                aria-label="Snippet title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
               <textarea
                 className="settings-input notes-add-input"
                 placeholder="Snippet content…"
+                aria-label="Snippet content"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 rows={3}
@@ -107,7 +109,7 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
                       {s.content.length > 140 ? s.content.slice(0, 140) + "…" : s.content}
                     </div>
                   </button>
-                  <button className="conversation-delete" style={{ opacity: 1 }} onClick={() => remove(s.id)} title="Delete">
+                  <button className="conversation-delete" style={{ opacity: 1 }} onClick={() => remove(s.id)} title="Delete" aria-label={`Delete snippet "${s.title}"`}>
                     <Icon name="x" size={13} />
                   </button>
                 </li>
@@ -125,12 +127,14 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
               <input
                 className="settings-input"
                 placeholder='Name (e.g. "Explain this error")'
+                aria-label="Quick action name"
                 value={actionName}
                 onChange={(e) => setActionName(e.target.value)}
               />
               <textarea
                 className="settings-input notes-add-input"
                 placeholder="Prompt template…"
+                aria-label="Prompt template"
                 value={actionPrompt}
                 onChange={(e) => setActionPrompt(e.target.value)}
                 rows={3}
@@ -158,7 +162,7 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
                       {a.prompt_template.length > 140 ? a.prompt_template.slice(0, 140) + "…" : a.prompt_template}
                     </div>
                   </button>
-                  <button className="conversation-delete" style={{ opacity: 1 }} onClick={() => removeAction(a.id)} title="Delete">
+                  <button className="conversation-delete" style={{ opacity: 1 }} onClick={() => removeAction(a.id)} title="Delete" aria-label={`Delete quick action "${a.name}"`}>
                     <Icon name="x" size={13} />
                   </button>
                 </li>

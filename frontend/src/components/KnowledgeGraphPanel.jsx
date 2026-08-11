@@ -57,10 +57,10 @@ export default function KnowledgeGraphPanel({ onClose, onOpenConversation }) {
   if (error) {
     return (
       <div className="notes-overlay" onClick={onClose}>
-        <div className="notes-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="notes-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Knowledge graph">
           <div className="notes-header">
             <span>Knowledge graph</span>
-            <button className="icon-btn" onClick={onClose}><Icon name="x" size={14} /></button>
+            <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close"><Icon name="x" size={14} /></button>
           </div>
           <p className="settings-error">{error}</p>
         </div>
@@ -91,7 +91,7 @@ export default function KnowledgeGraphPanel({ onClose, onOpenConversation }) {
       >
         <div className="notes-header">
           <span>Knowledge graph — what's connected to what</span>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>

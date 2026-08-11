@@ -56,6 +56,11 @@ export default function App() {
     () => localStorage.getItem("zenith-theme") || "midnight-glass"
   );
   const [density, setDensity] = useState(() => localStorage.getItem("zenith-density") || "comfortable");
+  const [fontScale, setFontScale] = useState(() => localStorage.getItem("zenith-font-scale") || "1");
+  const [highContrast, setHighContrast] = useState(() => localStorage.getItem("zenith-high-contrast") === "1");
+  const [reduceMotion, setReduceMotion] = useState(() => localStorage.getItem("zenith-reduce-motion") === "1");
+  const [dyslexiaFont, setDyslexiaFont] = useState(() => localStorage.getItem("zenith-dyslexia-font") === "1");
+  const [underlineLinks, setUnderlineLinks] = useState(() => localStorage.getItem("zenith-underline-links") === "1");
   const [ambientAnim, setAmbientAnim] = useState(() => localStorage.getItem("zenith-ambient") || "none");
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     () => localStorage.getItem("zenith-notifications") === "1"
@@ -149,6 +154,31 @@ export default function App() {
     document.documentElement.setAttribute("data-density", density);
     localStorage.setItem("zenith-density", density);
   }, [density]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--font-scale", fontScale);
+    localStorage.setItem("zenith-font-scale", fontScale);
+  }, [fontScale]);
+
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-high-contrast", highContrast);
+    localStorage.setItem("zenith-high-contrast", highContrast ? "1" : "0");
+  }, [highContrast]);
+
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-reduce-motion", reduceMotion);
+    localStorage.setItem("zenith-reduce-motion", reduceMotion ? "1" : "0");
+  }, [reduceMotion]);
+
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-dyslexia-font", dyslexiaFont);
+    localStorage.setItem("zenith-dyslexia-font", dyslexiaFont ? "1" : "0");
+  }, [dyslexiaFont]);
+
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-underline-links", underlineLinks);
+    localStorage.setItem("zenith-underline-links", underlineLinks ? "1" : "0");
+  }, [underlineLinks]);
 
   useEffect(() => {
     localStorage.setItem("zenith-ambient", ambientAnim);
@@ -354,13 +384,42 @@ export default function App() {
       .catch(() => setLockChecked(true));
   }, []);
 
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [manualRetryNonce, setManualRetryNonce] = useState(0);
+  const [isOffline, setIsOffline] = useState(
+    () => typeof navigator !== "undefined" && navigator.onLine === false
+  );
+
+  // Browser-level connectivity (Wi-Fi/LAN down) is a different failure mode
+  // than "backend unreachable" below — surface both distinctly rather than
+  // one generic error, since the fix differs (reconnect network vs. check
+  // Ollama/Docker).
+  useEffect(() => {
+    const goOnline = () => {
+      setIsOffline(false);
+      showToast("Back online.", "success");
+      setManualRetryNonce((n) => n + 1); // immediately retry the backend connection
+    };
+    const goOffline = () => {
+      setIsOffline(true);
+      showToast("You're offline — check your network connection.", "error");
+    };
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
+
   useEffect(() => {
     // The desktop app's bundled backend can take a moment to finish
-    // booting after the window appears — retry a few times before
-    // surfacing a connection error, instead of failing permanently on
-    // whatever request happens to fire first.
+    // booting after the window appears — retry a few times (with backoff)
+    // before surfacing a connection error, instead of failing permanently
+    // on whatever request happens to fire first.
     let cancelled = false;
     const loadWithRetry = async (attempt = 0) => {
+      setRetryAttempt(attempt);
       try {
         const list = await api.listConversations();
         if (cancelled) return;
@@ -373,10 +432,11 @@ export default function App() {
           setActiveId(conv.id);
         }
         setConnectionError(null);
+        setRetryAttempt(0);
       } catch (err) {
         if (cancelled) return;
         if (attempt < 6) {
-          setTimeout(() => loadWithRetry(attempt + 1), 700);
+          setTimeout(() => loadWithRetry(attempt + 1), Math.min(700 * 2 ** attempt, 8000));
         } else {
           setConnectionError(err.message);
         }
@@ -386,7 +446,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [manualRetryNonce]);
 
   const [isNearBottom, setIsNearBottom] = useState(true);
 
@@ -1158,6 +1218,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${focusMode ? "app-shell-focus" : ""}`}>
+      <a href="#chat-main-content" className="skip-link">Skip to chat</a>
       <AmbientCanvas animationId={ambientAnim} />
       {!focusMode && (
         <Sidebar
@@ -1194,13 +1255,14 @@ export default function App() {
         />
       )}
 
-      <main className={`chat-main ${openDoc ? "chat-main-split" : ""}`}>
+      <main className={`chat-main ${openDoc ? "chat-main-split" : ""}`} id="chat-main-content">
         <div className="chat-column">
         <header className="chat-header">
           <button
             className="mobile-menu-btn"
             onClick={() => setSidebarCollapsed((v) => !v)}
             title="Toggle sidebar"
+            aria-label="Toggle sidebar"
           >
             <Icon name="menu" size={18} />
           </button>
@@ -1464,14 +1526,36 @@ export default function App() {
           />
         )}
 
-        {connectionError && (
-          <div className="banner-error">
-            {connectionError}
+        {isOffline && (
+          <div className="banner-error" role="alert">
+            You're offline — Zenith needs a network connection to reach its backend, even on your
+            own LAN.
+          </div>
+        )}
+
+        {!isOffline && connectionError && (
+          <div className="banner-error" role="alert">
+            Can't reach the Zenith backend: {connectionError}
+            <button onClick={() => setManualRetryNonce((n) => n + 1)}>Retry now</button>
             <button onClick={() => setSettingsOpen(true)}>Open settings</button>
           </div>
         )}
 
-        <div className="chat-scroll" ref={scrollRef} onScroll={handleChatScroll}>
+        {!connectionError && retryAttempt > 0 && (
+          <div className="banner-error" role="status">
+            Reconnecting to the backend… (attempt {retryAttempt + 1})
+          </div>
+        )}
+
+        <div
+          className="chat-scroll"
+          ref={scrollRef}
+          onScroll={handleChatScroll}
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions text"
+          aria-label="Conversation messages"
+        >
           <SelectionPopover
             containerRef={scrollRef}
             onExplain={(text) => setSeedText({ text: `Explain this: "${text}"`, nonce: Date.now() })}
@@ -1604,6 +1688,16 @@ export default function App() {
           onImported={() => { refreshConversations(); showToast("Import complete — conversations added.", "success"); }}
           onUseSkill={(prompt) => setSeedText({ text: prompt, nonce: Date.now() })}
           initialSection={settingsInitialSection}
+          fontScale={fontScale}
+          onFontScaleChange={setFontScale}
+          highContrast={highContrast}
+          onHighContrastChange={setHighContrast}
+          reduceMotion={reduceMotion}
+          onReduceMotionChange={setReduceMotion}
+          dyslexiaFont={dyslexiaFont}
+          onDyslexiaFontChange={setDyslexiaFont}
+          underlineLinks={underlineLinks}
+          onUnderlineLinksChange={setUnderlineLinks}
         />
       )}
 

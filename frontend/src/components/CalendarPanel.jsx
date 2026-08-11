@@ -52,12 +52,12 @@ export default function CalendarPanel({ onClose }) {
 
   return (
     <div className="calendar-overlay" onClick={onClose}>
-      <div className="calendar-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="calendar-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="calendar-panel-title">
         <div className="calendar-header">
-          <span>
+          <span id="calendar-panel-title">
             <Icon name="clock" size={14} /> Calendar
           </span>
-          <button className="icon-btn" onClick={onClose} title="Close">
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <Icon name="x" size={14} />
           </button>
         </div>
@@ -65,12 +65,14 @@ export default function CalendarPanel({ onClose }) {
           <input
             className="settings-input"
             placeholder="Event title"
+            aria-label="Event title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
           <input
             className="settings-input"
             type="datetime-local"
+            aria-label="Event date and time"
             value={when}
             onChange={(e) => setWhen(e.target.value)}
           />
@@ -86,7 +88,7 @@ export default function CalendarPanel({ onClose }) {
                 <div className="calendar-event-title">{e.title}</div>
                 <div className="calendar-event-time">{fmt(e.start_ts)}</div>
               </div>
-              <button className="icon-btn" onClick={() => removeEvent(e.id)} title="Delete">
+              <button className="icon-btn" onClick={() => removeEvent(e.id)} title="Delete" aria-label={`Delete ${e.title}`}>
                 <Icon name="x" size={13} />
               </button>
             </li>

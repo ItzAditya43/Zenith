@@ -14,10 +14,16 @@ export default function GroupChatPicker({ personas, selectedIds, onChange, onClo
   };
 
   return (
-    <div className="branch-tree-panel" style={{ width: "min(320px, calc(100vw - 2rem))" }}>
+    <div
+      className="branch-tree-panel"
+      style={{ width: "min(320px, calc(100vw - 2rem))" }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="group-chat-picker-title"
+    >
       <div className="branch-tree-header">
-        <span>Group chat</span>
-        <button className="icon-btn" onClick={onClose} title="Close">
+        <span id="group-chat-picker-title">Group chat</span>
+        <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
           <Icon name="x" size={14} />
         </button>
       </div>
