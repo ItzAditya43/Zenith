@@ -251,6 +251,9 @@ def _resolve_embed_model() -> str | None:
     return None
 
 
+_RRF_K = 60  # standard constant from the original RRF paper
+
+
 def retrieve(
     query: str,
     source_id: str | None = None,
@@ -261,8 +264,18 @@ def retrieve(
     """Return the top-k most relevant chunks for `query`. `source_id`
     scopes to one document; `source_kind`/`exclude_conversation_id` power
     cross-conversation recall (past-message chunks, minus the current
-    conversation). Falls back to a LIKE query when sqlite-vec is
-    unavailable. Blocking — call via asyncio.to_thread from async code."""
+    conversation). Blocking — call via asyncio.to_thread from async code.
+
+    When sqlite-vec + an embedding model are both available, this runs
+    vector search and the lexical LIKE search in parallel and fuses their
+    rankings with Reciprocal Rank Fusion (RRF) — exact-keyword matches
+    (function names, error codes) that embeddings alone sometimes bury
+    get a chance to surface. In that fused case `score` is the RRF score
+    (higher is better); it is NOT a cosine distance and the two are not
+    comparable across calls. Falls back to lexical-only when sqlite-vec
+    is unavailable, no embedding model is configured, or vector search
+    raises/returns nothing — in all of those cases `score` keeps its old
+    meaning (LIKE match count) unchanged."""
     if not bool(settings.get("rag_enabled", True)):
         return []
     _ensure_table()
@@ -273,10 +286,35 @@ def retrieve(
     if embed_model:
         qvec = _embed_sync(embed_model, query)
         if qvec:
-            hits = _retrieve_vec(qvec, filters, top_k)
-            if hits:
-                return hits
+            fan_out = min(top_k * 3, 50)
+            vec_hits = _retrieve_vec(qvec, filters, fan_out)
+            if vec_hits:
+                lex_hits = _retrieve_fallback(query, filters, fan_out)
+                if lex_hits:
+                    return _fuse_rrf(vec_hits, lex_hits, top_k)
+                return vec_hits[:top_k]
     return _retrieve_fallback(query, filters, top_k)
+
+
+def _fuse_rrf(vec_hits: list[dict], lex_hits: list[dict], top_k: int) -> list[dict[str, Any]]:
+    """Reciprocal Rank Fusion: combine two ranked lists into one, scoring
+    by 1/(k + rank) summed across lists so a chunk ranked highly by either
+    signal (or both) rises to the top. Fuses on chunk `id`, not text —
+    two chunks can share identical text."""
+    scores: dict[int, float] = {}
+    rows: dict[int, dict] = {}
+    for hits in (vec_hits, lex_hits):
+        for rank, hit in enumerate(hits, start=1):
+            cid = hit["id"]
+            scores[cid] = scores.get(cid, 0.0) + 1.0 / (_RRF_K + rank)
+            rows.setdefault(cid, hit)
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
+    out = []
+    for cid, score in ranked:
+        row = dict(rows[cid])
+        row["score"] = score
+        out.append(row)
+    return out
 
 
 class _Filters:
@@ -318,7 +356,8 @@ def _retrieve_vec(qvec: list[float], filters: _Filters, top_k: int) -> list[dict
             (_vec_blob(qvec), *filters.params, top_k),
         )
         return [
-            {"text": r[1], "source_id": r[2], "conversation_id": r[3], "score": float(r[4]), "chunk_index": r[5]}
+            {"id": r[0], "text": r[1], "source_id": r[2], "conversation_id": r[3],
+             "score": float(r[4]), "chunk_index": r[5]}
             for r in cur.fetchall()
         ]
     except Exception as exc:
@@ -339,7 +378,7 @@ def _retrieve_fallback(query: str, filters: _Filters, top_k: int) -> list[dict]:
     where = (" AND " + " AND ".join(filters.clauses)) if filters.clauses else ""
     sql = (
         f"SELECT * FROM ("
-        f"  SELECT chunks.text, chunks.source_id, chunks.conversation_id,"
+        f"  SELECT chunks.id, chunks.text, chunks.source_id, chunks.conversation_id,"
         f"         ({like_score}) AS s, chunks.created_at AS ca, chunks.chunk_index"
         f"  FROM chunks WHERE 1=1{where}"
         f") WHERE s > 0 ORDER BY s DESC, ca DESC LIMIT ?"
@@ -347,7 +386,8 @@ def _retrieve_fallback(query: str, filters: _Filters, top_k: int) -> list[dict]:
     cur = _conn().cursor()
     cur.execute(sql, (*params, *filters.params, top_k))
     return [
-        {"text": r[0], "source_id": r[1], "conversation_id": r[2], "score": float(r[3]), "chunk_index": r[5]}
+        {"id": r[0], "text": r[1], "source_id": r[2], "conversation_id": r[3],
+         "score": float(r[4]), "chunk_index": r[6]}
         for r in cur.fetchall()
     ]
 

@@ -37,6 +37,7 @@ or enable it for free via GitHub Pages (Settings → Pages → deploy from
   - [MCP client support](#mcp-client-support)
   - [Council of models](#council-of-models)
   - [Conversation branching](#conversation-branching)
+  - [Live artifacts (preview + run)](#live-artifacts-preview--run)
   - [Code editor panel](#code-editor-panel)
   - [Document editing](#document-editing)
   - [Image generation](#image-generation)
@@ -123,7 +124,7 @@ processes because Ollama doesn't serve those model types.
 | `app/services/council_service.py` | Concurrent multi-model fan-out |
 | `app/services/mcp_service.py` | MCP client (stdio transport) |
 | `app/services/memory_service.py` | Long-term fact extraction + injection |
-| `app/services/rag_service.py` | Chunking/embedding/retrieval (sqlite-vec) shared by documents, folders, and cross-conversation recall |
+| `app/services/rag_service.py` | Chunking/embedding/retrieval (sqlite-vec + hybrid lexical fusion) shared by documents, folders, and cross-conversation recall |
 | `app/services/folder_service.py` | Watched-folder scanning into RAG |
 | `app/services/schedule_service.py` | Recurring unattended turns |
 | `app/services/persona_service.py` | Named system-prompt presets |
@@ -228,7 +229,11 @@ is a real decision, not a formality.
   (llava, qwen2-vl, whatever you've pulled).
 - **Documents** — PDF/DOCX/TXT/MD/CSV/JSON get text-extracted; long
   documents are retrieved by relevant chunk (via the RAG index) instead of
-  crudely truncated.
+  crudely truncated. Retrieval is **hybrid**: when an embedding model is
+  configured, vector (cosine) and lexical (keyword) hits are fused via
+  Reciprocal Rank Fusion rather than lexical only kicking in as an
+  all-or-nothing fallback — exact terms (function names, error codes) rank
+  well even when the embedding alone would bury them.
 - **Video** — sampled frames go to the vision model, the audio track is
   transcribed by Whisper, and both are handed to the model together.
 - **Voice in** — hold the mic, Whisper transcribes into the composer.
@@ -474,6 +479,31 @@ at each level," and the full tree is still there underneath.
   back to an old branch resumes the whole conversation that happened on
   it, not just one message.
 - A `‹ 2/3 ›` switcher appears on any message that has siblings.
+
+### Live artifacts (preview + run)
+
+`components/DocumentEditor.jsx`. Click "Open in editor" on any code block
+in a reply to pull it into its own side panel — already existed for
+editing/copying/downloading/sending-back; now also renders it live:
+
+- **Preview tab** (HTML/CSS/JS) — a debounced, sandboxed `<iframe
+  sandbox="allow-scripts">` (no `allow-same-origin`, no access to Zenith's
+  own DOM/storage/backend) renders the current text as you edit. Full HTML
+  documents render as-is; bare JS/JSX snippets get wrapped in a minimal
+  HTML shell so they still preview (no JSX transpilation — a JSX snippet
+  errors visibly in the preview's console rather than being silently
+  bundled).
+- **Run tab** (Python) — executes in-browser via [Pyodide](https://pyodide.org)
+  (WASM CPython), stdout/stderr/tracebacks captured into an output pane.
+  Consistent with this project never calling out to a CDN, the ~10–30MB
+  runtime is **not** fetched remotely and isn't bundled by default either —
+  vendor it once with:
+  ```bash
+  cd frontend && npm install pyodide
+  cp -r node_modules/pyodide/* public/pyodide/
+  ```
+  Without those local assets, the Run tab explains exactly that instead of
+  silently falling back to a public CDN.
 
 ### Code editor panel
 
