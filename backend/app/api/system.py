@@ -79,10 +79,67 @@ async def _tts_status() -> dict:
         return {"ok": False, "error": str(exc)[:120]}
 
 
+def _vector_search_status() -> dict:
+    """Whether the sqlite-vec extension is installed, i.e. RAG can do true
+    vector search instead of falling back to LIKE-based retrieval.
+
+    rag_service doesn't expose a dedicated "is vector search active" accessor
+    (it only decides this lazily, per-connection, inside `_ensure_table`/
+    `_conn`), and rag_service.py belongs to another in-flight change, so we
+    don't modify it here. Importing `sqlite_vec` is the same check that
+    module makes internally to decide whether to load the extension — if the
+    package isn't importable, the extension can't load either way. This is a
+    presence check, not a live per-connection load confirmation, but it's an
+    honest proxy without touching a file outside this task's scope."""
+    try:
+        import sqlite_vec  # noqa: F401
+
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:120]}
+
+
+def _image_gen_status() -> dict:
+    """Reuses image_service's own "configured" check rather than
+    re-implementing it — a real reachability probe would mean issuing a
+    request to the user's SD server on every /api/health poll, which is
+    heavier than the other checks here, so we report configuration state
+    only (same as what the header's image button already relies on)."""
+    from app.services import image_service
+
+    configured = image_service.is_configured()
+    return {"ok": configured, "configured": configured}
+
+
+def _agent_mode_status() -> dict:
+    """Not a network probe — just reflects the settings switch."""
+    enabled = bool(settings.get("agent_enabled", False))
+    return {"ok": enabled, "enabled": enabled}
+
+
+def _mcp_status() -> dict:
+    """Reports configured MCP server counts. We deliberately don't spawn a
+    stdio subprocess per server here (mcp_service's connections are
+    stateless-per-call and can take up to _CONNECT_TIMEOUT=15s each) — doing
+    that on every /api/health poll would make this endpoint slow and noisy.
+    Configured/enabled counts are enough for a glance-level health view."""
+    try:
+        from app.services import mcp_service
+
+        servers = mcp_service.list_servers()
+        enabled = [s for s in servers if s.get("enabled")]
+        return {"ok": True, "configured": len(servers), "enabled": len(enabled)}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:120]}
+
+
 def _overall(ollama: dict, whisper: dict, tts: dict) -> Literal["ok", "degraded", "down"]:
     """Ollama is required; Whisper/TTS being unavailable only downgrades
     the app (text chat still works), so it doesn't push us from `degraded`
-    to `down` on its own."""
+    to `down` on its own. The newer components (vector search, image gen,
+    agent mode, MCP) are all opt-in/optional by design, so — same as
+    Whisper/TTS — they can only ever push status to `degraded`, never
+    `down`; only Ollama being unreachable does that."""
     if not ollama.get("ok"):
         return "down"
     if not whisper.get("ok") or not tts.get("ok"):
@@ -97,10 +154,14 @@ async def health():
     The shape is deliberately forward-compatible: `components` lists each
     dependency and its own status so a UI/monitoring layer can render a
     richer health view later without an API change."""
-    ollama, whisper, tts = await asyncio.gather(
+    ollama, whisper, tts, vector_search, image_gen, agent_mode, mcp = await asyncio.gather(
         _ollama_status(OllamaClient()),
         _whisper_status(),
         _tts_status(),
+        asyncio.to_thread(_vector_search_status),
+        asyncio.to_thread(_image_gen_status),
+        asyncio.to_thread(_agent_mode_status),
+        asyncio.to_thread(_mcp_status),
     )
     status = _overall(ollama, whisper, tts)
     log.info("health.probe", status=status, ollama=ollama.get("ok"), whisper=whisper.get("ok"), tts=tts.get("ok"))
@@ -110,6 +171,10 @@ async def health():
             "ollama": ollama,
             "whisper": whisper,
             "tts": tts,
+            "vector_search": vector_search,
+            "image_gen": image_gen,
+            "agent_mode": agent_mode,
+            "mcp": mcp,
         },
     }
     if status == "down":

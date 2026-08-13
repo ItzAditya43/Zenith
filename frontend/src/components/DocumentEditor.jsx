@@ -14,14 +14,64 @@ const EXT_BY_LANG = {
 // of block isn't a dead end.
 function looksPreviewable(lang, text) {
   if (lang === "html") return true;
-  if (lang === "javascript" || lang === "jsx") return true;
+  if (lang === "javascript" || lang === "jsx" || lang === "tsx") return true;
   return /<\/html>|<script[\s>]|<style[\s>]/i.test(text || "");
 }
 
-function buildPreviewDoc(text, lang) {
+const JSX_LANGS = new Set(["jsx", "tsx"]);
+
+// The preview iframe's React runtime — an IIFE that sets window.React /
+// window.ReactDOM, built automatically at dev/build time from the React
+// version already in package.json (see scripts/build-preview-runtime.mjs
+// and the Vite plugin in vite.config.js). Self-hosted, same-origin, no CDN,
+// no manual vendoring step required.
+const PREVIEW_REACT_RUNTIME_URL = "/preview-runtime/react-runtime.js";
+
+function buildPreviewDoc(text, lang, transformedJs, transformError) {
   const isFullDoc = /<!doctype html/i.test(text) || /<html[\s>]/i.test(text);
   if (isFullDoc) return text;
-  if (lang === "javascript" || lang === "jsx") {
+
+  if (JSX_LANGS.has(lang)) {
+    if (transformError) {
+      // Same spirit as Python tracebacks in the Run tab: show the error
+      // as-is rather than leaving a blank white iframe with no explanation.
+      const escaped = String(transformError)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;");
+      return `<!doctype html>
+<html>
+  <head><meta charset="utf-8" /></head>
+  <body>
+    <pre style="white-space:pre-wrap;font-family:monospace;color:#c0392b;padding:12px;margin:0;">${escaped}</pre>
+  </body>
+</html>`;
+    }
+    if (transformedJs == null) {
+      // Transform hasn't run yet (still loading esbuild-wasm, or missing).
+      return `<!doctype html>
+<html>
+  <head><meta charset="utf-8" /></head>
+  <body></body>
+</html>`;
+    }
+    return `<!doctype html>
+<html>
+  <head><meta charset="utf-8" /></head>
+  <body>
+    <div id="root"></div>
+    <script src="${PREVIEW_REACT_RUNTIME_URL}"><\/script>
+    <script>
+      try {
+${transformedJs}
+      } catch (err) {
+        document.body.innerHTML = '<pre style="white-space:pre-wrap;font-family:monospace;color:#c0392b;padding:12px;margin:0;">' + String(err && err.stack || err) + '<\\/pre>';
+      }
+    <\/script>
+  </body>
+</html>`;
+  }
+
+  if (lang === "javascript") {
     return `<!doctype html>
 <html>
   <head><meta charset="utf-8" /></head>
@@ -42,6 +92,46 @@ ${text}
 ${text}
   </body>
 </html>`;
+}
+
+// esbuild-wasm's JS wrapper is small, but its .wasm binary is ~14MB —
+// close enough to Pyodide's size class that it gets the exact same
+// treatment: it is bundled as a real npm dependency (so no manual vendoring
+// step is needed, unlike Pyodide) but the wasm binary itself is only ever
+// fetched same-origin, lazily, on first use of a JSX/TSX preview — never
+// from a CDN. Vite's `?url` asset handling copies the .wasm into the build
+// output automatically; nothing calls out anywhere else.
+let esbuildInitPromise = null;
+async function ensureEsbuildInitialized() {
+  if (!esbuildInitPromise) {
+    esbuildInitPromise = (async () => {
+      const [esbuild, { default: wasmURL }] = await Promise.all([
+        import("esbuild-wasm"),
+        import("esbuild-wasm/esbuild.wasm?url"),
+      ]);
+      await esbuild.initialize({ wasmURL });
+      return esbuild;
+    })();
+  }
+  return esbuildInitPromise;
+}
+
+async function transformJsx(text, lang) {
+  const esbuild = await ensureEsbuildInitialized();
+  const loader = lang === "tsx" ? "tsx" : "jsx";
+  const result = await esbuild.transform(text, {
+    loader,
+    // Classic runtime: output is plain React.createElement(...) calls,
+    // which only need the window.React / window.ReactDOM globals from the
+    // vendored runtime above — no ESM import resolution needed inside the
+    // sandboxed iframe (the "automatic" runtime would emit
+    // `import {jsx} from "react/jsx-runtime"`, which a plain <script> tag
+    // in srcDoc can't resolve).
+    jsx: "transform",
+    jsxFactory: "React.createElement",
+    jsxFragment: "React.Fragment",
+  });
+  return result.code;
 }
 
 // Pyodide is a ~10-30MB WASM runtime. Loading it from a public CDN would
@@ -90,13 +180,37 @@ export default function DocumentEditor({ doc, onClose, onSendBack }) {
 
   // --- Live preview ---------------------------------------------------
   const [previewDoc, setPreviewDoc] = useState("");
+  const isJsxLang = JSX_LANGS.has(doc.lang);
   useEffect(() => {
     if (tab !== "preview" || !canPreview) return;
+    // esbuild-wasm's transform is fast once initialized; a shorter debounce
+    // for jsx/tsx reads better without hammering it on every keystroke.
+    const delay = isJsxLang ? 250 : 400;
+    let cancelled = false;
     const handle = setTimeout(() => {
-      setPreviewDoc(buildPreviewDoc(text, doc.lang));
-    }, 400);
-    return () => clearTimeout(handle);
-  }, [text, tab, canPreview, doc.lang]);
+      if (!isJsxLang) {
+        setPreviewDoc(buildPreviewDoc(text, doc.lang));
+        return;
+      }
+      transformJsx(text, doc.lang)
+        .then((js) => {
+          if (!cancelled) setPreviewDoc(buildPreviewDoc(text, doc.lang, js, null));
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          // esbuild transform failures carry a structured `.errors` array
+          // with readable location info; fall back to `.message`/String().
+          const detail = Array.isArray(err?.errors) && err.errors.length
+            ? err.errors.map((e) => e.text + (e.location ? ` (line ${e.location.line})` : "")).join("\n")
+            : (err && err.message) || String(err);
+          setPreviewDoc(buildPreviewDoc(text, doc.lang, null, detail));
+        });
+    }, delay);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [text, tab, canPreview, doc.lang, isJsxLang]);
 
   // --- Python run via Pyodide ------------------------------------------
   const pyodideRef = useRef(null);

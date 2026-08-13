@@ -3251,6 +3251,48 @@ button.msg-source-chip-recall:hover {
   line-height: 1.5;
   tab-size: 2;
 }
+/* Layered "poor man's syntax-highlighted textarea": the real <textarea>
+   stays on top handling all input/cursor/selection behavior unchanged;
+   a Prism-highlighted <pre> sits underneath, same font/padding/line-height,
+   scroll-synced via JS (onScroll) so the two stay visually locked. */
+.code-editor-editor-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+}
+.code-editor-highlight-layer {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  pointer-events: none;
+  background: var(--bg-inset);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.code-editor-highlight-layer pre,
+.code-editor-highlight-layer code {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
+.code-editor-textarea-overlay {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  z-index: 1;
+}
+.code-editor-textarea-overlay::selection {
+  background: rgba(120, 170, 255, 0.35);
+}
 .code-editor-statusbar {
   display: flex;
   align-items: center;
@@ -3620,6 +3662,59 @@ button.msg-source-chip-recall:hover {
   font-size: 9px;
   color: var(--text-tertiary);
   white-space: nowrap;
+}
+
+/* Health panel */
+.health-overall {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  padding: var(--space-2) 0 var(--space-3);
+  text-transform: capitalize;
+}
+.health-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.health-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  border-radius: 6px;
+  background: var(--bg-inset);
+}
+.health-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.health-row-label {
+  font-size: 13px;
+}
+.health-row-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-left: calc(8px + var(--space-2));
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.health-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--signal-danger);
+}
+.health-dot.is-ok {
+  background: var(--signal-general);
+}
+.health-overall-degraded .health-dot {
+  background: #d9a441;
 }
 
 .about-section {

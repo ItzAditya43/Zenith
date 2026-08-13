@@ -104,8 +104,8 @@ half is the verified-safe subset. Wiring the in-app install step is a
 reasonable follow-up once a release has actually shipped once.
 
 **The release pipeline** (`.github/workflows/release.yml`) builds and
-publishes signed Windows + Linux installers whenever a `v*` tag is pushed
-(e.g. `git tag v0.2.0 && git push --tags`), using
+publishes signed Windows + Linux + macOS installers whenever a `v*` tag is
+pushed (e.g. `git tag v0.2.0 && git push --tags`), using
 [`tauri-apps/tauri-action`](https://github.com/tauri-apps/tauri-action) to
 freeze the backend, build the installer, sign it, and generate the
 `latest.json` manifest the updater plugin polls — all as a **draft** GitHub
@@ -124,7 +124,13 @@ something to improvise differently.
 
 ## macOS note
 
-Unsigned `.dmg`s trip Gatekeeper ("app can't be opened"). For a distributable
-build you need an Apple Developer ID cert + notarization
+The release workflow now builds a macOS installer on every tagged release
+(`macos-latest` runner, same freeze-sidecar-then-`tauri-action` steps as
+Windows/Linux) — but it is **unsigned/unnotarized** unless you set the Apple
+certificate/notarization secrets below, and it has not been run against a
+real tag as of this writing (i.e. built in CI, not yet hand-verified on
+actual macOS hardware the way the Linux build has been — see the top-level
+README's Known Limitations). Unsigned `.dmg`s trip Gatekeeper ("app can't be
+opened"). For a distributable build you need an Apple Developer ID cert + notarization
 (`cargo tauri build` respects `APPLE_CERTIFICATE`/`APPLE_ID` env vars). For
 personal use, right-click → Open once to bypass.

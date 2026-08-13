@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent, automation, chat, digest, documents, export, files, folders, graph, images, lock, mcp, memory, schedules, sync, system, upload, voice
+from app.api import agent, automation, chat, digest, documents, export, files, folders, graph, images, lock, mcp, memory, routing, schedules, sync, system, upload, voice
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.storage import init_db
@@ -314,3 +314,4 @@ app.include_router(system.router)
 app.include_router(lock.router)
 app.include_router(images.router)
 app.include_router(sync.router)
+app.include_router(routing.router)

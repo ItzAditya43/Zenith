@@ -1,9 +1,41 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
 // Deliberately no Escape-to-close here, unlike the other panels: this
 // one has a text editor with unsaved changes in it, and Escape closing
 // the whole thing while you're mid-edit would be a data-loss trap.
+
+// Same lazy-loaded Prism build + theme MarkdownRenderer.jsx uses for chat
+// code blocks — reused here for visual consistency, no new dependency.
+const SyntaxHighlighter = lazy(() =>
+  import("react-syntax-highlighter").then((m) => ({ default: m.Prism }))
+);
+import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+
+// Extension -> Prism language id. Inverted from DocumentEditor.jsx's
+// EXT_BY_LANG (lang -> ext) rather than importing it, since that map is
+// keyed the other direction and owned by another component.
+const LANG_BY_EXT = {
+  py: "python", js: "javascript", mjs: "javascript", cjs: "javascript",
+  jsx: "jsx", ts: "typescript", tsx: "tsx",
+  sh: "bash", bash: "bash", json: "json", html: "html", htm: "html",
+  css: "css", yaml: "yaml", yml: "yaml", sql: "sql", rs: "rust",
+  go: "go", java: "java", c: "c", h: "c", cpp: "cpp", cc: "cpp", hpp: "cpp",
+  md: "markdown", markdown: "markdown", rb: "ruby", php: "php",
+  kt: "kotlin", swift: "swift", toml: "toml", xml: "xml",
+};
+
+function langForPath(path) {
+  const ext = (path.split(".").pop() || "").toLowerCase();
+  return LANG_BY_EXT[ext] || "text";
+}
+
+// Syntax highlighting a huge file every keystroke gets janky fast (Prism
+// re-tokenizes the whole string on each render). Above this size we just
+// fall back to the plain textarea with no highlight overlay — still fully
+// editable, just not colorized. Well under the 2MB per-file cap enforced
+// by app/api/files.py.
+const HIGHLIGHT_SIZE_CUTOFF = 200 * 1024; // 200KB
 
 function FileTreeNode({ conversationId, entry, depth, onOpen }) {
   const [expanded, setExpanded] = useState(false);
@@ -115,6 +147,13 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
   };
 
   const activeTab = tabs.find((t) => t.path === activePath);
+  const highlightRef = useRef(null);
+  const syncHighlightScroll = (e) => {
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = e.target.scrollTop;
+      highlightRef.current.scrollLeft = e.target.scrollLeft;
+    }
+  };
 
   const [output, setOutput] = useState(null); // { label, text, loading }
 
@@ -239,18 +278,50 @@ export default function CodeEditorPanel({ conversationId, workdir, onClose }) {
             )}
             {activeTab ? (
               <>
-                <textarea
-                  className="code-editor-textarea"
-                  value={activeTab.content}
-                  onChange={(e) => editContent(activeTab.path, e.target.value)}
-                  spellCheck={false}
-                  onKeyDown={(e) => {
-                    if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-                      e.preventDefault();
-                      saveTab(activeTab.path);
-                    }
-                  }}
-                />
+                {(() => {
+                  const lang = langForPath(activeTab.path);
+                  const canHighlight =
+                    lang !== "text" && activeTab.content.length <= HIGHLIGHT_SIZE_CUTOFF;
+                  return (
+                    <div className="code-editor-editor-wrap">
+                      {canHighlight && (
+                        <div className="code-editor-highlight-layer" ref={highlightRef} aria-hidden="true">
+                          <Suspense fallback={null}>
+                            <SyntaxHighlighter
+                              style={atomDark}
+                              language={lang}
+                              PreTag="div"
+                              customStyle={{
+                                margin: 0,
+                                background: "transparent",
+                                padding: "var(--space-3)",
+                                fontFamily: "var(--font-mono)",
+                                fontSize: "var(--text-sm)",
+                                lineHeight: 1.5,
+                              }}
+                              codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
+                            >
+                              {activeTab.content.replace(/\n$/, "") + "\n"}
+                            </SyntaxHighlighter>
+                          </Suspense>
+                        </div>
+                      )}
+                      <textarea
+                        className={`code-editor-textarea ${canHighlight ? "code-editor-textarea-overlay" : ""}`}
+                        value={activeTab.content}
+                        onChange={(e) => editContent(activeTab.path, e.target.value)}
+                        onScroll={canHighlight ? syncHighlightScroll : undefined}
+                        spellCheck={false}
+                        onKeyDown={(e) => {
+                          if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+                            e.preventDefault();
+                            saveTab(activeTab.path);
+                          }
+                        }}
+                      />
+                    </div>
+                  );
+                })()}
                 <div className="code-editor-statusbar">
                   <span>{activeTab.path}</span>
                   <button

@@ -1095,6 +1095,46 @@ def usage_summary(days: int = 14) -> dict:
     }
 
 
+def log_routing_override(message: str, auto_role: str, auto_model: str, override_model: str) -> dict:
+    """Records that the router auto-picked `auto_model` for `auto_role` but
+    the user actually sent the turn to `override_model` instead — the
+    self-tuning signal behind Settings -> Model routing's override panel.
+    Caller is expected to only call this when the two models actually
+    differ (a no-op override isn't a signal)."""
+    oid = str(uuid.uuid4())
+    now = time.time()
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO routing_overrides
+               (id, created_at, message, auto_role, auto_model, override_model)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (oid, now, message, auto_role, auto_model, override_model),
+        )
+    return {
+        "id": oid, "created_at": now, "message": message,
+        "auto_role": auto_role, "auto_model": auto_model, "override_model": override_model,
+    }
+
+
+def routing_override_summary(days: int = 30) -> list[dict]:
+    """Groups recent overrides by (role, auto-picked model, model the user
+    switched to) with a count — "for role X, you overrode Y to Z N times
+    in the last `days` days", newest/most-frequent first. Pure
+    frequency-counting over locally stored data, no ML involved."""
+    since = time.time() - days * 86400
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT auto_role, auto_model, override_model, COUNT(*) AS count,
+                      MAX(created_at) AS last_seen
+               FROM routing_overrides
+               WHERE created_at >= ?
+               GROUP BY auto_role, auto_model, override_model
+               ORDER BY count DESC, last_seen DESC""",
+            (since,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def search_conversations(q: str) -> list[dict]:
     """Full-text search over message content. Returns distinct
     conversations with the matching snippet and message count. Uses
