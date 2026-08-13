@@ -70,7 +70,7 @@ async def set_passcode(body: dict, request: Request):
     # If a lock is already active, require the caller to be unlocked before
     # changing it (the lock middleware already enforces this for /set, but
     # guard here too in case the middleware allowlist ever changes).
-    if is_locked() and not token_valid(request.headers.get("x-cortex-unlock", "")):
+    if is_locked() and not token_valid(request.headers.get("x-zenith-unlock", "")):
         raise HTTPException(401, "Unlock first to change the passcode.")
     new_hash = hash_passcode(passcode)
     settings.set("lock_pass_hash", new_hash)

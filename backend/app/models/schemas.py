@@ -61,6 +61,11 @@ class ConfigPatch(StrictModel):
     rag_chunk_chars: Optional[int] = Field(default=None, ge=200, le=20_000)
     rag_chunk_overlap: Optional[int] = Field(default=None, ge=0, le=5_000)
     rag_top_k: Optional[int] = Field(default=None, ge=1, le=20)
+    rag_rerank_enabled: Optional[bool] = None
+    rag_rerank_model: Optional[str] = Field(default=None, max_length=200)
+    rag_rerank_pool: Optional[int] = Field(default=None, ge=1, le=50)
+    rag_rerank_timeout_seconds: Optional[int] = Field(default=None, ge=1, le=120)
+    show_cloud_model_suggestions: Optional[bool] = None
     doc_ocr_fallback: Optional[bool] = None
     video_scene_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     router_confidence_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)

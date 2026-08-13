@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Icon from "./Icon.jsx";
 
 const PROFILES = [
@@ -74,6 +74,18 @@ export default function OnboardingTour({ onClose }) {
   // still just calls onClose, unchanged from before.
   const [step, setStep] = useState(0);
   const [profile, setProfile] = useState(null);
+  // Read back a profile picked in a previous visit (e.g. replaying this
+  // tour via the command palette) so it isn't dead data — pre-highlights
+  // the earlier pick rather than making the user choose again from scratch.
+  const [previousProfileId, setPreviousProfileId] = useState(null);
+
+  useEffect(() => {
+    try {
+      setPreviousProfileId(localStorage.getItem("zenith-profile"));
+    } catch {
+      // storage unavailable — fine, just no pre-highlight
+    }
+  }, []);
 
   function pickProfile(p) {
     setProfile(p);
@@ -112,10 +124,16 @@ export default function OnboardingTour({ onClose }) {
                 <button
                   key={p.id}
                   className="settings-btn-secondary"
-                  style={{ textAlign: "left" }}
+                  style={{
+                    textAlign: "left",
+                    ...(p.id === previousProfileId
+                      ? { borderColor: "var(--signal-general)", color: "var(--signal-general)" }
+                      : {}),
+                  }}
                   onClick={() => pickProfile(p)}
                 >
                   {p.label}
+                  {p.id === previousProfileId && " — picked last time"}
                 </button>
               ))}
             </div>

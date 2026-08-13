@@ -177,11 +177,24 @@ def score_models(installed: list[str], include_cloud: bool = False) -> dict:
     # Best fit first, then smaller (cheaper to try) first.
     order = {"comfortable": 0, "tight": 1, "unknown": 2, "will_struggle": 3}
     recommended.sort(key=lambda m: (order[m["fit"]], m["params_b"] or 0))
+    # Cap per role, not globally — a flat top-6 across all roles let
+    # well-fitting small_fast/general entries crowd out code/vision/
+    # reasoning entirely, which defeats the point of the task filter in
+    # Settings (it would have nothing to show for most tasks).
+    per_role_cap = 4
+    seen_per_role: dict[str, int] = {}
+    capped_recommended = []
+    for m in recommended:
+        role = m.get("role", "general")
+        if seen_per_role.get(role, 0) >= per_role_cap:
+            continue
+        seen_per_role[role] = seen_per_role.get(role, 0) + 1
+        capped_recommended.append(m)
     result = {
         "hardware": hw,
         "budget_gb": budget,
         "installed": scored_installed,
-        "recommended": recommended[:6],
+        "recommended": capped_recommended,
     }
     if include_cloud:
         # No hardware fit scoring here on purpose — these never run locally,

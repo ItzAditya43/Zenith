@@ -325,8 +325,8 @@ async def run_turn(
             for att in ctx.attachment_summaries:
                 if att.get("kind") != "document":
                     continue
-                chunks = rag_service.retrieve(
-                    user_text, source_id=att["id"],
+                chunks = await asyncio.to_thread(
+                    rag_service.retrieve, user_text, att["id"],
                 )
                 if chunks:
                     rendered = "\n\n".join(

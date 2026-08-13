@@ -178,9 +178,19 @@ def import_zenith_backup(data: dict) -> dict:
                 memories += 1
 
     personas = 0
+    # persona_service.create_persona has no dedup of its own (unlike
+    # add_memory) — re-running an import would otherwise duplicate every
+    # persona on each pass, so dedupe here on (name, system_prompt).
+    existing_personas = {
+        (ep["name"], ep["system_prompt"]) for ep in persona_service.list_personas()
+    }
     for p in data.get("personas") or []:
         if isinstance(p, dict) and p.get("name") and p.get("system_prompt"):
+            key = (p["name"].strip(), p["system_prompt"].strip())
+            if key in existing_personas:
+                continue
             persona_service.create_persona(p["name"], p["system_prompt"], icon=p.get("icon"))
+            existing_personas.add(key)
             personas += 1
 
     quick_actions = 0
