@@ -1135,6 +1135,11 @@ export default function App() {
       action: () => setWhatsNewOpen(true),
     });
     list.push({
+      id: "replay-onboarding", group: "Actions", icon: "book-open",
+      label: "Replay welcome tour",
+      action: () => setOnboardingOpen(true),
+    });
+    list.push({
       id: "toggle-sidebar", group: "Actions", icon: "panel-left",
       label: sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar",
       action: () => setSidebarCollapsed((v) => !v),

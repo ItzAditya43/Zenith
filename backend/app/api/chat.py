@@ -379,11 +379,13 @@ async def chat(body: ChatRequest, request: Request):
             storage.deactivate_subtree(parent_message_id)
     # Branching: a regenerate hides the old assistant sibling(s) under
     # the user message it's replying to before generating a fresh one.
+    regenerate_user_message_id = None
     if body.regenerate_of:
         regen_msg = storage.get_message(body.regenerate_of)
         if not regen_msg or not regen_msg.get("parent_id"):
             raise HTTPException(404, "No such message to regenerate.")
         storage.deactivate_subtree(regen_msg["parent_id"])
+        regenerate_user_message_id = regen_msg["parent_id"]
 
     try:
         decision, stream, web_sources, assistant_parent_id = await run_turn(
@@ -392,7 +394,7 @@ async def chat(body: ChatRequest, request: Request):
             web_search=body.web_search,
             parent_message_id=parent_message_id,
             parent_explicit=parent_explicit,
-            regenerate_user_message_id=body.regenerate_of,
+            regenerate_user_message_id=regenerate_user_message_id,
             model_override=body.model_override,
         )
     except OllamaError as exc:
