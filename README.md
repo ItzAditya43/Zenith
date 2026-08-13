@@ -53,6 +53,7 @@ or enable it for free via GitHub Pages (Settings → Pages → deploy from
   - [Ambient daily digest](#ambient-daily-digest)
   - [Automation rules + outbound webhooks](#automation-rules--outbound-webhooks)
   - [Task board](#task-board)
+  - [Health & diagnostics](#health--diagnostics)
   - [Interface](#interface)
 - [Desktop app](#desktop-app)
 - [Browser extension](#browser-extension)
@@ -233,7 +234,12 @@ is a real decision, not a formality.
   configured, vector (cosine) and lexical (keyword) hits are fused via
   Reciprocal Rank Fusion rather than lexical only kicking in as an
   all-or-nothing fallback — exact terms (function names, error codes) rank
-  well even when the embedding alone would bury them.
+  well even when the embedding alone would bury them. An optional second
+  pass, **cross-encoder-style reranking** (`rag_rerank_enabled`, off by
+  default — it's a latency tradeoff), scores the fused candidates jointly
+  against the query using your own installed Ollama model (one batched
+  call, capped candidate pool) rather than a new ML dependency, for
+  another precision bump when it's worth the extra round-trip.
 - **Video** — sampled frames go to the vision model, the audio track is
   transcribed by Whisper, and both are handed to the model together.
 - **Voice in** — hold the mic, Whisper transcribes into the composer.
@@ -291,6 +297,15 @@ badge with the model used and why.
   limit cancels the request, releases the lock, and reports a clear error
   instead. The composer also shows an earlier, informational "taking longer
   than usual" hint at 15s, well before the hard cutoff.
+- **Self-tuning from your overrides** — every time you manually pick a
+  model for a turn instead of trusting the auto-routed one, Zenith
+  compares that to what the router would have chosen and logs it (silent,
+  best-effort, never blocks the turn). Settings → Model routing surfaces
+  the resulting pattern ("you've sent code-flagged messages to
+  `qwen2.5-coder` instead of the auto-picked model — 7 times this month")
+  with a one-click **Pin this**, which just applies your existing
+  `model_overrides` pinning — no separate mechanism, no ML, just counting
+  what you actually did.
 
 ### Memory & personalization
 
@@ -315,8 +330,12 @@ badge with the model used and why.
 
 ### Web & knowledge
 
-- **Web search** (`web_service.py`) — DuckDuckGo's HTML endpoint, no API
-  key, no cost. Turn it on from the composer's mode picker.
+- **Web search** (`web_service.py`) — DuckDuckGo's HTML endpoint (default,
+  no API key, no cost) by turning it on from the composer's mode picker,
+  or a self-hosted **SearXNG** instance instead (`web_search_backend:
+  "searxng"` + `searxng_url` in Settings → Connection) — the drop-in
+  upgrade this README used to just describe as a future option; now it's
+  a real setting, not a code change.
 - **URL reading** — any link pasted into a message is fetched
   automatically, toggle or not. Special-cased for:
   - **GitHub** — a file URL pulls the raw file content; a repo URL pulls
@@ -486,13 +505,18 @@ at each level," and the full tree is still there underneath.
 in a reply to pull it into its own side panel — already existed for
 editing/copying/downloading/sending-back; now also renders it live:
 
-- **Preview tab** (HTML/CSS/JS) — a debounced, sandboxed `<iframe
+- **Preview tab** (HTML/CSS/JS/JSX/TSX) — a debounced, sandboxed `<iframe
   sandbox="allow-scripts">` (no `allow-same-origin`, no access to Zenith's
   own DOM/storage/backend) renders the current text as you edit. Full HTML
-  documents render as-is; bare JS/JSX snippets get wrapped in a minimal
-  HTML shell so they still preview (no JSX transpilation — a JSX snippet
-  errors visibly in the preview's console rather than being silently
-  bundled).
+  documents render as-is; bare JS snippets get wrapped in a minimal HTML
+  shell. **JSX/TSX transpiles in-browser** via `esbuild-wasm` (lazy-loaded,
+  same-origin, never a CDN — Vite's `?url` asset handling copies the
+  ~14MB `.wasm` into the build automatically, no manual vendoring step
+  unlike Pyodide below) into `React.createElement` calls, executed against
+  a small self-hosted React/ReactDOM runtime built from this project's own
+  `react`/`react-dom` dependencies at build time. Transform errors and
+  runtime errors both render as visible text in the preview instead of a
+  blank iframe.
 - **Run tab** (Python) — executes in-browser via [Pyodide](https://pyodide.org)
   (WASM CPython), stdout/stderr/tracebacks captured into an output pane.
   Consistent with this project never calling out to a CDN, the ~10–30MB
@@ -518,8 +542,11 @@ working directory is bound.
   file tools, which intentionally allow the full filesystem, this is a
   direct, un-gated UI action, so it gets its own tighter boundary.
 - Plain text only, 2MB cap per file — this is a lightweight editor for
-  config/code/notes, not a full IDE (no language server, no syntax
-  highlighting yet).
+  config/code/notes, not a full IDE (no language server). **Syntax
+  highlighting** (reusing the same `react-syntax-highlighter`/`atomDark`
+  theme as chat code blocks) renders under a transparent, still-fully-
+  editable textarea, scroll-synced to it — skipped above 200KB per file to
+  avoid highlighter jank well before the 2MB cap.
 - **Git status/diff + run** — toolbar buttons show `git status`/`git
   diff` for the bound directory (reusing agent mode's own git runner)
   and execute the configured check command (Settings → Agent tools),
@@ -643,7 +670,8 @@ touching the keyboard (**Settings → Schedules**).
 can actually read and keep:
 
 - **JSON** — complete machine-readable dump (every conversation with full
-  message history, memories, personas).
+  message history, memories, personas, projects, quick actions, and
+  watched folders).
 - **Markdown** — one readable `.md` file per conversation, zipped, plus
   `memories.md` and `personas.md`. Good for archiving or reading outside
   Zenith entirely.
@@ -652,10 +680,17 @@ Both are plain stdlib (`json`/`zipfile`) — no new dependencies, runs
 entirely against your own backend.
 
 **Zenith-to-Zenith import.** The same JSON export re-imports on any Zenith
-instance from Settings → Data → Import — conversations, memories, and
-personas come back over. The same uploader also still auto-detects a
-ChatGPT/Claude `conversations.json`; all three formats are sniffed from the
-JSON shape, no format picker needed.
+instance from Settings → Data → Import — conversations (with their project
+assignments remapped to newly-created projects), memories, personas, quick
+actions, and watched folders all come back over. The same uploader also
+still auto-detects a ChatGPT/Claude `conversations.json`; all formats are
+sniffed from the JSON shape, no format picker needed. **Schedules are
+deliberately excluded** — a schedule is a live cron trigger bound to a
+specific model (which may not be installed on the target instance) and
+often a specific conversation id; blindly recreating it risks a silent
+failure or an unexpected autonomous run on the new machine. Re-create
+schedules manually via Settings → Schedules if you want them on the new
+instance.
 
 ### Passcode lock
 
@@ -725,6 +760,18 @@ Todos (Settings-adjacent, opened from the header) now have a Kanban
 checklist — switch to "Board" view to drag cards between columns; the
 legacy done checkbox and the board status stay in sync either way you
 change it.
+
+### Health & diagnostics
+
+`GET /api/health`, `components/HealthPanel.jsx` (header icon). The health
+endpoint already probed Ollama/Whisper/TTS; it now also reports vector
+search (sqlite-vec presence), image generation configuration, agent-mode
+status, and configured MCP servers — one panel instead of piecing together
+scattered banners, each row showing a colored status dot plus whatever
+detail that component returns (latency, error message). Only Ollama being
+unreachable flips the overall status to "down"; everything else can only
+ever contribute to "degraded" — text chat keeps working even if, say, your
+image-gen server is offline.
 
 ### Interface
 
@@ -997,10 +1044,16 @@ that, not a multi-tenant SaaS product:
   built; controlling arbitrary *native desktop apps* by screen capture +
   synthetic input is deliberately not — headless backend, platform-specific,
   and a severe security surface. See [`docs/NOT_BUILT.md`](docs/NOT_BUILT.md).
-- **Desktop app: Linux built, macOS/Windows not.** The Linux `.deb` +
-  `.AppImage` are built and verified here; the other platforms follow the
-  same documented steps but haven't been run. Auto-update is scaffolded but
-  needs a release pipeline to wire up.
+- **Desktop app: Linux hand-verified; Windows/macOS built by CI, not
+  hand-verified.** The Linux `.deb` + `.AppImage` are built and verified
+  here. `.github/workflows/release.yml` now builds signed Windows and
+  Linux installers, and an unsigned macOS installer, on every `v*` tag —
+  but the Windows/macOS artifacts haven't actually been run on real
+  hardware yet, only produced by the CI matrix. macOS additionally needs
+  an Apple Developer ID cert + notarization to pass Gatekeeper for
+  distribution (see `DESKTOP.md`). Auto-update itself is wired end-to-end
+  (signing keypair, release pipeline, in-app "Check for Updates") — see
+  `DESKTOP.md`.
 - **Reddit's JSON API can be IP-blocked** by some hosting providers
   (observed from at least one cloud sandbox during development); falls
   back to generic HTML extraction automatically when that happens.

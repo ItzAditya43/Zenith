@@ -362,7 +362,26 @@ async def run_turn(
     router = ModelRouter()
     if model_override:
         # Per-message override: skip auto-routing entirely and answer
-        # with exactly the model the user picked for this one turn.
+        # with exactly the model the user picked for this one turn. Still
+        # compute what auto-routing would have chosen (cheap, no network
+        # hit) so a genuine override — the user disagreeing with the
+        # router — can be logged as a self-tuning signal for Settings ->
+        # Model routing. Best-effort: never let this block the turn.
+        try:
+            auto_decision = await router.decide(
+                text=user_text,
+                has_image=ctx.has_image,
+                has_video=ctx.has_video,
+                has_long_document=ctx.has_long_document,
+                history_last_model=history_last_model,
+                context_chars=context_chars,
+            )
+            if auto_decision.model != model_override:
+                storage.log_routing_override(
+                    user_text, auto_decision.role, auto_decision.model, model_override
+                )
+        except Exception as exc:
+            log.debug("orchestrator.override_log_failed", error=str(exc))
         decision = RouteDecision(
             model=model_override, role="general", reason="Manually selected for this message.",
             confidence=1.0,

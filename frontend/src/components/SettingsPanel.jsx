@@ -134,6 +134,7 @@ export default function SettingsPanel({
   const [skillsError, setSkillsError] = useState(null);
   const [hardware, setHardware] = useState(null);
   const [routingStatus, setRoutingStatus] = useState(null);
+  const [overrideSummary, setOverrideSummary] = useState([]);
   const [emailForm, setEmailForm] = useState({
     email_imap_host: "", email_imap_port: 993, email_smtp_host: "", email_smtp_port: 587,
     email_username: "", email_password: "",
@@ -264,6 +265,10 @@ export default function SettingsPanel({
       })
       .catch((err) => setModelsError(err.message));
     api.getRoutingStatus().then(setRoutingStatus).catch(() => {});
+    api
+      .getRoutingOverrideSummary()
+      .then((r) => setOverrideSummary(r.overrides || []))
+      .catch(() => {});
   };
 
   const refreshPersonas = () => {
@@ -800,6 +805,9 @@ export default function SettingsPanel({
       const extra = [];
       if (res.memories) extra.push(`${res.memories} memories`);
       if (res.personas) extra.push(`${res.personas} personas`);
+      if (res.projects) extra.push(`${res.projects} projects`);
+      if (res.quick_actions) extra.push(`${res.quick_actions} quick actions`);
+      if (res.folders) extra.push(`${res.folders} watched folders`);
       setImportStatus(
         `Imported ${res.conversations} conversation(s), ${res.messages} messages` +
           (extra.length ? `, ${extra.join(", ")}.` : ".")
@@ -2034,6 +2042,41 @@ export default function SettingsPanel({
                     );
                   })}
                 </div>
+
+                {overrideSummary.length > 0 && (
+                  <div className="settings-subsection" style={{ marginTop: "1.5rem" }}>
+                    <h4 className="settings-section-title" style={{ fontSize: "0.95rem" }}>
+                      Learned from your corrections
+                    </h4>
+                    <p className="settings-section-desc settings-section-desc-inline">
+                      Whenever you manually pick a different model than the one auto-routing chose,
+                      Zenith remembers it. These are patterns from the last 30 days — pin one to stop
+                      the router guessing wrong for that kind of message.
+                    </p>
+                    <ul className="role-grid" style={{ listStyle: "none", padding: 0 }}>
+                      {overrideSummary.map((o) => (
+                        <li className="role-card" key={`${o.auto_role}-${o.auto_model}-${o.override_model}`}>
+                          <span className="role-card-dot" aria-hidden="true" />
+                          <span className="role-card-label">
+                            {ROLE_LABEL[o.auto_role] || o.auto_role}
+                          </span>
+                          <span className="settings-section-desc-inline">
+                            You've sent {ROLE_LABEL[o.auto_role]?.toLowerCase() || o.auto_role}-flagged
+                            messages to <code>{o.override_model}</code> instead of the auto-picked{" "}
+                            <code>{o.auto_model}</code> — {o.count} time{o.count === 1 ? "" : "s"}.
+                          </span>
+                          <button
+                            className="text-btn role-card-recommend"
+                            onClick={() => setOverride(o.auto_role, o.override_model)}
+                            title={`Pin ${o.override_model} to the "${o.auto_role}" role`}
+                          >
+                            Pin this
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </section>
             )}
 
@@ -2267,8 +2310,9 @@ export default function SettingsPanel({
                   <div className="setting-meta">
                     <span className="setting-label">Export as JSON</span>
                     <span className="setting-hint">
-                      Complete, machine-readable — every conversation, message, memory, and
-                      persona.
+                      Complete, machine-readable — every conversation, message, memory, persona,
+                      project, quick action, and watched folder. (Schedules aren't included —
+                      they're re-created per-instance from Settings -&gt; Schedules.)
                     </span>
                   </div>
                   <a className="settings-btn-primary" href={api.exportUrl("json")} download>
@@ -2296,7 +2340,10 @@ export default function SettingsPanel({
                   Bring your history over from another tool, or move it between two Zenith
                   instances — upload a ChatGPT/Claude <code>conversations.json</code>, or a
                   <code> zenith-export.json</code> downloaded from "Export as JSON" above (on this
-                  machine or another one). Zenith detects which it is automatically.
+                  machine or another one). A Zenith-to-Zenith import also re-creates projects
+                  (conversations are re-linked to the new project), quick actions, and watched
+                  folders (skipped if the path doesn't exist on this machine). Zenith detects
+                  which kind of file it is automatically.
                 </p>
                 <div className="setting-row">
                   <div className="setting-meta">

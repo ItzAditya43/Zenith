@@ -654,6 +654,28 @@ def _memory_conflicts_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _routing_overrides_table(conn: sqlite3.Connection) -> None:
+    """When the user manually picks a model for a turn instead of trusting
+    the auto-router (`model_override` on /api/chat), that's a real signal
+    the keyword/regex routing got it wrong for that kind of message. Each
+    row records what the router would have auto-picked vs. what the user
+    actually used, so Settings -> Model routing can surface "you keep
+    overriding role X to model Y" patterns and offer a one-click pin —
+    plain frequency-counting over local data, no ML."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS routing_overrides (
+            id TEXT PRIMARY KEY,
+            created_at REAL NOT NULL,
+            message TEXT NOT NULL,
+            auto_role TEXT NOT NULL,
+            auto_model TEXT NOT NULL,
+            override_model TEXT NOT NULL
+        );
+        """
+    )
+
+
 def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     """Configured MCP servers (run as local subprocesses over stdio — no
     hosted/paid MCP services involved). Each server's advertised tools
@@ -707,6 +729,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (30, "automation_rules_table", _automation_rules_table),
     (31, "todo_status_column", _todo_status_column),
     (32, "quick_actions_table", _quick_actions_table),
+    (33, "routing_overrides_table", _routing_overrides_table),
 ]
 
 

@@ -15,7 +15,7 @@ from fastapi import APIRouter
 from fastapi.responses import Response, StreamingResponse
 
 from app.db import storage
-from app.services import memory_service, persona_service
+from app.services import folder_service, memory_service, persona_service
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -34,6 +34,13 @@ def _full_dump() -> dict:
         "conversations": conversations,
         "memories": memory_service.list_memories(),
         "personas": persona_service.list_personas(),
+        # Zenith-to-Zenith scope (re-imported by import_zenith_backup):
+        # projects (with conversations' project_id remapped on import),
+        # quick actions, and watched folders. Schedules are deliberately
+        # excluded — see import_service.import_zenith_backup docstring.
+        "projects": storage.list_projects(),
+        "quick_actions": storage.list_quick_actions(),
+        "folders": folder_service.list_watched_folders(),
     }
 
 

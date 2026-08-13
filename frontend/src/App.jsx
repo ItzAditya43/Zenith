@@ -19,6 +19,7 @@ import AmbientCanvas from "./components/AmbientCanvas.jsx";
 import OnboardingTour from "./components/OnboardingTour.jsx";
 import WhatsNewPanel from "./components/WhatsNewPanel.jsx";
 import UsageDashboard from "./components/UsageDashboard.jsx";
+import HealthPanel from "./components/HealthPanel.jsx";
 import CodeEditorPanel from "./components/CodeEditorPanel.jsx";
 import SnippetsPanel from "./components/SnippetsPanel.jsx";
 import KnowledgeGraphPanel from "./components/KnowledgeGraphPanel.jsx";
@@ -93,6 +94,7 @@ export default function App() {
   );
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
+  const [healthOpen, setHealthOpen] = useState(false);
   const dismissOnboarding = () => {
     localStorage.setItem("zenith-onboarded", "1");
     setOnboardingOpen(false);
@@ -1354,6 +1356,15 @@ export default function App() {
                   <Icon name="grid" size={16} />
                 </button>
               )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${healthOpen ? "is-active" : ""}`}
+                  onClick={() => setHealthOpen((v) => !v)}
+                  title="System health"
+                >
+                  <Icon name="target" size={16} />
+                </button>
+              )}
             </div>
             {!focusMode && agentAvailable && (
               <button
@@ -1502,6 +1513,7 @@ export default function App() {
           />
         )}
         {usageOpen && <UsageDashboard onClose={() => setUsageOpen(false)} />}
+        {healthOpen && <HealthPanel onClose={() => setHealthOpen(false)} />}
         {groupPickerOpen && (
           <GroupChatPicker
             personas={personas}

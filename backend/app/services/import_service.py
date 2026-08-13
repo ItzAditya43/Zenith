@@ -120,11 +120,34 @@ def is_zenith_backup(data) -> bool:
 def import_zenith_backup(data: dict) -> dict:
     """Re-import a full Zenith export (from /api/export/json) — the
     Zenith-to-Zenith counterpart to the ChatGPT/Claude importers above.
-    Conversations/messages always create new rows (so importing twice just
-    duplicates them, same as re-importing a ChatGPT export would); memories
-    and personas dedupe via their own service-layer logic so re-running an
-    import is safe."""
-    from app.services import memory_service, persona_service
+    Conversations/messages, projects, quick actions, and watched folders
+    always create new rows (so importing twice just duplicates them, same
+    as re-importing a ChatGPT export would); memories and personas dedupe
+    via their own service-layer logic so re-running an import is safe.
+
+    Schedules are deliberately NOT re-imported: a schedule is a live cron
+    trigger bound to a specific model + (often) a specific conversation on
+    the source instance. Blindly recreating it on a different instance
+    risks firing autonomous turns against a model that isn't installed
+    there, or a conversation id that no longer resolves — silent failure
+    or, worse, an unexpected autonomous run. Re-creating a schedule is a
+    deliberate, low-frequency action better left to the user via
+    Settings -> Schedules on the new instance.
+    """
+    from app.services import folder_service, memory_service, persona_service
+
+    # Projects first, so conversations below can remap their project_id
+    # from the source instance's id to the id newly created here — the
+    # same id-remap pattern used for message parent_id further down.
+    projects = 0
+    project_id_map: dict[str, str] = {}
+    for proj in data.get("projects") or []:
+        if not isinstance(proj, dict) or not proj.get("name"):
+            continue
+        new_proj = storage.create_project(proj["name"], workdir=proj.get("workdir"))
+        if proj.get("id"):
+            project_id_map[proj["id"]] = new_proj["id"]
+        projects += 1
 
     conversations = 0
     messages = 0
@@ -132,7 +155,8 @@ def import_zenith_backup(data: dict) -> dict:
         if not isinstance(conv, dict):
             continue
         title = (conv.get("title") or "Imported chat")[:200]
-        c = storage.create_conversation(title)
+        new_project_id = project_id_map.get(conv.get("project_id"))
+        c = storage.create_conversation(title, project_id=new_project_id)
         id_map: dict[str, str] = {}
         for m in conv.get("messages") or []:
             if not isinstance(m, dict) or not m.get("role") or not m.get("content"):
@@ -159,7 +183,32 @@ def import_zenith_backup(data: dict) -> dict:
             persona_service.create_persona(p["name"], p["system_prompt"], icon=p.get("icon"))
             personas += 1
 
-    return {"conversations": conversations, "messages": messages, "memories": memories, "personas": personas}
+    quick_actions = 0
+    for qa in data.get("quick_actions") or []:
+        if isinstance(qa, dict) and qa.get("name") and qa.get("prompt_template"):
+            storage.create_quick_action(
+                qa["name"], qa["prompt_template"], bool(qa.get("auto_send", False))
+            )
+            quick_actions += 1
+
+    folders = 0
+    for f in data.get("folders") or []:
+        if not isinstance(f, dict) or not f.get("path"):
+            continue
+        try:
+            folder_service.add_watched_folder(f["path"], f.get("extensions"))
+            folders += 1
+        except ValueError:
+            # Path doesn't exist on this machine, or is already watched —
+            # a folder's path is inherently machine-specific, so skipping
+            # it is expected rather than a reason to fail the whole import.
+            pass
+
+    return {
+        "conversations": conversations, "messages": messages, "memories": memories,
+        "personas": personas, "projects": projects, "quick_actions": quick_actions,
+        "folders": folders,
+    }
 
 
 def import_conversations(parsed: list[dict]) -> dict:

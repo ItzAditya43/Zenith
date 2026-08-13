@@ -84,6 +84,13 @@ jobs:
           mkdir -p desktop/src-tauri/binaries
           cp backend/dist/cortex-backend "desktop/src-tauri/binaries/cortex-backend-$triple"
 
+      - name: Place backend sidecar (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          triple=$(rustc -vV | grep '^host:' | cut -d' ' -f2)
+          mkdir -p desktop/src-tauri/binaries
+          cp backend/dist/cortex-backend "desktop/src-tauri/binaries/cortex-backend-$triple"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

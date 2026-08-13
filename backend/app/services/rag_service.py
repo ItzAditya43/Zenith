@@ -291,9 +291,11 @@ def retrieve(
             if vec_hits:
                 lex_hits = _retrieve_fallback(query, filters, fan_out)
                 if lex_hits:
-                    return _fuse_rrf(vec_hits, lex_hits, top_k)
-                return vec_hits[:top_k]
-    return _retrieve_fallback(query, filters, top_k)
+                    fused = _fuse_rrf(vec_hits, lex_hits, fan_out)
+                    return _maybe_rerank(query, fused, top_k)
+                return _maybe_rerank(query, vec_hits, top_k)
+    fan_out = min(top_k * 3, 50) if bool(settings.get("rag_rerank_enabled", False)) else top_k
+    return _maybe_rerank(query, _retrieve_fallback(query, filters, fan_out), top_k)
 
 
 def _fuse_rrf(vec_hits: list[dict], lex_hits: list[dict], top_k: int) -> list[dict[str, Any]]:
@@ -313,6 +315,136 @@ def _fuse_rrf(vec_hits: list[dict], lex_hits: list[dict], top_k: int) -> list[di
     for cid, score in ranked:
         row = dict(rows[cid])
         row["score"] = score
+        out.append(row)
+    return out
+
+
+_RERANK_POOL_CAP_DEFAULT = 15
+
+
+def _maybe_rerank(query: str, candidates: list[dict], top_k: int) -> list[dict[str, Any]]:
+    """Optional second-pass rerank of the fused/vector/lexical candidates.
+    Only runs when `rag_rerank_enabled` is set AND there are more
+    candidates than we actually need to return — reranking a list you're
+    already returning in full is pure latency for no benefit. On any
+    failure (Ollama unreachable, model output unparseable, timeout) this
+    silently falls back to the pre-rerank order, same as `_retrieve_vec`
+    falls back to lexical-only on error."""
+    if not candidates:
+        return candidates[:top_k]
+    if not bool(settings.get("rag_rerank_enabled", False)):
+        return candidates[:top_k]
+    if len(candidates) <= top_k:
+        return candidates[:top_k]
+    pool_cap = int(settings.get("rag_rerank_pool", _RERANK_POOL_CAP_DEFAULT))
+    pool = candidates[:pool_cap]
+    try:
+        reranked = _rerank_sync(query, pool)
+    except Exception as exc:
+        log.warning("rag.rerank_failed", error=str(exc))
+        reranked = None
+    if not reranked:
+        return candidates[:top_k]
+    # Anything beyond the reranked pool (rare — only when candidates >
+    # pool_cap) keeps its original fused order, appended after.
+    return (reranked + candidates[len(pool):])[:top_k]
+
+
+def _resolve_rerank_model() -> str | None:
+    """Pick a general chat model to score relevance with. Prefers a
+    user-pinned override, else the first installed non-embedding model —
+    unlike _resolve_embed_model, we want a chat-capable model here, not an
+    embedding one."""
+    override = settings.get("rag_rerank_model")
+    if override:
+        return override
+    try:
+        from app.services.router import ModelRegistry
+        import asyncio
+        registry = ModelRegistry()
+        try:
+            installed = asyncio.run(registry.models())
+        except Exception:
+            installed = []
+        for name in installed:
+            lname = name.lower()
+            if "embed" in lname or "nomic-embed" in lname or "mxbai" in lname:
+                continue
+            return name
+    except Exception:
+        pass
+    return None
+
+
+def _build_rerank_prompt(query: str, candidates: list[dict]) -> str:
+    lines = [
+        "Rate how relevant each numbered passage is to the query, on a "
+        "0-100 scale (100 = directly answers the query, 0 = irrelevant).",
+        f"Query: {query}",
+        "Passages:",
+    ]
+    for i, cand in enumerate(candidates, start=1):
+        snippet = (cand.get("text") or "")[:600].replace("\n", " ")
+        lines.append(f"[{i}] {snippet}")
+    lines.append(
+        "Respond with ONLY one line per passage in the exact format "
+        "'N: score' (e.g. '1: 87'), one per line, no other text, no explanation."
+    )
+    return "\n".join(lines)
+
+
+def _parse_rerank_scores(reply: str, n: int) -> list[float] | None:
+    scores: list[float | None] = [None] * n
+    for m in re.finditer(r"(?m)^\s*\[?(\d+)\]?\s*[:\-.]\s*(\d{1,3})\b", reply or ""):
+        idx = int(m.group(1)) - 1
+        if 0 <= idx < n:
+            scores[idx] = float(min(100, max(0, int(m.group(2)))))
+    if all(s is None for s in scores):
+        return None
+    return [s if s is not None else 0.0 for s in scores]
+
+
+def _rerank_sync(query: str, candidates: list[dict]) -> list[dict] | None:
+    """Blocking, single batched Ollama chat call that scores all pooled
+    candidates in one round trip (cheaper than one call per candidate —
+    this is a latency-sensitive path). Mirrors `_embed_sync`'s
+    run-a-private-loop pattern; safe from both sync and async contexts."""
+    model = _resolve_rerank_model()
+    if not model:
+        return None
+    prompt = _build_rerank_prompt(query, candidates)
+    timeout = float(settings.get("rag_rerank_timeout_seconds", 12))
+    import asyncio
+
+    async def _call() -> str:
+        return await asyncio.wait_for(
+            OllamaClient().chat(model, [{"role": "user", "content": prompt}],
+                                 options={"temperature": 0}),
+            timeout=timeout,
+        )
+
+    try:
+        reply = asyncio.run(_call())
+    except RuntimeError:
+        log.warning("rag.rerank_called_from_event_loop")
+        return None
+    except (asyncio.TimeoutError, OllamaError) as exc:
+        log.warning("rag.rerank_call_failed", error=str(exc))
+        return None
+    except Exception as exc:
+        log.warning("rag.rerank_call_failed", error=str(exc))
+        return None
+
+    scores = _parse_rerank_scores(reply, len(candidates))
+    if scores is None:
+        log.warning("rag.rerank_unparseable_reply")
+        return None
+    scored = sorted(zip(candidates, scores), key=lambda cs: cs[1], reverse=True)
+    out = []
+    for cand, score in scored:
+        row = dict(cand)
+        row["score"] = score
+        row["rerank_score"] = score
         out.append(row)
     return out
 

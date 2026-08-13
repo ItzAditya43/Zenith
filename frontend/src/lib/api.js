@@ -528,11 +528,25 @@ export const api = {
 
   listModels: () => request("/api/models").then((r) => r.json()),
   getRoutingStatus: () => request("/api/routing/status").then((r) => r.json()),
+  getRoutingOverrideSummary: (days = 30) =>
+    request(`/api/routing/override-summary?days=${days}`).then((r) => r.json()),
   pullModel: (name, onEvent) => streamSSE("/api/models/pull", { name }, onEvent),
   createModel: (spec, onEvent) => streamSSE("/api/models/create", spec, onEvent),
   deleteModel: (name) =>
     request(`/api/models/${name}`, { method: "DELETE" }).then((r) => r.json()),
   imageStatus: () => request("/api/images/status").then((r) => r.json()),
+  // /api/health returns 503 (not 200) when overall status is "down" so
+  // load balancers/monitoring can act on it — but the body still carries
+  // the full per-component payload we want to render either way, so this
+  // bypasses the generic `request()` error-throwing path instead of losing
+  // that detail behind a generic Error.
+  health: async () => {
+    const res = await fetch(`${BASE}/api/health`, { headers: unlockHeaders() });
+    const body = await res.json().catch(() => null);
+    if (res.ok) return body;
+    if (body && body.detail) return body.detail;
+    throw new Error(res.statusText);
+  },
   activity: () => request("/api/activity").then((r) => r.json()),
   generateImage: (prompt, negative = "") =>
     request("/api/images/generate", {

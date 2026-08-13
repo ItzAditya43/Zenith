@@ -201,6 +201,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "rag_chunk_overlap": 200,
     "rag_top_k": 5,
     "rag_embedding_model": "",  # blank => use the auto-classified "embedding" role
+    "rag_rerank_enabled": False,  # second-pass cross-encoder-style rerank via Ollama; off by default (extra latency)
+    "rag_rerank_model": "",  # blank => reuse the router's installed general/chat model
+    "rag_rerank_pool": 15,   # max fused candidates sent through rerank (latency cap)
+    "rag_rerank_timeout_seconds": 12,
     # --- Voice (Tier 3) ---
     "voice_chunk_sentences": True,
     # --- Document OCR fallback (Tier 4) ---
