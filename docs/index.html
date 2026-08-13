@@ -228,6 +228,18 @@
   .card h3 { font-family: "IBM Plex Sans", sans-serif; font-weight: 600; margin: 0 0 0.5rem; font-size: 0.98rem; letter-spacing: -0.005em; }
   .card p { margin: 0; color: var(--paper-dim); font-size: 0.87rem; line-height: 1.6; }
 
+  /* --- Audience cards --- */
+  .audience-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; margin-top: 0.5rem; }
+  .audience-card { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 1.85rem; display: flex; flex-direction: column; transition: border-color 0.2s ease, transform 0.2s ease; }
+  .audience-card:hover { transform: translateY(-3px); border-color: var(--brass); }
+  .audience-card h3 { font-family: "IBM Plex Sans", sans-serif; font-weight: 600; margin: 0 0 0.6rem; font-size: 1.05rem; }
+  .audience-card .lead { color: var(--paper-dim); font-size: 0.9rem; margin: 0 0 1.2rem; }
+  .audience-card ul { margin: 0; padding-left: 1.1rem; color: var(--paper-dim); font-size: 0.87rem; flex: 1; }
+  .audience-card li { margin-bottom: 0.6rem; line-height: 1.5; }
+  .audience-card li strong { color: var(--paper); font-weight: 600; }
+  .audience-card a { color: var(--brass); text-decoration: none; }
+  .audience-card a:hover { text-decoration: underline; }
+
   /* --- Install cards --- */
   .install-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; margin-top: 0.5rem; }
   @media (max-width: 860px) { .install-grid { grid-template-columns: minmax(0, 1fr); max-width: 480px; } }
@@ -294,6 +306,7 @@
     <a class="brand" href="#top"><img src="icon.png" alt="" />Zenith</a>
     <div class="nav-links">
       <a class="nav-hide" href="#features">Features</a>
+      <a class="nav-hide" href="#who">Who it's for</a>
       <a class="nav-hide" href="#install">Install</a>
       <a class="nav-hide" href="#hardware">Hardware</a>
       <a class="nav-hide" href="#faq">FAQ</a>
@@ -406,6 +419,66 @@
   </div>
 </section>
 
+<section class="wrap reveal" id="who">
+  <p class="eyebrow">Who it's for</p>
+  <h2>Same app, very different reasons to open it</h2>
+  <p class="section-desc">Zenith has a lot of surface area (see the <a href="#features">feature tour</a> above). Nobody uses all of it. Find yourself below and turn on just that subset.</p>
+  <div class="audience-grid">
+    <div class="audience-card">
+      <h3>"I just want a private ChatGPT"</h3>
+      <p class="lead">You want everyday conversation — typed or spoken — that isn't training a model somewhere else. Nothing fancier than that.</p>
+      <ul>
+        <li><strong>Chat &amp; multimodal</strong> — works the moment you install, no setup</li>
+        <li><strong>Voice in &amp; out</strong> — talk instead of type, hear replies back</li>
+        <li><strong>Long-term memory</strong> — it remembers who you are between chats</li>
+        <li><strong>Image generation</strong> — pictures, without a separate app</li>
+      </ul>
+      <p class="lead" style="margin: 1.1rem 0 0;">Skip: agent mode, MCP, the code editor — none of that shows up unless you go looking for it.</p>
+    </div>
+    <div class="audience-card">
+      <h3>"I'm a developer"</h3>
+      <p class="lead">You want a coding agent with real teeth — one that can touch your filesystem and git history, not just paste snippets into a chat box.</p>
+      <ul>
+        <li><strong>Coding agent</strong> — shell + file edits + git, with an approval gate you control</li>
+        <li><strong>Code editor + git</strong> — a real file tree and diff view scoped to your working directory</li>
+        <li><strong>MCP tool servers</strong> — bring in tools Zenith doesn't ship natively</li>
+        <li><strong>Deep research</strong> — cited answers for API/library lookups instead of guesses</li>
+        <li><strong>Knowledge graph</strong> — a memory layer that tracks how a codebase-adjacent project connects</li>
+      </ul>
+    </div>
+    <div class="audience-card">
+      <h3>"I'm a writer, researcher, or student"</h3>
+      <p class="lead">You're working from sources — papers, drafts, a growing pile of context — and need the app to hold that across sessions, not just one chat.</p>
+      <ul>
+        <li><strong>Deep research</strong> — a cited, reopenable report instead of an unsourced answer</li>
+        <li><strong>Document RAG</strong> — upload PDFs/papers and ask questions grounded in them</li>
+        <li><strong>Long-term memory</strong> — keeps facts about an ongoing project straight</li>
+        <li><strong>Conversation branching</strong> — explore an alternate draft without losing the original thread</li>
+      </ul>
+    </div>
+    <div class="audience-card">
+      <h3>"Privacy-conscious first, features second"</h3>
+      <p class="lead">You picked Zenith specifically because nothing leaves your machine by default — and you want to know exactly where the few exceptions are before you flip anything on.</p>
+      <ul>
+        <li><strong>Passcode lock &amp; encryption</strong> — real API-level lock, AES-256-GCM credentials at rest</li>
+        <li><strong>Single-user, no telemetry</strong> — no account, no analytics, nothing phoned home</li>
+        <li><strong>The deliberate exceptions</strong> — web search, reading a URL you gave it, and optional Ollama Cloud models are the only features that talk to the outside world, and only when you explicitly turn them on for that message</li>
+      </ul>
+    </div>
+    <div class="audience-card">
+      <h3>"I like to tinker / self-host everything"</h3>
+      <p class="lead">You want the whole instrument panel — rules that fire on real events, tools wired in from elsewhere, and access from more than one device.</p>
+      <ul>
+        <li><strong>Automation &amp; webhooks</strong> — trigger → action rules, plus outbound webhooks for your own scripts</li>
+        <li><strong>MCP tool servers</strong> — connect anything speaking Model Context Protocol</li>
+        <li><strong>Folder watching &amp; scheduled turns</strong> — react to files changing, run recurring prompts unattended</li>
+        <li><strong>Task board</strong> — the Keep/Calendar/To-do suite as a lightweight ops board</li>
+        <li><strong>Desktop app + multi-device sync</strong> — tray icon on one machine, paired access from another</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
 <section class="wrap reveal" id="install">
   <p class="eyebrow">Get started</p>
   <h2>Three ways to run it</h2>
@@ -508,6 +581,7 @@
     <div class="footer-col">
       <h4>Project</h4>
       <a href="#features">Features</a>
+      <a href="#who">Who it's for</a>
       <a href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/README.md">Full documentation</a>
       <a href="https://github.com/ItzAditya43/Zenith/issues">Report an issue</a>
     </div>

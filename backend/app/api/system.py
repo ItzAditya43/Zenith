@@ -414,10 +414,12 @@ async def hardware_report():
     actually run. Heuristic, not a guarantee — see hardware_service."""
     from app.services import hardware_service
     from app.services.router import ModelRegistry
+    from app.core.config import settings
 
     registry = ModelRegistry()
     installed = await registry.models()
-    return hardware_service.score_models(installed)
+    include_cloud = bool(settings.get("show_cloud_model_suggestions", False))
+    return hardware_service.score_models(installed, include_cloud=include_cloud)
 
 
 @router.get("/email/test")
