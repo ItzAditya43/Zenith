@@ -16,9 +16,14 @@ aspirational copy.
 
 This README is written for developers. If you're pointing someone
 non-technical at this project, [`docs/index.html`](docs/index.html) is a
-short, plain-language page explaining what it is and why — open it directly,
-or enable it for free via GitHub Pages (Settings → Pages → deploy from
-`/docs` on this branch).
+short, plain-language page explaining what it is and why — including a
+"Who it's for" section (private-ChatGPT user, developer, writer/researcher,
+privacy-first, tinkerer) that maps each audience to the handful of features
+that actually matter to them, rather than the full feature dump below. Open
+it directly, or enable it for free via GitHub Pages (Settings → Pages →
+deploy from `/docs` on this branch). The in-app onboarding tour asks the
+same question on first run and tailors its "try this first" step to the
+answer.
 
 ---
 
@@ -288,6 +293,17 @@ badge with the model used and why.
   error, it just spills onto CPU and can take minutes per reply or hang
   outright — this surfaces the fix (a smaller, still-capable model) instead
   of you having to notice the slowdown and guess.
+- **Model advisor** (Settings → Installed models) — the same hardware-fit
+  cookbook, filterable by task (Chat/Code/Vision/Reasoning/Quick replies)
+  across 19 curated models spanning all five routing roles. Also offers
+  **Ollama Cloud models** (`qwen3-coder-480b:cloud`,
+  `deepseek-v3.1:671b-cloud`, and others — larger than any local hardware
+  can run) as a clearly separate, **off-by-default** section
+  (`show_cloud_model_suggestions`) — visually distinct "Cloud" chips, not
+  blended with the hardware-fit list, since running one means compute
+  actually leaves your machine and requires an ollama.com account. This is
+  the one deliberate, opt-in exception to "your own hardware" the Model
+  advisor will ever suggest, and it says so in the toggle's own copy.
 - **Stuck-generation watchdog** (`stream_idle_timeout_seconds`, default
   120s) — a genuinely wedged model (the scenario above, or a truly hung
   Ollama process) used to hold the per-conversation lock forever, silently

@@ -202,6 +202,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "rag_top_k": 5,
     "rag_embedding_model": "",  # blank => use the auto-classified "embedding" role
     "rag_rerank_enabled": False,  # second-pass cross-encoder-style rerank via Ollama; off by default (extra latency)
+    "show_cloud_model_suggestions": False,  # opt-in: surface Ollama Cloud (":cloud") model suggestions in Settings — these run on Ollama's servers, not this machine; off by default per "no hosted APIs" philosophy
     "rag_rerank_model": "",  # blank => reuse the router's installed general/chat model
     "rag_rerank_pool": 15,   # max fused candidates sent through rerank (latency cap)
     "rag_rerank_timeout_seconds": 12,

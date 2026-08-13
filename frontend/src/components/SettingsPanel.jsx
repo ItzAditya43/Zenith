@@ -16,6 +16,17 @@ const THEMES = [
 
 const FIT_RANK = { comfortable: 0, tight: 1, unknown: 2, will_struggle: 3 };
 
+/** Task filter chips for the "models" settings section — maps a friendly
+ * label to the underlying COOKBOOK/CLOUD_COOKBOOK `role` value. */
+const MODEL_TASK_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "general", label: "Chat" },
+  { key: "code", label: "Code" },
+  { key: "vision", label: "Vision" },
+  { key: "reasoning", label: "Reasoning" },
+  { key: "small_fast", label: "Quick replies" },
+];
+
 /** Best already-installed, role-matching model for this hardware: prefer
  * a better fit tier, then (within the same tier) the biggest model —
  * more capable is better as long as it still comfortably fits. Returns
@@ -133,6 +144,7 @@ export default function SettingsPanel({
   const [skills, setSkills] = useState([]);
   const [skillsError, setSkillsError] = useState(null);
   const [hardware, setHardware] = useState(null);
+  const [modelTaskFilter, setModelTaskFilter] = useState("all");
   const [routingStatus, setRoutingStatus] = useState(null);
   const [overrideSummary, setOverrideSummary] = useState([]);
   const [emailForm, setEmailForm] = useState({
@@ -2136,10 +2148,37 @@ export default function SettingsPanel({
                     </h3>
                     <p className="settings-section-desc">
                       Sized to what {hardware.budget_gb ? `~${hardware.budget_gb} GB` : "this machine"} can
-                      actually run well — best fit first.
+                      actually run well — best fit first. All run locally on your Ollama.
                     </p>
+                    <div
+                      role="group"
+                      aria-label="Filter recommended models by task"
+                      style={{ display: "flex", flexWrap: "wrap", gap: "6px", margin: "8px 0 12px" }}
+                    >
+                      {MODEL_TASK_FILTERS.map((f) => (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() => setModelTaskFilter(f.key)}
+                          aria-pressed={modelTaskFilter === f.key}
+                          style={{
+                            fontSize: "0.75rem",
+                            padding: "4px 10px",
+                            borderRadius: "999px",
+                            border: "1px solid var(--bg-inset)",
+                            background: modelTaskFilter === f.key ? "var(--signal-general, #4a6cf7)" : "var(--bg-panel-raised, transparent)",
+                            color: modelTaskFilter === f.key ? "#fff" : "var(--text-secondary)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
                     <ul className="model-list">
-                      {hardware.recommended.map((m) => (
+                      {hardware.recommended
+                        .filter((m) => modelTaskFilter === "all" || m.role === modelTaskFilter)
+                        .map((m) => (
                         <li key={m.name}>
                           <span className="model-name" style={{ flex: 1 }}>
                             {m.name}
@@ -2163,6 +2202,107 @@ export default function SettingsPanel({
                       ))}
                     </ul>
                   </>
+                )}
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  Cloud model options
+                </h3>
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Show cloud model options</span>
+                    <span className="setting-hint">
+                      Larger models than your hardware can run, hosted by Ollama, requires an
+                      ollama.com account. Nothing else in Zenith calls out to the internet without
+                      this being explicitly on.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${config?.show_cloud_model_suggestions ? "switch-on" : ""}`}
+                    onClick={async () =>
+                      setConfig(
+                        await api.patchConfig({
+                          show_cloud_model_suggestions: !config?.show_cloud_model_suggestions,
+                        })
+                      )
+                    }
+                    role="switch"
+                    aria-checked={!!config?.show_cloud_model_suggestions}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+
+                {config?.show_cloud_model_suggestions && hardware?.cloud_recommended?.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      padding: "12px",
+                      border: "1px dashed color-mix(in srgb, #7c5cff 45%, transparent)",
+                      borderRadius: "var(--radius-sm)",
+                      background: "color-mix(in srgb, #7c5cff 6%, transparent)",
+                    }}
+                  >
+                    <p className="settings-section-desc">
+                      These do <strong>not</strong> run on this machine — they run on Ollama's own
+                      servers. Pulling one requires signing into an ollama.com account outside of
+                      Zenith; Zenith does not manage that sign-in, it only helps you pick a model.
+                    </p>
+                    <div
+                      role="group"
+                      aria-label="Filter cloud models by task"
+                      style={{ display: "flex", flexWrap: "wrap", gap: "6px", margin: "8px 0 12px" }}
+                    >
+                      {MODEL_TASK_FILTERS.map((f) => (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() => setModelTaskFilter(f.key)}
+                          aria-pressed={modelTaskFilter === f.key}
+                          style={{
+                            fontSize: "0.75rem",
+                            padding: "4px 10px",
+                            borderRadius: "999px",
+                            border: "1px solid var(--bg-inset)",
+                            background: modelTaskFilter === f.key ? "var(--signal-general, #4a6cf7)" : "var(--bg-panel-raised, transparent)",
+                            color: modelTaskFilter === f.key ? "#fff" : "var(--text-secondary)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                    <ul className="model-list">
+                      {hardware.cloud_recommended
+                        .filter((m) => modelTaskFilter === "all" || m.role === modelTaskFilter)
+                        .map((m) => (
+                        <li key={m.name}>
+                          <span className="model-name" style={{ flex: 1 }}>
+                            {m.name}
+                            <span style={{ display: "block", fontSize: "0.75em", color: "var(--text-tertiary)" }}>
+                              {m.note}
+                            </span>
+                          </span>
+                          <span
+                            title="Runs on Ollama's servers, not this machine"
+                            style={{
+                              fontSize: "10px",
+                              padding: "2px 8px",
+                              borderRadius: "999px",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.03em",
+                              whiteSpace: "nowrap",
+                              background: "color-mix(in srgb, #7c5cff 22%, transparent)",
+                              color: "#7c5cff",
+                              fontWeight: 600,
+                            }}
+                          >
+                            Cloud
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
 
                 <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
