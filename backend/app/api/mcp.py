@@ -46,8 +46,15 @@ async def remove_server(server_id: str):
 async def get_server_tools(server_id: str):
     """Connects to the server right now and lists its tools — also
     serves as a quick "does this config actually work" health check
-    from the Settings UI."""
+    from the Settings UI. Unlike the agent loop's tool discovery (which
+    swallows a bad server's errors so one broken config doesn't block
+    the others), this surfaces the real connection error so a user
+    testing a new server config actually finds out it's broken instead
+    of just seeing an empty tool list with no explanation."""
     server = mcp_service.get_server(server_id)
     if not server:
         raise HTTPException(404, "No such MCP server.")
-    return await mcp_service.list_tools(server)
+    try:
+        return await mcp_service._list_tools_raw(server)
+    except Exception as exc:
+        raise HTTPException(502, f"Couldn't connect to '{server['name']}': {exc}")

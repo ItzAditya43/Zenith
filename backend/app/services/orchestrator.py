@@ -263,6 +263,32 @@ async def _gather_web_context(user_text: str, web_search: bool) -> tuple[str, li
         sources.append({"url": page["url"], "title": page["title"]})
 
     if not sections:
+        if web_search and not search_results:
+            # A search was explicitly requested but yielded nothing usable —
+            # tell the model honestly rather than letting it answer as if
+            # search either wasn't tried or confirmed there's nothing to
+            # find. This is the common shape of a rate-limited/blocked
+            # search backend: the HTTP call itself succeeds (200 OK), it
+            # just parses to zero results, so the exception-based logging
+            # in web_service.search() never fires for this case.
+            log.warning("orchestrator.web_search_empty", query=user_text[:120])
+            return (
+                "Note: a web search was attempted for this turn but returned no "
+                "results (the search backend may be temporarily unavailable or "
+                "rate-limited). Answer from your own knowledge and say plainly "
+                "that you weren't able to verify this against the web right now.",
+                [],
+            )
+        if urls:
+            # Pasted URL(s) were given but none could be fetched (dead link,
+            # blocked, timeout) — same honesty principle.
+            log.warning("orchestrator.url_fetch_all_failed", urls=urls[:3])
+            return (
+                "Note: a link in this message could not be fetched (unreachable, "
+                "blocked, or timed out). Answer from your own knowledge and say "
+                "plainly that you weren't able to read that page.",
+                [],
+            )
         return "", []
     header = "Web content fetched for this turn (cite naturally, don't dump raw URLs):\n\n"
     return header + "\n\n---\n\n".join(sections), sources
