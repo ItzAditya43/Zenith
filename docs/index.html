@@ -416,6 +416,26 @@
       <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="4" width="17" height="12" rx="1.5"/><path d="M9 20h6M12 16v4"/></svg></span>
       <h3>Desktop app</h3><p>A real installable app with a system tray, global hotkey, and auto-update — not just a browser tab.</p>
     </div>
+    <div class="card">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M9.5 10 12.5 12 9.5 14M13.5 14h2"/></svg></span>
+      <h3>Live artifacts</h3><p>Pull a code block out of a reply into its own panel — a sandboxed live preview for HTML/CSS/JS/JSX/TSX, and an in-browser Python "Run" tab, both entirely local.</p>
+    </div>
+    <div class="card">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3a4 4 0 0 1 4 4v1.2a4.5 4.5 0 0 1-1 8.8H7a4 4 0 0 1-.7-7.94A4 4 0 0 1 12 3Z"/><path d="M12 13v6M9.5 17 12 19l2.5-2"/></svg></span>
+      <h3>Model advisor</h3><p>Reads your actual RAM/GPU and recommends installed-or-pullable models sized to fit, filterable by task — plus optional, clearly opt-in Ollama Cloud models for jobs your hardware can't run.</p>
+    </div>
+    <div class="card">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg></span>
+      <h3>Health &amp; diagnostics</h3><p>One panel for whether Ollama, retrieval, image generation, agent mode, and every MCP server are actually reachable — not scattered banners you have to go find.</p>
+    </div>
+    <div class="card">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.5-4.5"/><path d="M8 11h1.5M13.5 11H15M11 8v1.5M11 13.5V15"/></svg></span>
+      <h3>Hybrid retrieval</h3><p>Vector and keyword search fused with Reciprocal Rank Fusion, with an optional reranking pass — exact terms an embedding alone would bury still surface.</p>
+    </div>
+    <div class="card">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 3a12 12 0 0 1 0 18M12 3a12 12 0 0 0 0 18M3 12h18"/></svg></span>
+      <h3>Accessibility</h3><p>Text scale, high contrast, reduced motion, a dyslexia-friendly font, and always-underlined links — real settings that actually change the rendered app, not a checkbox for show.</p>
+    </div>
   </div>
 </section>
 
@@ -500,7 +520,7 @@
       <ul>
         <li>You want a normal app icon, tray, and hotkey</li>
         <li>You'd rather not touch a command line at all</li>
-        <li>Windows <code>.msi</code> / Linux <code>.AppImage</code>, built by CI</li>
+        <li>Windows <code>.msi</code> / Linux <code>.AppImage</code> / macOS, built by CI (Linux hand-verified; the others follow the same steps but haven't been run on real hardware yet)</li>
       </ul>
       <a href="https://github.com/ItzAditya43/Zenith/blob/feature/full-audit-implementation/DESKTOP.md">Desktop app guide →</a>
     </div>
@@ -562,6 +582,10 @@
     <details class="faq-item">
       <summary>Is this affiliated with Ollama?<span class="plus">+</span></summary>
       <p>No — Zenith is an independent, unaffiliated client that talks to Ollama's own local API, the same way any other app on your machine would.</p>
+    </details>
+    <details class="faq-item">
+      <summary>What about Ollama Cloud models — doesn't that break "nothing leaves your machine"?<span class="plus">+</span></summary>
+      <p>It's the one deliberate exception, and it's off by default. The Model advisor in Settings can optionally suggest Ollama Cloud models — larger than any local hardware could run — clearly labeled and visually separate from local recommendations, never blended in. Using one means that turn's compute runs on Ollama's servers instead of yours and requires your own ollama.com account; Zenith doesn't manage that sign-in or send anything there unless you explicitly pick a cloud model for that message.</p>
     </details>
   </div>
 </section>
