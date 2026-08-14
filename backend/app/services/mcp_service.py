@@ -93,19 +93,29 @@ async def _with_session(server: dict, fn):
             return await fn(session)
 
 
+async def _list_tools_raw(server: dict) -> list[dict]:
+    """Connects and lists tools, raising on any failure — the honest
+    version. `list_tools` below wraps this to swallow errors for the
+    agent-loop discovery path; the Settings "check this server" health
+    check calls this one directly so a broken config actually surfaces
+    an error instead of an indistinguishable empty list."""
+    async def _list(session):
+        result = await session.list_tools()
+        return [
+            {"name": t.name, "description": t.description or "", "input_schema": t.inputSchema}
+            for t in result.tools
+        ]
+    return await asyncio.wait_for(_with_session(server, _list), timeout=_CONNECT_TIMEOUT + 5)
+
+
 async def list_tools(server: dict) -> list[dict]:
     """Returns [{name, description, input_schema}] for one server.
     Empty list (logged, not raised) if the server fails to start or
     doesn't respond in time — one bad MCP server shouldn't block agent
-    mode from using the others."""
+    mode from using the others. See `_list_tools_raw` for the version
+    that raises, used by the Settings UI health check."""
     try:
-        async def _list(session):
-            result = await session.list_tools()
-            return [
-                {"name": t.name, "description": t.description or "", "input_schema": t.inputSchema}
-                for t in result.tools
-            ]
-        return await asyncio.wait_for(_with_session(server, _list), timeout=_CONNECT_TIMEOUT + 5)
+        return await _list_tools_raw(server)
     except Exception as exc:
         log.warning("mcp.list_tools_failed", server=server["name"], error=str(exc))
         return []
