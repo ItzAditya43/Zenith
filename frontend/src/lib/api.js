@@ -195,6 +195,7 @@ export const api = {
     }).then((r) => r.json()),
 
   exportUrl: (format) => `${BASE}/api/export/${format}`,
+  conversationPdfUrl: (conversationId) => `${BASE}/api/export/${conversationId}/pdf`,
 
   listWorkspaceFiles: (conversationId, path = "") =>
     request(`/api/conversations/${conversationId}/files?path=${encodeURIComponent(path)}`).then((r) => r.json()),
@@ -277,7 +278,13 @@ export const api = {
     }).then((r) => r.json()),
 
   hardwareReport: () => request("/api/hardware").then((r) => r.json()),
+  listRagSources: () => request("/api/rag/sources").then((r) => r.json()),
+  deleteRagSource: (sourceId, sourceKind) =>
+    request(`/api/rag/sources/${encodeURIComponent(sourceId)}?source_kind=${encodeURIComponent(sourceKind)}`, {
+      method: "DELETE",
+    }).then((r) => r.json()),
   usageSummary: (days = 14) => request(`/api/usage/summary?days=${days}`).then((r) => r.json()),
+  usageStats: (days = 14) => request(`/api/usage/stats?days=${days}`).then((r) => r.json()),
 
   emailTest: () => request("/api/email/test").then((r) => r.json()),
   emailFlags: () => request("/api/email/flags").then((r) => r.json()),
@@ -527,6 +534,14 @@ export const api = {
   revertRun: (runId) => request(`/api/agent/runs/${runId}/revert`, { method: "POST" }).then((r) => r.json()),
 
   listModels: () => request("/api/models").then((r) => r.json()),
+  // Settings change history — see settings_history_service.py.
+  getSettingsHistory: (key = null, limit = 100) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (key) params.set("key", key);
+    return request(`/api/settings/history?${params.toString()}`).then((r) => r.json());
+  },
+  revertSettingsHistory: (id) =>
+    request(`/api/settings/history/${id}/revert`, { method: "POST" }).then((r) => r.json()),
   getRoutingStatus: () => request("/api/routing/status").then((r) => r.json()),
   getRoutingOverrideSummary: (days = 30) =>
     request(`/api/routing/override-summary?days=${days}`).then((r) => r.json()),
@@ -663,6 +678,22 @@ export const api = {
     await streamSSE(
       "/api/council",
       { conversation_id: conversationId, message, attachment_ids: attachmentIds, models },
+      onEvent,
+      signal
+    );
+  },
+
+  /**
+   * Batch job: run one prompt template against every file in a folder,
+   * one file at a time. Events per file are the batch_service dicts —
+   * {"file", "status": "done"|"error", "result"|"error"} — followed by a
+   * final {"status": "done"} frame. Standalone endpoint (see
+   * app/api/batch.py); not yet wired into the main chat flow.
+   */
+  async runBatch({ folderPath, promptTemplate, model, extensions }, onEvent, signal) {
+    await streamSSE(
+      "/api/batch/run",
+      { folder_path: folderPath, prompt_template: promptTemplate, model, extensions },
       onEvent,
       signal
     );

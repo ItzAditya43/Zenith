@@ -24,6 +24,10 @@ import CodeEditorPanel from "./components/CodeEditorPanel.jsx";
 import SnippetsPanel from "./components/SnippetsPanel.jsx";
 import KnowledgeGraphPanel from "./components/KnowledgeGraphPanel.jsx";
 import DigestPanel from "./components/DigestPanel.jsx";
+import RagSourcesPanel from "./components/RagSourcesPanel.jsx";
+import SettingsHistoryPanel from "./components/SettingsHistoryPanel.jsx";
+import BatchJobPanel from "./components/BatchJobPanel.jsx";
+import WakeWordListener from "./components/WakeWordListener.jsx";
 import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
@@ -95,6 +99,11 @@ export default function App() {
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
+  const [ragSourcesOpen, setRagSourcesOpen] = useState(false);
+  const [settingsHistoryOpen, setSettingsHistoryOpen] = useState(false);
+  const [batchJobOpen, setBatchJobOpen] = useState(false);
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
+  const [wakeWordPhrase, setWakeWordPhrase] = useState("hey zenith");
   const dismissOnboarding = () => {
     localStorage.setItem("zenith-onboarded", "1");
     setOnboardingOpen(false);
@@ -216,6 +225,8 @@ export default function App() {
       setCouncilModels(c.council_models || []);
       setContextWindow(c.default_context_window || 8192);
       setMaxContextMessages(c.max_context_messages || 24);
+      setWakeWordEnabled(!!c.wake_word_enabled);
+      setWakeWordPhrase(c.wake_word_phrase || "hey zenith");
     }).catch(() => {});
     api.listPersonas().then(setPersonas).catch(() => {});
     api.listQuickActions().then(setQuickActions).catch(() => {});
@@ -1227,6 +1238,11 @@ export default function App() {
     <div className={`app-shell ${focusMode ? "app-shell-focus" : ""}`}>
       <a href="#chat-main-content" className="skip-link">Skip to chat</a>
       <AmbientCanvas animationId={ambientAnim} />
+      <WakeWordListener
+        enabled={wakeWordEnabled}
+        phrase={wakeWordPhrase}
+        onWake={() => setAutoListenNonce(Date.now())}
+      />
       {!focusMode && (
         <Sidebar
           conversations={conversations}
@@ -1370,6 +1386,33 @@ export default function App() {
                   <Icon name="target" size={16} />
                 </button>
               )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${ragSourcesOpen ? "is-active" : ""}`}
+                  onClick={() => setRagSourcesOpen((v) => !v)}
+                  title="RAG sources — what's indexed for retrieval"
+                >
+                  <Icon name="layers" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${settingsHistoryOpen ? "is-active" : ""}`}
+                  onClick={() => setSettingsHistoryOpen((v) => !v)}
+                  title="Settings history — see and revert changes"
+                >
+                  <Icon name="rotate-ccw" size={16} />
+                </button>
+              )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${batchJobOpen ? "is-active" : ""}`}
+                  onClick={() => setBatchJobOpen((v) => !v)}
+                  title="Batch job — run a prompt against every file in a folder"
+                >
+                  <Icon name="hourglass" size={16} />
+                </button>
+              )}
             </div>
             {!focusMode && agentAvailable && (
               <button
@@ -1410,6 +1453,17 @@ export default function App() {
               >
                 <Icon name="download" size={16} />
               </button>
+            )}
+            {!focusMode && activeId && messages.length > 0 && (
+              <a
+                className="icon-btn"
+                href={api.conversationPdfUrl(activeId)}
+                download
+                title="Download this conversation as a PDF"
+                aria-label="Download this conversation as a PDF"
+              >
+                <Icon name="file-text" size={16} />
+              </a>
             )}
             {!focusMode && personas.length > 0 && groupPersonaIds.length < 2 && (
               <select
@@ -1519,6 +1573,9 @@ export default function App() {
         )}
         {usageOpen && <UsageDashboard onClose={() => setUsageOpen(false)} />}
         {healthOpen && <HealthPanel onClose={() => setHealthOpen(false)} />}
+        {ragSourcesOpen && <RagSourcesPanel onClose={() => setRagSourcesOpen(false)} />}
+        {settingsHistoryOpen && <SettingsHistoryPanel onClose={() => setSettingsHistoryOpen(false)} />}
+        {batchJobOpen && <BatchJobPanel onClose={() => setBatchJobOpen(false)} />}
         {groupPickerOpen && (
           <GroupChatPicker
             personas={personas}
@@ -1689,6 +1746,8 @@ export default function App() {
             api.getConfig().then((c) => {
               setAgentAvailable(!!c.agent_enabled);
               setCouncilModels(c.council_models || []);
+              setWakeWordEnabled(!!c.wake_word_enabled);
+              setWakeWordPhrase(c.wake_word_phrase || "hey zenith");
             }).catch(() => {});
             api.listPersonas().then(setPersonas).catch(() => {});
           }}

@@ -1095,6 +1095,62 @@ def usage_summary(days: int = 14) -> dict:
     }
 
 
+def usage_latency_percentiles(days: int = 14) -> dict:
+    """p50/p90/p99 turn latency (duration_ms) across usage events in the
+    window. SQLite has no native percentile function, so this fetches the
+    sorted values and indexes into them in Python — fine at the "recent
+    usage" scale this table sees; not meant to scale to millions of rows."""
+    since = time.time() - days * 86400
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT duration_ms FROM usage_events
+               WHERE created_at >= ? AND duration_ms IS NOT NULL
+               ORDER BY duration_ms ASC""",
+            (since,),
+        ).fetchall()
+    values = [r["duration_ms"] for r in rows]
+    n = len(values)
+    if n == 0:
+        return {"count": 0, "p50_ms": None, "p90_ms": None, "p99_ms": None}
+
+    def pct(p: float) -> int:
+        idx = min(n - 1, max(0, int(round(p * (n - 1)))))
+        return values[idx]
+
+    return {
+        "count": n,
+        "p50_ms": pct(0.50),
+        "p90_ms": pct(0.90),
+        "p99_ms": pct(0.99),
+    }
+
+
+def usage_by_model(days: int = 14) -> list[dict]:
+    """Per-model comparison: turn count, avg latency, and avg tokens/sec
+    (derived from token_count and duration_ms) — sorted by turn count
+    descending, real data from recorded usage events."""
+    since = time.time() - days * 86400
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT model, COUNT(*) AS turns,
+                      COALESCE(SUM(token_count), 0) AS tokens,
+                      COALESCE(AVG(duration_ms), 0) AS avg_duration_ms,
+                      COALESCE(SUM(CASE WHEN duration_ms > 0 THEN token_count * 1000.0 / duration_ms ELSE 0 END), 0) AS tps_sum,
+                      COALESCE(SUM(CASE WHEN duration_ms > 0 THEN 1 ELSE 0 END), 0) AS tps_n
+               FROM usage_events WHERE created_at >= ?
+               GROUP BY model ORDER BY turns DESC""",
+            (since,),
+        ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        tps_n = d.pop("tps_n")
+        tps_sum = d.pop("tps_sum")
+        d["avg_tokens_per_sec"] = round(tps_sum / tps_n, 2) if tps_n else None
+        result.append(d)
+    return result
+
+
 def log_routing_override(message: str, auto_role: str, auto_model: str, override_model: str) -> dict:
     """Records that the router auto-picked `auto_model` for `auto_role` but
     the user actually sent the turn to `override_model` instead — the
@@ -1133,6 +1189,35 @@ def routing_override_summary(days: int = 30) -> list[dict]:
             (since,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def dominant_override_model(role: str, days: int = 30, min_count: int = 3) -> str | None:
+    """Looks for a repeated, consistent override pattern for `role`: if one
+    `override_model` accounts for at least `min_count` overrides AND a clear
+    majority (>60%) of all overrides recorded for that role in the last
+    `days` days, returns that model name so the router can learn from it.
+    Deliberately conservative — a single override, or a role with overrides
+    split across several different models, returns None so a fresh install
+    (or a noisy history) doesn't change routing behavior at all."""
+    since = time.time() - days * 86400
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT override_model, COUNT(*) AS count
+               FROM routing_overrides
+               WHERE auto_role = ? AND created_at >= ?
+               GROUP BY override_model
+               ORDER BY count DESC""",
+            (role, since),
+        ).fetchall()
+    if not rows:
+        return None
+    total = sum(r["count"] for r in rows)
+    top = rows[0]
+    if top["count"] < min_count:
+        return None
+    if top["count"] / total <= 0.6:
+        return None
+    return top["override_model"]
 
 
 def search_conversations(q: str) -> list[dict]:

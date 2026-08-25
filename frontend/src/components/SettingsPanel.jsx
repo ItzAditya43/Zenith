@@ -571,6 +571,26 @@ export default function SettingsPanel({
     setConfig(updated);
   };
 
+  const toggleNtfyEnabled = async (checked) => {
+    const updated = await api.patchConfig({ notify_ntfy_enabled: checked });
+    setConfig(updated);
+  };
+
+  const saveNtfyConfig = async (fields) => {
+    const updated = await api.patchConfig(fields);
+    setConfig(updated);
+  };
+
+  const toggleWakeWordEnabled = async (checked) => {
+    const updated = await api.patchConfig({ wake_word_enabled: checked });
+    setConfig(updated);
+  };
+
+  const saveWakeWordPhrase = async (phrase) => {
+    const updated = await api.patchConfig({ wake_word_phrase: phrase });
+    setConfig(updated);
+  };
+
   const toggleRecallEnabled = async (checked) => {
     const updated = await api.patchConfig({ recall_enabled: checked });
     setConfig(updated);
@@ -1037,6 +1057,99 @@ export default function SettingsPanel({
                     <span className="switch-thumb" />
                   </button>
                 </div>
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Push notifications (ntfy)</span>
+                    <span className="setting-hint">
+                      Get schedule/digest/urgent-email alerts on your phone via{" "}
+                      <a href="https://ntfy.sh" target="_blank" rel="noreferrer">ntfy.sh</a> (or your
+                      own self-hosted instance) even while Zenith isn't open. Off by default — this is
+                      a deliberate exception to "nothing leaves your machine": once on, a short
+                      notification text is sent to the ntfy server you configure below.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${config?.notify_ntfy_enabled ? "switch-on" : ""}`}
+                    onClick={() => toggleNtfyEnabled(!config?.notify_ntfy_enabled)}
+                    role="switch"
+                    aria-checked={!!config?.notify_ntfy_enabled}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+                {config?.notify_ntfy_enabled && (
+                  <div className="setting-row setting-row-stack">
+                    <input
+                      className="settings-input"
+                      placeholder="ntfy server URL (default https://ntfy.sh)"
+                      defaultValue={config?.notify_ntfy_url || ""}
+                      aria-label="ntfy server URL"
+                      onBlur={(e) => saveNtfyConfig({ notify_ntfy_url: e.target.value.trim() || "https://ntfy.sh" })}
+                    />
+                    <input
+                      className="settings-input"
+                      placeholder="Topic (a private, hard-to-guess name — anyone who knows it can read your notifications)"
+                      defaultValue={config?.notify_ntfy_topic || ""}
+                      aria-label="ntfy topic"
+                      onBlur={(e) => saveNtfyConfig({ notify_ntfy_topic: e.target.value.trim() })}
+                    />
+                    <div className="setting-hint">
+                      Events that push a notification:
+                      {["digest_generated", "schedule_completed", "urgent_email", "memory_conflict_found", "folder_file_added"].map((ev) => {
+                        const active = (config?.notify_event_types || []).includes(ev);
+                        return (
+                          <button
+                            key={ev}
+                            className={`theme-choice-btn ${active ? "is-selected" : ""}`}
+                            style={{ marginLeft: "0.4rem", marginTop: "0.4rem" }}
+                            onClick={() => {
+                              const current = config?.notify_event_types || [];
+                              const next = active ? current.filter((e) => e !== ev) : [...current, ev];
+                              saveNtfyConfig({ notify_event_types: next });
+                            }}
+                          >
+                            {ev.replace(/_/g, " ")}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="setting-row">
+                  <div className="setting-meta">
+                    <span className="setting-label">Wake word</span>
+                    <span className="setting-hint">
+                      Say a phrase to start talking hands-free, instead of holding the mic button.
+                      Off by default — turning this on means Zenith listens to the microphone
+                      continuously in the background (short local voice-activity bursts only, nothing
+                      is stored beyond the normal transcribe call). A "listening" badge shows
+                      whenever this is actually on.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${config?.wake_word_enabled ? "switch-on" : ""}`}
+                    onClick={() => toggleWakeWordEnabled(!config?.wake_word_enabled)}
+                    role="switch"
+                    aria-checked={!!config?.wake_word_enabled}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+                {config?.wake_word_enabled && (
+                  <div className="setting-row">
+                    <div className="setting-meta">
+                      <span className="setting-label">Wake phrase</span>
+                    </div>
+                    <input
+                      className="settings-input"
+                      defaultValue={config?.wake_word_phrase || "hey zenith"}
+                      aria-label="Wake phrase"
+                      onBlur={(e) => saveWakeWordPhrase(e.target.value.trim() || "hey zenith")}
+                    />
+                  </div>
+                )}
               </section>
             )}
 

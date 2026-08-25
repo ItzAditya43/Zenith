@@ -3,6 +3,7 @@ import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
 import VoiceRecordingPanel from "./VoiceRecordingPanel.jsx";
+import ScreenshotButton from "./ScreenshotButton.jsx";
 
 const KIND_ICON = { image: "image", video: "video", document: "file-text", audio: "headphones", other: "paperclip" };
 
@@ -427,6 +428,18 @@ export default function Composer({
         >
           <Icon name="paperclip" size={17} />
         </button>
+        <ScreenshotButton
+          onCapture={async (dataUrl) => {
+            try {
+              const res = await fetch(dataUrl);
+              const blob = await res.blob();
+              const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+              await handleFiles([file]);
+            } catch (err) {
+              onError(`Screenshot capture failed: ${err.message}`);
+            }
+          }}
+        />
         <ModePicker
           mode={mode}
           setMode={setMode}

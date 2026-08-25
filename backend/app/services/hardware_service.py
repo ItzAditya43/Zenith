@@ -159,6 +159,19 @@ def _fit(params_b: float | None, budget_gb: float | None) -> str:
     return "will_struggle"
 
 
+def embedding_model_installed(installed: list[str]) -> str | None:
+    """Returns the first installed model name that looks embedding-capable,
+    or None. Mirrors the keyword heuristic in
+    rag_service._resolve_embed_model() — duplicated rather than imported to
+    avoid a layering inversion (services shouldn't import each other for a
+    three-keyword string check)."""
+    for name in installed:
+        lname = name.lower()
+        if "embed" in lname or "nomic-embed" in lname or "mxbai" in lname:
+            return name
+    return None
+
+
 def score_models(installed: list[str], include_cloud: bool = False) -> dict:
     hw = detect_hardware()
     budget = (hw["gpu"]["vram_gb"] if hw["gpu"] and hw["gpu"].get("vram_gb") else hw["ram_gb"])
@@ -195,6 +208,7 @@ def score_models(installed: list[str], include_cloud: bool = False) -> dict:
         "budget_gb": budget,
         "installed": scored_installed,
         "recommended": capped_recommended,
+        "embedding_model": embedding_model_installed(installed),
     }
     if include_cloud:
         # No hardware fit scoring here on purpose — these never run locally,

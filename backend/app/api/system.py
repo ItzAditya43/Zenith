@@ -133,6 +133,25 @@ def _mcp_status() -> dict:
         return {"ok": False, "error": str(exc)[:120]}
 
 
+async def _embedding_model_status() -> dict:
+    """Whether an embedding-capable model is installed. Without one, hybrid
+    RAG fusion/reranking silently degrade to lexical-only search — this
+    surfaces that instead of leaving it invisible. Uses the same
+    ModelRegistry-based install listing as the other probes here, scored
+    with hardware_service.embedding_model_installed()'s keyword heuristic
+    (which mirrors rag_service._resolve_embed_model())."""
+    try:
+        from app.services import hardware_service
+        from app.services.router import ModelRegistry
+
+        registry = ModelRegistry()
+        installed = await registry.models()
+        model = hardware_service.embedding_model_installed(installed)
+        return {"ok": model is not None, "model": model}
+    except Exception:
+        return {"ok": False, "model": None}
+
+
 def _overall(ollama: dict, whisper: dict, tts: dict) -> Literal["ok", "degraded", "down"]:
     """Ollama is required; Whisper/TTS being unavailable only downgrades
     the app (text chat still works), so it doesn't push us from `degraded`
@@ -154,7 +173,7 @@ async def health():
     The shape is deliberately forward-compatible: `components` lists each
     dependency and its own status so a UI/monitoring layer can render a
     richer health view later without an API change."""
-    ollama, whisper, tts, vector_search, image_gen, agent_mode, mcp = await asyncio.gather(
+    ollama, whisper, tts, vector_search, image_gen, agent_mode, mcp, embedding_model = await asyncio.gather(
         _ollama_status(OllamaClient()),
         _whisper_status(),
         _tts_status(),
@@ -162,6 +181,7 @@ async def health():
         asyncio.to_thread(_image_gen_status),
         asyncio.to_thread(_agent_mode_status),
         asyncio.to_thread(_mcp_status),
+        _embedding_model_status(),
     )
     status = _overall(ollama, whisper, tts)
     log.info("health.probe", status=status, ollama=ollama.get("ok"), whisper=whisper.get("ok"), tts=tts.get("ok"))
@@ -175,6 +195,7 @@ async def health():
             "image_gen": image_gen,
             "agent_mode": agent_mode,
             "mcp": mcp,
+            "embedding_model": embedding_model,
         },
     }
     if status == "down":

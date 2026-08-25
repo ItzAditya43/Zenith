@@ -208,6 +208,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "rag_rerank_timeout_seconds": 12,
     # --- Voice (Tier 3) ---
     "voice_chunk_sentences": True,
+    # --- Wake word (background listening, opt-in) ---
+    "wake_word_enabled": False,  # off by default — user must explicitly opt in to continuous mic listening
+    "wake_word_phrase": "hey zenith",  # compared case-insensitively against transcribed short bursts
     # --- Document OCR fallback (Tier 4) ---
     "doc_ocr_fallback": False,  # off by default — requires tesseract
     "doc_ocr_min_text_chars": 40,
@@ -223,6 +226,16 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "digest_enabled": False,     # off by default — an unprompted background LLM call
     "digest_interval_hours": 24,
     "digest_check_interval_seconds": 3600,  # how often the background task checks if one's due
+    # --- Push notifications (ntfy.sh — free, keyless, self-hostable).
+    # Off by default: unlike webhooks (which only reach your own LAN
+    # scripts), this leaves your machine to a third-party relay, same
+    # "explicit opt-in" posture as web search / Ollama Cloud. Point
+    # notify_ntfy_url at a self-hosted ntfy instance if you'd rather
+    # not use the public one. ---
+    "notify_ntfy_enabled": False,
+    "notify_ntfy_url": "https://ntfy.sh",
+    "notify_ntfy_topic": "",
+    "notify_event_types": [],
     # --- Frontend / experimental ---
     "ui_experimental": False,
 }
@@ -274,6 +287,7 @@ class Settings:
         return self._data
 
     def update(self, patch: dict[str, Any]) -> dict[str, Any]:
+        old_values = {k: self.get(k) for k in patch}
         for key in ("capability_keywords", "model_overrides"):
             if key in patch and isinstance(patch[key], dict):
                 self._data.setdefault(key, {})
@@ -281,6 +295,8 @@ class Settings:
                 patch = {k: v for k, v in patch.items() if k != key}
         self._data.update(patch)
         self.save()
+        for key, old_value in old_values.items():
+            self._log_change(key, old_value, self._data.get(key))
         return self._data
 
     def save(self) -> None:
@@ -306,8 +322,25 @@ class Settings:
     def set(self, key: str, value: Any) -> None:
         """Convenience: set one key and persist. Lets tests / callers
         mutate a single field without rebuilding the whole patch dict."""
+        old_value = self.get(key)
         self._data[key] = value
         self.save()
+        self._log_change(key, old_value, value)
+
+    def _log_change(self, key: str, old_value: Any, new_value: Any) -> None:
+        """Best-effort history log for one key's change — shared by
+        `set()` and `update()` so both a single-key change and a
+        multi-key PATCH /api/config get recorded identically."""
+        if old_value == new_value:
+            return
+        try:
+            # Lazy import: settings_history_service -> app.db.storage ->
+            # app.db.migrations -> app.core.config would be circular at
+            # module load time otherwise.
+            from app.services import settings_history_service
+            settings_history_service.log_change(key, old_value, new_value)
+        except Exception:
+            pass  # never let history logging break the real config write
 
 
 settings = Settings()

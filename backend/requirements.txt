@@ -13,6 +13,9 @@ pydantic==2.13.4
 python-multipart==0.0.20
 pypdf==5.1.0
 python-docx==1.1.2
+# Single-conversation PDF export — pure-Python, no system deps (no Cairo/
+# Pango/headless browser), matching the stdlib-first philosophy.
+fpdf2==2.8.8
 Pillow==11.1.0
 faster-whisper==1.1.1
 piper-tts==1.4.2
