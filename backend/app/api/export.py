@@ -2,6 +2,11 @@
 Zenith knows (conversations, messages, memories, personas) as either one
 complete JSON file or a human-readable Markdown zip, no partial/opaque
 formats. No external dependencies: stdlib json/zipfile only.
+
+The one exception is single-conversation PDF export, which needs real
+typesetting (word-wrap, fonts) that stdlib doesn't offer. fpdf2 is
+pure-Python with zero system dependencies (no Cairo/Pango/headless
+browser), matching the project's stdlib-first, fully-local philosophy.
 """
 from __future__ import annotations
 
@@ -11,8 +16,9 @@ import re
 import time
 import zipfile
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
+from fpdf import FPDF
 
 from app.db import storage
 from app.services import folder_service, memory_service, persona_service
@@ -103,4 +109,78 @@ async def export_markdown():
         buf,
         media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="zenith-export.zip"'},
+    )
+
+
+def _pdf_safe(text: str) -> str:
+    """fpdf2's built-in core fonts (Helvetica/Times/Courier) only cover
+    Latin-1 — replace anything outside that range rather than crashing the
+    export on an emoji or CJK character (no custom font vendored, by
+    design: out of scope for this feature)."""
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
+def _render_conversation_pdf(conv: dict) -> bytes:
+    pdf = FPDF(format="A4")
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.set_margins(18, 18, 18)
+    pdf.add_page()
+
+    def line(h: float, text: str, **kwargs) -> None:
+        # multi_cell() leaves the cursor at the end of the last line of
+        # text (x near the right margin) rather than resetting it — the
+        # next call's width then shrinks by that amount and eventually
+        # runs out of room. Reset x to the left margin after every call.
+        pdf.multi_cell(0, h, text, **kwargs)
+        pdf.set_x(pdf.l_margin)
+
+    pdf.set_font("Helvetica", "B", 18)
+    line(10, _pdf_safe(conv.get("title") or "Untitled conversation"))
+    pdf.ln(2)
+
+    for m in conv.get("messages", []):
+        role = (m.get("role") or "").capitalize()
+        header = role + (f" ({m['model']})" if m.get("model") else "")
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.ln(4)
+        line(7, _pdf_safe(header))
+
+        content = m.get("content") or ""
+        # Split on fenced code blocks (```...```) so code gets a monospace,
+        # shaded box while prose stays in the body font.
+        parts = re.split(r"```(?:\w+)?\n?(.*?)```", content, flags=re.DOTALL)
+        for i, part in enumerate(parts):
+            if not part:
+                continue
+            if i % 2 == 1:
+                # Code block.
+                pdf.set_font("Courier", "", 9)
+                pdf.set_fill_color(240, 240, 240)
+                line(5, _pdf_safe(part.strip("\n")), fill=True)
+                pdf.set_fill_color(255, 255, 255)
+            else:
+                pdf.set_font("Times", "", 11)
+                line(6, _pdf_safe(part.strip("\n")))
+
+        if m.get("attachments"):
+            names = ", ".join(a.get("name", "?") for a in m["attachments"])
+            pdf.set_font("Times", "I", 9)
+            line(5, _pdf_safe(f"Attachments: {names}"))
+
+    return bytes(pdf.output())
+
+
+@router.get("/{conversation_id}/pdf")
+async def export_conversation_pdf(conversation_id: str):
+    conv = storage.get_conversation(conversation_id)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    conv["messages"] = storage.get_messages(conversation_id)
+
+    pdf_bytes = _render_conversation_pdf(conv)
+    filename = _safe_filename(conv["title"], conv["id"][:8])
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'},
     )

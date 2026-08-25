@@ -1038,6 +1038,56 @@ that, not a multi-tenant SaaS product:
   fields unreadable ciphertext; it does not protect against another
   process running as the same OS user as Zenith on the same machine.
 
+### Retrieval, routing, and export follow-ups
+
+A batch of smaller features closing gaps found during a full feature audit:
+
+- **Embedding-model nudge** — `/api/health` and `/api/hardware` now report
+  whether an embedding-capable model is installed; hybrid RAG fusion and
+  reranking silently degrade to lexical-only search without one, which
+  was previously invisible.
+- **Router self-tuning** — when you consistently override the auto-picked
+  model for a role (≥3 times, >60% majority — a real pattern, not a
+  one-off), the router now prefers your learned choice for
+  low-to-medium-confidence decisions going forward, without touching
+  genuinely high-confidence matches or `vision`'s hard constraint.
+- **RAG source manager** (header icon) — see every document, folder file,
+  and cross-conversation source currently indexed, with chunk counts and
+  a delete button, instead of RAG being invisible infrastructure.
+- **Settings changelog** (header icon) — every config change is now
+  logged (old value → new value, timestamp) with a one-click revert;
+  reverting itself logs a new entry, so the history is append-only.
+- **PDF export** — download any single conversation as a real PDF (the
+  file-icon button in the chat header, next to Share/Extract) — `fpdf2`,
+  pure-Python, no system dependencies.
+- **Push notifications** (Settings → Appearance) — optional
+  [ntfy.sh](https://ntfy.sh)/self-hosted-ntfy alerts for schedule
+  completions, digests, urgent email, and folder events, so you don't
+  need the app open to know something happened. Off by default — same
+  "explicit exception to nothing-leaves-your-machine" posture as web
+  search and Ollama Cloud.
+- **More reliable agent tool calls** — the model's tool-selection step now
+  passes a JSON Schema via Ollama's structured-output `format` parameter,
+  making small models meaningfully less likely to emit malformed tool
+  JSON (see Known Limitations below — this reduces, doesn't eliminate,
+  that failure mode).
+- **Batch jobs** (header icon) — run one prompt against every file in a
+  folder, results streamed back per file as they finish.
+- **Usage dashboard extensions** — latency percentiles (p50/p90/p99),
+  a per-model comparison table, and a rough "compute cost avoided vs. a
+  typical cloud API" estimate, clearly labeled as illustrative.
+- **Screenshot-to-chat** (desktop app only) — a composer button that
+  captures the screen and attaches it, using the `screenshots` Rust
+  crate. Read-only, user-initiated capture — not the OS-level "computer
+  use" this project deliberately doesn't build (see Known Limitations);
+  no synthetic input, ever. Invisible outside the desktop app.
+- **Wake word** (Settings → Appearance, off by default) — say a phrase to
+  start talking hands-free instead of holding the mic button. A real
+  opt-in: off unless explicitly enabled, an always-visible "listening"
+  badge whenever it's actually on, and only short local voice-activity
+  bursts get transcribed via the existing `/api/voice/transcribe` — never
+  raw continuous audio.
+
 ## Known limitations
 
 - **Small models frequently fail to follow the tool-calling protocol.**
@@ -1050,6 +1100,12 @@ that, not a multi-tenant SaaS product:
 - **YouTube reading is captions-only** — it reads what's said, not what's
   shown. A silent video or one with disabled captions won't be usefully
   read (Deep Research/agent mode get a title-only fallback in that case).
+- **Screenshot-to-chat's Rust code is `cargo check`-verified, not yet
+  hand-run.** Unlike the Linux desktop build itself (actually built and
+  launched this session), the screenshot capture command was only
+  type-checked, not compiled into a real running app and clicked — the
+  next real desktop build should specifically exercise this button
+  before it's considered fully verified.
 - **Agent mode has no filesystem sandbox** — see [Safety model](#safety-model).
   A real syscall sandbox was investigated and shelved (Docker's default
   seccomp blocks the nested user namespaces bwrap/firejail need); details in

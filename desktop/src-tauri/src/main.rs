@@ -42,6 +42,39 @@ use std::sync::Mutex;
 // Holds the running backend child so we can kill it on exit.
 struct Backend(Mutex<Option<CommandChild>>);
 
+// User-initiated, read-only screenshot capture for the composer's
+// "attach screenshot" button (ScreenshotButton.jsx). Captures the primary
+// screen and returns it as a base64 PNG data URL — no temp file to clean up,
+// no synthetic input, nothing automated or hidden. This is deliberately NOT
+// the OS-level "computer-use" surface rejected in docs/NOT_BUILT.md: it only
+// fires on an explicit user click and never simulates mouse/keyboard input.
+#[tauri::command]
+fn capture_screenshot() -> Result<String, String> {
+    use screenshots::Screen;
+
+    let screens = Screen::all().map_err(|e| format!("couldn't list screens: {e}"))?;
+    let screen = screens
+        .into_iter()
+        .next()
+        .ok_or_else(|| "no screen found to capture".to_string())?;
+
+    let image = screen
+        .capture()
+        .map_err(|e| format!("screen capture failed: {e}"))?;
+
+    let mut png_bytes: Vec<u8> = Vec::new();
+    {
+        let mut cursor = std::io::Cursor::new(&mut png_bytes);
+        image
+            .write_to(&mut cursor, screenshots::image::ImageFormat::Png)
+            .map_err(|e| format!("couldn't encode screenshot as PNG: {e}"))?;
+    }
+
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&png_bytes);
+    Ok(format!("data:image/png;base64,{encoded}"))
+}
+
 fn toggle_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let visible = window.is_visible().unwrap_or(false);
@@ -96,6 +129,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(Backend(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![capture_screenshot])
         .setup(|app| {
             // App-data dir: ~/Library/Application Support/dev.zenith.desktop (macOS),
             // %APPDATA%/dev.zenith.desktop (Windows), ~/.local/share/dev.zenith.desktop (Linux).

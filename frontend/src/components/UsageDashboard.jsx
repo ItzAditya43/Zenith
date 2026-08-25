@@ -17,12 +17,19 @@ function Bar({ value, max, label, sub }) {
 /** Token throughput + latency trends over time, and disk usage — the
  * "how has this actually been performing" view, distinct from the
  * live-only status rail. Hand-rolled CSS bars, no charting dependency. */
+// Rough, honestly-approximate reference rate for the "compute cost avoided"
+// estimate below — real cloud API pricing varies widely by provider and
+// model tier. This is directional, not a precise figure.
+const ILLUSTRATIVE_CLOUD_RATE_PER_1M_TOKENS = 3;
+
 export default function UsageDashboard({ onClose }) {
   const [data, setData] = useState(null);
+  const [stats, setStats] = useState(null);
   const [days, setDays] = useState(14);
 
   useEffect(() => {
     api.usageSummary(days).then(setData).catch(() => {});
+    api.usageStats(days).then(setStats).catch(() => {});
   }, [days]);
 
   if (!data) {
@@ -121,6 +128,54 @@ export default function UsageDashboard({ onClose }) {
                   </li>
                 ))}
               </ul>
+            </>
+          )}
+
+          {stats?.latency_percentiles?.count > 0 && (
+            <>
+              <h3 className="settings-section-title" style={{ marginTop: "var(--space-4)" }}>
+                Latency percentiles
+              </h3>
+              <div className="hw-summary">
+                <span>p50: {stats.latency_percentiles.p50_ms}ms</span>
+                <span>p90: {stats.latency_percentiles.p90_ms}ms</span>
+                <span>p99: {stats.latency_percentiles.p99_ms}ms</span>
+              </div>
+            </>
+          )}
+
+          {stats?.by_model?.length > 0 && (
+            <>
+              <h3 className="settings-section-title" style={{ marginTop: "var(--space-4)" }}>
+                Model comparison
+              </h3>
+              <ul className="model-list">
+                {stats.by_model.map((m) => (
+                  <li key={m.model}>
+                    <span className="model-name" style={{ flex: 1 }}>{m.model}</span>
+                    <span className="setting-hint">
+                      {m.turns} turns · {Math.round(m.avg_duration_ms)}ms avg
+                      {m.avg_tokens_per_sec != null ? ` · ${m.avg_tokens_per_sec} tok/s` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {data.totals.tokens > 0 && (
+            <>
+              <h3 className="settings-section-title" style={{ marginTop: "var(--space-4)" }}>
+                Compute cost avoided (rough estimate)
+              </h3>
+              <p className="conversation-empty" style={{ marginTop: 0, textAlign: "left" }}>
+                {data.totals.tokens.toLocaleString()} tokens generated locally in this window ≈
+                {" "}
+                ${((data.totals.tokens / 1_000_000) * ILLUSTRATIVE_CLOUD_RATE_PER_1M_TOKENS).toFixed(2)}
+                {" "}
+                if run through a typical cloud API at ~${ILLUSTRATIVE_CLOUD_RATE_PER_1M_TOKENS}/1M tokens.
+                Illustrative only — actual cloud pricing varies widely by provider and model tier.
+              </p>
             </>
           )}
 

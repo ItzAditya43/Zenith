@@ -524,6 +524,112 @@ def _retrieve_fallback(query: str, filters: _Filters, top_k: int) -> list[dict]:
     ]
 
 
+def list_sources() -> list[dict[str, Any]]:
+    """Group the chunks table by (source_id, source_kind) so the user can
+    see, at a glance, everything currently contributing to RAG recall:
+    uploaded documents, watched-folder files, cross-conversation message
+    history, and stored memories. Read-only — does not touch retrieve()
+    or any of its helpers.
+
+    Labeling is best-effort per kind:
+      - "document": look up the attachment's original filename via
+        attachments.get(source_id); falls back to the raw id if the
+        attachment record is gone (e.g. cleaned up after the chat that
+        uploaded it was deleted, but its chunks weren't).
+      - "folder": source_id is already the absolute file path (see
+        index_folder_file) — use its basename as the label, full path
+        as a secondary detail.
+      - "message": source_id is "{conversation_id}:{hash}"; look up the
+        conversation's title via storage.get_conversation for the label.
+      - "memory": source_id is the memory id; no separate lookup table
+        is read here (memory_service is out of scope for this function),
+        so the label is just the id.
+      - anything else: label falls back to the raw source_id.
+    """
+    _ensure_table()
+    cur = _conn().cursor()
+    cur.execute(
+        """
+        SELECT source_kind, source_id,
+               COUNT(*) AS chunk_count,
+               MIN(created_at) AS first_indexed,
+               MAX(created_at) AS last_indexed,
+               MAX(conversation_id) AS conversation_id
+        FROM chunks
+        GROUP BY source_kind, source_id
+        ORDER BY last_indexed DESC
+        """
+    )
+    rows = cur.fetchall()
+
+    out: list[dict[str, Any]] = []
+    for source_kind, source_id, chunk_count, first_indexed, last_indexed, conversation_id in rows:
+        label = source_id
+        detail = None
+        try:
+            if source_kind == "document":
+                from app.services import attachments as att_service
+                att = att_service.get(source_id)
+                if att is not None:
+                    label = att.filename
+            elif source_kind == "folder":
+                from pathlib import Path
+                label = Path(source_id).name or source_id
+                detail = source_id
+            elif source_kind == "message":
+                if conversation_id:
+                    from app.db import storage
+                    convo = storage.get_conversation(conversation_id)
+                    if convo:
+                        label = convo.get("title") or f"Conversation {conversation_id}"
+                    else:
+                        label = f"Conversation {conversation_id}"
+        except Exception as exc:
+            log.debug("rag.list_sources_label_failed", source_kind=source_kind,
+                       source_id=source_id, error=str(exc))
+        out.append({
+            "source_id": source_id,
+            "source_kind": source_kind,
+            "label": label,
+            "detail": detail,
+            "chunk_count": chunk_count,
+            "conversation_id": conversation_id,
+            "first_indexed": first_indexed,
+            "last_indexed": last_indexed,
+        })
+    return out
+
+
+def delete_source(source_id: str, source_kind: str | None = None) -> int:
+    """Delete all chunks for a source (and their vec_chunks rows), same
+    cleanup pattern as delete_folder_chunks/delete_memory_chunks. Returns
+    the number of chunk rows deleted. `source_kind` narrows the match;
+    omit it only if the caller is certain source_id can't collide across
+    kinds (in this codebase source_ids are UUIDs or absolute paths, so in
+    practice they don't, but the API layer requires the param anyway)."""
+    _ensure_table()
+    conn = _conn()
+    cur = conn.cursor()
+    if source_kind:
+        cur.execute(
+            "SELECT id FROM chunks WHERE source_kind = ? AND source_id = ?",
+            (source_kind, source_id),
+        )
+    else:
+        cur.execute("SELECT id FROM chunks WHERE source_id = ?", (source_id,))
+    ids = [r[0] for r in cur.fetchall()]
+    if not ids:
+        return 0
+    placeholders = ",".join("?" * len(ids))
+    try:
+        cur.execute(f"DELETE FROM vec_chunks WHERE chunk_id IN ({placeholders})", ids)
+    except Exception as exc:
+        log.debug("rag.delete_source_vec_cleanup_failed", error=str(exc))
+    cur.execute(f"DELETE FROM chunks WHERE id IN ({placeholders})", ids)
+    conn.commit()
+    return len(ids)
+
+
 def index_message(conversation_id: str, role: str, text: str) -> None:
     """Index assistant + user messages for cross-conversation memory."""
     if not bool(settings.get("rag_enabled", True)):

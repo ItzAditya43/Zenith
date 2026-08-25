@@ -38,3 +38,8 @@ async def emit(event_type: str, data: dict) -> None:
         await automation_service.handle_event(event_type, data)
     except Exception as exc:
         log.warning("events.automation_dispatch_failed", event_type=event_type, error=str(exc))
+    try:
+        from app.services import notify_service
+        await notify_service.dispatch(event_type, data)
+    except Exception as exc:
+        log.warning("events.notify_dispatch_failed", event_type=event_type, error=str(exc))

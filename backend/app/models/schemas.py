@@ -121,6 +121,12 @@ class ConfigPatch(StrictModel):
     email_username: Optional[str] = Field(default=None, max_length=255)
     email_password: Optional[str] = Field(default=None, max_length=500)
     email_fetch_count: Optional[int] = Field(default=None, ge=1, le=200)
+    notify_ntfy_enabled: Optional[bool] = None
+    notify_ntfy_url: Optional[str] = Field(default=None, min_length=1, max_length=500)
+    notify_ntfy_topic: Optional[str] = Field(default=None, max_length=200)
+    notify_event_types: Optional[list[str]] = Field(default=None, max_length=10)
+    wake_word_enabled: Optional[bool] = None
+    wake_word_phrase: Optional[str] = Field(default=None, min_length=1, max_length=100)
 
 
 class MemoryCreate(StrictModel):

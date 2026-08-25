@@ -90,6 +90,13 @@ class ModelRegistry:
         return self._cache
 
 
+# Above this confidence, the keyword/embedding match is considered strong
+# enough that learned override history shouldn't fight it — this is meant
+# to resolve ambiguous/weak picks, not overturn a confident one (e.g. the
+# 0.95 hard vision constraint, or a very confident embedding match).
+_LEARNED_OVERRIDE_CONFIDENCE_CEILING = 0.92
+
+
 class ModelRouter:
     def __init__(self, registry: ModelRegistry | None = None):
         self.registry = registry or ModelRegistry()
@@ -101,6 +108,33 @@ class ModelRouter:
         """Inject a callable (text) -> list[float]. Used for semantic
         routing when an embedding model is configured."""
         self._embedder = embedder
+
+    def _apply_learned_override(
+        self, role: str, model: str, confidence: float, installed: list[str]
+    ) -> str | None:
+        """If past manual overrides show a strong, repeated pattern of the
+        user redirecting `role` decisions to a specific installed model, and
+        the current pick's confidence isn't already high, prefer the
+        learned model instead. Returns `model` unchanged when there's no
+        history, the pattern isn't strong enough, the learned model isn't
+        installed, or the current match is already confident — i.e. it
+        degrades to exactly today's behavior in the absence of a clear
+        override pattern."""
+        if confidence >= _LEARNED_OVERRIDE_CONFIDENCE_CEILING:
+            return model
+        try:
+            from app.db import storage
+            learned = storage.dominant_override_model(role)
+        except Exception as exc:
+            log.debug("routing.learned_override_lookup_failed", role=role, error=str(exc))
+            return model
+        if learned and learned in installed and learned != model:
+            log.info(
+                "routing.learned_override_applied",
+                role=role, original_model=model, learned_model=learned,
+            )
+            return learned
+        return model
 
     def _match_capability(self, role: str, installed: list[str]) -> str | None:
         override = settings.get("model_overrides", {}).get(role)
@@ -259,26 +293,45 @@ class ModelRouter:
         if has_long_document or context_chars:
             candidate = self._pick_by_context_window(role, installed, context_chars)
             if candidate:
+                context_reason = (
+                    f"{reason} Picked a larger-context model to fit the attached document."
+                    if candidate != self._match_capability(role, installed)
+                    else reason
+                )
+                context_confidence = 0.85
+                learned = self._apply_learned_override(
+                    role, candidate, context_confidence, installed
+                )
+                if learned != candidate:
+                    context_reason = (
+                        f"{reason} Recent manual overrides show you prefer {learned} "
+                        f"for '{role}' — using it."
+                    )
+                    candidate = learned
                 return RouteDecision(
                     model=candidate,
                     role=role,
-                    reason=(
-                        f"{reason} Picked a larger-context model to fit the attached document."
-                        if candidate != self._match_capability(role, installed)
-                        else reason
-                    ),
-                    confidence=0.85,
+                    reason=context_reason,
+                    confidence=context_confidence,
                     installed_models=installed,
                     matched_signal=f"context_window:needed={context_chars}",
                 )
 
         model = self._match_capability(role, installed)
         if model:
+            match_confidence = 0.9
+            learned = self._apply_learned_override(role, model, match_confidence, installed)
+            if learned != model:
+                reason = (
+                    f"{reason} Recent manual overrides show you prefer {learned} "
+                    f"for '{role}' — using it."
+                )
+                model = learned
             return RouteDecision(
                 model=model,
                 role=role,
                 reason=reason,
-                confidence=0.9,
+                confidence=match_confidence,
                 installed_models=installed,
                 matched_signal=f"regex:{role}",
             )
@@ -286,11 +339,20 @@ class ModelRouter:
         # Requested bucket not installed — fall back to general, then to
         # whatever exists at all so the app degrades instead of failing.
         fallback = self._match_capability("general", installed) or installed[0]
+        fallback_confidence = 0.6
+        fallback_reason = f"No model tagged for '{role}' is installed — fallback to '{fallback}'."
+        learned = self._apply_learned_override("general", fallback, fallback_confidence, installed)
+        if learned != fallback:
+            fallback_reason = (
+                f"{fallback_reason} Recent manual overrides show you prefer {learned} "
+                f"for 'general' — using it instead."
+            )
+            fallback = learned
         return RouteDecision(
             model=fallback,
             role="general",
-            reason=f"No model tagged for '{role}' is installed — fallback to '{fallback}'.",
-            confidence=0.6,
+            reason=fallback_reason,
+            confidence=fallback_confidence,
             installed_models=installed,
             matched_signal="fallback",
         )

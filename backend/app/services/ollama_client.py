@@ -87,10 +87,18 @@ class OllamaClient:
         messages: list[dict[str, Any]],
         images_b64: list[str] | None = None,
         options: dict[str, Any] | None = None,
+        format: str | dict[str, Any] | None = None,
     ) -> AsyncIterator[str]:
         """
         Streams token chunks from `/api/chat`. If `images_b64` is provided it
         is attached to the *last* user message (Ollama's vision-model convention).
+
+        `format` is passed straight through as Ollama's structured-output
+        constraint: either the string "json" (loose — reply must be valid
+        JSON) or a full JSON Schema dict (strict — reply must match that
+        shape). Omitted entirely when not given, so this is a no-op for
+        every existing caller and for any Ollama version too old to
+        recognize the field (it's just an extra ignored JSON key to those).
         """
         payload_messages = [dict(m) for m in messages]
         if images_b64:
@@ -105,6 +113,8 @@ class OllamaClient:
             "stream": True,
             "options": options or {},
         }
+        if format is not None:
+            payload["format"] = format
 
         # Per-stream timeout — we use a connect timeout of 10s and the
         # configured request timeout for the read side.
@@ -148,10 +158,11 @@ class OllamaClient:
         messages: list[dict[str, Any]],
         images_b64: list[str] | None = None,
         options: dict[str, Any] | None = None,
+        format: str | dict[str, Any] | None = None,
     ) -> str:
         """Non-streaming convenience wrapper — collects the full reply."""
         out = []
-        async for piece in self.chat_stream(model, messages, images_b64, options):
+        async for piece in self.chat_stream(model, messages, images_b64, options, format):
             out.append(piece)
         return "".join(out)
 

@@ -996,6 +996,26 @@ async def _execute_tool(
     return f"Error: unknown tool '{tool}'."
 
 
+def _tool_step_schema(tool_names: list[str]) -> dict:
+    """JSON Schema for the tool-selection step's expected reply, passed as
+    Ollama's `format` param to constrain generation on models that support
+    structured output. Mirrors the shape `_parse_step` already parses from
+    free text: either {"tool": <name>, "args": {...}} or {"final": <text>}.
+    Kept loose (no `required`, no oneOf/anyOf exclusivity) so a model that
+    ignores the constraint, or an older Ollama that ignores `format`
+    entirely, still falls through to the existing regex+json.loads parsing
+    unharmed — this only narrows the *shape* the model is nudged toward,
+    it never replaces the fallback parsing below."""
+    return {
+        "type": "object",
+        "properties": {
+            "tool": {"type": "string", "enum": tool_names} if tool_names else {"type": "string"},
+            "args": {"type": "object"},
+            "final": {"type": "string"},
+        },
+    }
+
+
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
@@ -1043,10 +1063,11 @@ async def _run_subagent(
     ]
     client = OllamaClient()
     final_text: str | None = None
+    tool_schema = _tool_step_schema(list(TOOLS) + list(mcp_by_name))
 
     for _ in range(max_iters):
         try:
-            raw = await client.chat(model, loop_messages)
+            raw = await client.chat(model, loop_messages, format=tool_schema)
         except OllamaError as exc:
             final_text = f"Sub-agent error: {exc}"
             break
@@ -1236,11 +1257,13 @@ async def run_agent_turn(
             })
             effective_mode = "full"  # approved plan runs unattended
 
+    tool_schema = _tool_step_schema(list(TOOLS) + list(mcp_by_name))
+
     for _ in range(max_iters):
         if final_text is not None:
             break  # plan was rejected before the loop even started
         try:
-            raw = await client.chat(decision.model, loop_messages)
+            raw = await client.chat(decision.model, loop_messages, format=tool_schema)
         except OllamaError as exc:
             yield {"type": "error", "message": str(exc)}
             return

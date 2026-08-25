@@ -695,6 +695,27 @@ def _mcp_servers_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _settings_history_table(conn: sqlite3.Connection) -> None:
+    """Append-only log of every `config.settings.set()` call — key, old
+    value, new value (both JSON-serialized text so any JSON-compatible
+    type round-trips), and when it happened. Powers the Settings history
+    panel: see a config change and revert it. Generic on purpose — logs
+    every key uniformly rather than special-casing a curated subset."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS settings_history (
+            id TEXT PRIMARY KEY,
+            key TEXT NOT NULL,
+            old_value TEXT,
+            new_value TEXT,
+            changed_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_settings_history_key ON settings_history(key);
+        CREATE INDEX IF NOT EXISTS idx_settings_history_changed_at ON settings_history(changed_at);
+        """
+    )
+
+
 # Ordered list — never reorder, only append.
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "baseline", _baseline),
@@ -730,6 +751,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (31, "todo_status_column", _todo_status_column),
     (32, "quick_actions_table", _quick_actions_table),
     (33, "routing_overrides_table", _routing_overrides_table),
+    (34, "settings_history_table", _settings_history_table),
 ]
 
 
