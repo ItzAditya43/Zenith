@@ -83,7 +83,7 @@ jobs:
         run: |
           cargo install tauri-cli --version "^2" --locked
           cargo tauri build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: zenith-windows
           path: |
