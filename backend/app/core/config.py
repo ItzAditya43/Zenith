@@ -252,8 +252,10 @@ def _decrypt_sensitive(data: dict[str, Any]) -> None:
             val = data.get(key)
             if isinstance(val, str) and is_encrypted(val):
                 data[key] = decrypt(val)
-    except Exception:
-        pass  # crypto_service unavailable at very-early import time — degrade to plaintext
+    except ImportError as exc:
+        from app.core.logging import get_logger
+        get_logger(__name__).debug("config.crypto_unavailable", error=str(exc))
+        # crypto_service unavailable at very-early import time — degrade to plaintext
 
 
 def _load() -> dict[str, Any]:
@@ -269,8 +271,9 @@ def _load() -> dict[str, Any]:
                     merged[key] = {**merged[key], **stored[key]}
             _decrypt_sensitive(merged)
             return merged
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError, TypeError, AttributeError) as exc:
+            from app.core.logging import get_logger
+            get_logger(__name__).warning("config.load_failed", error=str(exc))
     return json.loads(json.dumps(DEFAULT_CONFIG))
 
 
@@ -339,8 +342,10 @@ class Settings:
             # module load time otherwise.
             from app.services import settings_history_service
             settings_history_service.log_change(key, old_value, new_value)
-        except Exception:
-            pass  # never let history logging break the real config write
+        except ImportError as exc:
+            from app.core.logging import get_logger
+            get_logger(__name__).debug("config.history_log_unavailable", error=str(exc))
+            # never let history logging break the real config write
 
 
 settings = Settings()

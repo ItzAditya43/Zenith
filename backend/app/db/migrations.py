@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from app.core.config import db_path as _db_path
@@ -87,8 +88,8 @@ def _fts5_index(conn: sqlite3.Connection) -> None:
             conn.execute(
                 "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('fts5_available', '0')"
             )
-        except Exception:
-            pass
+        except sqlite3.Error as exc2:
+            log.warning("migration.fts5_meta_write_failed", error=str(exc2))
         return
     # Record the success so the app can take the FTS path confidently.
     try:
@@ -98,8 +99,8 @@ def _fts5_index(conn: sqlite3.Connection) -> None:
         conn.execute(
             "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('fts5_available', '1')"
         )
-    except Exception:
-        pass
+    except sqlite3.Error as exc:
+        log.warning("migration.fts5_meta_write_failed", error=str(exc))
     # Triggers: separate execute calls so a single failure doesn't
     # abort the whole migration. The triggers are pure indexing glue.
     conn.execute(
@@ -717,7 +718,7 @@ def _settings_history_table(conn: sqlite3.Connection) -> None:
 
 
 # Ordered list — never reorder, only append.
-MIGRATIONS: list[tuple[int, str, callable]] = [
+MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "baseline", _baseline),
     (2, "attachments_table", _attachments_table),
     (3, "fts5_index", _fts5_index),

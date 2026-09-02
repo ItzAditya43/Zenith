@@ -37,12 +37,28 @@ def temp_data_dir(monkeypatch):
     cfg.settings.reload()
 
 
-def test_app_boots_and_health(temp_data_dir):
+def test_app_boots_and_health(temp_data_dir, monkeypatch):
     from app.main import app
+
+    # Mock Ollama's /api/tags so `/api/health` -> `_ollama_status()` resolves
+    # deterministically without a live Ollama process. Same fake-httpx pattern
+    # used in test_automation.py (monkeypatch httpx.AsyncClient.<verb>).
+    async def fake_get(self, url, *args, **kwargs):
+        class R:
+            status_code = 200
+
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"models": [{"name": "fake-model:latest"}]}
+
+        return R()
+
+    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
 
     with TestClient(app) as client:
         r = client.get("/api/health")
-        # Health may report degraded (no Ollama in test env) but must be 200.
         assert r.status_code == 200, r.text
         body = r.json()
         assert "status" in body

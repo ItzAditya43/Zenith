@@ -483,6 +483,56 @@ they can't collide with the built-in set.
   thinking, git) as clickable chips that pre-fill the add form. Deliberately
   a curated starting point, not an attempt at a live directory.
 
+### Exposing Zenith as an MCP server
+
+`app/mcp_server.py` + `mcp_server_main.py`. The other direction from MCP
+client support above: instead of Zenith calling out to external MCP
+servers, this turns a slice of Zenith's own local data into MCP tools
+that *other* MCP-compatible clients (Claude Desktop, Cursor, etc.) can
+call — memory recall, RAG document search, notes, todos. Zenith stops
+being just an app and becomes a piece of local infrastructure other
+tools can plug into.
+
+It runs as a **separate process** from the FastAPI backend — `mcp_server_main.py`
+is a standalone entrypoint an MCP client spawns directly over stdio, and
+it does not start or require `main.py`/the web server to be running. It
+reads the same SQLite database by importing the same `app.db.storage`/
+`app.services.*` modules the backend itself uses, which resolve the DB
+location from `CORTEX_DATA_DIR` — point that env var at your real data
+directory and it sees your real data. Deliberately **read-only**: no
+create/update/delete tools are exposed, so an external agent poking at
+this surface can't mutate your notes/todos/memories.
+
+Four tools, each a thin wrapper around an existing service function:
+
+- `zenith_memory_search(query)` — substring search over long-term memories.
+- `zenith_rag_search(query, top_k=5)` — hybrid vector+lexical search over
+  indexed documents, conversations, and memories (same retrieval chat uses).
+- `zenith_notes_list()` / `zenith_notes_search(query)` — browse or search notes.
+- `zenith_todos_list(status=None)` — list todos, optionally filtered by status.
+
+To use it from Claude Desktop, add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "zenith": {
+      "command": "/home/you/Zenith/backend/.venv/bin/python",
+      "args": ["/home/you/Zenith/backend/mcp_server_main.py"],
+      "env": {
+        "CORTEX_DATA_DIR": "/home/you/.local/share/zenith"
+      }
+    }
+  }
+}
+```
+
+Use absolute paths for `command`/`args`/`CORTEX_DATA_DIR` — Claude
+Desktop spawns this with no shell profile and an arbitrary working
+directory, so nothing gets resolved relative to anything. `CORTEX_DATA_DIR`
+should match whatever the running backend uses (its default, or whatever
+you've set for it) so both processes agree on which `zenith.db` is real.
+
 ### Council of models
 
 `council_service.py`. Ask 2+ installed models the same question at once
@@ -1146,8 +1196,24 @@ A batch of smaller features closing gaps found during a full feature audit:
   give it a `classify_risk` case, and a dispatch entry in `_execute_tool`.
 - **New MCP server**: just configure it in Settings — no code change
   needed, tools are discovered at runtime.
-- **Swap SQLite for Postgres**: only `app/db/storage.py` needs to change
-  — every route calls through it, nothing else touches SQL directly.
+- **Swap SQLite for Postgres**: this was previously documented here as a
+  one-file change; a real investigation found that's false. `storage.py`
+  itself uses `?` placeholders, `PRAGMA`, `INSERT OR REPLACE`/`OR IGNORE`,
+  and SQLite's FTS5 full-text search (`messages_fts`, no Postgres
+  equivalent — would need `tsvector`/`to_tsquery` + a GIN index).
+  `migrations.py` uses `PRAGMA table_info` for schema introspection and
+  FTS5 triggers. `rag_service.py` doesn't go through `storage.py` at all
+  — it opens its own `sqlite3` connection, loads the `sqlite-vec`
+  extension, and does vector search via `vec_distance_cosine()` (would
+  need pgvector instead). At least 8 other services (`attachments.py`,
+  `memory_service.py`, `sync_service.py`, `mcp_service.py`,
+  `folder_service.py`, `agent_service.py`, `persona_service.py`,
+  `schedule_service.py`) also import the SQLite connection directly and
+  write their own raw SQL, contradicting the "nothing else touches SQL
+  directly" claim. A real port touches all of the above, not just one
+  file. `docker-compose.postgres.yml` exists as scaffolding for this
+  work, with the full file-by-file punch list in its header comment —
+  it is not yet a working integration.
 - **Swap the vector store**: `rag_service.py` is the only file that knows
   about `sqlite-vec`; it already falls back to lexical search when the
   extension isn't available, so a different backend just needs the same

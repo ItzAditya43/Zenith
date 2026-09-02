@@ -28,6 +28,8 @@ import RagSourcesPanel from "./components/RagSourcesPanel.jsx";
 import SettingsHistoryPanel from "./components/SettingsHistoryPanel.jsx";
 import BatchJobPanel from "./components/BatchJobPanel.jsx";
 import WakeWordListener from "./components/WakeWordListener.jsx";
+import BackupPanel from "./components/BackupPanel.jsx";
+import ShortcutsOverlay from "./components/ShortcutsOverlay.jsx";
 import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api } from "./lib/api";
@@ -100,6 +102,8 @@ export default function App() {
   const [usageOpen, setUsageOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [ragSourcesOpen, setRagSourcesOpen] = useState(false);
+  const [backupOpen, setBackupOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [settingsHistoryOpen, setSettingsHistoryOpen] = useState(false);
   const [batchJobOpen, setBatchJobOpen] = useState(false);
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
@@ -497,7 +501,14 @@ export default function App() {
       } else if ((e.metaKey || e.ctrlKey) && e.key === ".") {
         e.preventDefault();
         setFocusMode((v) => !v);
+      } else if (e.key === "?" && !isInput) {
+        e.preventDefault();
+        setShortcutsOpen((v) => !v);
       } else if (e.key === "Escape") {
+        if (shortcutsOpen) {
+          setShortcutsOpen(false);
+          return;
+        }
         if (commandPaletteOpen) {
           setCommandPaletteOpen(false);
           return;
@@ -513,7 +524,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [commandPaletteOpen, focusMode]);
+  }, [commandPaletteOpen, focusMode, shortcutsOpen]);
 
   const refreshBranches = async (id) => {
     try {
@@ -1151,6 +1162,12 @@ export default function App() {
       action: () => setOnboardingOpen(true),
     });
     list.push({
+      id: "keyboard-shortcuts", group: "Actions", icon: "command",
+      label: "Keyboard shortcuts",
+      hint: "?",
+      action: () => setShortcutsOpen(true),
+    });
+    list.push({
       id: "toggle-sidebar", group: "Actions", icon: "panel-left",
       label: sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar",
       action: () => setSidebarCollapsed((v) => !v),
@@ -1413,6 +1430,15 @@ export default function App() {
                   <Icon name="hourglass" size={16} />
                 </button>
               )}
+              {!focusMode && (
+                <button
+                  className={`icon-btn ${backupOpen ? "is-active" : ""}`}
+                  onClick={() => setBackupOpen((v) => !v)}
+                  title="Backup & restore"
+                >
+                  <Icon name="folder-open" size={16} />
+                </button>
+              )}
             </div>
             {!focusMode && agentAvailable && (
               <button
@@ -1576,6 +1602,8 @@ export default function App() {
         {ragSourcesOpen && <RagSourcesPanel onClose={() => setRagSourcesOpen(false)} />}
         {settingsHistoryOpen && <SettingsHistoryPanel onClose={() => setSettingsHistoryOpen(false)} />}
         {batchJobOpen && <BatchJobPanel onClose={() => setBatchJobOpen(false)} />}
+        {backupOpen && <BackupPanel onClose={() => setBackupOpen(false)} />}
+        {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
         {groupPickerOpen && (
           <GroupChatPicker
             personas={personas}

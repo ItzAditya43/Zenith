@@ -1,0 +1,12 @@
+{
+  "name": "Summarize new files in watched folder",
+  "trigger_type": "folder_file_added",
+  "trigger_config": {
+    "folder_id": "REPLACE_WITH_YOUR_WATCHED_FOLDER_ID"
+  },
+  "action_type": "prompt",
+  "action_config": {
+    "mode": "chat",
+    "prompt": "A new file just landed in a watched folder. Here is the event data: {event_data}\n\nSummarize what this file is and its key contents."
+  }
+}

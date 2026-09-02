@@ -9,7 +9,6 @@ conversations run in parallel (that's fine — they're independent).
 from __future__ import annotations
 
 import asyncio
-import time
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
@@ -31,16 +30,15 @@ async def conversation_lock(conversation_id: str, timeout: float | None = None):
             lock = asyncio.Lock()
             _locks[conversation_id] = lock
 
-    t0 = time.time()
     if timeout is None:
         timeout = float(settings.get("chat_queue_timeout_seconds", 60))
     try:
         await asyncio.wait_for(lock.acquire(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError as exc:
         log.warning("ratelimit.queue_timeout", conversation_id=conversation_id)
         raise TimeoutError(
             "Too many in-flight requests for this conversation; try again shortly."
-        )
+        ) from exc
     try:
         yield
     finally:
