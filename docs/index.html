@@ -426,7 +426,19 @@
     </div>
     <div class="card">
       <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg></span>
-      <h3>Health &amp; diagnostics</h3><p>One panel for whether Ollama, retrieval, image generation, agent mode, and every MCP server are actually reachable — not scattered banners you have to go find.</p>
+      <h3>Health &amp; diagnostics</h3><p>One panel for whether Ollama, retrieval, image generation, agent mode, every MCP server, and every background job are actually running — not scattered banners you have to go find.</p>
+    </div>
+    <div class="card">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 12a3 3 0 1 1 0-6 3 3 0 0 1 0 6zM17 18a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/><path d="M9.5 10.5 14.5 15.5"/></svg></span>
+      <h3>MCP server, not just client</h3><p>Connect Zenith to Claude Desktop or any other MCP client — your memory, RAG search, notes, and to-dos become tools other assistants can call, against the same local database.</p>
+    </div>
+    <div class="card">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 11a6 6 0 0 1 6-6M18 13a6 6 0 0 1-6 6"/><path d="M12 5V2M12 22v-3M4 11H1M23 13h-3"/></svg></span>
+      <h3>Real backup &amp; restore</h3><p>One zip — database, config, and every attachment — built with a consistent, write-safe snapshot, not a raw file copy. Restoring backs up your current state first, automatically.</p>
+    </div>
+    <div class="card">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 4a2.5 2.5 0 1 0-2.5 2.5H9V4ZM9 4v16M9 20a2.5 2.5 0 1 1-2.5-2.5H9V20ZM15 4a2.5 2.5 0 1 1 2.5 2.5H15V4ZM15 4v16M15 20a2.5 2.5 0 1 0 2.5-2.5H15V20ZM6.5 6.5h11M6.5 17.5h11"/></svg></span>
+      <h3>Keyboard-first</h3><p>A command palette for everything, plus a real shortcuts reference (just press <code>?</code>) that's checked against the actual code — not a list of shortcuts that used to work.</p>
     </div>
     <div class="card">
       <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.5-4.5"/><path d="M8 11h1.5M13.5 11H15M11 8v1.5M11 13.5V15"/></svg></span>
@@ -461,7 +473,7 @@
       <ul>
         <li><strong>Coding agent</strong> — shell + file edits + git, with an approval gate you control</li>
         <li><strong>Code editor + git</strong> — a real file tree and diff view scoped to your working directory</li>
-        <li><strong>MCP tool servers</strong> — bring in tools Zenith doesn't ship natively</li>
+        <li><strong>MCP tool servers</strong> — bring in tools Zenith doesn't ship natively, or expose Zenith's own memory/RAG/notes as tools <em>to</em> another MCP client</li>
         <li><strong>Deep research</strong> — cited answers for API/library lookups instead of guesses</li>
         <li><strong>Knowledge graph</strong> — a memory layer that tracks how a codebase-adjacent project connects</li>
       </ul>
