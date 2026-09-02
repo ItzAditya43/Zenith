@@ -4,7 +4,7 @@ fastapi==0.128.0
 # `pip install` couldn't satisfy both — bumped fastapi to a version whose
 # own starlette range (>=0.40,<0.51) overlaps mcp's, on every Python version.
 starlette>=0.40.0,<0.51.0
-uvicorn[standard]==0.34.0
+uvicorn[standard]==0.52.4
 mcp==1.28.1
 httpx==0.28.1
 # mcp requires pydantic>=2.11; bumped from 2.10.4 for that (fastapi 0.115.6
