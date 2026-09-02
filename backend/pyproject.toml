@@ -24,7 +24,7 @@ dependencies = [
     "fpdf2==2.8.8",
     "Pillow==11.1.0",
     "faster-whisper==1.1.1",
-    "piper-tts==1.4.2",
+    "piper-tts==1.7.0",
     "pyttsx3==2.98",
     "aiofiles==24.1.0",
     "cryptography>=42.0.0",
