@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent, automation, batch, chat, digest, documents, export, files, folders, graph, images, lock, mcp, memory, rag_sources, routing, schedules, settings_history, sync, system, upload, usage_stats, voice
+from app.api import agent, automation, backup, batch, chat, digest, documents, export, files, folders, graph, images, jobs, lock, mcp, memory, metrics, rag_sources, routing, schedules, settings_history, sync, system, upload, usage_stats, voice
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.storage import init_db
 from app.services.attachments import sweep_orphans
 from app.services.ollama_client import OllamaClient
+from app.services import jobs_registry
 
 log = get_logger(__name__)
 
@@ -23,12 +25,15 @@ async def _orphan_sweeper(interval_seconds: int) -> None:
     shutdown (the surrounding `asyncio.create_task` is cancelled at exit)."""
     try:
         while True:
+            _t0 = time.monotonic()
             try:
                 removed = await asyncio.to_thread(sweep_orphans)
                 if removed:
                     log.info("upload.sweeper_tick", removed=removed)
+                jobs_registry.record_run("orphan_sweeper", "success", (time.monotonic() - _t0) * 1000)
             except Exception as exc:  # never let the sweeper die silently
                 log.warning("upload.sweeper_error", error=str(exc))
+                jobs_registry.record_run("orphan_sweeper", "error", (time.monotonic() - _t0) * 1000, detail=str(exc))
             await asyncio.sleep(interval_seconds)
     except asyncio.CancelledError:
         log.info("upload.sweeper_stopped")
@@ -44,10 +49,13 @@ async def _folder_scanner(interval_seconds: int) -> None:
 
     try:
         while True:
+            _t0 = time.monotonic()
             try:
                 await scan_all_enabled()
+                jobs_registry.record_run("folder_scanner", "success", (time.monotonic() - _t0) * 1000)
             except Exception as exc:
                 log.warning("folder.scanner_error", error=str(exc))
+                jobs_registry.record_run("folder_scanner", "error", (time.monotonic() - _t0) * 1000, detail=str(exc))
             await asyncio.sleep(interval_seconds)
     except asyncio.CancelledError:
         log.info("folder.scanner_stopped")
@@ -63,10 +71,13 @@ async def _schedule_runner(interval_seconds: int) -> None:
 
     try:
         while True:
+            _t0 = time.monotonic()
             try:
                 await run_due_schedules()
+                jobs_registry.record_run("schedule_runner", "success", (time.monotonic() - _t0) * 1000)
             except Exception as exc:
                 log.warning("schedule.runner_error", error=str(exc))
+                jobs_registry.record_run("schedule_runner", "error", (time.monotonic() - _t0) * 1000, detail=str(exc))
             await asyncio.sleep(interval_seconds)
     except asyncio.CancelledError:
         log.info("schedule.runner_stopped")
@@ -81,10 +92,13 @@ async def _digest_runner(interval_seconds: int) -> None:
 
     try:
         while True:
+            _t0 = time.monotonic()
             try:
                 await maybe_run_digest()
+                jobs_registry.record_run("digest_runner", "success", (time.monotonic() - _t0) * 1000)
             except Exception as exc:
                 log.warning("digest.runner_error", error=str(exc))
+                jobs_registry.record_run("digest_runner", "error", (time.monotonic() - _t0) * 1000, detail=str(exc))
             await asyncio.sleep(interval_seconds)
     except asyncio.CancelledError:
         log.info("digest.runner_stopped")
@@ -100,10 +114,13 @@ async def _email_triage_runner(interval_seconds: int) -> None:
 
     try:
         while True:
+            _t0 = time.monotonic()
             try:
                 await scan_for_urgent()
+                jobs_registry.record_run("email_triage_runner", "success", (time.monotonic() - _t0) * 1000)
             except Exception as exc:
                 log.warning("email.triage_runner_error", error=str(exc))
+                jobs_registry.record_run("email_triage_runner", "error", (time.monotonic() - _t0) * 1000, detail=str(exc))
             await asyncio.sleep(interval_seconds)
     except asyncio.CancelledError:
         log.info("email.triage_runner_stopped")
@@ -319,3 +336,6 @@ app.include_router(settings_history.router)
 app.include_router(rag_sources.router)
 app.include_router(usage_stats.router)
 app.include_router(batch.router)
+app.include_router(jobs.router)
+app.include_router(metrics.router)
+app.include_router(backup.router)

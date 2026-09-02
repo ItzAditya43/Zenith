@@ -7,9 +7,13 @@ import sqlite3
 import time
 import uuid
 from contextlib import contextmanager
+from typing import Any
 
 from app.core.config import db_path as _db_path
+from app.core.logging import get_logger
 from app.db.migrations import run_migrations
+
+log = get_logger(__name__)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS conversations (
@@ -879,7 +883,8 @@ def list_notes() -> list[dict]:
 
 
 def update_note(note_id: str, content: str | None = None, color: str | None = None, pinned: bool | None = None) -> None:
-    fields, params = [], []
+    fields: list[str] = []
+    params: list[Any] = []
     if content is not None:
         fields.append("content = ?")
         params.append(content)
@@ -928,8 +933,15 @@ def list_todos() -> list[dict]:
 
 
 def update_todo(todo_id: str, text: str | None = None, done: bool | None = None,
-                 due_ts: float | None = "__unset__", status: str | None = None) -> None:
-    fields, params = [], []
+                 due_ts: float | str | None = "__unset__", status: str | None = None) -> None:
+    # due_ts's default is the sentinel string "__unset__", not None, so
+    # "explicitly clear the due date" (None) can be distinguished from
+    # "caller didn't touch this field at all" — both app/api/chat.py and
+    # app/services/agent_service.py pass this exact literal when the
+    # field is absent from their request/args, so it's a real external
+    # contract, not just an internal default.
+    fields: list[str] = []
+    params: list[Any] = []
     if text is not None:
         fields.append("text = ?")
         params.append(text)
@@ -1248,8 +1260,8 @@ def search_conversations(q: str) -> list[dict]:
             ).fetchall()
             if rows:
                 return [dict(r) for r in rows]
-        except Exception:
-            pass
+        except sqlite3.Error as exc:
+            log.debug("search.fts5_query_failed", error=str(exc))
         # Fallback: LIKE scan (also covers no-FTS5 builds and zero FTS hits).
         like = f"%{term}%"
         rows = conn.execute(

@@ -1,0 +1,139 @@
+# =============================================================================
+# ASPIRATIONAL SCAFFOLDING — NOT A WORKING INTEGRATION.
+# =============================================================================
+# This file adds a Postgres service you COULD layer onto docker-compose.yml
+# once `backend/app/db/storage.py` (and friends — see below) actually speak
+# Postgres. As of the commit this file was added in, none of that porting
+# work has been done. The backend still hardcodes `sqlite3.connect(...)`
+# everywhere; pointing DATABASE_URL at this Postgres container today will
+# NOT make the app use it. Bringing this up alongside the existing stack
+# just gives you an idle, empty Postgres instance sitting next to a backend
+# that is still writing to its SQLite file.
+#
+# Usage (once the code side is actually ported):
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up
+#
+# --- Why this isn't a drop-in yet (see full investigation notes for detail) --
+#
+# README.md currently claims: "only app/db/storage.py needs to change —
+# every route calls through it, nothing else touches SQL directly." That
+# claim was audited and found FALSE. Concretely, before this compose file
+# is useful, the following code changes are still needed:
+#
+# 1. app/db/storage.py itself:
+#    - Every query uses SQLite's `?` positional placeholders; psycopg2/
+#      psycopg3 and asyncpg expect `%s` or `$1`-style placeholders.
+#    - `sqlite3.Row` row factory (storage.py:43) and `dict(row)` conversions
+#      throughout assume SQLite's Row interface.
+#    - `PRAGMA journal_mode=WAL`, `PRAGMA busy_timeout`, `PRAGMA foreign_keys`
+#      (storage.py:46-48) are SQLite-only; Postgres has no PRAGMA statement
+#      (concurrency/FK-checking are configured differently — connection pool
+#      settings and DEFERRABLE constraints respectively).
+#    - `INSERT OR REPLACE` (storage.py:730) and `INSERT OR IGNORE`
+#      (storage.py:978) are SQLite syntax; Postgres needs
+#      `INSERT ... ON CONFLICT (...) DO UPDATE/NOTHING`. Note storage.py
+#      already uses `ON CONFLICT(...) DO UPDATE` correctly in one place
+#      (save_agent_checkpoint, ~line 650) but not consistently.
+#    - Dynamic `IN (...)` placeholder building via
+#      `",".join("?" * len(ids))` (storage.py:516-527) needs the same
+#      treatment for %s-style params.
+#    - `search_conversations` (storage.py:1226) uses SQLite FTS5
+#      (`messages_fts MATCH ?`, `snippet(...)`) with a LIKE-scan fallback.
+#      Postgres has no FTS5 equivalent — this needs to be rewritten against
+#      `tsvector`/`to_tsquery` + a GIN index, or dropped to the LIKE
+#      fallback path permanently (functional but much slower/worse ranking).
+#    - `date(created_at, 'unixepoch')` (storage.py:1087, usage_summary) is
+#      SQLite date-function syntax; Postgres needs
+#      `to_timestamp(created_at)::date` or similar.
+#    - `m.rowid` (storage.py:1243) — Postgres tables don't have an implicit
+#      rowid by default; would need an explicit surrogate key or rewrite.
+#
+# 2. app/db/migrations.py: entirely SQLite-flavored — `executescript`,
+#    `PRAGMA table_info(...)` for introspecting columns (used repeatedly to
+#    decide whether to run an `ALTER TABLE ADD COLUMN`), `CREATE VIRTUAL
+#    TABLE ... USING fts5(...)` plus AFTER INSERT/UPDATE/DELETE triggers that
+#    keep messages_fts in sync. None of this runs against Postgres as-is;
+#    schema introspection would need `information_schema.columns` and the
+#    FTS5 virtual table + triggers would need a tsvector column + trigger
+#    (or a generated column) instead.
+#
+# 3. app/services/rag_service.py — the single biggest hole in the "just
+#    swap storage.py" claim. It does NOT go through storage.py at all: it
+#    opens its OWN sqlite3 connection (rag_service.py:36), loads the
+#    `sqlite-vec` extension (a SQLite-specific loadable extension with no
+#    Postgres equivalent), and creates a `vec_chunks` virtual table
+#    (`CREATE VIRTUAL TABLE ... USING vec0(...)`, ~line 104) alongside a
+#    plain `chunks` table with `INTEGER PRIMARY KEY AUTOINCREMENT` (SQLite
+#    syntax — Postgres uses `SERIAL`/`GENERATED ALWAYS AS IDENTITY`). Vector
+#    similarity search runs via `vec_distance_cosine(...)` (~line 481), a
+#    sqlite-vec function. Porting this to Postgres means either standing up
+#    the `pgvector` extension and rewriting the schema/queries against it,
+#    or keeping a second SQLite file just for vectors (defeating much of
+#    the point of "swap to Postgres").
+#
+# 4. At least eight more service files bypass storage.py's public API and
+#    reach into its `_conn`/`_connect` helpers directly to run their own
+#    raw, `?`-placeholder SQL (so "nothing else touches SQL directly" is
+#    false for these too — they all import `_conn` from
+#    app/db/storage.py and write their own `.execute(...)` calls, several
+#    with SQLite-specific `ON CONFLICT`/`INSERT OR IGNORE`/f-string table
+#    interpolation):
+#      - app/services/attachments.py
+#      - app/services/settings_history_service.py
+#      - app/services/memory_service.py
+#      - app/services/sync_service.py (also builds `f"SELECT * FROM {table}"`
+#        / `f"INSERT OR IGNORE INTO {table} (...)"` — SQLite syntax, and the
+#        dynamic table-name interpolation would need re-checking for a
+#        Postgres identifier-quoting story)
+#      - app/services/mcp_service.py
+#      - app/services/folder_service.py (uses `ON CONFLICT(path) DO UPDATE`,
+#        which IS Postgres-compatible syntax, so this one file is closer to
+#        portable than the others)
+#      - app/services/agent_service.py
+#      - app/services/persona_service.py
+#      - app/services/schedule_service.py
+#
+# Bottom line: the README's claim is FALSE as written. Swapping the backing
+# store is not a single-file change. A real port touches storage.py,
+# migrations.py, rag_service.py (plus adding pgvector or an equivalent),
+# and every service file listed above — and needs a placeholder-syntax
+# pass, an FTS rewrite, and a schema-introspection rewrite throughout.
+#
+# This compose file is left here only as a starting point for whoever
+# picks up that work: the container definition below is a reasonable,
+# ordinary Postgres 16 service. Nothing about the connection wiring on the
+# app side exists yet.
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: zenith-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-zenith}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-zenith}
+      - POSTGRES_DB=${POSTGRES_DB:-zenith}
+    ports:
+      # Exposed to the host mainly for local psql/inspection during the
+      # eventual port; not required once the backend talks to it over the
+      # compose network by service name (`postgres:5432`).
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zenith} -d ${POSTGRES_DB:-zenith}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # NOTE: intentionally NOT adding `DATABASE_URL` (or similar) to the
+  # `backend` service here, and NOT declaring `depends_on: postgres` on it.
+  # storage.py doesn't read any such env var today, and wiring one in
+  # ahead of the actual port would be a no-op at best and misleading at
+  # worst (it would look configured while the app keeps using SQLite).
+  # Add that wiring in the same change that ports storage.py.
+
+volumes:
+  postgres-data:
