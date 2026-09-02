@@ -56,7 +56,7 @@ def _load_or_create_key() -> bytes:
     try:
         os.chmod(path, 0o600)
     except OSError as exc:
-        log.warning("crypto.chmod_failed", error=str(exc))
+        log.warning("crypto.chmod_failed: %s", exc)
     return key
 
 
@@ -78,7 +78,7 @@ def decrypt(value: str) -> str:
         nonce, ct = raw[:12], raw[12:]
         return AESGCM(key).decrypt(nonce, ct, None).decode()
     except Exception as exc:
-        log.warning("crypto.decrypt_failed", error=str(exc))
+        log.warning("crypto.decrypt_failed: %s", exc)
         return ""
 
 

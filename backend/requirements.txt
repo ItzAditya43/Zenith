@@ -29,13 +29,12 @@ python-magic==0.4.27
 beautifulsoup4==4.12.3
 lxml==5.3.0
 youtube-transcript-api==1.2.4
-# --- dev / test ---
-pytest==8.3.4
-pytest-asyncio==0.25.0
-httpx==0.28.1
 sqlite-vec>=0.1.6
 requests>=2.31
 # Raw Chrome DevTools Protocol client for the browser_* agent tools — no
 # Playwright/Selenium install (~300MB+ of browser binaries each); we drive
 # the system chromium package directly over its own CDP websocket.
 websockets>=12.0,<14.0
+# /metrics Prometheus/OpenMetrics scrape endpoint — lightweight, no
+# transitive dependency bloat.
+prometheus-client==0.21.1

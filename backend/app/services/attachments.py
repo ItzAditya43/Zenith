@@ -77,8 +77,8 @@ def _sniff_mime(path: Path, fallback: str) -> str:
         detected = magic.from_file(str(path), mime=True)
         if detected:
             return detected
-    except Exception:
-        pass
+    except (ImportError, OSError) as exc:
+        log.debug("upload.magic_sniff_unavailable", error=str(exc))
     return fallback
 
 

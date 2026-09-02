@@ -9,7 +9,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: cortex-backend
+    container_name: zenith-backend
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
       - CORTEX_DATA_DIR=/data
@@ -33,7 +33,7 @@ services:
       # line if you've read Settings -> Agent tools and picked a mode you
       # trust (Manual/Semi-auto pause for your approval; Full-auto does
       # not).
-      # - ${HOME}/cortex-workspace:/workspace       # scoped: one folder only (recommended)
+      # - ${HOME}/zenith-workspace:/workspace       # scoped: one folder only (recommended)
       # - ${HOME}:/host-home                        # unrestricted: your whole home directory
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -46,12 +46,35 @@ services:
     # `init: true` runs a proper init (tini) as PID 1 so they get reaped.
     init: true
     restart: unless-stopped
+    # Neither curl nor wget is installed in the backend image (see
+    # Dockerfile — only libmagic1/chromium/git), so the healthcheck shells
+    # out to Python's stdlib instead of relying on either being present.
+    # start_period is generous because faster-whisper/heavy imports and
+    # model warm-up can take a few seconds on first boot.
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8420/api/health', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    # Conservative-but-workable ceiling: faster-whisper + document processing
+    # can spike memory during transcription/OCR jobs. Bump if you see OOM
+    # kills under heavy use; this is a starting point, not a hard science.
+    mem_limit: 4g
+    cpus: 2
+    security_opt:
+      - no-new-privileges:true
+    # TODO: consider cap_drop (e.g. cap_drop: [ALL] + add back only what
+    # bash-based agent tools and headless chromium actually need) once
+    # agent-mode's capability requirements are audited. Chromium's sandbox
+    # and the arbitrary shell commands agent mode can run make this risky
+    # to guess at — read_only/cap_drop are deliberately NOT added here.
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: cortex-frontend
+    container_name: zenith-frontend
     environment:
       # By default the frontend derives the backend URL from whatever host it
       # was opened on (same hostname, port 8420) — so accessing the app from
@@ -62,8 +85,16 @@ services:
     ports:
       - "5173:5173"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    # Small static/dev server; bumped a little above bare-minimum so the
+    # Vite dev server + esbuild don't get starved. Starting point, adjust
+    # if you build the production bundle instead (see Dockerfile CMD note).
+    mem_limit: 512m
+    cpus: 1
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   backend-data:

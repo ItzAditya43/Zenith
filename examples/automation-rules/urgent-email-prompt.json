@@ -1,0 +1,10 @@
+{
+  "name": "Draft a reply when an urgent email arrives",
+  "trigger_type": "urgent_email",
+  "trigger_config": {},
+  "action_type": "prompt",
+  "action_config": {
+    "mode": "chat",
+    "prompt": "An urgent email just arrived. Event data: {event_data}\n\nDraft a short, polite reply I can review and send."
+  }
+}

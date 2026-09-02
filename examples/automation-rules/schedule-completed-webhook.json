@@ -1,0 +1,9 @@
+{
+  "name": "Notify webhook when a schedule completes",
+  "trigger_type": "schedule_completed",
+  "trigger_config": {},
+  "action_type": "webhook",
+  "action_config": {
+    "url": "https://example.com/your-webhook-receiver"
+  }
+}

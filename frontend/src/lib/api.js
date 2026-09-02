@@ -197,6 +197,16 @@ export const api = {
   exportUrl: (format) => `${BASE}/api/export/${format}`,
   conversationPdfUrl: (conversationId) => `${BASE}/api/export/${conversationId}/pdf`,
 
+  // Full backup (DB + config.json + attachments), distinct from the data-only
+  // export above. See app/api/backup.py — not yet registered in main.py.
+  backupUrl: () => `${BASE}/api/backup/create`,
+  restoreBackup: (file, confirm) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("confirm", confirm ? "true" : "false");
+    return request("/api/backup/restore", { method: "POST", body: form }).then((r) => r.json());
+  },
+
   listWorkspaceFiles: (conversationId, path = "") =>
     request(`/api/conversations/${conversationId}/files?path=${encodeURIComponent(path)}`).then((r) => r.json()),
   readWorkspaceFile: (conversationId, path) =>

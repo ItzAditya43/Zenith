@@ -41,12 +41,17 @@ in-container syscall sandbox would need a different runtime (e.g. gVisor as the
 Docker runtime), which is an infrastructure choice for the operator, not
 something Zenith can ship on by default.
 
-## Auto-update
+## Auto-update (install step)
 
-**Documented, not wired.** Tauri has a first-class updater, but it needs a real
-release/hosting pipeline (a place to publish signed builds + an update
-manifest). That's a distribution decision, not meaningful to stub in code. The
-exact steps to enable it on top of the desktop scaffold are in `DESKTOP.md`.
+**Check-and-notify is wired end-to-end** (signing keypair, `release.yml`
+publishing pipeline, in-app tray "Check for Updates…") — see `DESKTOP.md`.
+What's still not built is the **auto-download-and-install** step: clicking
+"Check for Updates…" finds and reports a new version but does not silently
+replace the running binary. That's a bigger trust step than could be
+verified end-to-end without a real published release to test against, so it
+was deliberately left as a manual download for now. Wiring it up is a
+reasonable follow-up once a release has actually shipped once; exact steps
+are in `DESKTOP.md`.
 
 ## Multi-master sync
 
