@@ -43,7 +43,7 @@ dependencies = [
 # (includes -r requirements.txt plus pytest, ruff, mypy, pip-audit, etc.);
 # this list is kept only for tools that resolve dev deps via pyproject.
 dev = [
-    "pytest==8.3.4",
+    "pytest==9.1.1",
     "pytest-asyncio==0.25.0",
     "pytest-cov",
     "ruff",
