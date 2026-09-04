@@ -91,7 +91,7 @@ jobs:
           mkdir -p desktop/src-tauri/binaries
           cp backend/dist/cortex-backend "desktop/src-tauri/binaries/cortex-backend-$triple"
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
