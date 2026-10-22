@@ -1,4 +1,4 @@
-"""Entry point for the PyInstaller-frozen backend (see cortex-backend.spec).
+"""Entry point for the PyInstaller-frozen backend (see zenith-backend.spec).
 
 Runs the same FastAPI app the Docker image does, but as a standalone binary the
 desktop shell launches as a sidecar. The port is fixed so the Tauri front end

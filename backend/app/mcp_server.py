@@ -8,9 +8,9 @@ Runs as a fully separate process from the FastAPI backend (`main.py`)
 over stdio — it does not import or start the web app, and does not
 require it to be running. It reads the SAME SQLite database by importing
 the same `app.core.config`/`app.db.storage`/`app.services.*` modules
-those already use, which resolve the DB path from the `CORTEX_DATA_DIR`
+those already use, which resolve the DB path from the `ZENITH_DATA_DIR`
 env var (see `app/core/config.py::_resolve_data_dir`). Point a client's
-`env` at the right `CORTEX_DATA_DIR` and it sees the real Zenith data.
+`env` at the right `ZENITH_DATA_DIR` and it sees the real Zenith data.
 
 Deliberately read-only: no create/update/delete tools are exposed here,
 so a misbehaving or overly eager external agent can't mutate a user's

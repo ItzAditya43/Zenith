@@ -63,33 +63,33 @@ jobs:
       - name: Freeze backend (Windows)
         if: matrix.platform == 'windows-latest'
         working-directory: backend
-        run: pyinstaller cortex-backend.spec --noconfirm
+        run: pyinstaller zenith-backend.spec --noconfirm
 
       - name: Freeze backend (Linux)
         if: matrix.platform == 'ubuntu-latest'
         working-directory: backend
-        run: pyinstaller cortex-backend.spec --noconfirm
+        run: pyinstaller zenith-backend.spec --noconfirm
 
       - name: Place backend sidecar (Windows)
         if: matrix.platform == 'windows-latest'
         run: |
           $triple = (rustc -vV | Select-String "^host:").ToString().Split(" ")[1]
           New-Item -ItemType Directory -Force -Path desktop/src-tauri/binaries | Out-Null
-          Copy-Item backend/dist/cortex-backend.exe "desktop/src-tauri/binaries/cortex-backend-$triple.exe"
+          Copy-Item backend/dist/zenith-backend.exe "desktop/src-tauri/binaries/zenith-backend-$triple.exe"
 
       - name: Place backend sidecar (Linux)
         if: matrix.platform == 'ubuntu-latest'
         run: |
           triple=$(rustc -vV | grep '^host:' | cut -d' ' -f2)
           mkdir -p desktop/src-tauri/binaries
-          cp backend/dist/cortex-backend "desktop/src-tauri/binaries/cortex-backend-$triple"
+          cp backend/dist/zenith-backend "desktop/src-tauri/binaries/zenith-backend-$triple"
 
       - name: Place backend sidecar (macOS)
         if: matrix.platform == 'macos-latest'
         run: |
           triple=$(rustc -vV | grep '^host:' | cut -d' ' -f2)
           mkdir -p desktop/src-tauri/binaries
-          cp backend/dist/cortex-backend "desktop/src-tauri/binaries/cortex-backend-$triple"
+          cp backend/dist/zenith-backend "desktop/src-tauri/binaries/zenith-backend-$triple"
 
       - uses: tauri-apps/tauri-action@v0
         env:
