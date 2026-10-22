@@ -337,6 +337,8 @@ export const api = {
 
   hardwareReport: () => request("/api/hardware").then((r) => r.json()),
   listRagSources: () => request("/api/rag/sources").then((r) => r.json()),
+  listTraces: (conversationId: string | null = null, limit: number = 50) =>
+    request(`/api/traces?limit=${limit}${conversationId ? `&conversation_id=${encodeURIComponent(conversationId)}` : ""}`).then((r) => r.json()),
   webSearchTest: () => request("/api/web/search-test", { method: "POST" }).then((r) => r.json()),
   ragStatus: () => request("/api/rag/status").then((r) => r.json()),
   ragReindex: () => request("/api/rag/reindex", { method: "POST" }).then((r) => r.json()),

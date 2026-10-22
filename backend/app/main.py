@@ -34,6 +34,7 @@ from app.api import (
     settings_history,
     sync,
     system,
+    traces,
     upload,
     usage_stats,
     voice,
@@ -59,6 +60,8 @@ async def _orphan_sweeper(interval_seconds: int) -> None:
             _t0 = time.monotonic()
             try:
                 removed = await asyncio.to_thread(sweep_orphans)
+                from app.services import trace_service
+                await asyncio.to_thread(trace_service.prune, int(settings.get("trace_retention_days", 30)))
                 if removed:
                     log.info("upload.sweeper_tick", removed=removed)
                 jobs_registry.record_run("orphan_sweeper", "success", (time.monotonic() - _t0) * 1000)
@@ -332,4 +335,5 @@ app.include_router(usage_stats.router)
 app.include_router(batch.router)
 app.include_router(jobs.router)
 app.include_router(metrics.router)
+app.include_router(traces.router)
 app.include_router(backup.router)

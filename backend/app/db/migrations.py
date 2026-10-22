@@ -730,6 +730,36 @@ def _redact_secret_history(conn: sqlite3.Connection) -> None:
     )
 
 
+def _turn_traces_table(conn: sqlite3.Connection) -> None:
+    """Per-turn traces (routing, retrieved context, tool calls, timing) —
+    see app/services/trace_service.py."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS turn_traces (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT,
+            mode TEXT NOT NULL,
+            user_text TEXT,
+            model TEXT,
+            role TEXT,
+            reason TEXT,
+            confidence REAL,
+            sources TEXT,
+            tool_calls TEXT,
+            token_count INTEGER,
+            first_token_ms INTEGER,
+            total_ms INTEGER,
+            downgraded_to TEXT,
+            status TEXT NOT NULL,
+            error TEXT,
+            created_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_turn_traces_conv ON turn_traces(conversation_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_turn_traces_created ON turn_traces(created_at);
+        """
+    )
+
+
 # Ordered list — never reorder, only append.
 MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "baseline", _baseline),
@@ -767,6 +797,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (33, "routing_overrides_table", _routing_overrides_table),
     (34, "settings_history_table", _settings_history_table),
     (35, "redact_secret_history", _redact_secret_history),
+    (36, "turn_traces_table", _turn_traces_table),
 ]
 
 
