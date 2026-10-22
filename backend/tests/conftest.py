@@ -44,3 +44,22 @@ def client(temp_data_dir):
 
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture
+def fake_ollama(temp_data_dir, monkeypatch):
+    """Scripted Ollama (see tests/fakes.py) on a fresh, migrated database."""
+    from app.db.storage import init_db
+    from app.services import rag_service
+    from tests.fakes import FakeOllama
+
+    rag_service.reset_conn()
+    init_db()
+    fake = FakeOllama().install(monkeypatch)
+    yield fake
+    rag_service.reset_conn()
+
+
+async def collect(agen) -> list[dict]:
+    """Drain an async generator of events into a list."""
+    return [ev async for ev in agen]

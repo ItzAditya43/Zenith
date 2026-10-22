@@ -941,9 +941,9 @@ async def _run_fetch_url(args: dict, max_chars: int) -> str:
     url = args.get("url", "")
     if not url.strip():
         return "Error: no url given."
-    page = await web_service.fetch_url(url)
+    page = await web_service.fetch_url(url, allow_private=False)
     if not page:
-        return f"Could not fetch {url}."
+        return f"Could not fetch {url} (unreachable, or a local/private address — those are blocked for model-initiated fetches)."
     return f"[{page['title']}]\n{page['text']}"[:max_chars]
 
 
@@ -1450,7 +1450,9 @@ async def run_agent_turn(
             result = await _execute_tool(tool, args, cmd_timeout, max_chars, workdir, conversation_id)
         _resolve_call(call_id, "executed", result)
         yield {"type": "tool_result", "id": call_id, "tool": tool, "result": result}
-        if isinstance(result, str) and result.startswith("Error:"):
+        # Tool errors are "Error: ..." or "Error reading file: ..." etc. —
+        # matching only "Error:" missed every file-tool failure.
+        if isinstance(result, str) and result.startswith("Error"):
             had_failure = True
             last_failure = f"{tool}: {result[:200]}"
 
