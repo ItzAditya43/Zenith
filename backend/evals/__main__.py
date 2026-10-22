@@ -114,7 +114,11 @@ def _write(files: dict[str, str]) -> Callable[[Path], None]:
 
 
 def _pytest_passes(d: Path) -> bool:
-    return subprocess.run([sys.executable, "-m", "pytest", "-q", str(d)], cwd=d, capture_output=True).returncode == 0
+    # No bytecode cache: an edit of the same size within the same second
+    # (e.g. `a - b` -> `a + b`) would otherwise run the stale .pyc.
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    return subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", str(d)],
+                          cwd=d, capture_output=True, env=env).returncode == 0
 
 
 AGENT_TASKS = [
@@ -133,7 +137,7 @@ AGENT_TASKS = [
     AgentTask("rename-function", "Rename the function `compute` to `compute_total` in utils.py and update its caller in main.py.",
               _write({"utils.py": "def compute(xs):\n    return sum(xs)\n",
                       "main.py": "from utils import compute\n\nprint(compute([1, 2, 3]))\n"}),
-              lambda d: subprocess.run([sys.executable, "main.py"], cwd=d, capture_output=True, text=True).stdout.strip() == "6"
+              lambda d: subprocess.run([sys.executable, "-B", "main.py"], cwd=d, capture_output=True, text=True).stdout.strip() == "6"
               and "compute_total" in (d / "utils.py").read_text() and "def compute(" not in (d / "utils.py").read_text()),
 ]
 
