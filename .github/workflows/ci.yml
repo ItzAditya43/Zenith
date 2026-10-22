@@ -58,6 +58,37 @@ jobs:
       - name: Build
         run: npm run build
 
+  e2e:
+    # Real browser + real backend, Ollama replaced by frontend/e2e/fake_ollama.py.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install backend
+        run: pip install -r backend/requirements.txt
+      - name: Install frontend + browser
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run Playwright
+        working-directory: frontend
+        env:
+          E2E_PYTHON: python
+        run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+
   desktop-windows:
     runs-on: windows-latest
     steps:
