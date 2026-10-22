@@ -14,18 +14,28 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *  - The stream's tracks are always stopped on stop()/cancel() so the mic
  *    indicator turns off and the browser can reclaim the device.
  */
-export function useVoiceRecorder() {
+export interface VoiceRecorder {
+  recording: boolean;
+  error: Error | null;
+  supported: boolean;
+  stream: MediaStream | null;
+  start: () => Promise<void>;
+  stop: () => Promise<Blob | null>;
+  cancel: () => void;
+}
+
+export function useVoiceRecorder(): VoiceRecorder {
   const [recording, setRecording] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<Error | null>(null);
   // Exposed reactively so a waveform visualizer can tap the live MediaStream
   // (an AnalyserNode) while recording. Null when not recording.
-  const [stream, setStream] = useState(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const [supported] = useState(
     () => typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia
   );
-  const mediaRecorderRef = useRef(null);
-  const chunksRef = useRef([]);
-  const streamRef = useRef(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const start = useCallback(async () => {
     if (!supported) {
@@ -42,12 +52,13 @@ export function useVoiceRecorder() {
       }
     } catch (err) {
       let message = "Couldn't access the microphone.";
-      if (err && err.name === "NotAllowedError") {
+      const name = err instanceof DOMException || err instanceof Error ? err.name : "";
+      if (name === "NotAllowedError") {
         message =
           "Microphone permission was denied. Enable it in your browser's site settings, then try again.";
-      } else if (err && err.name === "NotFoundError") {
+      } else if (name === "NotFoundError") {
         message = "No microphone was found on this device.";
-      } else if (err && err.message) {
+      } else if (err instanceof Error && err.message) {
         message = err.message;
       }
       const friendly = new Error(message);
@@ -55,10 +66,10 @@ export function useVoiceRecorder() {
       throw friendly;
     }
 
-    const stream = streamRef.current;
+    const stream = streamRef.current!;
     const recorder = new MediaRecorder(stream);
     chunksRef.current = [];
-    recorder.ondataavailable = (e) => {
+    recorder.ondataavailable = (e: BlobEvent) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
     mediaRecorderRef.current = recorder;
@@ -68,13 +79,13 @@ export function useVoiceRecorder() {
   }, [recording, supported]);
 
   const stop = useCallback(() => {
-    return new Promise((resolve) => {
+    return new Promise<Blob | null>((resolve) => {
       const recorder = mediaRecorderRef.current;
       if (!recorder) {
         setRecording(false);
         return resolve(null);
       }
-      recorder.onstop = () => {
+      const finish = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         // Release the mic so the OS indicator turns off between recordings.
         streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -83,8 +94,9 @@ export function useVoiceRecorder() {
         setRecording(false);
         resolve(blob);
       };
+      recorder.onstop = finish;
       if (recorder.state !== "inactive") recorder.stop();
-      else recorder.onstop();
+      else finish();
     });
   }, []);
 

@@ -27,6 +27,9 @@ const JSX_LANGS = new Set(["jsx", "tsx"]);
 // no manual vendoring step required.
 const PREVIEW_REACT_RUNTIME_URL = "/preview-runtime/react-runtime.js";
 
+// `<\/script>` below is deliberate: it keeps these strings safe if this code is
+// ever inlined into an HTML <script>, so the "useless escape" rule is off here.
+// oxlint-disable no-useless-escape
 function buildPreviewDoc(text, lang, transformedJs, transformError) {
   const isFullDoc = /<!doctype html/i.test(text) || /<html[\s>]/i.test(text);
   if (isFullDoc) return text;

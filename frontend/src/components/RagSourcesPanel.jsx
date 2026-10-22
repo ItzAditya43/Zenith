@@ -13,7 +13,7 @@ function formatTimestamp(seconds) {
   if (!seconds) return "unknown";
   try {
     return new Date(seconds * 1000).toLocaleString();
-  } catch (_) {
+  } catch {
     return "unknown";
   }
 }
