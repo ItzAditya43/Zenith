@@ -181,6 +181,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "agent_check_command": "",       # e.g. "pytest -q" or "npm test" — run_checks default
     "agent_auto_check": False,       # auto-run the check command after each file edit
     "agent_check_timeout_seconds": 180,  # tests/lint can be slower than a plain command
+    # Optional container sandbox for bash/run_checks/shell_start — see
+    # app/services/sandbox.py. "off" runs as your OS user (the default).
+    "agent_sandbox": "off",          # "off" | "docker"
+    "agent_sandbox_image": "python:3.12-slim",
+    "agent_sandbox_network": "none",  # "none" | "bridge"
+    "agent_sandbox_memory": "2g",
+    "agent_sandbox_cpus": "2",
     # --- Scheduled/recurring turns ---
     "schedule_check_interval_seconds": 60,  # how often the scanner checks for due schedules
     # --- Folder watcher ---
