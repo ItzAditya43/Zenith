@@ -7,6 +7,7 @@ import CommandPalette from "./components/CommandPalette";
 import ToastStack from "./components/ToastStack";
 import Icon from "./components/Icon.jsx";
 import LockScreen from "./components/LockScreen.jsx";
+import AccessGate from "./components/AccessGate.jsx";
 import StatusRail from "./components/StatusRail.jsx";
 import BranchTree from "./components/BranchTree.jsx";
 import DocumentEditor from "./components/DocumentEditor.jsx";
@@ -32,11 +33,12 @@ import BackupPanel from "./components/BackupPanel.jsx";
 import ShortcutsOverlay from "./components/ShortcutsOverlay.jsx";
 import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
-import { api } from "./lib/api";
+import { api, authHeaders, GATE_EVENT } from "./lib/api";
 
 export default function App() {
   const [locked, setLocked] = useState(false);
   const [lockChecked, setLockChecked] = useState(false);
+  const [accessGate, setAccessGate] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -392,6 +394,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const onGate = (e) => setAccessGate(e.detail);
+    window.addEventListener(GATE_EVENT, onGate);
+    return () => window.removeEventListener(GATE_EVENT, onGate);
+  }, []);
+
+  useEffect(() => {
     api
       .lockStatus()
       .then(({ enabled }) => {
@@ -603,7 +611,7 @@ export default function App() {
   const setAudioAndPlay = async (text) => {
     const res = await fetch(api.speakUrl(), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ text }),
     });
     if (!res.ok) {
@@ -1248,6 +1256,7 @@ export default function App() {
     return list;
   }, [conversations, personas, activeConversation, theme, sidebarCollapsed, voiceReplyEnabled, focusMode, density, quickActions]);
 
+  if (accessGate) return <AccessGate kind={accessGate.kind} message={accessGate.message} />;
   if (!lockChecked) return null; // avoid a flash of the app before we know
   if (locked) return <LockScreen onUnlocked={() => window.location.reload()} />;
 

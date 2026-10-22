@@ -1312,10 +1312,16 @@ export default function SettingsPanel({
                 </h3>
                 <p className="settings-section-desc">
                   Let other devices on your network (or Tailscale) reach Zenith — open it from a
-                  phone at <code>http://&lt;this-machine-ip&gt;:5173</code>. Widens who can reach the
-                  API, so pair it with the passcode lock. Takes effect after a backend restart. See
-                  MULTIDEVICE.md.
+                  phone at <code>http://&lt;this-machine-ip&gt;:5173</code>. The backend must also listen
+                  on the network (<code>ZENITH_BIND=0.0.0.0</code>), and other devices are refused until a
+                  passcode is set (Data section). Takes effect after a backend restart. See MULTIDEVICE.md.
                 </p>
+                {config?.cors_allow_lan && !lockEnabled && (
+                  <p className="setting-hint" role="alert">
+                    <Icon name="alert-triangle" size={13} /> No passcode is set — other devices will get
+                    "Remote access is off" until you set one under Data.
+                  </p>
+                )}
                 <div className="setting-row">
                   <div className="setting-meta">
                     <span className="setting-label">Allow LAN / Tailscale access</span>

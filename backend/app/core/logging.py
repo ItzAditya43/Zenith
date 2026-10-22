@@ -131,7 +131,7 @@ def configure_logging() -> logging.Logger:
     # Best-effort file handler; never crash boot if the data dir is read-only.
     try:
         data_dir = Path(
-            os.environ.get("CORTEX_DATA_DIR")
+            (os.environ.get("ZENITH_DATA_DIR") or os.environ.get("CORTEX_DATA_DIR"))
             or (_get_settings().get("data_dir") or "data")
         )
         data_dir.mkdir(parents=True, exist_ok=True)
