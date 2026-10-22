@@ -22,7 +22,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
       - name: Lint (ruff)
-        run: ruff check app tests
+        run: ruff check app tests evals
       - name: Type check (mypy)
         run: mypy app
       - name: Dependency vulnerability scan (pip-audit)

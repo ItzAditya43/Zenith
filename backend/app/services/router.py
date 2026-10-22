@@ -43,7 +43,12 @@ _CODE_HINTS = re.compile(
     r"implement a (?:sort|search|tree|graph|hash|queue|stack|linked[- ]list|binary)|"
     r"code (?:a|an|the|this|that)|"
     r"in (?:python|javascript|typescript|rust|go|java|c\+\+|c#|ruby|kotlin|swift)|"
-    r"algorithm)\b",
+    r"algorithm|"
+    # Languages/tools named on their own ("why does my Rust borrow checker
+    # ...") and SQL/shell — gaps found by `python -m evals routing`.
+    r"rust|golang|java|kotlin|c\+\+|c#|ruby|php|sql|bash|zsh|powershell|shell script|"
+    r"borrow checker|dockerfile|makefile|unit tests?|compiler|"
+    r"select (?:\*|\w+(?:\s*,\s*\w+)+|distinct \w+) from|react component)\b",
     re.IGNORECASE,
 )
 _REASONING_HINTS = re.compile(
