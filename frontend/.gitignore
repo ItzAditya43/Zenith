@@ -1,3 +1,5 @@
 node_modules/
 dist/
 .env
+# Generated at dev/build start by scripts/build-preview-runtime.mjs
+public/preview-runtime/react-runtime.js

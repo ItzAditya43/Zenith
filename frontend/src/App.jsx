@@ -49,7 +49,6 @@ export default function App() {
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [status, setStatus] = useState("idle"); // idle | thinking | speaking
-  const [activeRole, setActiveRole] = useState("general");
   // Live generation stats for the status rail — recomputed on every token
   // event while streaming, cleared shortly after a turn finishes.
   const [genStats, setGenStats] = useState(null); // { model, tokPerSec }
@@ -116,7 +115,6 @@ export default function App() {
   };
   const [groupPersonaIds, setGroupPersonaIds] = useState([]);
   const [groupPickerOpen, setGroupPickerOpen] = useState(false);
-  const [groupStreaming, setGroupStreaming] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
@@ -223,6 +221,7 @@ export default function App() {
     };
     const id = setInterval(tick, 30000);
     return () => clearInterval(id);
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- notify is recreated every render; restarting the poller on each render would reset its cursor
   }, [notificationsEnabled]);
 
   useEffect(() => {
@@ -481,6 +480,7 @@ export default function App() {
     if (isNearBottom) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- auto-scroll on new content only; scrolling when isNearBottom flips would fight the user
   }, [messages]);
 
   const handleChatScroll = () => {
@@ -808,7 +808,6 @@ export default function App() {
     const userMsg = { id: `local-user-${Date.now()}`, role: "user", content: text };
     setMessages((m) => [...m, userMsg]);
     setStatus("thinking");
-    setGroupStreaming(true);
     const bySpeaker = {};
     await api.streamGroupChat(activeId, text, (ev) => {
       if (ev.type === "speaker_start") {
@@ -836,12 +835,10 @@ export default function App() {
         showToast(ev.message, "error");
       } else if (ev.type === "done") {
         setStatus("idle");
-        setGroupStreaming(false);
         selectConversation(activeId); // reconcile with persisted state
       }
     });
     setStatus("idle");
-    setGroupStreaming(false);
   };
 
   const handleSend = async (
@@ -915,7 +912,6 @@ export default function App() {
       { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode, deepResearch, editOf, regenerateOf, modelOverride },
       (event) => {
         if (event.type === "route") {
-          setActiveRole(event.role);
           genStartRef.current = Date.now();
           genTokenCountRef.current = 0;
           setGenStats({ model: event.model, tokPerSec: 0 });
@@ -1148,6 +1144,13 @@ export default function App() {
     setSettingsOpen(true);
   };
 
+  // The palette list is memoised, so its actions must not close over
+  // handlers directly — that froze them at whatever state existed when the
+  // list was last rebuilt (an auto-send quick action used stale composer
+  // settings). Actions read the latest handlers through this ref instead.
+  const paletteHandlers = useRef({});
+  paletteHandlers.current = { handleSend, handleSetWorkdir, handlePersonaChange };
+
   const commands = useMemo(() => {
     const list = [];
     list.push({
@@ -1200,7 +1203,7 @@ export default function App() {
       list.push({
         id: "set-workdir", group: "Actions", icon: "folder",
         label: activeConversation?.workdir ? "Change working directory" : "Set working directory",
-        action: handleSetWorkdir,
+        action: () => paletteHandlers.current.handleSetWorkdir(),
       });
     }
     for (const s of [
@@ -1225,13 +1228,13 @@ export default function App() {
         id: `persona-${p.id}`, group: "Personas", icon: "masks",
         label: `Switch to persona: ${p.name}`,
         hint: activeConversation?.persona_id === p.id ? "current" : undefined,
-        action: () => handlePersonaChange(p.id),
+        action: () => paletteHandlers.current.handlePersonaChange(p.id),
       });
     }
     if (activeConversation?.persona_id) {
       list.push({
         id: "persona-none", group: "Personas", icon: "x", label: "Remove persona from this conversation",
-        action: () => handlePersonaChange(null),
+        action: () => paletteHandlers.current.handlePersonaChange(null),
       });
     }
     for (const c of conversations) {
@@ -1246,7 +1249,7 @@ export default function App() {
         label: a.name,
         action: () => {
           if (a.auto_send) {
-            handleSend(a.prompt_template, []);
+            paletteHandlers.current.handleSend(a.prompt_template, []);
           } else {
             setSeedText({ text: a.prompt_template, nonce: Date.now() });
           }
@@ -1254,7 +1257,7 @@ export default function App() {
       });
     }
     return list;
-  }, [conversations, personas, activeConversation, theme, sidebarCollapsed, voiceReplyEnabled, focusMode, density, quickActions]);
+  }, [conversations, personas, activeConversation, sidebarCollapsed, voiceReplyEnabled, focusMode, density, quickActions, agentAvailable]);
 
   if (accessGate) return <AccessGate kind={accessGate.kind} message={accessGate.message} />;
   if (!lockChecked) return null; // avoid a flash of the app before we know

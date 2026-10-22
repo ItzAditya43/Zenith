@@ -186,6 +186,7 @@ export default function Composer({
       setCompareA(installedModels[0]);
       setCompareB(installedModels[1]);
     }
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- seed the pickers only when entering compare mode, not on every pick
   }, [mode, installedModels]);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
@@ -238,6 +239,7 @@ export default function Composer({
     if (autoListenNonce == null || !continuousVoice) return;
     setMicError(null);
     start().catch(() => {});
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- fire only when App hands the mic back (nonce bump), not when start/continuousVoice identities change
   }, [autoListenNonce]);
 
   const handleFiles = async (files) => {

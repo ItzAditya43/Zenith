@@ -326,6 +326,7 @@ export default function SettingsPanel({
     refreshSchedules();
     refreshMcpServers();
     refreshAutomation();
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- initial load on mount only
   }, []);
 
   const refreshMcpServers = () => {

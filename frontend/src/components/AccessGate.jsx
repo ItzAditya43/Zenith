@@ -16,7 +16,7 @@ export default function AccessGate({ kind, message }) {
     if (!secret) return;
     try {
       localStorage.setItem("zenith-secret", secret);
-    } catch (_) {
+    } catch {
       /* storage blocked — the reload will just ask again */
     }
     window.location.reload();

@@ -7,7 +7,7 @@
 //      (which on the phone would mean the phone itself).
 //   3. Fall back to localhost for SSR/other odd contexts.
 const BACKEND_PORT = "8420";
-function resolveBase() {
+function resolveBase(): string {
   const explicit = import.meta.env.VITE_API_BASE;
   if (explicit) return explicit;
   if (typeof window !== "undefined" && window.location?.hostname) {
@@ -19,10 +19,10 @@ function resolveBase() {
 const BASE = resolveBase();
 export const API_BASE = BASE;
 
-function storageGet(storeName, key) {
+function storageGet(storeName: "localStorage" | "sessionStorage", key: string): string | null {
   try {
-    return globalThis[storeName]?.getItem(key) ?? null;
-  } catch (_) {
+    return (globalThis[storeName] as Storage | undefined)?.getItem(key) ?? null;
+  } catch {
     return null; // private mode / blocked storage
   }
 }
@@ -32,8 +32,8 @@ function storageGet(storeName, key) {
 //    sessionStorage so it clears when the tab closes;
 //  - the optional deploy-time shared secret (auth_enabled), kept in
 //    localStorage since it's per-device configuration, not a session.
-export function authHeaders() {
-  const headers = {};
+export function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
   const token = storageGet("sessionStorage", "zenith-unlock");
   if (token) headers["X-Zenith-Unlock"] = token;
   const secret = storageGet("localStorage", "zenith-secret");
@@ -44,26 +44,32 @@ export function authHeaders() {
 // The backend tags gate refusals with a `code` (see app/core/security.py);
 // App.jsx listens for this and swaps in the matching access screen.
 export const GATE_EVENT = "zenith:access-gate";
-const GATE_CODES = { auth_required: "auth", remote_access_blocked: "remote" };
+export type GateKind = "auth" | "remote";
+const GATE_CODES: Record<string, GateKind> = { auth_required: "auth", remote_access_blocked: "remote" };
 
-function signalGate(body) {
-  const kind = body && GATE_CODES[body.code];
+interface ErrorBody {
+  detail?: unknown;
+  code?: string;
+}
+
+function signalGate(body: ErrorBody | null | undefined): void {
+  const kind = body?.code ? GATE_CODES[body.code] : undefined;
   if (kind && typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent(GATE_EVENT, { detail: { kind, message: body.detail } }));
+    window.dispatchEvent(new CustomEvent(GATE_EVENT, { detail: { kind, message: body?.detail } }));
   }
 }
 
-async function errorDetail(res) {
+async function errorDetail(res: Response): Promise<string> {
   try {
-    const body = await res.json();
+    const body = (await res.json()) as ErrorBody;
     signalGate(body);
     return typeof body.detail === "string" ? body.detail : res.statusText;
-  } catch (_) {
+  } catch {
     return res.statusText; // non-JSON error body
   }
 }
 
-async function request(path, options = {}) {
+async function request(path: string, options: RequestInit = {}): Promise<Response> {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: { ...authHeaders(), ...(options.headers || {}) },
@@ -76,32 +82,36 @@ async function request(path, options = {}) {
  * Returns "done" | "error" | "interrupted" (reader threw — the caller
  * decides whether that's resumable) | "clean-end" (stream closed with
  * no explicit done/error, e.g. an AbortError further up already handled). */
-async function consumeSSEBody(res, onEvent) {
-  const reader = res.body.getReader();
+export type StreamEvent = { type: string; [key: string]: unknown };
+export type StreamHandler = (event: StreamEvent) => void;
+type StreamOutcome = "done" | "error" | "interrupted" | "clean-end";
+
+async function consumeSSEBody(res: Response, onEvent: StreamHandler): Promise<StreamOutcome> {
+  const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let sawTerminal = null;
+  let sawTerminal: "done" | "error" | null = null;
   try {
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const parts = buffer.split("\n\n");
-      buffer = parts.pop();
+      buffer = parts.pop() ?? "";
       for (const part of parts) {
         const line = part.trim();
         if (!line.startsWith("data:")) continue;
         try {
-          const ev = JSON.parse(line.slice(5).trim());
+          const ev = JSON.parse(line.slice(5).trim()) as StreamEvent;
           onEvent(ev);
           if (ev.type === "done" || ev.type === "error") sawTerminal = ev.type;
-        } catch (_) {
+        } catch {
           /* ignore malformed chunk */
         }
       }
     }
   } catch (err) {
-    if (err && err.name === "AbortError") return "clean-end";
+    if (err instanceof DOMException && err.name === "AbortError") return "clean-end";
     return "interrupted";
   }
   return sawTerminal || "clean-end";
@@ -114,8 +124,10 @@ async function consumeSSEBody(res, onEvent) {
  * where the first connection left off, instead of surfacing a dead-end
  * error immediately.
  */
-async function streamSSE(path, body, onEvent, signal, resumePath = null) {
-  let res;
+async function streamSSE(
+  path: string, body: unknown, onEvent: StreamHandler, signal?: AbortSignal, resumePath: string | null = null,
+): Promise<void> {
+  let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: "POST",
@@ -124,8 +136,8 @@ async function streamSSE(path, body, onEvent, signal, resumePath = null) {
       signal,
     });
   } catch (err) {
-    if (err && err.name === "AbortError") return;
-    onEvent({ type: "error", message: `Network error: ${err.message || err}` });
+    if (err instanceof DOMException && err.name === "AbortError") return;
+    onEvent({ type: "error", message: `Network error: ${err instanceof Error ? err.message : String(err)}` });
     return;
   }
   if (!res.ok || !res.body) {
@@ -142,11 +154,11 @@ async function streamSSE(path, body, onEvent, signal, resumePath = null) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
     if (signal && signal.aborted) return;
-    let resumeRes;
+    let resumeRes: Response;
     try {
       resumeRes = await fetch(`${BASE}${resumePath}`, { headers: authHeaders(), signal });
     } catch (err) {
-      if (err && err.name === "AbortError") return;
+      if (err instanceof DOMException && err.name === "AbortError") return;
       continue; // still down — try again
     }
     if (resumeRes.status === 404) {
@@ -162,151 +174,163 @@ async function streamSSE(path, body, onEvent, signal, resumePath = null) {
   onEvent({ type: "error", message: "Connection dropped and could not be re-established." });
 }
 
+export interface ChatTurn {
+  conversationId: string;
+  message: string;
+  attachmentIds: string[];
+  webSearch?: boolean;
+  agentMode?: boolean;
+  deepResearch?: boolean;
+  editOf?: string | null;
+  regenerateOf?: string | null;
+  modelOverride?: string | null;
+}
+
 export const api = {
   base: BASE,
 
   listConversations: () => request("/api/conversations").then((r) => r.json()),
-  createConversation: (title = "New chat", projectId = null) =>
+  createConversation: (title: string = "New chat", projectId: string | null = null) =>
     request("/api/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, project_id: projectId }),
     }).then((r) => r.json()),
-  renameConversation: (id, title) =>
+  renameConversation: (id: string, title: string) =>
     request(`/api/conversations/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
     }),
-  deleteConversation: (id) => request(`/api/conversations/${id}`, { method: "DELETE" }),
-  getMessages: (id) => request(`/api/conversations/${id}/messages`).then((r) => r.json()),
-  setTitle: (id, title) =>
+  deleteConversation: (id: string) => request(`/api/conversations/${id}`, { method: "DELETE" }),
+  getMessages: (id: string) => request(`/api/conversations/${id}/messages`).then((r) => r.json()),
+  setTitle: (id: string, title: string) =>
     request(`/api/conversations/${id}/title`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
     }).then((r) => r.json()),
-  searchConversations: (query) =>
+  searchConversations: (query: string) =>
     request(`/api/conversations/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
-  searchAll: (query) =>
+  searchAll: (query: string) =>
     request(`/api/search/all?q=${encodeURIComponent(query)}`).then((r) => r.json()),
 
   listPersonas: () => request("/api/personas").then((r) => r.json()),
-  createPersona: (name, systemPrompt, icon = null) =>
+  createPersona: (name: string, systemPrompt: string, icon: string | null = null) =>
     request("/api/personas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, system_prompt: systemPrompt, icon }),
     }).then((r) => r.json()),
-  updatePersona: (id, patch) =>
+  updatePersona: (id: string, patch: Record<string, unknown>) =>
     request(`/api/personas/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     }),
-  deletePersona: (id) => request(`/api/personas/${id}`, { method: "DELETE" }),
-  setConversationPersona: (conversationId, personaId) =>
+  deletePersona: (id: string) => request(`/api/personas/${id}`, { method: "DELETE" }),
+  setConversationPersona: (conversationId: string, personaId: string) =>
     request(`/api/conversations/${conversationId}/persona`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ persona_id: personaId }),
     }),
-  setConversationWorkdir: (conversationId, workdir) =>
+  setConversationWorkdir: (conversationId: string, workdir: string) =>
     request(`/api/conversations/${conversationId}/workdir`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workdir }),
     }).then((r) => r.json()),
 
-  exportUrl: (format) => `${BASE}/api/export/${format}`,
-  conversationPdfUrl: (conversationId) => `${BASE}/api/export/${conversationId}/pdf`,
+  exportUrl: (format: string) => `${BASE}/api/export/${format}`,
+  conversationPdfUrl: (conversationId: string) => `${BASE}/api/export/${conversationId}/pdf`,
 
   // Full backup (DB + config.json + attachments), distinct from the data-only
   // export above. See app/api/backup.py — not yet registered in main.py.
   backupUrl: () => `${BASE}/api/backup/create`,
-  restoreBackup: (file, confirm) => {
+  restoreBackup: (file: File, confirm: boolean) => {
     const form = new FormData();
     form.append("file", file);
     form.append("confirm", confirm ? "true" : "false");
     return request("/api/backup/restore", { method: "POST", body: form }).then((r) => r.json());
   },
 
-  listWorkspaceFiles: (conversationId, path = "") =>
+  listWorkspaceFiles: (conversationId: string, path: string = "") =>
     request(`/api/conversations/${conversationId}/files?path=${encodeURIComponent(path)}`).then((r) => r.json()),
-  readWorkspaceFile: (conversationId, path) =>
+  readWorkspaceFile: (conversationId: string, path: string) =>
     request(`/api/conversations/${conversationId}/files/content?path=${encodeURIComponent(path)}`).then((r) => r.json()),
-  writeWorkspaceFile: (conversationId, path, content) =>
+  writeWorkspaceFile: (conversationId: string, path: string, content: string) =>
     request(`/api/conversations/${conversationId}/files/content?path=${encodeURIComponent(path)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content }),
     }).then((r) => r.json()),
 
-  editDocument: (attachmentId, instruction) =>
+  editDocument: (attachmentId: string, instruction: string) =>
     request(`/api/documents/${attachmentId}/edit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ instruction }),
     }).then((r) => r.json()),
-  attachmentDownloadUrl: (attachmentId) => `${BASE}/api/attachments/${attachmentId}/download`,
+  attachmentDownloadUrl: (attachmentId: string) => `${BASE}/api/attachments/${attachmentId}/download`,
 
   listFolders: () => request("/api/folders").then((r) => r.json()),
-  addFolder: (path, extensions = null) =>
+  addFolder: (path: string, extensions: string[] | null = null) =>
     request("/api/folders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path, extensions }),
     }).then((r) => r.json()),
-  toggleFolder: (id, enabled) =>
+  toggleFolder: (id: string, enabled: boolean) =>
     request(`/api/folders/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled }),
     }),
-  removeFolder: (id) => request(`/api/folders/${id}`, { method: "DELETE" }),
-  scanFolderNow: (id) => request(`/api/folders/${id}/scan`, { method: "POST" }).then((r) => r.json()),
+  removeFolder: (id: string) => request(`/api/folders/${id}`, { method: "DELETE" }),
+  scanFolderNow: (id: string) => request(`/api/folders/${id}/scan`, { method: "POST" }).then((r) => r.json()),
 
   listSchedules: () => request("/api/schedules").then((r) => r.json()),
-  createSchedule: (name, prompt, mode, intervalMinutes) =>
+  createSchedule: (name: string, prompt: string, mode: string, intervalMinutes: number) =>
     request("/api/schedules", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, prompt, mode, interval_minutes: intervalMinutes }),
     }).then((r) => r.json()),
-  toggleSchedule: (id, enabled) =>
+  toggleSchedule: (id: string, enabled: boolean) =>
     request(`/api/schedules/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled }),
     }),
-  deleteSchedule: (id) => request(`/api/schedules/${id}`, { method: "DELETE" }),
-  listScheduleRuns: (id) => request(`/api/schedules/${id}/runs`).then((r) => r.json()),
-  recentScheduleRuns: (since) => request(`/api/schedules/recent-runs?since=${since}`).then((r) => r.json()),
-  runScheduleNow: (id) => request(`/api/schedules/${id}/run-now`, { method: "POST" }).then((r) => r.json()),
+  deleteSchedule: (id: string) => request(`/api/schedules/${id}`, { method: "DELETE" }),
+  listScheduleRuns: (id: string) => request(`/api/schedules/${id}/runs`).then((r) => r.json()),
+  recentScheduleRuns: (since: number) => request(`/api/schedules/recent-runs?since=${since}`).then((r) => r.json()),
+  runScheduleNow: (id: string) => request(`/api/schedules/${id}/run-now`, { method: "POST" }).then((r) => r.json()),
 
   listMcpServers: () => request("/api/mcp/servers").then((r) => r.json()),
-  addMcpServer: (name, command, args = [], env = {}) =>
+  addMcpServer: (name: string, command: string, args: string[] = [], env: Record<string, string> = {}) =>
     request("/api/mcp/servers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, command, args, env }),
     }).then((r) => r.json()),
-  toggleMcpServer: (id, enabled) =>
+  toggleMcpServer: (id: string, enabled: boolean) =>
     request(`/api/mcp/servers/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled }),
     }),
-  removeMcpServer: (id) => request(`/api/mcp/servers/${id}`, { method: "DELETE" }),
-  getMcpServerTools: (id) => request(`/api/mcp/servers/${id}/tools`).then((r) => r.json()),
+  removeMcpServer: (id: string) => request(`/api/mcp/servers/${id}`, { method: "DELETE" }),
+  getMcpServerTools: (id: string) => request(`/api/mcp/servers/${id}/tools`).then((r) => r.json()),
 
-  listBranches: (conversationId) =>
+  listBranches: (conversationId: string) =>
     request(`/api/conversations/${conversationId}/branches`).then((r) => r.json()),
-  activateBranch: (conversationId, messageId) =>
+  activateBranch: (conversationId: string, messageId: string) =>
     request(`/api/conversations/${conversationId}/messages/${messageId}/activate`, {
       method: "POST",
     }).then((r) => r.json()),
-  deleteMessage: (conversationId, messageId) =>
+  deleteMessage: (conversationId: string, messageId: string) =>
     request(`/api/conversations/${conversationId}/messages/${messageId}`, {
       method: "DELETE",
     }).then((r) => r.json()),
@@ -315,27 +339,27 @@ export const api = {
   listRagSources: () => request("/api/rag/sources").then((r) => r.json()),
   ragStatus: () => request("/api/rag/status").then((r) => r.json()),
   ragReindex: () => request("/api/rag/reindex", { method: "POST" }).then((r) => r.json()),
-  deleteRagSource: (sourceId, sourceKind) =>
+  deleteRagSource: (sourceId: string, sourceKind: string) =>
     request(`/api/rag/sources/${encodeURIComponent(sourceId)}?source_kind=${encodeURIComponent(sourceKind)}`, {
       method: "DELETE",
     }).then((r) => r.json()),
-  usageSummary: (days = 14) => request(`/api/usage/summary?days=${days}`).then((r) => r.json()),
-  usageStats: (days = 14) => request(`/api/usage/stats?days=${days}`).then((r) => r.json()),
+  usageSummary: (days: number = 14) => request(`/api/usage/summary?days=${days}`).then((r) => r.json()),
+  usageStats: (days: number = 14) => request(`/api/usage/stats?days=${days}`).then((r) => r.json()),
 
   emailTest: () => request("/api/email/test").then((r) => r.json()),
   emailFlags: () => request("/api/email/flags").then((r) => r.json()),
   markEmailFlagsSeen: () => request("/api/email/flags/mark-seen", { method: "POST" }),
   emailMessages: () => request("/api/email/messages").then((r) => r.json()),
-  emailMessage: (id) => request(`/api/email/messages/${id}`).then((r) => r.json()),
-  emailSummarize: (id) =>
+  emailMessage: (id: string) => request(`/api/email/messages/${id}`).then((r) => r.json()),
+  emailSummarize: (id: string) =>
     request(`/api/email/messages/${id}/summarize`, { method: "POST" }).then((r) => r.json()),
-  emailDraftReply: (id, instruction = "") =>
+  emailDraftReply: (id: string, instruction: string = "") =>
     request(`/api/email/messages/${id}/draft-reply`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ instruction }),
     }).then((r) => r.json()),
-  emailSend: (to, subject, body, inReplyTo = null) =>
+  emailSend: (to: string, subject: string, body: string, inReplyTo: string | null = null) =>
     request("/api/email/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -343,45 +367,45 @@ export const api = {
     }).then((r) => r.json()),
 
   syncPairStart: () => request("/api/sync/pair/start", { method: "POST" }).then((r) => r.json()),
-  syncPairBundle: (baseUrl, code) =>
+  syncPairBundle: (baseUrl: string, code: string) =>
     fetch(`${baseUrl}/api/sync/pair/bundle?code=${encodeURIComponent(code)}`).then((r) => {
       if (!r.ok) throw new Error("Invalid, expired, or already-used code.");
       return r.json();
     }),
-  syncPairComplete: (code, encryptedSecret) =>
+  syncPairComplete: (code: string, encryptedSecret: string) =>
     request("/api/sync/pair/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code, encrypted_secret: encryptedSecret }),
     }).then((r) => r.json()),
-  syncExport: (passphrase) =>
+  syncExport: (passphrase: string) =>
     request("/api/sync/export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ passphrase }),
     }).then((r) => r.json()),
-  syncImport: (passphrase, blob) =>
+  syncImport: (passphrase: string, blob: Blob | string) =>
     request("/api/sync/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ passphrase, blob }),
     }).then((r) => r.json()),
 
-  getGroupPersonas: (conversationId) =>
+  getGroupPersonas: (conversationId: string) =>
     request(`/api/conversations/${conversationId}/group-personas`).then((r) => r.json()),
-  setGroupPersonas: (conversationId, personaIds) =>
+  setGroupPersonas: (conversationId: string, personaIds: string[]) =>
     request(`/api/conversations/${conversationId}/group-personas`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ persona_ids: personaIds }),
     }).then((r) => r.json()),
-  streamGroupChat: (conversationId, message, onEvent, signal) =>
+  streamGroupChat: (conversationId: string, message: string, onEvent: StreamHandler, signal: AbortSignal) =>
     streamSSE(`/api/conversations/${conversationId}/group-chat`, { message }, onEvent, signal),
 
   listResearchReports: () => request("/api/research/reports").then((r) => r.json()),
-  getResearchReport: (id) => request(`/api/research/reports/${id}`).then((r) => r.json()),
-  deleteResearchReport: (id) => request(`/api/research/reports/${id}`, { method: "DELETE" }),
-  askResearchReport: (id, question) =>
+  getResearchReport: (id: string) => request(`/api/research/reports/${id}`).then((r) => r.json()),
+  deleteResearchReport: (id: string) => request(`/api/research/reports/${id}`, { method: "DELETE" }),
+  askResearchReport: (id: string, question: string) =>
     request(`/api/research/reports/${id}/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -389,150 +413,150 @@ export const api = {
     }).then((r) => r.json()),
 
   listTodos: () => request("/api/todos").then((r) => r.json()),
-  createTodo: (text, dueTs = null) =>
+  createTodo: (text: string, dueTs: number | null = null) =>
     request("/api/todos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, due_ts: dueTs }),
     }).then((r) => r.json()),
-  updateTodo: (id, patch) =>
+  updateTodo: (id: string, patch: Record<string, unknown>) =>
     request(`/api/todos/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     }).then((r) => r.json()),
-  deleteTodo: (id) => request(`/api/todos/${id}`, { method: "DELETE" }),
+  deleteTodo: (id: string) => request(`/api/todos/${id}`, { method: "DELETE" }),
 
   listNotes: () => request("/api/notes").then((r) => r.json()),
-  createNote: (content, color = "default") =>
+  createNote: (content: string, color: string = "default") =>
     request("/api/notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content, color }),
     }).then((r) => r.json()),
-  updateNote: (id, patch) =>
+  updateNote: (id: string, patch: Record<string, unknown>) =>
     request(`/api/notes/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     }).then((r) => r.json()),
-  deleteNote: (id) => request(`/api/notes/${id}`, { method: "DELETE" }),
+  deleteNote: (id: string) => request(`/api/notes/${id}`, { method: "DELETE" }),
 
-  listCalendarEvents: (fromTs, toTs) =>
+  listCalendarEvents: (fromTs: number, toTs: number) =>
     request(`/api/calendar/events?from_ts=${fromTs}&to_ts=${toTs}`).then((r) => r.json()),
-  createCalendarEvent: (event) =>
+  createCalendarEvent: (event: Record<string, unknown>) =>
     request("/api/calendar/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),
     }).then((r) => r.json()),
-  deleteCalendarEvent: (id) => request(`/api/calendar/events/${id}`, { method: "DELETE" }),
+  deleteCalendarEvent: (id: string) => request(`/api/calendar/events/${id}`, { method: "DELETE" }),
 
   listProjects: () => request("/api/projects").then((r) => r.json()),
-  createProject: (name, workdir) =>
+  createProject: (name: string, workdir: string) =>
     request("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, workdir }),
     }).then((r) => r.json()),
-  deleteProject: (id) => request(`/api/projects/${id}`, { method: "DELETE" }),
-  setConversationProject: (conversationId, projectId) =>
+  deleteProject: (id: string) => request(`/api/projects/${id}`, { method: "DELETE" }),
+  setConversationProject: (conversationId: string, projectId: string) =>
     request(`/api/conversations/${conversationId}/project`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_id: projectId }),
     }).then((r) => r.json()),
-  setProjectAgentMode: (projectId, agentMode) =>
+  setProjectAgentMode: (projectId: string, agentMode: string) =>
     request(`/api/projects/${projectId}/agent-mode`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ agent_mode: agentMode }),
     }).then((r) => r.json()),
 
-  setConversationPinned: (conversationId, pinned) =>
+  setConversationPinned: (conversationId: string, pinned: boolean) =>
     request(`/api/conversations/${conversationId}/pin`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pinned }),
     }).then((r) => r.json()),
-  setConversationTags: (conversationId, tags) =>
+  setConversationTags: (conversationId: string, tags: string[]) =>
     request(`/api/conversations/${conversationId}/tags`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tags }),
     }).then((r) => r.json()),
 
-  shareConversation: (conversationId) =>
+  shareConversation: (conversationId: string) =>
     request(`/api/conversations/${conversationId}/share`, { method: "POST" }).then((r) => r.json()),
-  unshareConversation: (conversationId) =>
+  unshareConversation: (conversationId: string) =>
     request(`/api/conversations/${conversationId}/share`, { method: "DELETE" }).then((r) => r.json()),
-  getSharedConversation: (token) =>
+  getSharedConversation: (token: string) =>
     fetch(`${BASE}/api/share/${token}`).then((r) => {
       if (!r.ok) throw new Error("This link is invalid or has been revoked.");
       return r.json();
     }),
-  shareUrl: (token) => `${window.location.origin}${window.location.pathname}#/share/${token}`,
+  shareUrl: (token: string) => `${window.location.origin}${window.location.pathname}#/share/${token}`,
   getKnowledgeGraph: () => request("/api/graph").then((r) => r.json()),
-  searchLocalFiles: (path, q) =>
+  searchLocalFiles: (path: string, q: string) =>
     request(`/api/search/local-files?path=${encodeURIComponent(path)}&q=${encodeURIComponent(q)}`).then((r) => r.json()),
   getAutomationEventTypes: () => request("/api/automation/event-types").then((r) => r.json()),
   listWebhooks: () => request("/api/webhooks").then((r) => r.json()),
-  createWebhook: (url, eventTypes) =>
+  createWebhook: (url: string, eventTypes: string[]) =>
     request("/api/webhooks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, event_types: eventTypes }),
     }).then((r) => r.json()),
-  toggleWebhook: (id, enabled) =>
+  toggleWebhook: (id: string, enabled: boolean) =>
     request(`/api/webhooks/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled }),
     }),
-  deleteWebhook: (id) => request(`/api/webhooks/${id}`, { method: "DELETE" }),
+  deleteWebhook: (id: string) => request(`/api/webhooks/${id}`, { method: "DELETE" }),
   listAutomationRules: () => request("/api/automation/rules").then((r) => r.json()),
-  createAutomationRule: (rule) =>
+  createAutomationRule: (rule: Record<string, unknown>) =>
     request("/api/automation/rules", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(rule),
     }).then((r) => r.json()),
-  toggleAutomationRule: (id, enabled) =>
+  toggleAutomationRule: (id: string, enabled: boolean) =>
     request(`/api/automation/rules/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled }),
     }),
-  deleteAutomationRule: (id) => request(`/api/automation/rules/${id}`, { method: "DELETE" }),
+  deleteAutomationRule: (id: string) => request(`/api/automation/rules/${id}`, { method: "DELETE" }),
   getLatestDigest: () => request("/api/digest/latest").then((r) => r.json()),
   getDigestHistory: () => request("/api/digest/history").then((r) => r.json()),
   runDigestNow: () => request("/api/digest/run-now", { method: "POST" }).then((r) => r.json()),
-  extractProject: (conversationId) =>
+  extractProject: (conversationId: string) =>
     request(`/api/conversations/${conversationId}/extract-project`, { method: "POST" }).then((r) => r.json()),
 
   listSnippets: () => request("/api/snippets").then((r) => r.json()),
-  createSnippet: (title, content) =>
+  createSnippet: (title: string, content: string) =>
     request("/api/snippets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, content }),
     }).then((r) => r.json()),
-  deleteSnippet: (id) => request(`/api/snippets/${id}`, { method: "DELETE" }),
+  deleteSnippet: (id: string) => request(`/api/snippets/${id}`, { method: "DELETE" }),
 
   listQuickActions: () => request("/api/quick-actions").then((r) => r.json()),
-  createQuickAction: (name, promptTemplate, autoSend) =>
+  createQuickAction: (name: string, promptTemplate: string, autoSend: boolean) =>
     request("/api/quick-actions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, prompt_template: promptTemplate, auto_send: autoSend }),
     }).then((r) => r.json()),
-  deleteQuickAction: (id) => request(`/api/quick-actions/${id}`, { method: "DELETE" }),
+  deleteQuickAction: (id: string) => request(`/api/quick-actions/${id}`, { method: "DELETE" }),
 
-  gitStatus: (conversationId) =>
+  gitStatus: (conversationId: string) =>
     request(`/api/conversations/${conversationId}/git/status`).then((r) => r.json()),
-  gitDiff: (conversationId, path = "") =>
+  gitDiff: (conversationId: string, path: string = "") =>
     request(`/api/conversations/${conversationId}/git/diff?path=${encodeURIComponent(path)}`).then((r) => r.json()),
-  runChecks: (conversationId, command = null) =>
+  runChecks: (conversationId: string, command: string | null = null) =>
     request(`/api/conversations/${conversationId}/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -540,50 +564,50 @@ export const api = {
     }).then((r) => r.json()),
 
   listSkills: () => request("/api/skills").then((r) => r.json()),
-  deleteSkill: (id) => request(`/api/skills/${id}`, { method: "DELETE" }),
+  deleteSkill: (id: string) => request(`/api/skills/${id}`, { method: "DELETE" }),
 
   listMemories: () => request("/api/memories").then((r) => r.json()),
-  addMemory: (content, category = "fact") =>
+  addMemory: (content: string, category: string = "fact") =>
     request("/api/memories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content, category }),
     }).then((r) => r.json()),
-  toggleMemory: (id, enabled) =>
+  toggleMemory: (id: string, enabled: boolean) =>
     request(`/api/memories/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled }),
     }),
-  deleteMemory: (id) => request(`/api/memories/${id}`, { method: "DELETE" }),
+  deleteMemory: (id: string) => request(`/api/memories/${id}`, { method: "DELETE" }),
   clearMemories: () => request("/api/memories", { method: "DELETE" }),
   reviewMemoryConflicts: () => request("/api/memories/review-conflicts", { method: "POST" }).then((r) => r.json()),
   listMemoryConflicts: () => request("/api/memories/conflicts").then((r) => r.json()),
-  resolveMemoryConflict: (id) => request(`/api/memories/conflicts/${id}/resolve`, { method: "POST" }),
+  resolveMemoryConflict: (id: string) => request(`/api/memories/conflicts/${id}/resolve`, { method: "POST" }),
 
-  approveToolCall: (id) => request(`/api/agent/tool-calls/${id}/approve`, { method: "POST" }),
-  denyToolCall: (id) => request(`/api/agent/tool-calls/${id}/deny`, { method: "POST" }),
-  revertToolCall: (id) =>
+  approveToolCall: (id: string) => request(`/api/agent/tool-calls/${id}/approve`, { method: "POST" }),
+  denyToolCall: (id: string) => request(`/api/agent/tool-calls/${id}/deny`, { method: "POST" }),
+  revertToolCall: (id: string) =>
     request(`/api/agent/tool-calls/${id}/revert`, { method: "POST" }).then((r) => r.json()),
-  listToolCalls: (conversationId) =>
+  listToolCalls: (conversationId: string) =>
     request(`/api/agent/tool-calls?conversation_id=${encodeURIComponent(conversationId)}`).then((r) => r.json()),
-  revertRun: (runId) => request(`/api/agent/runs/${runId}/revert`, { method: "POST" }).then((r) => r.json()),
+  revertRun: (runId: string) => request(`/api/agent/runs/${runId}/revert`, { method: "POST" }).then((r) => r.json()),
 
   listModels: () => request("/api/models").then((r) => r.json()),
   // Settings change history — see settings_history_service.py.
-  getSettingsHistory: (key = null, limit = 100) => {
+  getSettingsHistory: (key: string | null = null, limit: number = 100) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (key) params.set("key", key);
     return request(`/api/settings/history?${params.toString()}`).then((r) => r.json());
   },
-  revertSettingsHistory: (id) =>
+  revertSettingsHistory: (id: string) =>
     request(`/api/settings/history/${id}/revert`, { method: "POST" }).then((r) => r.json()),
   getRoutingStatus: () => request("/api/routing/status").then((r) => r.json()),
-  getRoutingOverrideSummary: (days = 30) =>
+  getRoutingOverrideSummary: (days: number = 30) =>
     request(`/api/routing/override-summary?days=${days}`).then((r) => r.json()),
-  pullModel: (name, onEvent) => streamSSE("/api/models/pull", { name }, onEvent),
-  createModel: (spec, onEvent) => streamSSE("/api/models/create", spec, onEvent),
-  deleteModel: (name) =>
+  pullModel: (name: string, onEvent: StreamHandler) => streamSSE("/api/models/pull", { name }, onEvent),
+  createModel: (spec: Record<string, unknown>, onEvent: StreamHandler) => streamSSE("/api/models/create", spec, onEvent),
+  deleteModel: (name: string) =>
     request(`/api/models/${name}`, { method: "DELETE" }).then((r) => r.json()),
   imageStatus: () => request("/api/images/status").then((r) => r.json()),
   // /api/health returns 503 (not 200) when overall status is "down" so
@@ -599,55 +623,55 @@ export const api = {
     throw new Error(res.statusText);
   },
   activity: () => request("/api/activity").then((r) => r.json()),
-  generateImage: (prompt, negative = "") =>
+  generateImage: (prompt: string, negative: string = "") =>
     request("/api/images/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, negative }),
     }).then((r) => r.json()),
 
   lockStatus: () => request("/api/lock/status").then((r) => r.json()),
-  lockVerify: (passcode) =>
+  lockVerify: (passcode: string) =>
     request("/api/lock/verify", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ passcode }),
     }).then((r) => r.json()),
-  lockSet: (passcode) =>
+  lockSet: (passcode: string) =>
     request("/api/lock/set", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ passcode }),
     }).then((r) => r.json()),
-  lockDisable: (passcode) =>
+  lockDisable: (passcode: string) =>
     request("/api/lock/disable", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ passcode }),
     }).then((r) => r.json()),
 
   getConfig: () => request("/api/config").then((r) => r.json()),
-  patchConfig: (patch) =>
+  patchConfig: (patch: Record<string, unknown>) =>
     request("/api/config", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     }).then((r) => r.json()),
-  previewRoute: (params) =>
-    request(`/api/route/preview?${new URLSearchParams(params)}`, { method: "POST" }).then((r) =>
+  previewRoute: (params: Record<string, unknown>) =>
+    request(`/api/route/preview?${new URLSearchParams(params as Record<string, string>)}`, { method: "POST" }).then((r) =>
       r.json()
     ),
 
-  upload: (file, conversationId = null) => {
+  upload: (file: File, conversationId: string | null = null) => {
     const form = new FormData();
     form.append("file", file);
     if (conversationId) form.append("conversation_id", conversationId);
     return request("/api/upload", { method: "POST", body: form }).then((r) => r.json());
   },
 
-  importHistory: (file) => {
+  importHistory: (file: File) => {
     const form = new FormData();
     form.append("file", file);
     return request("/api/import", { method: "POST", body: form }).then((r) => r.json());
   },
 
-  transcribe: (blob, filename = "voice.webm") => {
+  transcribe: (blob: Blob, filename: string = "voice.webm") => {
     const form = new FormData();
     form.append("file", blob, filename);
     return request("/api/voice/transcribe", { method: "POST", body: form }).then((r) => r.json());
@@ -679,9 +703,9 @@ export const api = {
       editOf = null,
       regenerateOf = null,
       modelOverride = null,
-    },
-    onEvent,
-    signal
+    }: ChatTurn,
+    onEvent: StreamHandler,
+    signal?: AbortSignal,
   ) {
     await streamSSE(
       "/api/chat",
@@ -710,7 +734,11 @@ export const api = {
    * | "done" | "error". Results persist as branch siblings — see
    * council_service.py.
    */
-  async streamCouncil({ conversationId, message, attachmentIds, models }, onEvent, signal) {
+  async streamCouncil(
+    { conversationId, message, attachmentIds, models }: { conversationId: string; message: string; attachmentIds: string[]; models: string[] },
+    onEvent: StreamHandler,
+    signal?: AbortSignal,
+  ) {
     await streamSSE(
       "/api/council",
       { conversation_id: conversationId, message, attachment_ids: attachmentIds, models },
@@ -726,7 +754,11 @@ export const api = {
    * final {"status": "done"} frame. Standalone endpoint (see
    * app/api/batch.py); not yet wired into the main chat flow.
    */
-  async runBatch({ folderPath, promptTemplate, model, extensions }, onEvent, signal) {
+  async runBatch(
+    { folderPath, promptTemplate, model, extensions }: { folderPath: string; promptTemplate: string; model?: string | null; extensions?: string[] | null },
+    onEvent: StreamHandler,
+    signal?: AbortSignal,
+  ) {
     await streamSSE(
       "/api/batch/run",
       { folder_path: folderPath, prompt_template: promptTemplate, model, extensions },
