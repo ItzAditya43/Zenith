@@ -145,3 +145,25 @@ def await_or_sync(coro):
     except RuntimeError:
         pass
     return asyncio.run(coro)
+
+@pytest.mark.parametrize("text", [
+    "Why does my Rust borrow checker complain about this struct lifetime?",
+    "Write a bash script that renames every .jpeg file to .jpg",
+    "SELECT * FROM users WHERE id = 1 -- why is this query slow?",
+    "my golang service leaks goroutines",
+])
+def test_language_and_sql_prompts_hint_code(text):
+    from app.services.router import _CODE_HINTS
+
+    assert _CODE_HINTS.search(text)
+
+
+@pytest.mark.parametrize("text", [
+    "What are some good houseplants for a dark apartment?",
+    "Summarise the plot of Pride and Prejudice",
+    "Select a nice restaurant from this list for Friday",
+])
+def test_plain_prompts_do_not_hint_code(text):
+    from app.services.router import _CODE_HINTS
+
+    assert not _CODE_HINTS.search(text)
