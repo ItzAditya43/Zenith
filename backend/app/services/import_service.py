@@ -70,7 +70,7 @@ def parse_claude(convos: list) -> list[dict]:
         for m in c.get("chat_messages") or []:
             if not isinstance(m, dict):
                 continue
-            sender = m.get("sender")
+            sender = str(m.get("sender") or "")
             role = {"human": "user", "assistant": "assistant"}.get(sender)
             if not role:
                 continue
@@ -155,13 +155,13 @@ def import_zenith_backup(data: dict) -> dict:
         if not isinstance(conv, dict):
             continue
         title = (conv.get("title") or "Imported chat")[:200]
-        new_project_id = project_id_map.get(conv.get("project_id"))
+        new_project_id = project_id_map.get(str(conv.get("project_id") or ""))
         c = storage.create_conversation(title, project_id=new_project_id)
         id_map: dict[str, str] = {}
         for m in conv.get("messages") or []:
             if not isinstance(m, dict) or not m.get("role") or not m.get("content"):
                 continue
-            old_parent = m.get("parent_id")
+            old_parent = str(m.get("parent_id") or "")
             new_msg = storage.add_message(
                 c["id"], m["role"], m["content"],
                 parent_id=id_map.get(old_parent), created_at=_parse_ts(m.get("created_at")),

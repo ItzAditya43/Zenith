@@ -18,8 +18,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.core.security import redact_config, strip_redacted
 from app.core.logging import get_logger
+from app.core.security import redact_config, strip_redacted
 from app.models.schemas import ConfigPatch
 from app.services.ollama_client import OllamaClient, OllamaError
 from app.services.router import ModelRegistry, ModelRouter
@@ -137,21 +137,21 @@ def _mcp_status() -> dict:
 
 
 async def _embedding_model_status() -> dict:
-    """Whether an embedding-capable model is installed. Without one, hybrid
-    RAG fusion/reranking silently degrade to lexical-only search — this
-    surfaces that instead of leaving it invisible. Uses the same
-    ModelRegistry-based install listing as the other probes here, scored
-    with hardware_service.embedding_model_installed()'s keyword heuristic
-    (which mirrors rag_service._resolve_embed_model())."""
+    """Which embedding model RAG will really use and whether retrieval is
+    hybrid or has fallen back to lexical-only — straight from
+    rag_service.status(), so this can't drift from what retrieval does."""
     try:
-        from app.services import hardware_service
-        from app.services.router import ModelRegistry
+        from app.services import rag_service
 
-        registry = ModelRegistry()
-        installed = await registry.models()
-        model = hardware_service.embedding_model_installed(installed)
-        return {"ok": model is not None, "model": model}
-    except Exception:
+        st = await asyncio.to_thread(rag_service.status)
+        return {
+            "ok": st["embedding_model"] is not None,
+            "model": st["embedding_model"],
+            "mode": st["mode"],
+            "chunks_missing_vectors": st["chunks_missing_vectors"],
+        }
+    except Exception as exc:
+        log.warning("health.embedding_status_failed", error=str(exc))
         return {"ok": False, "model": None}
 
 
@@ -275,7 +275,7 @@ async def models():
     try:
         raw = await client.list_models()
     except OllamaError as exc:
-        raise HTTPException(503, str(exc))
+        raise HTTPException(503, str(exc)) from exc
 
     keywords = settings.get("capability_keywords", {})
     overrides = settings.get("model_overrides", {})
@@ -369,7 +369,7 @@ async def models_delete(name: str):
     try:
         await client.delete_model(name)
     except OllamaError as exc:
-        raise HTTPException(503, str(exc))
+        raise HTTPException(503, str(exc)) from exc
     await ModelRegistry().models(force=True)
     return {"ok": True}
 
@@ -381,7 +381,7 @@ async def models_show(name: str):
     try:
         return await client.show_model(name)
     except OllamaError as exc:
-        raise HTTPException(503, str(exc))
+        raise HTTPException(503, str(exc)) from exc
 
 
 @router.get("/config")
@@ -408,7 +408,7 @@ async def patch_config(body: ConfigPatch):
 
 
 @router.post("/route/preview")
-async def preview_route(text: str = "", has_image: bool = False, has_video: bool = False, request: Request = None):
+async def preview_route(request: Request, text: str = "", has_image: bool = False, has_video: bool = False):
     """Lets the Settings UI show 'this message would go to <model>' live,
     without actually sending anything to Ollama."""
     router_ = ModelRouter()
@@ -420,7 +420,7 @@ async def preview_route(text: str = "", has_image: bool = False, has_video: bool
             history_last_model=(getattr(request.app.state, "last_route_model", None) if request else None),
         )
     except OllamaError as exc:
-        raise HTTPException(503, str(exc))
+        raise HTTPException(503, str(exc)) from exc
     return {
         "model": decision.model,
         "role": decision.role,
@@ -458,9 +458,9 @@ async def hardware_report():
     """Detected CPU/RAM/GPU + a fit rating for installed models and a
     small cookbook of recommended models sized to what this machine can
     actually run. Heuristic, not a guarantee — see hardware_service."""
+    from app.core.config import settings
     from app.services import hardware_service
     from app.services.router import ModelRegistry
-    from app.core.config import settings
 
     registry = ModelRegistry()
     installed = await registry.models()
@@ -474,7 +474,7 @@ async def email_test():
     try:
         return await asyncio.to_thread(email_service.test_connection)
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.get("/email/messages")
@@ -483,7 +483,7 @@ async def email_messages(folder: str = "INBOX"):
     try:
         return await asyncio.to_thread(email_service.list_messages, folder)
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.get("/email/messages/{message_id}")
@@ -492,7 +492,7 @@ async def email_message(message_id: str, folder: str = "INBOX"):
     try:
         return await asyncio.to_thread(email_service.get_message, message_id, folder)
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.post("/email/messages/{message_id}/summarize")
@@ -501,7 +501,7 @@ async def email_summarize(message_id: str, folder: str = "INBOX"):
     try:
         return {"summary": await email_service.summarize(message_id, folder)}
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.post("/email/messages/{message_id}/draft-reply")
@@ -512,7 +512,7 @@ async def email_draft_reply(message_id: str, body: dict, folder: str = "INBOX"):
             message_id, body.get("instruction", ""), folder, body.get("auto_research", True)
         )
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.post("/email/send")
@@ -527,7 +527,7 @@ async def email_send(body: dict):
         await asyncio.to_thread(email_service.send_message, to, subject, text, body.get("in_reply_to"))
         return {"ok": True}
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.get("/email/flags")
@@ -550,12 +550,13 @@ async def usage_summary(days: int = 14):
     live-only status rail."""
     import shutil
     from pathlib import Path
+
     from app.core.config import data_dir, db_path
     from app.db import storage
 
     summary = storage.usage_summary(days)
 
-    disk = {}
+    disk: dict[str, float | None] = {}
     try:
         disk["free_gb"] = round(shutil.disk_usage("/").free / (1024 ** 3), 1)
     except Exception:

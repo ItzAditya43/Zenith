@@ -77,6 +77,12 @@ def set_enabled(server_id: str, enabled: bool) -> None:
         conn.execute("UPDATE mcp_servers SET enabled = ? WHERE id = ?", (1 if enabled else 0, server_id))
 
 
+def _field(obj, snake: str, camel: str):
+    """mcp 2.x renamed protocol fields to snake_case (input_schema,
+    is_error); 1.x used the wire names (inputSchema, isError)."""
+    return getattr(obj, snake, None) if hasattr(obj, snake) else getattr(obj, camel, None)
+
+
 async def _with_session(server: dict, fn):
     """Connects to `server` over stdio, runs `fn(session)`, and always
     tears the subprocess down cleanly afterward — including on error or
@@ -102,7 +108,7 @@ async def _list_tools_raw(server: dict) -> list[dict]:
     async def _list(session):
         result = await session.list_tools()
         return [
-            {"name": t.name, "description": t.description or "", "input_schema": t.inputSchema}
+            {"name": t.name, "description": t.description or "", "input_schema": _field(t, "input_schema", "inputSchema")}
             for t in result.tools
         ]
     return await asyncio.wait_for(_with_session(server, _list), timeout=_CONNECT_TIMEOUT + 5)
@@ -157,11 +163,11 @@ async def call_tool(server: dict, tool_name: str, arguments: dict, max_chars: in
                 else:
                     parts.append(f"[{getattr(block, 'type', 'non-text content')}]")
             text = "\n".join(parts)
-            if result.isError:
+            if _field(result, "is_error", "isError"):
                 text = f"Error: {text}"
             return text[:max_chars]
         return await _with_session(server, _call)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return f"Error: MCP tool call to {server['name']}/{tool_name} timed out."
     except Exception as exc:
         log.warning("mcp.call_tool_failed", server=server["name"], tool=tool_name, error=str(exc))

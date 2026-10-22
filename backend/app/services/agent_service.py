@@ -39,7 +39,8 @@ import json
 import re
 import time
 import uuid
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -329,7 +330,7 @@ async def _await_approval(call_id: str, timeout: float) -> bool:
     _pending[call_id] = fut
     try:
         return await asyncio.wait_for(fut, timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return False
     finally:
         _pending.pop(call_id, None)
@@ -378,7 +379,6 @@ def revert_tool_call(call_id: str) -> str:
     file to what `previous_content`/`had_previous_file` recorded before the
     edit ran — or deleting the file if the edit created it. Same one-step
     undo model as an editor's Cmd+Z, scoped to a single tool call."""
-    from pathlib import Path
     from app.db import storage
 
     with _conn() as conn:
@@ -481,7 +481,7 @@ def _preview_diff(tool: str, args: dict, workdir: str | None) -> tuple[str | Non
     if tool == "edit_file":
         old_string = args.get("old_string")
         new_string = args.get("new_string", "")
-        if not had_previous_file or old_string is None or previous_content.count(old_string) != 1:
+        if not had_previous_file or old_string is None or previous_content is None or previous_content.count(old_string) != 1:
             return None, previous_content, had_previous_file
         new_content = previous_content.replace(old_string, new_string, 1)
     else:  # write_file
@@ -548,7 +548,7 @@ async def _run_bash(args: dict, timeout: float, max_chars: int, workdir: str | N
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             await proc.wait()
             return f"Error: command timed out after {timeout}s."
@@ -567,7 +567,7 @@ async def _run_bash(args: dict, timeout: float, max_chars: int, workdir: str | N
 _COAUTHOR_RE = re.compile(r"(?im)^\s*co-authored-by:.*$")
 
 
-async def _git_exec(argv: list[str], cwd: str, timeout: float) -> tuple[int, str, str]:
+async def _git_exec(argv: list[str], cwd: str, timeout: float) -> tuple[int | None, str, str]:
     """argv-based (no shell) so a commit message can't be shell-injected."""
     proc = await asyncio.create_subprocess_exec(
         *argv, cwd=cwd,
@@ -575,7 +575,7 @@ async def _git_exec(argv: list[str], cwd: str, timeout: float) -> tuple[int, str
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         await proc.wait()
         return 124, "", f"git timed out after {timeout}s."
@@ -666,7 +666,7 @@ async def _run_checks(args: dict, workdir: str | None = None) -> str:
             )
             try:
                 out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 proc.kill()
                 await proc.wait()
                 return f"Checks TIMED OUT after {timeout}s (command: {command})."
@@ -725,7 +725,7 @@ async def _pump_session_output(session: dict) -> None:
             # never let that block forever.
             try:
                 session["exit_code"] = await asyncio.wait_for(proc.wait(), timeout=5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 session["exit_code"] = proc.returncode  # best-effort; may stay None
 
 
@@ -1055,6 +1055,7 @@ async def _execute_tool(
     tool: str, args: dict, timeout: float, max_chars: int, workdir: str | None = None,
     conversation_id: str | None = None,
 ) -> str:
+    conversation_id = conversation_id or ""
     if tool == "bash":
         return await _run_bash(args, timeout, max_chars, workdir)
     if tool == "read_file":
@@ -1242,7 +1243,7 @@ async def run_agent_turn(
     error. Mirrors orchestrator.run_turn's shape but drives a multi-step
     loop instead of one retrieve-then-answer turn."""
     from app.db import storage
-    from app.services.orchestrator import build_turn_context, _build_system_context
+    from app.services.orchestrator import _build_system_context, build_turn_context
 
     conv = storage.get_conversation(conversation_id)
     # A project can pin autonomy to something other than the global default
@@ -1266,13 +1267,14 @@ async def run_agent_turn(
     mcp_by_name = {t["agent_tool_name"]: t for t in mcp_tools}
 
     router = ModelRouter()
+    decision: RouteDecision
     if model_override:
         decision = RouteDecision(
             model=model_override, role="general", reason="Manually selected for this message.",
             confidence=1.0,
         )
     else:
-        decision: RouteDecision = await router.decide(
+        decision = await router.decide(
             text=user_text, has_image=ctx.has_image, has_video=ctx.has_video,
             has_long_document=ctx.has_long_document, history_last_model=history_last_model,
         )
@@ -1513,7 +1515,7 @@ async def run_agent_turn(
         if had_failure and not checkpointed:
             try:
                 correction_id = storage.record_skill_correction(
-                    conversation_id, last_failure, tool_seq, user_text
+                    conversation_id, last_failure or "", tool_seq, user_text
                 )
                 if correction_id and not new_skill:
                     new_skill = correction_id

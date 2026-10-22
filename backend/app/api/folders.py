@@ -28,7 +28,7 @@ async def add_folder(body: WatchedFolderCreate):
     try:
         return folder_service.add_watched_folder(body.path, body.extensions)
     except ValueError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.patch("/{folder_id}")

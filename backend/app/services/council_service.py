@@ -13,15 +13,14 @@ switching to that branch.
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
-from app.core.config import settings
 from app.core.logging import get_logger
 from app.services.ollama_client import OllamaClient, OllamaError
 from app.services.orchestrator import (
-    build_turn_context,
     _build_messages,  # noqa: SLF001 — shared context-assembly helper, same protocol as orchestrator.run_turn
     _build_system_context,  # noqa: SLF001
+    build_turn_context,
 )
 
 log = get_logger(__name__)

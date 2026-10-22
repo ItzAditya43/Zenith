@@ -130,7 +130,7 @@ async def kill(name: str) -> None:
     )
     try:
         await asyncio.wait_for(proc.wait(), timeout=10)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
 
 
@@ -146,7 +146,7 @@ async def run(command: str, root: Path, cwd: str | None, timeout: float, merge_s
     )
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         await kill(name)
         proc.kill()
         await proc.wait()

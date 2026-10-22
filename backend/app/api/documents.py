@@ -49,7 +49,7 @@ async def edit_document(attachment_id: str, body: DocumentEditRequest):
     try:
         original_text = document_service.extract_text(att.path)
     except Exception as exc:
-        raise HTTPException(500, f"Couldn't read the document: {exc}")
+        raise HTTPException(500, f"Couldn't read the document: {exc}") from exc
 
     from app.services.router import ModelRegistry, ModelRouter
 
@@ -65,7 +65,7 @@ async def edit_document(attachment_id: str, body: DocumentEditRequest):
     try:
         edited_text = await document_service.edit_document(original_text, body.instruction, model)
     except Exception as exc:
-        raise HTTPException(503, f"Edit failed: {exc}")
+        raise HTTPException(503, f"Edit failed: {exc}") from exc
     if not edited_text.strip():
         raise HTTPException(502, "The model returned an empty document — original left untouched.")
 

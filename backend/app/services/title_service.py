@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import re
 
-from app.core.config import settings
 from app.core.logging import get_logger
 from app.db import storage
 from app.services.ollama_client import OllamaClient, OllamaError

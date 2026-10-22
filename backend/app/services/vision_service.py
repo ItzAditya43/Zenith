@@ -12,7 +12,7 @@ sampling if the scene filter returns no frames (very short clips, etc.).
 from __future__ import annotations
 
 import base64
-import os
+import io
 import subprocess
 import tempfile
 from pathlib import Path
@@ -27,13 +27,14 @@ MAX_IMAGE_DIM = 1024  # keep payloads reasonable for local models
 def encode_image(path: Path) -> str:
     """Downscales large images (helps small local vision models a lot) and
     returns a base64 string ready for Ollama's `images` field."""
-    with Image.open(path) as img:
-        img = img.convert("RGB")
-        if max(img.size) > MAX_IMAGE_DIM:
-            img.thumbnail((MAX_IMAGE_DIM, MAX_IMAGE_DIM))
-        with tempfile.NamedTemporaryFile(suffix=".jpg") as tmp:
-            img.save(tmp.name, "JPEG", quality=85)
-            return base64.b64encode(Path(tmp.name).read_bytes()).decode()
+    with Image.open(path) as src:
+        img = src.convert("RGB")
+    if max(img.size) > MAX_IMAGE_DIM:
+        img.thumbnail((MAX_IMAGE_DIM, MAX_IMAGE_DIM))
+    # In memory: re-opening a NamedTemporaryFile by name fails on Windows.
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=85)
+    return base64.b64encode(buf.getvalue()).decode()
 
 
 def extract_audio(video_path: Path) -> Path:

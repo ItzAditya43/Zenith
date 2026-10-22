@@ -8,9 +8,8 @@ httpx client keeps this framework-agnostic and easy to read/debug.
 from __future__ import annotations
 
 import json
-import re
-import time
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 

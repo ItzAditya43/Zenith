@@ -6,14 +6,45 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
-from app.api import agent, automation, backup, batch, chat, digest, documents, export, files, folders, graph, images, jobs, lock, mcp, memory, metrics, rag_sources, routing, schedules, settings_history, sync, system, upload, usage_stats, voice
+from app.api import (
+    agent,
+    automation,
+    backup,
+    batch,
+    chat,
+    digest,
+    documents,
+    export,
+    files,
+    folders,
+    graph,
+    images,
+    jobs,
+    lock,
+    mcp,
+    memory,
+    metrics,
+    rag_sources,
+    routing,
+    schedules,
+    settings_history,
+    sync,
+    system,
+    upload,
+    usage_stats,
+    voice,
+)
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.security import NetworkGuard, SharedSecretAuth
 from app.db.storage import init_db
+from app.services import jobs_registry
 from app.services.attachments import sweep_orphans
 from app.services.ollama_client import OllamaClient
-from app.services import jobs_registry
 
 log = get_logger(__name__)
 
@@ -235,11 +266,6 @@ _LAN_ORIGIN_REGEX = (
 # PasscodeLock -> routes. Starlette runs the last-added middleware first, so
 # they're added in reverse. CORS must be outermost so 401/403/423 responses
 # still carry CORS headers and the UI can actually read them.
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-
-from app.core.security import NetworkGuard, SharedSecretAuth
 
 
 class PasscodeLock(BaseHTTPMiddleware):

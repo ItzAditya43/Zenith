@@ -16,7 +16,7 @@ Deliberately read-only: no create/update/delete tools are exposed here,
 so a misbehaving or overly eager external agent can't mutate a user's
 notes/todos/memories through this surface.
 
-Uses FastMCP (`mcp.server.fastmcp`), available in the installed `mcp`
+Uses MCPServer (`mcp.server.mcpserver`; FastMCP on mcp 1.x), available in the installed `mcp`
 package version — it turns a plain typed async function + docstring into
 a fully-described MCP tool with almost no boilerplate, vs. hand-rolling
 `list_tools`/`call_tool` dispatch with the low-level `Server` API.
@@ -25,9 +25,12 @@ from __future__ import annotations
 
 import asyncio
 
-from mcp.server.fastmcp import FastMCP
+try:  # mcp >= 2.0 renamed FastMCP to MCPServer
+    from mcp.server.mcpserver import MCPServer
+except ImportError:  # mcp 1.x
+    from mcp.server.fastmcp import FastMCP as MCPServer  # type: ignore[no-redef,attr-defined]
 
-mcp = FastMCP("zenith")
+mcp = MCPServer("zenith")
 
 
 @mcp.tool()

@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 import re
 from typing import Any
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import urlparse
 
 import httpx
 
@@ -134,7 +134,7 @@ def _unwrap_ddg_redirect(href: str) -> str:
     """DDG's HTML endpoint links go through /l/?uddg=<encoded target> —
     unwrap so we fetch the real page, not a redirect stub."""
     if href.startswith("//duckduckgo.com/l/") or "uddg=" in href:
-        from urllib.parse import parse_qs, urlsplit, unquote
+        from urllib.parse import parse_qs, unquote, urlsplit
         qs = parse_qs(urlsplit(href if href.startswith("http") else "https:" + href).query)
         target = qs.get("uddg", [None])[0]
         if target:
