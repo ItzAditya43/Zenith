@@ -22,14 +22,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
       - name: Lint (ruff)
-        run: ruff check app/core app/db
+        run: ruff check app tests
       - name: Type check (mypy)
-        run: mypy app/core app/db
+        run: mypy app
       - name: Dependency vulnerability scan (pip-audit)
+        # Blocking. If an advisory has no fix yet, add a targeted
+        # `--ignore-vuln <ID>` here with a comment, rather than going advisory-only.
         run: pip-audit -r requirements.txt
-        continue-on-error: true  # advisory for now — don't block merges on upstream CVEs with no fix yet
+      - name: Pull sandbox test image
+        # test_agent_sandbox.py's real-container tests skip without it.
+        run: docker pull -q python:3.12-slim
       - name: Run tests with coverage
-        run: pytest -q --cov=app --cov-report=term-missing
+        run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=40
 
   frontend:
     runs-on: ubuntu-latest
@@ -46,8 +50,7 @@ jobs:
       - name: Unit tests
         run: npx vitest run
       - name: Dependency vulnerability scan (npm audit)
-        run: npm audit --omit=dev
-        continue-on-error: true  # advisory for now — don't block merges on upstream CVEs with no fix yet
+        run: npm audit --omit=dev --audit-level=moderate
       - name: Build
         run: npm run build
 

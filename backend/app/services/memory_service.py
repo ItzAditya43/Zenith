@@ -155,6 +155,7 @@ def memory_block(project_id: str | None = None, query: str | None = None) -> str
         return ""
 
     top_k = int(settings.get("memory_recall_top_k", 12))
+    mems: list[dict] | None
     if len(visible) <= top_k:
         mems = visible
     else:
@@ -175,7 +176,7 @@ def memory_block(project_id: str | None = None, query: str | None = None) -> str
             # most-recent-first is a reasonable, cheap default.
             mems = sorted(visible, key=lambda m: m["created_at"], reverse=True)[:top_k]
 
-    lines = "\n".join(f"- {m['content']}" for m in mems)
+    lines = "\n".join(f"- {m['content']}" for m in mems or [])
     return (
         "Things you remember about the user from previous conversations "
         "(use them naturally when relevant, don't recite them):\n" + lines

@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from app.services.ollama_client import OllamaError
 from app.services.router import ModelRegistry, ModelRouter
 
 

@@ -35,3 +35,21 @@ async def delete_source(
         raise HTTPException(404, "No chunks found for that source_id/source_kind.")
     log.info("rag_sources.deleted", source_id=source_id, source_kind=source_kind, chunks=deleted)
     return {"deleted": deleted}
+
+
+@router.get("/status")
+async def rag_status():
+    """Whether retrieval is really hybrid (vectors + lexical) or has fallen
+    back to lexical-only, and how many chunks still lack a vector."""
+    import asyncio
+    return await asyncio.to_thread(rag_service.status)
+
+
+@router.post("/reindex")
+async def reindex(limit: int | None = Query(None, ge=1, le=100_000)):
+    """Embed chunks that have no vector yet (see rag_service.reindex_missing_vectors)."""
+    import asyncio
+    result = await asyncio.to_thread(rag_service.reindex_missing_vectors, limit)
+    if result.get("error"):
+        raise HTTPException(409, result["error"])
+    return result

@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -23,7 +24,7 @@ from app.models.schemas import (
     PersonaUpdate,
 )
 from app.services.ollama_client import OllamaClient, OllamaError
-from app.services.orchestrator import build_turn_context, run_turn
+from app.services.orchestrator import run_turn
 from app.services.router import ModelRouter
 from app.services.stream_registry import registry
 
@@ -398,9 +399,9 @@ async def chat(body: ChatRequest, request: Request):
             model_override=body.model_override,
         )
     except OllamaError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     heartbeat = int(settings.get("sse_heartbeat_seconds", 15))
     max_idle = float(settings.get("stream_idle_timeout_seconds", 120))

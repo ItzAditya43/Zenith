@@ -10,7 +10,6 @@ These cover the Phase 0 Definition of Done:
 """
 from __future__ import annotations
 
-import os
 import sys
 import tempfile
 from pathlib import Path

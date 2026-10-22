@@ -2,11 +2,13 @@
 across all capability buckets and verifies the reason string is always present."""
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from app.core.config import settings
 from app.services.ollama_client import OllamaError
-from app.services.router import ModelRegistry, ModelRouter, RouteDecision
+from app.services.router import ModelRegistry, ModelRouter
 
 
 class _FakeClient:
@@ -131,7 +133,6 @@ def test_no_vision_model_with_image_falls_back_to_general():
 
 # --- helpers ---------------------------------------------------------------
 
-import asyncio
 
 
 def await_or_sync(coro):

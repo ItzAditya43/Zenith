@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -85,7 +85,7 @@ async def run_deep_research(
     tool_result, token, done, error) but with tool_pending/tool_denied
     never emitted — nothing here needs your approval."""
     from app.db import storage
-    from app.services.orchestrator import build_turn_context, _build_system_context
+    from app.services.orchestrator import _build_system_context, build_turn_context
 
     max_iters = int(settings.get("research_max_iterations", 10))
     max_chars = int(settings.get("web_fetch_max_chars", 4000))

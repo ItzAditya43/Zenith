@@ -148,6 +148,7 @@ def scan_folder(folder: dict) -> dict:
 
 async def scan_all_enabled() -> None:
     import asyncio
+
     from app.services import events
 
     for folder in list_watched_folders():

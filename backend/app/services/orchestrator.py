@@ -12,7 +12,7 @@ list of chat messages, so routes stay thin.
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -251,8 +251,8 @@ async def _gather_web_context(user_text: str, web_search: bool) -> tuple[str, li
     sections: list[str] = []
     sources: list[dict] = []
     snippet_by_url = {r["url"]: r.get("snippet", "") for r in search_results}
-    for url, page in zip(to_fetch, pages):
-        if isinstance(page, Exception) or not page:
+    for url, page in zip(to_fetch, pages, strict=True):
+        if isinstance(page, BaseException) or not page:
             # Fall back to the search snippet so a failed fetch doesn't
             # silently drop a result the user can see was found.
             if url in snippet_by_url and snippet_by_url[url]:

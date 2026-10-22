@@ -90,7 +90,7 @@ async def read_file(conversation_id: str, path: str = Query(...)):
     try:
         content = target.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        raise HTTPException(415, "Not a text file.")
+        raise HTTPException(415, "Not a text file.") from None
     return {"path": path, "content": content}
 
 
@@ -264,7 +264,7 @@ async def search_local_files(path: str = Query(...), q: str = Query(..., min_len
         raise HTTPException(404, f"Not a directory (or not visible to the backend process): {path}")
 
     needle = q.lower()
-    matches = []
+    matches: list[dict] = []
     scanned = 0
     for p in root.rglob("*"):
         if scanned >= _ADHOC_MAX_FILES_SCANNED or len(matches) >= _ADHOC_MAX_MATCHES:

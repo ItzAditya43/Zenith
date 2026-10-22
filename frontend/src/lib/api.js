@@ -313,6 +313,8 @@ export const api = {
 
   hardwareReport: () => request("/api/hardware").then((r) => r.json()),
   listRagSources: () => request("/api/rag/sources").then((r) => r.json()),
+  ragStatus: () => request("/api/rag/status").then((r) => r.json()),
+  ragReindex: () => request("/api/rag/reindex", { method: "POST" }).then((r) => r.json()),
   deleteRagSource: (sourceId, sourceKind) =>
     request(`/api/rag/sources/${encodeURIComponent(sourceId)}?source_kind=${encodeURIComponent(sourceKind)}`, {
       method: "DELETE",
