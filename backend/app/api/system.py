@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.security import redact_config, strip_redacted
 from app.core.logging import get_logger
 from app.models.schemas import ConfigPatch
 from app.services.ollama_client import OllamaClient, OllamaError
@@ -152,6 +153,25 @@ async def _embedding_model_status() -> dict:
         return {"ok": False, "model": None}
 
 
+def _security_status(request: Request) -> dict:
+    """Lets the UI warn when the LAN toggle is on with nothing gating it
+    (remote clients are refused in that state — see app/core/security.py)."""
+    from app.core.security import is_local_client, remote_gate_configured, shared_secret_active
+
+    gated = remote_gate_configured()
+    lan = bool(settings.get("cors_allow_lan", False))
+    return {
+        "client_is_local": is_local_client(request.client.host if request.client else None),
+        "remote_access_gated": gated,
+        "shared_secret_auth": shared_secret_active(),
+        "lan_enabled": lan,
+        "warning": None if gated or not lan else (
+            "LAN/Tailscale access is on but no passcode or shared secret is set — "
+            "other devices will be refused until you set one."
+        ),
+    }
+
+
 def _overall(ollama: dict, whisper: dict, tts: dict) -> Literal["ok", "degraded", "down"]:
     """Ollama is required; Whisper/TTS being unavailable only downgrades
     the app (text chat still works), so it doesn't push us from `degraded`
@@ -167,7 +187,7 @@ def _overall(ollama: dict, whisper: dict, tts: dict) -> Literal["ok", "degraded"
 
 
 @router.get("/health")
-async def health():
+async def health(request: Request):
     """Probes the real dependencies instead of returning a static `ok`.
 
     The shape is deliberately forward-compatible: `components` lists each
@@ -197,6 +217,7 @@ async def health():
             "mcp": mcp,
             "embedding_model": embedding_model,
         },
+        "security": _security_status(request),
     }
     if status == "down":
         # Use 503 so monitoring / load balancers can act on it.
@@ -363,7 +384,9 @@ async def models_show(name: str):
 
 @router.get("/config")
 async def get_config():
-    return JSONResponse(dict(settings.all()), headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
+    # Secrets are redacted and the response is never cached by shared
+    # caches — it used to ship email_password/auth_shared_secret in clear.
+    return JSONResponse(redact_config(dict(settings.all())), headers={"Cache-Control": "private, no-store"})
 
 
 @router.patch("/config")
@@ -371,7 +394,7 @@ async def patch_config(body: ConfigPatch):
     """Apply a partial config update. `ConfigPatch` (Pydantic) rejects
     unknown fields and validates enums/ranges, so we get a 422 instead of
     silently writing garbage into config.json."""
-    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    patch = strip_redacted({k: v for k, v in body.model_dump().items() if v is not None})
     updated = settings.update(patch)
     # Bust the model registry so role/override changes take effect on the
     # next /api/chat request instead of waiting for the TTL.
@@ -379,7 +402,7 @@ async def patch_config(body: ConfigPatch):
         await ModelRegistry().models(force=True)
     except Exception:  # never let a cache-bust failure block a config save
         pass
-    return updated
+    return redact_config(dict(updated))
 
 
 @router.post("/route/preview")

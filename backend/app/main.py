@@ -231,57 +231,15 @@ _LAN_ORIGIN_REGEX = (
     r")(:\d+)?$"
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    allow_origin_regex=_LAN_ORIGIN_REGEX if bool(settings.get("cors_allow_lan", False)) else None,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# --- Optional shared-secret auth (Tier 1 #8) ---
-# Off by default. When enabled, callers must send
-#   Authorization: Bearer <auth_shared_secret>
-# on every /api/* request, or  X-Zenith-Secret: <auth_shared_secret>.
-# Health endpoint is always reachable so monitoring still works.
+# --- Gates, outermost first: CORS -> NetworkGuard -> SharedSecretAuth ->
+# PasscodeLock -> routes. Starlette runs the last-added middleware first, so
+# they're added in reverse. CORS must be outermost so 401/403/423 responses
+# still carry CORS headers and the UI can actually read them.
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-
-class SharedSecretAuth(BaseHTTPMiddleware):
-    def __init__(self, app, secret: str) -> None:
-        super().__init__(app)
-        self.secret = secret
-
-    async def dispatch(self, request: Request, call_next):
-        # Always allow: health, docs, openapi, and CORS preflights.
-        path = request.url.path
-        if (
-            path in {"/api/health", "/docs", "/openapi.json", "/redoc"}
-            or path.startswith("/docs")
-            or request.method == "OPTIONS"
-        ):
-            return await call_next(request)
-
-        auth = request.headers.get("authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
-        else:
-            token = request.headers.get("x-zenith-secret", "")
-        if token != self.secret:
-            return JSONResponse(
-                {"detail": "Unauthorized — set Authorization: Bearer <auth_shared_secret>"},
-                status_code=401,
-            )
-        return await call_next(request)
-
-
-if bool(settings.get("auth_enabled", False)) and settings.get("auth_shared_secret"):
-    app.add_middleware(SharedSecretAuth, secret=settings.get("auth_shared_secret", ""))
-    log.info("auth.enabled", kind="shared_secret")
+from app.core.security import NetworkGuard, SharedSecretAuth
 
 
 class PasscodeLock(BaseHTTPMiddleware):
@@ -311,6 +269,16 @@ class PasscodeLock(BaseHTTPMiddleware):
 
 
 app.add_middleware(PasscodeLock)
+app.add_middleware(SharedSecretAuth)
+app.add_middleware(NetworkGuard)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins(),
+    allow_origin_regex=_LAN_ORIGIN_REGEX if bool(settings.get("cors_allow_lan", False)) else None,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 app.include_router(chat.router)

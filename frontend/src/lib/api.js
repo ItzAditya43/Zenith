@@ -17,30 +17,58 @@ function resolveBase() {
   return "http://localhost:8420";
 }
 const BASE = resolveBase();
+export const API_BASE = BASE;
 
-// App-level passcode lock: the unlock token (issued by /api/lock/verify) is
-// stored in sessionStorage and sent on every request so the backend's lock
-// middleware lets it through.
-function unlockHeaders() {
-  const token = sessionStorage.getItem("zenith-unlock");
-  return token ? { "X-Zenith-Unlock": token } : {};
+function storageGet(storeName, key) {
+  try {
+    return globalThis[storeName]?.getItem(key) ?? null;
+  } catch (_) {
+    return null; // private mode / blocked storage
+  }
+}
+
+// Credentials sent on every request:
+//  - the passcode-lock unlock token (issued by /api/lock/verify), kept in
+//    sessionStorage so it clears when the tab closes;
+//  - the optional deploy-time shared secret (auth_enabled), kept in
+//    localStorage since it's per-device configuration, not a session.
+export function authHeaders() {
+  const headers = {};
+  const token = storageGet("sessionStorage", "zenith-unlock");
+  if (token) headers["X-Zenith-Unlock"] = token;
+  const secret = storageGet("localStorage", "zenith-secret");
+  if (secret) headers.Authorization = `Bearer ${secret}`;
+  return headers;
+}
+
+// The backend tags gate refusals with a `code` (see app/core/security.py);
+// App.jsx listens for this and swaps in the matching access screen.
+export const GATE_EVENT = "zenith:access-gate";
+const GATE_CODES = { auth_required: "auth", remote_access_blocked: "remote" };
+
+function signalGate(body) {
+  const kind = body && GATE_CODES[body.code];
+  if (kind && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(GATE_EVENT, { detail: { kind, message: body.detail } }));
+  }
+}
+
+async function errorDetail(res) {
+  try {
+    const body = await res.json();
+    signalGate(body);
+    return typeof body.detail === "string" ? body.detail : res.statusText;
+  } catch (_) {
+    return res.statusText; // non-JSON error body
+  }
 }
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
-    headers: { ...unlockHeaders(), ...(options.headers || {}) },
+    headers: { ...authHeaders(), ...(options.headers || {}) },
   });
-  if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = await res.json();
-      detail = body.detail || detail;
-    } catch (_) {
-      /* non-JSON error body */
-    }
-    throw new Error(detail);
-  }
+  if (!res.ok) throw new Error(await errorDetail(res));
   return res;
 }
 
@@ -91,7 +119,7 @@ async function streamSSE(path, body, onEvent, signal, resumePath = null) {
   try {
     res = await fetch(`${BASE}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...unlockHeaders() },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
       signal,
     });
@@ -101,11 +129,7 @@ async function streamSSE(path, body, onEvent, signal, resumePath = null) {
     return;
   }
   if (!res.ok || !res.body) {
-    let detail = res.statusText;
-    try {
-      detail = (await res.json()).detail || detail;
-    } catch (_) {}
-    onEvent({ type: "error", message: detail });
+    onEvent({ type: "error", message: await errorDetail(res) });
     return;
   }
 
@@ -120,7 +144,7 @@ async function streamSSE(path, body, onEvent, signal, resumePath = null) {
     if (signal && signal.aborted) return;
     let resumeRes;
     try {
-      resumeRes = await fetch(`${BASE}${resumePath}`, { headers: unlockHeaders(), signal });
+      resumeRes = await fetch(`${BASE}${resumePath}`, { headers: authHeaders(), signal });
     } catch (err) {
       if (err && err.name === "AbortError") return;
       continue; // still down — try again
@@ -566,7 +590,7 @@ export const api = {
   // bypasses the generic `request()` error-throwing path instead of losing
   // that detail behind a generic Error.
   health: async () => {
-    const res = await fetch(`${BASE}/api/health`, { headers: unlockHeaders() });
+    const res = await fetch(`${BASE}/api/health`, { headers: authHeaders() });
     const body = await res.json().catch(() => null);
     if (res.ok) return body;
     if (body && body.detail) return body.detail;

@@ -292,3 +292,63 @@ describe("api.health() (bypasses the generic request() error path)", () => {
 // the Streams API that the test would mostly be validating the mock, not
 // api.js. That needs an actual backend (or a fuller integration harness)
 // and is out of scope for this pure-logic unit-test pass.
+
+function memoryStorage(initial = {}) {
+  const data = { ...initial };
+  return { getItem: (k) => (k in data ? data[k] : null), setItem: (k, v) => (data[k] = String(v)) };
+}
+
+describe("authHeaders()", () => {
+  it("sends the shared secret as a bearer token alongside the unlock token", async () => {
+    vi.stubGlobal("sessionStorage", memoryStorage({ "zenith-unlock": "tok" }));
+    vi.stubGlobal("localStorage", memoryStorage({ "zenith-secret": "s3cret" }));
+    vi.resetModules();
+    const { authHeaders } = await import("./api.js");
+    expect(authHeaders()).toEqual({ "X-Zenith-Unlock": "tok", Authorization: "Bearer s3cret" });
+  });
+
+  it("returns no headers when storage is missing or throws", async () => {
+    vi.stubGlobal("sessionStorage", undefined);
+    vi.stubGlobal("localStorage", { getItem: () => { throw new Error("blocked"); } });
+    vi.resetModules();
+    const { authHeaders } = await import("./api.js");
+    expect(authHeaders()).toEqual({});
+  });
+});
+
+describe("access-gate signalling", () => {
+  async function failWith(code, status) {
+    const dispatched = [];
+    vi.stubGlobal("window", {
+      location: { protocol: "http:", hostname: "localhost" },
+      dispatchEvent: (e) => dispatched.push(e),
+    });
+    vi.stubGlobal("CustomEvent", class { constructor(type, init) { this.type = type; this.detail = init.detail; } });
+    vi.stubGlobal("sessionStorage", memoryStorage());
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false, status, statusText: "nope",
+      json: async () => ({ detail: "blocked here", code }),
+    })));
+    vi.resetModules();
+    const mod = await import("./api.js");
+    await expect(mod.api.getConfig()).rejects.toThrow("blocked here");
+    return { dispatched, GATE_EVENT: mod.GATE_EVENT };
+  }
+
+  it("raises a 'remote' gate on remote_access_blocked", async () => {
+    const { dispatched, GATE_EVENT } = await failWith("remote_access_blocked", 403);
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0].type).toBe(GATE_EVENT);
+    expect(dispatched[0].detail).toEqual({ kind: "remote", message: "blocked here" });
+  });
+
+  it("raises an 'auth' gate on auth_required", async () => {
+    const { dispatched } = await failWith("auth_required", 401);
+    expect(dispatched[0].detail.kind).toBe("auth");
+  });
+
+  it("does not raise a gate for ordinary errors", async () => {
+    const { dispatched } = await failWith(undefined, 500);
+    expect(dispatched).toHaveLength(0);
+  });
+});

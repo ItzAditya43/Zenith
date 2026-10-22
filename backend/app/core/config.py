@@ -12,12 +12,21 @@ from typing import Any
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
+def env(name: str, default: str | None = None) -> str | None:
+    """Read `ZENITH_<name>`, falling back to the pre-rename `CORTEX_<name>`
+    so existing deployments and desktop installs keep working."""
+    val = os.environ.get(f"ZENITH_{name}")
+    if val is None:
+        val = os.environ.get(f"CORTEX_{name}")
+    return default if val is None else val
+
+
 def _resolve_data_dir() -> Path:
     """Resolve the data directory at access time so monkeypatched
-    `CORTEX_DATA_DIR` env vars in tests take effect."""
-    env = os.environ.get("CORTEX_DATA_DIR")
-    if env:
-        return Path(env)
+    `ZENITH_DATA_DIR` env vars in tests take effect."""
+    d = env("DATA_DIR")
+    if d:
+        return Path(d)
     return BASE_DIR / "data"
 
 
@@ -52,9 +61,9 @@ DATA_DIR = data_dir()
 
 def refresh_paths() -> None:
     """Re-evaluate DB_PATH / DATA_DIR / etc. from the current
-    `CORTEX_DATA_DIR` env var. Useful for tests that set the env var
+    `ZENITH_DATA_DIR` env var. Useful for tests that set the env var
     after config.py was first imported. Call this from the test fixture
-    right after `monkeypatch.setenv('CORTEX_DATA_DIR', ...)`."""
+    right after `monkeypatch.setenv('ZENITH_DATA_DIR', ...)`."""
     global DB_PATH, CONFIG_PATH, UPLOAD_DIR, DATA_DIR
     DB_PATH = db_path()
     CONFIG_PATH = config_path()
@@ -89,7 +98,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # Fallback when the chosen model fails mid-stream (Tier 1 #5).
     # Resolved by capability role: a role name (e.g. "general") or an
     # exact model name. Default role-based fallback.
-    "fallback_model": os.environ.get("CORTEX_FALLBACK_MODEL", "general"),
+    "fallback_model": env("FALLBACK_MODEL", "general"),
     # --- STT / TTS ---
     "whisper_model_size": os.environ.get("WHISPER_MODEL_SIZE", "small"),
     "whisper_device": os.environ.get("WHISPER_DEVICE", "cpu"),
@@ -153,6 +162,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # on the same network. Off by default — it widens who can reach the API,
     # so pair it with the passcode lock or shared-secret auth. See MULTIDEVICE.md.
     "cors_allow_lan": False,
+    # Extra hostnames a *local* client may use in its Host header (DNS-
+    # rebinding protection — see app/core/security.py). localhost, *.localhost
+    # and literal IPs are always allowed; add e.g. a reverse-proxy name here.
+    "allowed_hosts": [],
     # --- Operational ---
     "log_level": "INFO",
     "request_timeout_seconds": 600,
@@ -258,7 +271,37 @@ def _decrypt_sensitive(data: dict[str, Any]) -> None:
         # crypto_service unavailable at very-early import time — degrade to plaintext
 
 
-def _load() -> dict[str, Any]:
+def _env_bool(raw: str) -> bool:
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Deploy-time overrides (docker-compose / systemd). Applied only when the
+# variable is set and non-empty, so an unset var never clobbers a value the
+# user chose in Settings. Env wins over config.json when present.
+_ENV_OVERRIDES: dict[str, tuple[tuple[str, ...], Any]] = {
+    "auth_enabled": (("ZENITH_AUTH_ENABLED", "AUTH_ENABLED"), _env_bool),
+    "auth_shared_secret": (("ZENITH_AUTH_SHARED_SECRET", "AUTH_SHARED_SECRET"), str),
+    "cors_allow_origins": (
+        ("ZENITH_CORS_ALLOW_ORIGINS", "CORS_ALLOW_ORIGINS"),
+        lambda raw: [o.strip() for o in raw.split(",") if o.strip()],
+    ),
+    "cors_allow_lan": (("ZENITH_CORS_ALLOW_LAN",), _env_bool),
+}
+
+
+def _apply_env_overrides(data: dict[str, Any]) -> set[str]:
+    applied = set()
+    for key, (names, parse) in _ENV_OVERRIDES.items():
+        for name in names:
+            raw = os.environ.get(name, "")
+            if raw.strip():
+                data[key] = parse(raw)
+                applied.add(key)
+                break
+    return applied
+
+
+def _load_file() -> dict[str, Any]:
     cp = config_path()
     if cp.exists():
         try:
@@ -281,7 +324,9 @@ class Settings:
     """Thin mutable wrapper so the whole app can share live config state."""
 
     def __init__(self) -> None:
-        self._data = _load()
+        self._data: dict[str, Any] = {}
+        self._env_keys: set[str] = set()
+        self.reload()
 
     def get(self, key: str, default=None):
         return self._data.get(key, default)
@@ -304,6 +349,12 @@ class Settings:
 
     def save(self) -> None:
         to_write = dict(self._data)
+        if self._env_keys:
+            # Env-supplied values live only in memory; keep whatever the
+            # file had so unsetting the variable restores the user's choice.
+            on_disk = _load_file()
+            for key in self._env_keys:
+                to_write[key] = on_disk.get(key)
         try:
             from app.services.crypto_service import SENSITIVE_KEYS, encrypt
             for key in SENSITIVE_KEYS:
@@ -319,8 +370,9 @@ class Settings:
         """Re-read `config.json` from disk into memory.
 
         Useful after the file was edited out-of-band (Settings UI,
-        tests with monkeypatched CORTEX_DATA_DIR, etc.)."""
-        self._data = _load()
+        tests with monkeypatched ZENITH_DATA_DIR, etc.)."""
+        self._data = _load_file()
+        self._env_keys = _apply_env_overrides(self._data)
 
     def set(self, key: str, value: Any) -> None:
         """Convenience: set one key and persist. Lets tests / callers
