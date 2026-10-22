@@ -1969,6 +1969,69 @@ export default function SettingsPanel({
                 </div>
 
                 <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+                  Sandbox
+                </h3>
+                <p className="settings-section-desc">
+                  Run the agent's shell commands (bash, checks, background shells) in a throwaway
+                  Docker container that sees only this conversation's working directory, with no
+                  network by default. File tools are confined to the same folder. Needs Docker on this
+                  machine; not available inside the Docker deployment, which is already isolated.
+                </p>
+                <div className="setting-row">
+                  <div>
+                    <strong>Run commands in a container</strong>
+                    <span className="setting-hint">
+                      Off: commands run as your user with full access to your files.
+                    </span>
+                  </div>
+                  <button
+                    className={`switch ${config?.agent_sandbox === "docker" ? "switch-on" : ""}`}
+                    onClick={async () =>
+                      setConfig(await api.patchConfig({ agent_sandbox: config?.agent_sandbox === "docker" ? "off" : "docker" }))
+                    }
+                    role="switch"
+                    aria-checked={config?.agent_sandbox === "docker"}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+                {config?.agent_sandbox === "docker" && (
+                  <>
+                    <div className="setting-row">
+                      <div>
+                        <strong>Image</strong>
+                        <span className="setting-hint">Any image with <code>sh</code>; add the tools your project needs.</span>
+                      </div>
+                      <input
+                        className="settings-input"
+                        defaultValue={config?.agent_sandbox_image || ""}
+                        aria-label="Sandbox image"
+                        onBlur={async (e) => {
+                          const v = e.target.value.trim();
+                          if (v && v !== config?.agent_sandbox_image) setConfig(await api.patchConfig({ agent_sandbox_image: v }));
+                        }}
+                      />
+                    </div>
+                    <div className="setting-row">
+                      <div>
+                        <strong>Network access</strong>
+                        <span className="setting-hint">Needed for <code>pip install</code> / <code>npm install</code> inside the sandbox.</span>
+                      </div>
+                      <button
+                        className={`switch ${config?.agent_sandbox_network === "bridge" ? "switch-on" : ""}`}
+                        onClick={async () =>
+                          setConfig(await api.patchConfig({ agent_sandbox_network: config?.agent_sandbox_network === "bridge" ? "none" : "bridge" }))
+                        }
+                        role="switch"
+                        aria-checked={config?.agent_sandbox_network === "bridge"}
+                      >
+                        <span className="switch-thumb" />
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
                   MCP servers
                 </h3>
                 <p className="settings-section-desc">

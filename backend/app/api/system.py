@@ -114,8 +114,10 @@ def _image_gen_status() -> dict:
 
 def _agent_mode_status() -> dict:
     """Not a network probe — just reflects the settings switch."""
+    from app.services import sandbox
+
     enabled = bool(settings.get("agent_enabled", False))
-    return {"ok": enabled, "enabled": enabled}
+    return {"ok": enabled, "enabled": enabled, "sandbox": sandbox.status()}
 
 
 def _mcp_status() -> dict:

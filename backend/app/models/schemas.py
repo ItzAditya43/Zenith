@@ -103,6 +103,11 @@ class ConfigPatch(StrictModel):
     agent_check_command: Optional[str] = Field(default=None, max_length=500)
     agent_auto_check: Optional[bool] = None
     agent_check_timeout_seconds: Optional[int] = Field(default=None, ge=5, le=1800)
+    agent_sandbox: Optional[Literal["off", "docker"]] = None
+    agent_sandbox_image: Optional[str] = Field(default=None, min_length=1, max_length=200, pattern=r"^[A-Za-z0-9][A-Za-z0-9._/:@-]*$")
+    agent_sandbox_network: Optional[Literal["none", "bridge"]] = None
+    agent_sandbox_memory: Optional[str] = Field(default=None, pattern=r"^\d+[kmg]?$")
+    agent_sandbox_cpus: Optional[str] = Field(default=None, pattern=r"^\d+(\.\d+)?$")
     image_gen_url: Optional[str] = Field(default=None, max_length=500)
     image_gen_steps: Optional[int] = Field(default=None, ge=1, le=150)
     image_gen_size: Optional[int] = Field(default=None, ge=128, le=2048)

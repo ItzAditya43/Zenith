@@ -1050,11 +1050,21 @@ that, not a multi-tenant SaaS product:
   autonomy level (manual / semi / full / plan-first) that matches how much
   you trust it. Plan-first is the safest "let it run" option — you approve a
   whole plan up front instead of gating each step or gating nothing.
-- **No filesystem sandbox** for agent tools, by design — see the Docker
-  section above. The tradeoff is explicit: you get real practical power
-  (editing your real code, running your real commands) in exchange for
-  taking the guardrails off. Start with a scoped workspace mount if
-  you're not sure.
+- **Optional container sandbox** (Settings → Agent tools → Sandbox,
+  `agent_sandbox: "docker"`). Off by default: agent tools then run as your
+  OS user, which is the trade-off for editing real code and running real
+  commands. Turned on, bash / run_checks / shell sessions run in a
+  throwaway Docker container that only sees the conversation's working
+  directory (or a private scratch folder), has no network unless you allow
+  it, drops all capabilities and runs as your uid; the file tools are
+  confined to the same folder. It needs Docker on the host, so it suits the
+  native and desktop installs. In the Docker deployment the backend
+  container is already the boundary.
+- **Semi-auto only auto-runs genuinely read-only steps.** Reads outside the
+  working directory, `git` subcommands other than status/log/diff/show,
+  `find -delete/-exec`, `env`, variable expansion and multi-line commands
+  all pause for approval. A prompt-injected web page can't quietly get
+  `~/.ssh` read and sent out through `fetch_url`.
 - **Scheduled turns and automation rules can never use agent mode** —
   unattended + unsupervised + shell access is a combination this project
   deliberately refuses, for both the clock-triggered case (schedules) and
@@ -1156,10 +1166,11 @@ A batch of smaller features closing gaps found during a full feature audit:
   type-checked, not compiled into a real running app and clicked — the
   next real desktop build should specifically exercise this button
   before it's considered fully verified.
-- **Agent mode has no filesystem sandbox** — see [Safety model](#safety-model).
-  A real syscall sandbox was investigated and shelved (Docker's default
-  seccomp blocks the nested user namespaces bwrap/firejail need); details in
-  [`docs/NOT_BUILT.md`](docs/NOT_BUILT.md).
+- **The agent sandbox is opt-in and Docker-based.** Without it, agent mode
+  has full access as your user (see [Safety model](#safety-model)). An
+  in-process syscall sandbox (bwrap/firejail) was investigated and shelved,
+  because Docker's default seccomp blocks the nested user namespaces they
+  need. Details are in [`docs/NOT_BUILT.md`](docs/NOT_BUILT.md).
 - **Image generation needs your own Stable Diffusion server** — Zenith ships
   the integration, not a diffusion model. Off until you set `image_gen_url`.
 - **No OS-level "computer use."** Browser automation (drive a web UI) is

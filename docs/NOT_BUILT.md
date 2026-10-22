@@ -41,6 +41,13 @@ in-container syscall sandbox would need a different runtime (e.g. gVisor as the
 Docker runtime), which is an infrastructure choice for the operator, not
 something Zenith can ship on by default.
 
+**What was built instead:** for native and desktop installs, where the
+backend is *not* already in a container, `agent_sandbox: "docker"` uses
+Docker as the outer layer. Each command runs in a throwaway container with
+only the workspace mounted, no network, all capabilities dropped and your
+uid. See `backend/app/services/sandbox.py`. The nested-namespace problem
+above still rules out the same option *inside* the Docker deployment.
+
 ## Auto-update (install step)
 
 **Check-and-notify is wired end-to-end** (signing keypair, `release.yml`
