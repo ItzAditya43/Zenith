@@ -3,8 +3,8 @@
 # don't need Python installed.
 #
 #   pip install pyinstaller
-#   pyinstaller cortex-backend.spec
-#   -> dist/cortex-backend  (or dist/cortex-backend.exe on Windows)
+#   pyinstaller zenith-backend.spec
+#   -> dist/zenith-backend  (or dist/zenith-backend.exe on Windows)
 #
 # NOTE: several backend deps ship native libraries and/or load code lazily,
 # which PyInstaller's static analysis can miss — they're listed explicitly in
@@ -49,7 +49,7 @@ a = Analysis(
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, a.binaries, a.datas, [],
-    name="cortex-backend",
+    name="zenith-backend",
     console=True,
     disable_windowed_traceback=False,
     strip=False,

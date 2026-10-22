@@ -32,7 +32,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/cortex-backend"],
+    "externalBin": ["binaries/zenith-backend"],
     "resources": [],
     "category": "Productivity",
     "shortDescription": "Self-hosted local AI chat for Ollama",

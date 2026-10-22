@@ -498,7 +498,7 @@ is a standalone entrypoint an MCP client spawns directly over stdio, and
 it does not start or require `main.py`/the web server to be running. It
 reads the same SQLite database by importing the same `app.db.storage`/
 `app.services.*` modules the backend itself uses, which resolve the DB
-location from `CORTEX_DATA_DIR` — point that env var at your real data
+location from `ZENITH_DATA_DIR` — point that env var at your real data
 directory and it sees your real data. Deliberately **read-only**: no
 create/update/delete tools are exposed, so an external agent poking at
 this surface can't mutate your notes/todos/memories.
@@ -520,16 +520,16 @@ To use it from Claude Desktop, add to `claude_desktop_config.json`:
       "command": "/home/you/Zenith/backend/.venv/bin/python",
       "args": ["/home/you/Zenith/backend/mcp_server_main.py"],
       "env": {
-        "CORTEX_DATA_DIR": "/home/you/.local/share/zenith"
+        "ZENITH_DATA_DIR": "/home/you/.local/share/zenith"
       }
     }
   }
 }
 ```
 
-Use absolute paths for `command`/`args`/`CORTEX_DATA_DIR` — Claude
+Use absolute paths for `command`/`args`/`ZENITH_DATA_DIR` — Claude
 Desktop spawns this with no shell profile and an arbitrary working
-directory, so nothing gets resolved relative to anything. `CORTEX_DATA_DIR`
+directory, so nothing gets resolved relative to anything. `ZENITH_DATA_DIR`
 should match whatever the running backend uses (its default, or whatever
 you've set for it) so both processes agree on which `zenith.db` is real.
 
@@ -1222,7 +1222,7 @@ A batch of smaller features closing gaps found during a full feature audit:
   `schedule_service.py`) also import the SQLite connection directly and
   write their own raw SQL, contradicting the "nothing else touches SQL
   directly" claim. A real port touches all of the above, not just one
-  file. `docker-compose.postgres.yml` exists as scaffolding for this
+  file. `docs/notes/docker-compose.postgres.yml` exists as scaffolding for this
   work, with the full file-by-file punch list in its header comment —
   it is not yet a working integration.
 - **Swap the vector store**: `rag_service.py` is the only file that knows

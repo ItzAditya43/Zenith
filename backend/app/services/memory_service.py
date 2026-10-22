@@ -4,7 +4,7 @@ Two halves:
 
 1. **Extraction** — after each turn, a small/fast model reads the user's
    message and pulls out durable personal facts ("uses Arch Linux",
-   "allergic to peanuts", "building an app called cortex"). Stored in the
+   "allergic to peanuts", "building an app called atlas"). Stored in the
    `memories` table, deduped by normalized content. Fire-and-forget: never
    blocks or breaks a chat turn.
 
