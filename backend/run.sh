@@ -11,7 +11,15 @@ if [ ! -d ".venv" ]; then
 fi
 source .venv/bin/activate
 pip install -q -r requirements.txt
+# ./run.sh --profile alice --port 8430  -> a separate Zenith for "alice"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --profile) export ZENITH_PROFILE="$2"; shift 2 ;;
+    --port) export ZENITH_PORT="$2"; shift 2 ;;
+    *) echo "unknown option: $1" >&2; exit 2 ;;
+  esac
+done
 BIND="${ZENITH_BIND:-127.0.0.1}"
 PORT="${ZENITH_PORT:-8420}"
-echo "Starting Zenith backend on http://${BIND}:${PORT} ..."
+echo "Starting Zenith backend${ZENITH_PROFILE:+ (profile: $ZENITH_PROFILE)} on http://${BIND}:${PORT} ..."
 uvicorn app.main:app --host "$BIND" --port "$PORT" --reload

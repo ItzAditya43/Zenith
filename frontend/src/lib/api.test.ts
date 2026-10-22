@@ -49,6 +49,14 @@ describe("resolveBase() / api.base", () => {
     expect(api.base).toBe("http://192.168.1.5:8420");
   });
 
+  it("honours ?backendPort= for a second profile, ignoring junk", async () => {
+    vi.stubEnv("VITE_API_BASE", "");
+    vi.stubGlobal("window", { location: { protocol: "http:", hostname: "localhost", search: "?backendPort=8430" } });
+    expect((await freshApi()).base).toBe("http://localhost:8430");
+    vi.stubGlobal("window", { location: { protocol: "http:", hostname: "localhost", search: "?backendPort=evil.com" } });
+    expect((await freshApi()).base).toBe("http://localhost:8420");
+  });
+
   it("derives the base from a Tailscale-style hostname, preserving https", async () => {
     stubWindowLocation("https:", "my-laptop.tailnet-1234.ts.net");
     const api = await freshApi();

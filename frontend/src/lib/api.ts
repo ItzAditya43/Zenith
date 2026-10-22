@@ -12,7 +12,10 @@ function resolveBase(): string {
   if (explicit) return explicit;
   if (typeof window !== "undefined" && window.location?.hostname) {
     const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:${BACKEND_PORT}`;
+    // ?backendPort=8430 targets another profile's backend (ZENITH_PROFILE).
+    const requested = new URLSearchParams(window.location.search ?? "").get("backendPort");
+    const port = requested && /^\d{2,5}$/.test(requested) ? requested : BACKEND_PORT;
+    return `${protocol}//${hostname}:${port}`;
   }
   return "http://localhost:8420";
 }
