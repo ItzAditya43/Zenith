@@ -337,6 +337,7 @@ export const api = {
 
   hardwareReport: () => request("/api/hardware").then((r) => r.json()),
   listRagSources: () => request("/api/rag/sources").then((r) => r.json()),
+  webSearchTest: () => request("/api/web/search-test", { method: "POST" }).then((r) => r.json()),
   ragStatus: () => request("/api/rag/status").then((r) => r.json()),
   ragReindex: () => request("/api/rag/reindex", { method: "POST" }).then((r) => r.json()),
   deleteRagSource: (sourceId: string, sourceKind: string) =>

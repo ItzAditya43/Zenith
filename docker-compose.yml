@@ -27,6 +27,8 @@ services:
       # is published on loopback (ZENITH_HOST_BIND tells the backend which).
       - ZENITH_HOST_BIND=${ZENITH_BIND:-127.0.0.1}
       - ZENITH_TRUSTED_NETWORKS=172.16.0.0/12,192.168.65.0/24
+      # Set by `docker compose --profile search up` users; empty = Settings value.
+      - ZENITH_SEARXNG_URL=${ZENITH_SEARXNG_URL:-}
     ports:
       - "${ZENITH_BIND:-127.0.0.1}:8420:8420"
     volumes:
@@ -104,6 +106,19 @@ services:
     # if you build the production bundle instead (see Dockerfile CMD note).
     mem_limit: 512m
     cpus: 1
+    security_opt:
+      - no-new-privileges:true
+
+  # Optional self-hosted web search (stabler than scraping DuckDuckGo):
+  #   ZENITH_SEARXNG_URL=http://searxng:8080 docker compose --profile search up
+  searxng:
+    image: searxng/searxng:latest
+    profiles: ["search"]
+    container_name: zenith-searxng
+    volumes:
+      - ./deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    restart: unless-stopped
+    mem_limit: 512m
     security_opt:
       - no-new-privileges:true
 

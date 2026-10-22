@@ -297,11 +297,17 @@ _ENV_OVERRIDES: dict[str, tuple[tuple[str, ...], Any]] = {
         lambda raw: [o.strip() for o in raw.split(",") if o.strip()],
     ),
     "cors_allow_lan": (("ZENITH_CORS_ALLOW_LAN",), _env_bool),
+    "searxng_url": (("ZENITH_SEARXNG_URL",), str),
+    "web_search_backend": (("ZENITH_WEB_SEARCH_BACKEND",), str),
 }
 
 
 def _apply_env_overrides(data: dict[str, Any]) -> set[str]:
     applied = set()
+    # Pointing at a SearXNG instance implies using it.
+    if os.environ.get("ZENITH_SEARXNG_URL", "").strip() and not os.environ.get("ZENITH_WEB_SEARCH_BACKEND"):
+        data["web_search_backend"] = "searxng"
+        applied.add("web_search_backend")
     for key, (names, parse) in _ENV_OVERRIDES.items():
         for name in names:
             raw = os.environ.get(name, "")
