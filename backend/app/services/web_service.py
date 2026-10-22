@@ -115,8 +115,28 @@ async def search(query: str, max_results: int | None = None) -> list[dict[str, s
     failure so a flaky network never fails the whole chat turn."""
     max_results = max_results or int(settings.get("web_search_max_results", 5))
     if settings.get("web_search_backend", "duckduckgo") == "searxng":
-        return await _search_searxng(query, max_results)
+        results = await _search_searxng(query, max_results)
+        if results:
+            return results
+        # SearXNG down or misconfigured: degrade to DuckDuckGo rather than
+        # silently searching nothing.
+        log.warning("web.searxng_fallback_to_duckduckgo", query=query[:120])
     return await _search_duckduckgo(query, max_results)
+
+
+async def test_search() -> dict[str, Any]:
+    """Settings "Test search" button: which backend answered, and how many results."""
+    backend = settings.get("web_search_backend", "duckduckgo")
+    if backend == "searxng":
+        results = await _search_searxng("zenith test", 3)
+        if results:
+            return {"ok": True, "backend": "searxng", "results": len(results)}
+        ddg = await _search_duckduckgo("zenith test", 3)
+        return {"ok": bool(ddg), "backend": "duckduckgo (fallback)", "results": len(ddg),
+                "error": f"SearXNG at {settings.get('searxng_url') or '(unset)'} returned nothing — "
+                         "is it running with the JSON format enabled?"}
+    results = await _search_duckduckgo("zenith test", 3)
+    return {"ok": bool(results), "backend": "duckduckgo", "results": len(results)}
 
 
 async def _search_searxng(query: str, max_results: int) -> list[dict[str, str]]:

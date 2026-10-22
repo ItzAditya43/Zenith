@@ -453,6 +453,13 @@ async def remove_skill(skill_id: str):
     return {"ok": True}
 
 
+@router.post("/web/search-test")
+async def web_search_test():
+    from app.services import web_service
+
+    return await web_service.test_search()
+
+
 @router.get("/hardware")
 async def hardware_report():
     """Detected CPU/RAM/GPU + a fit rating for installed models and a

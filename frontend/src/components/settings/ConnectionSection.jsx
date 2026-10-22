@@ -1,5 +1,6 @@
 import { api } from "../../lib/api";
 import Icon from "../Icon.jsx";
+import { useState } from "react";
 import { useSettings } from "./SettingsContext.js";
 
 /** Settings → "connection" section. State lives in SettingsPanel (see SettingsContext). */
@@ -14,6 +15,15 @@ export default function ConnectionSection() {
     lockEnabled,
     saveHost,
   } = useSettings();
+  const [searchTest, setSearchTest] = useState(null);
+  const runSearchTest = async () => {
+    setSearchTest({ pending: true });
+    try {
+      setSearchTest(await api.webSearchTest());
+    } catch (err) {
+      setSearchTest({ ok: false, error: err.message });
+    }
+  };
 
   return (
     <section className="settings-section">
@@ -98,6 +108,56 @@ export default function ConnectionSection() {
         >
           <span className="switch-thumb" />
         </button>
+      </div>
+      <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
+        Web search
+      </h3>
+      <p className="settings-section-desc">
+        DuckDuckGo needs no setup but is scraped from an unofficial page and can break. A
+        self-hosted SearXNG (<code>docker compose --profile search up</code>) is stabler; if it
+        fails, Zenith falls back to DuckDuckGo.
+      </p>
+      <div className="setting-row">
+        <div>
+          <strong>Search backend</strong>
+        </div>
+        <select
+          className="settings-input"
+          aria-label="Search backend"
+          value={config?.web_search_backend || "duckduckgo"}
+          onChange={async (e) => setConfig(await api.patchConfig({ web_search_backend: e.target.value }))}
+        >
+          <option value="duckduckgo">DuckDuckGo</option>
+          <option value="searxng">SearXNG (self-hosted)</option>
+        </select>
+      </div>
+      {config?.web_search_backend === "searxng" && (
+        <div className="setting-row">
+          <div>
+            <strong>SearXNG URL</strong>
+            <span className="setting-hint">e.g. http://localhost:8080 (JSON format must be enabled)</span>
+          </div>
+          <input
+            className="settings-input"
+            aria-label="SearXNG URL"
+            defaultValue={config?.searxng_url || ""}
+            onBlur={async (e) => {
+              const v = e.target.value.trim();
+              if (v !== (config?.searxng_url || "")) setConfig(await api.patchConfig({ searxng_url: v }));
+            }}
+          />
+        </div>
+      )}
+      <div className="setting-row">
+        <button className="icon-btn" onClick={runSearchTest} disabled={searchTest?.pending}>
+          {searchTest?.pending ? "Testing…" : "Test search"}
+        </button>
+        {searchTest && !searchTest.pending && (
+          <span className="setting-hint" role="status">
+            {searchTest.ok ? `OK — ${searchTest.results} results via ${searchTest.backend}.` : "No results."}
+            {searchTest.error ? ` ${searchTest.error}` : ""}
+          </span>
+        )}
       </div>
     </section>
   );

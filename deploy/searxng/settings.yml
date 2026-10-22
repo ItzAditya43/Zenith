@@ -1,0 +1,10 @@
+# Minimal SearXNG config for Zenith: enables the JSON API Zenith calls.
+use_default_settings: true
+server:
+  secret_key: "change-me-zenith-local"   # only reachable inside the compose network
+  limiter: false
+  image_proxy: false
+search:
+  formats:
+    - html
+    - json
