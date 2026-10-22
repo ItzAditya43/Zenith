@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [feature/full-audit-implementation, main]
+    branches: [main, feature/full-audit-implementation, feature/full-audit-implementation-tmp]
+  # Every PR, whatever its base — the default branch has been renamed before.
   pull_request:
-    branches: [feature/full-audit-implementation, main]
+  workflow_dispatch:
 
 jobs:
   backend:
