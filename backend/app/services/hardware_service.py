@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+from typing import Any
 
 from app.core.logging import get_logger
 
@@ -18,7 +19,7 @@ log = get_logger(__name__)
 # A small curated cookbook of well-known Ollama models worth recommending,
 # not an exhaustive registry mirror — good general/code/vision picks across
 # a range of sizes.
-COOKBOOK = [
+COOKBOOK: list[dict[str, Any]] = [
     # small_fast — quick replies, low-latency, minimal footprint
     {"name": "llama3.2:1b", "params_b": 1, "role": "small_fast", "note": "Tiny — runs anywhere, good for quick replies."},
     {"name": "qwen2.5:0.5b", "params_b": 0.5, "role": "small_fast", "note": "Extremely small — near-instant replies, limited depth."},

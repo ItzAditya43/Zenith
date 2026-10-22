@@ -10,7 +10,6 @@ These cover the Phase 0 Definition of Done:
 """
 from __future__ import annotations
 
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -26,8 +25,8 @@ if str(BACKEND_ROOT) not in sys.path:
 
 @pytest.fixture
 def temp_data_dir(monkeypatch):
-    d = tempfile.mkdtemp(prefix="cortex-test-")
-    monkeypatch.setenv("CORTEX_DATA_DIR", d)
+    d = tempfile.mkdtemp(prefix="zenith-test-")
+    monkeypatch.setenv("ZENITH_DATA_DIR", d)
     from app.core import config as cfg
 
     cfg.refresh_paths()

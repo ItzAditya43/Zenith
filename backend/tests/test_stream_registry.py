@@ -3,7 +3,6 @@ lets a dropped SSE connection reconnect and pick up a chat reply where it
 left off instead of losing it (see app/api/chat.py's /chat/resume)."""
 from __future__ import annotations
 
-import asyncio
 import sys
 from pathlib import Path
 

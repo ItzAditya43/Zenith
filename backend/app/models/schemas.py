@@ -7,7 +7,7 @@ silently accepting garbage values (e.g. `whisper_model_size = "garbage"`).
 """
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,9 +23,9 @@ class ChatRequest(StrictModel):
     web_search: bool = False  # composer "Search" toggle
     agent_mode_on: bool = False  # composer "Agent" toggle
     deep_research: bool = False  # composer "Research" toggle
-    edit_of: Optional[str] = None  # branching: id of the user message being replaced
-    regenerate_of: Optional[str] = None  # branching: assistant message id to regenerate
-    model_override: Optional[str] = None  # skip auto-routing, force this exact installed model
+    edit_of: str | None = None  # branching: id of the user message being replaced
+    regenerate_of: str | None = None  # branching: assistant message id to regenerate
+    model_override: str | None = None  # skip auto-routing, force this exact installed model
 
 
 class ConversationCreate(StrictModel):
@@ -46,87 +46,92 @@ class ConfigPatch(StrictModel):
     """All fields are optional; only the ones the caller actually
     sends get applied. Unknown fields are rejected (extra='forbid')."""
 
-    ollama_host: Optional[str] = Field(default=None, min_length=1, max_length=500)
-    model_overrides: Optional[dict[str, Optional[str]]] = None
-    capability_keywords: Optional[dict[str, list[str]]] = None
-    whisper_model_size: Optional[WhisperModelSize] = None
-    tts_engine: Optional[TtsEngine] = None
-    piper_voice: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    fallback_model: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    auth_enabled: Optional[bool] = None
-    auth_shared_secret: Optional[str] = None
-    cors_allow_origins: Optional[list[str]] = None
-    cors_allow_lan: Optional[bool] = None
-    rag_enabled: Optional[bool] = None
-    rag_chunk_chars: Optional[int] = Field(default=None, ge=200, le=20_000)
-    rag_chunk_overlap: Optional[int] = Field(default=None, ge=0, le=5_000)
-    rag_top_k: Optional[int] = Field(default=None, ge=1, le=20)
-    rag_rerank_enabled: Optional[bool] = None
-    rag_rerank_model: Optional[str] = Field(default=None, max_length=200)
-    rag_rerank_pool: Optional[int] = Field(default=None, ge=1, le=50)
-    rag_rerank_timeout_seconds: Optional[int] = Field(default=None, ge=1, le=120)
-    show_cloud_model_suggestions: Optional[bool] = None
-    doc_ocr_fallback: Optional[bool] = None
-    video_scene_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    router_confidence_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    log_level: Optional[LogLevel] = None
-    request_timeout_seconds: Optional[int] = Field(default=None, ge=5, le=7200)
-    prewarm_model_on_startup: Optional[bool] = None
-    sse_heartbeat_seconds: Optional[int] = Field(default=None, ge=0, le=120)
-    upload_max_bytes: Optional[int] = Field(default=None, ge=1_024, le=5 * 1024 * 1024 * 1024)
-    max_context_messages: Optional[int] = Field(default=None, ge=1, le=200)
-    attachment_ttl_hours: Optional[int] = Field(default=None, ge=1, le=24 * 30)
-    voice_chunk_sentences: Optional[bool] = None
-    ui_experimental: Optional[bool] = None
-    memory_enabled: Optional[bool] = None
-    memory_max_items: Optional[int] = Field(default=None, ge=10, le=2000)
-    memory_recall_top_k: Optional[int] = Field(default=None, ge=1, le=100)
-    notes_todos_context_enabled: Optional[bool] = None
-    digest_enabled: Optional[bool] = None
-    digest_interval_hours: Optional[int] = Field(default=None, ge=1, le=168)
-    system_prompt: Optional[str] = Field(default=None, max_length=8000)
-    recall_enabled: Optional[bool] = None
-    recall_top_k: Optional[int] = Field(default=None, ge=1, le=10)
-    web_search_backend: Optional[Literal["duckduckgo", "searxng"]] = None
-    searxng_url: Optional[str] = Field(default=None, max_length=500)
-    web_search_max_results: Optional[int] = Field(default=None, ge=1, le=10)
-    web_fetch_max_chars: Optional[int] = Field(default=None, ge=500, le=20_000)
-    web_fetch_timeout_seconds: Optional[int] = Field(default=None, ge=2, le=60)
-    web_fetch_max_urls_per_turn: Optional[int] = Field(default=None, ge=0, le=10)
-    agent_enabled: Optional[bool] = None
-    agent_mode: Optional[Literal["manual", "semi", "full", "plan"]] = None
-    agent_max_iterations: Optional[int] = Field(default=None, ge=1, le=200)
-    agent_command_timeout_seconds: Optional[int] = Field(default=None, ge=5, le=600)
-    agent_output_max_chars: Optional[int] = Field(default=None, ge=500, le=20_000)
-    agent_approval_timeout_seconds: Optional[int] = Field(default=None, ge=30, le=3600)
-    agent_subagent_max_iterations: Optional[int] = Field(default=None, ge=1, le=50)
-    agent_check_command: Optional[str] = Field(default=None, max_length=500)
-    agent_auto_check: Optional[bool] = None
-    agent_check_timeout_seconds: Optional[int] = Field(default=None, ge=5, le=1800)
-    image_gen_url: Optional[str] = Field(default=None, max_length=500)
-    image_gen_steps: Optional[int] = Field(default=None, ge=1, le=150)
-    image_gen_size: Optional[int] = Field(default=None, ge=128, le=2048)
-    image_gen_timeout_seconds: Optional[int] = Field(default=None, ge=10, le=1800)
-    research_max_iterations: Optional[int] = Field(default=None, ge=2, le=30)
-    council_models: Optional[list[str]] = Field(default=None, max_length=6)
-    folder_scan_interval_seconds: Optional[int] = Field(default=None, ge=60, le=86400)
-    folder_recall_enabled: Optional[bool] = None
-    folder_recall_top_k: Optional[int] = Field(default=None, ge=1, le=10)
-    schedule_check_interval_seconds: Optional[int] = Field(default=None, ge=15, le=3600)
-    email_enabled: Optional[bool] = None
-    email_imap_host: Optional[str] = Field(default=None, max_length=255)
-    email_imap_port: Optional[int] = Field(default=None, ge=1, le=65535)
-    email_smtp_host: Optional[str] = Field(default=None, max_length=255)
-    email_smtp_port: Optional[int] = Field(default=None, ge=1, le=65535)
-    email_username: Optional[str] = Field(default=None, max_length=255)
-    email_password: Optional[str] = Field(default=None, max_length=500)
-    email_fetch_count: Optional[int] = Field(default=None, ge=1, le=200)
-    notify_ntfy_enabled: Optional[bool] = None
-    notify_ntfy_url: Optional[str] = Field(default=None, min_length=1, max_length=500)
-    notify_ntfy_topic: Optional[str] = Field(default=None, max_length=200)
-    notify_event_types: Optional[list[str]] = Field(default=None, max_length=10)
-    wake_word_enabled: Optional[bool] = None
-    wake_word_phrase: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    ollama_host: str | None = Field(default=None, min_length=1, max_length=500)
+    model_overrides: dict[str, str | None] | None = None
+    capability_keywords: dict[str, list[str]] | None = None
+    whisper_model_size: WhisperModelSize | None = None
+    tts_engine: TtsEngine | None = None
+    piper_voice: str | None = Field(default=None, min_length=1, max_length=200)
+    fallback_model: str | None = Field(default=None, min_length=1, max_length=200)
+    auth_enabled: bool | None = None
+    auth_shared_secret: str | None = None
+    cors_allow_origins: list[str] | None = None
+    cors_allow_lan: bool | None = None
+    rag_enabled: bool | None = None
+    rag_chunk_chars: int | None = Field(default=None, ge=200, le=20_000)
+    rag_chunk_overlap: int | None = Field(default=None, ge=0, le=5_000)
+    rag_top_k: int | None = Field(default=None, ge=1, le=20)
+    rag_rerank_enabled: bool | None = None
+    rag_rerank_model: str | None = Field(default=None, max_length=200)
+    rag_rerank_pool: int | None = Field(default=None, ge=1, le=50)
+    rag_rerank_timeout_seconds: int | None = Field(default=None, ge=1, le=120)
+    show_cloud_model_suggestions: bool | None = None
+    doc_ocr_fallback: bool | None = None
+    video_scene_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    router_confidence_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    log_level: LogLevel | None = None
+    request_timeout_seconds: int | None = Field(default=None, ge=5, le=7200)
+    prewarm_model_on_startup: bool | None = None
+    sse_heartbeat_seconds: int | None = Field(default=None, ge=0, le=120)
+    upload_max_bytes: int | None = Field(default=None, ge=1_024, le=5 * 1024 * 1024 * 1024)
+    max_context_messages: int | None = Field(default=None, ge=1, le=200)
+    attachment_ttl_hours: int | None = Field(default=None, ge=1, le=24 * 30)
+    voice_chunk_sentences: bool | None = None
+    ui_experimental: bool | None = None
+    memory_enabled: bool | None = None
+    memory_max_items: int | None = Field(default=None, ge=10, le=2000)
+    memory_recall_top_k: int | None = Field(default=None, ge=1, le=100)
+    notes_todos_context_enabled: bool | None = None
+    digest_enabled: bool | None = None
+    digest_interval_hours: int | None = Field(default=None, ge=1, le=168)
+    system_prompt: str | None = Field(default=None, max_length=8000)
+    recall_enabled: bool | None = None
+    recall_top_k: int | None = Field(default=None, ge=1, le=10)
+    web_search_backend: Literal["duckduckgo", "searxng"] | None = None
+    searxng_url: str | None = Field(default=None, max_length=500)
+    web_search_max_results: int | None = Field(default=None, ge=1, le=10)
+    web_fetch_max_chars: int | None = Field(default=None, ge=500, le=20_000)
+    web_fetch_timeout_seconds: int | None = Field(default=None, ge=2, le=60)
+    web_fetch_max_urls_per_turn: int | None = Field(default=None, ge=0, le=10)
+    agent_enabled: bool | None = None
+    agent_mode: Literal["manual", "semi", "full", "plan"] | None = None
+    agent_max_iterations: int | None = Field(default=None, ge=1, le=200)
+    agent_command_timeout_seconds: int | None = Field(default=None, ge=5, le=600)
+    agent_output_max_chars: int | None = Field(default=None, ge=500, le=20_000)
+    agent_approval_timeout_seconds: int | None = Field(default=None, ge=30, le=3600)
+    agent_subagent_max_iterations: int | None = Field(default=None, ge=1, le=50)
+    agent_check_command: str | None = Field(default=None, max_length=500)
+    agent_auto_check: bool | None = None
+    agent_check_timeout_seconds: int | None = Field(default=None, ge=5, le=1800)
+    agent_sandbox: Literal["off", "docker"] | None = None
+    agent_sandbox_image: str | None = Field(default=None, min_length=1, max_length=200, pattern=r"^[A-Za-z0-9][A-Za-z0-9._/:@-]*$")
+    agent_sandbox_network: Literal["none", "bridge"] | None = None
+    agent_sandbox_memory: str | None = Field(default=None, pattern=r"^\d+[kmg]?$")
+    agent_sandbox_cpus: str | None = Field(default=None, pattern=r"^\d+(\.\d+)?$")
+    image_gen_url: str | None = Field(default=None, max_length=500)
+    image_gen_steps: int | None = Field(default=None, ge=1, le=150)
+    image_gen_size: int | None = Field(default=None, ge=128, le=2048)
+    image_gen_timeout_seconds: int | None = Field(default=None, ge=10, le=1800)
+    research_max_iterations: int | None = Field(default=None, ge=2, le=30)
+    council_models: list[str] | None = Field(default=None, max_length=6)
+    folder_scan_interval_seconds: int | None = Field(default=None, ge=60, le=86400)
+    folder_recall_enabled: bool | None = None
+    folder_recall_top_k: int | None = Field(default=None, ge=1, le=10)
+    schedule_check_interval_seconds: int | None = Field(default=None, ge=15, le=3600)
+    email_enabled: bool | None = None
+    email_imap_host: str | None = Field(default=None, max_length=255)
+    email_imap_port: int | None = Field(default=None, ge=1, le=65535)
+    email_smtp_host: str | None = Field(default=None, max_length=255)
+    email_smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    email_username: str | None = Field(default=None, max_length=255)
+    email_password: str | None = Field(default=None, max_length=500)
+    email_fetch_count: int | None = Field(default=None, ge=1, le=200)
+    notify_ntfy_enabled: bool | None = None
+    notify_ntfy_url: str | None = Field(default=None, min_length=1, max_length=500)
+    notify_ntfy_topic: str | None = Field(default=None, max_length=200)
+    notify_event_types: list[str] | None = Field(default=None, max_length=10)
+    wake_word_enabled: bool | None = None
+    wake_word_phrase: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 class MemoryCreate(StrictModel):
@@ -154,21 +159,21 @@ class AutomationRuleCreate(StrictModel):
 class PersonaCreate(StrictModel):
     name: str = Field(min_length=1, max_length=60)
     system_prompt: str = Field(min_length=1, max_length=8000)
-    icon: Optional[str] = Field(default=None, max_length=8)
+    icon: str | None = Field(default=None, max_length=8)
 
 
 class PersonaUpdate(StrictModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=60)
-    system_prompt: Optional[str] = Field(default=None, min_length=1, max_length=8000)
-    icon: Optional[str] = Field(default=None, max_length=8)
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    system_prompt: str | None = Field(default=None, min_length=1, max_length=8000)
+    icon: str | None = Field(default=None, max_length=8)
 
 
 class ConversationPersonaSet(StrictModel):
-    persona_id: Optional[str] = None
+    persona_id: str | None = None
 
 
 class ConversationWorkdirSet(StrictModel):
-    workdir: Optional[str] = Field(default=None, max_length=1000)
+    workdir: str | None = Field(default=None, max_length=1000)
 
 
 class CouncilRequest(StrictModel):
@@ -180,7 +185,7 @@ class CouncilRequest(StrictModel):
 
 class WatchedFolderCreate(StrictModel):
     path: str = Field(min_length=1, max_length=1000)
-    extensions: Optional[str] = Field(default=None, max_length=200)
+    extensions: str | None = Field(default=None, max_length=200)
 
 
 class WatchedFolderToggle(StrictModel):

@@ -1,6 +1,13 @@
 // Human-curated changelog — updated when a real feature ships, not
 // generated from commits. Newest first.
-export const CHANGELOG = [
+export interface ChangelogEntry {
+  version: string;
+  date: string;
+  title: string;
+  items: string[];
+}
+
+export const CHANGELOG: ChangelogEntry[] = [
   {
     version: "0.9",
     date: "2026-08-01",

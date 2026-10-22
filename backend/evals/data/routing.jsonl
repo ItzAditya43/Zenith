@@ -1,0 +1,16 @@
+{"text": "def merge_sort(arr): fix the off-by-one error in this python", "role": "code"}
+{"text": "Why does my Rust borrow checker complain about this struct lifetime?", "role": "code"}
+{"text": "Write a bash script that renames every .jpeg file to .jpg", "role": "code"}
+{"text": "Refactor this TypeScript React component to use hooks", "role": "code"}
+{"text": "SELECT * FROM users WHERE id = 1 -- why is this query slow?", "role": "code"}
+{"text": "Prove that the square root of 2 is irrational, step by step", "role": "reasoning"}
+{"text": "A train leaves at 3pm going 60 mph, another at 4pm at 80 mph. When does the second catch up? Think step by step.", "role": "reasoning"}
+{"text": "Solve: if 3x + 7 = 22, what is x? Show your reasoning.", "role": "reasoning"}
+{"text": "hi", "role": "small_fast"}
+{"text": "thanks!", "role": "small_fast"}
+{"text": "ok", "role": "small_fast"}
+{"text": "Tell me about the history of the Roman Empire's fall", "role": "general"}
+{"text": "What are some good houseplants for a dark apartment?", "role": "general"}
+{"text": "Help me write a polite email declining a meeting invitation", "role": "general"}
+{"text": "Summarise the plot of Pride and Prejudice", "role": "general"}
+{"text": "What should I pack for a week-long hiking trip in Scotland?", "role": "general"}

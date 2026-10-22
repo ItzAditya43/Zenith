@@ -21,7 +21,6 @@ classifier over installed models, refreshed periodically from `ollama list`.
 """
 from __future__ import annotations
 
-import asyncio
 import re
 import time
 from dataclasses import dataclass, field
@@ -44,7 +43,12 @@ _CODE_HINTS = re.compile(
     r"implement a (?:sort|search|tree|graph|hash|queue|stack|linked[- ]list|binary)|"
     r"code (?:a|an|the|this|that)|"
     r"in (?:python|javascript|typescript|rust|go|java|c\+\+|c#|ruby|kotlin|swift)|"
-    r"algorithm)\b",
+    r"algorithm|"
+    # Languages/tools named on their own ("why does my Rust borrow checker
+    # ...") and SQL/shell — gaps found by `python -m evals routing`.
+    r"rust|golang|java|kotlin|c\+\+|c#|ruby|php|sql|bash|zsh|powershell|shell script|"
+    r"borrow checker|dockerfile|makefile|unit tests?|compiler|"
+    r"select (?:\*|\w+(?:\s*,\s*\w+)+|distinct \w+) from|react component)\b",
     re.IGNORECASE,
 )
 _REASONING_HINTS = re.compile(
@@ -111,7 +115,7 @@ class ModelRouter:
 
     def _apply_learned_override(
         self, role: str, model: str, confidence: float, installed: list[str]
-    ) -> str | None:
+    ) -> str:
         """If past manual overrides show a strong, repeated pattern of the
         user redirecting `role` decisions to a specific installed model, and
         the current pick's confidence isn't already high, prefer the
@@ -267,6 +271,7 @@ class ModelRouter:
         role = "general"
         reason = "General conversation."
         confidence = 0.9
+        signal = f"regex:{text_hint or 'general'}"
         if text_hint == "code":
             role, reason = "code", "Message looks code-related."
         elif text_hint == "reasoning":
@@ -287,7 +292,8 @@ class ModelRouter:
                 f"Semantic match: your message is closest to other '{role}' prompts "
                 f"(score {embedding_score:.2f})."
             )
-            confidence = float(embedding_score)
+            confidence = round(float(embedding_score), 3)
+            signal = f"embedding:{role}"
 
         # --- context-window-aware pick (Tier 2 #3) ---
         if has_long_document or context_chars:
@@ -319,7 +325,7 @@ class ModelRouter:
 
         model = self._match_capability(role, installed)
         if model:
-            match_confidence = 0.9
+            match_confidence = confidence
             learned = self._apply_learned_override(role, model, match_confidence, installed)
             if learned != model:
                 reason = (
@@ -333,7 +339,7 @@ class ModelRouter:
                 reason=reason,
                 confidence=match_confidence,
                 installed_models=installed,
-                matched_signal=f"regex:{role}",
+                matched_signal=signal,
             )
 
         # Requested bucket not installed — fall back to general, then to

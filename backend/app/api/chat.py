@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -22,8 +23,9 @@ from app.models.schemas import (
     PersonaCreate,
     PersonaUpdate,
 )
+from app.services import trace_service
 from app.services.ollama_client import OllamaClient, OllamaError
-from app.services.orchestrator import build_turn_context, run_turn
+from app.services.orchestrator import run_turn
 from app.services.router import ModelRouter
 from app.services.stream_registry import registry
 
@@ -325,6 +327,7 @@ async def chat(body: ChatRequest, request: Request):
     """
     if body.agent_mode_on and bool(settings.get("agent_enabled", False)):
         async def agent_guarded_gen():
+            trace_service.start(body.conversation_id, "agent", body.message)
             try:
                 async with conversation_lock(body.conversation_id):
                     async for ev in _agent_event_gen(body, request):
@@ -336,6 +339,7 @@ async def chat(body: ChatRequest, request: Request):
 
     if body.deep_research:
         async def research_guarded_gen():
+            trace_service.start(body.conversation_id, "research", body.message)
             try:
                 async with conversation_lock(body.conversation_id):
                     async for ev in _research_event_gen(body, request):
@@ -398,9 +402,9 @@ async def chat(body: ChatRequest, request: Request):
             model_override=body.model_override,
         )
     except OllamaError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     heartbeat = int(settings.get("sse_heartbeat_seconds", 15))
     max_idle = float(settings.get("stream_idle_timeout_seconds", 120))
@@ -519,6 +523,9 @@ async def chat(body: ChatRequest, request: Request):
             registry.cleanup_later(key)
 
     async def event_gen():
+        # Bound before produce() is spawned, so that task (which publishes the
+        # tokens and the final done/error) inherits this trace.
+        trace_service.start(body.conversation_id, "chat", body.message)
         yield _sse({
             "type": "route", "model": decision.model, "role": decision.role,
             "reason": decision.reason, "confidence": decision.confidence,
@@ -769,6 +776,7 @@ async def _pick_fallback(request: Request, current_model: str) -> str | None:
 
 
 def _sse(payload: dict[str, Any]) -> str:
+    trace_service.observe(payload)
     return f"data: {json.dumps(payload)}\n\n"
 
 

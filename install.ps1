@@ -45,6 +45,11 @@ if (-not (Test-Path ".venv")) {
 Info "Backend dependencies installed. Verifying the app imports cleanly..."
 & .\.venv\Scripts\python.exe -c "import app.main"
 if ($LASTEXITCODE -ne 0) { Fail "Backend failed to import — dependency install likely incomplete." }
+if (Get-Command ollama -ErrorAction SilentlyContinue) {
+    Info "Checking this machine's hardware and recommending models..."
+    & .\.venv\Scripts\python.exe -m app.setup_models @args
+    if ($LASTEXITCODE -ne 0) { Warn "Model setup didn't finish - re-run later: cd backend; .venv\Scripts\python -m app.setup_models" }
+}
 Set-Location ..
 
 # --- Frontend --------------------------------------------------------------

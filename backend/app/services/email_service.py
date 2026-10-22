@@ -48,12 +48,24 @@ def _decode(raw: str | None) -> str:
     return " ".join(out)
 
 
+def _payload_bytes(part: email.message.Message) -> bytes:
+    payload = part.get_payload(decode=True)
+    return payload if isinstance(payload, bytes) else b""
+
+
+def _fetched_bytes(msg_data) -> bytes:
+    """imaplib's fetch() result is [(b'1 (RFC822 {n}', b'<raw message>'), b')']."""
+    first = msg_data[0]
+    raw = first[1] if isinstance(first, tuple) else first
+    return raw if isinstance(raw, bytes) else b""
+
+
 def _extract_body(msg: email.message.Message, max_chars: int = 4000) -> str:
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == "text/plain" and not part.get_filename():
                 try:
-                    body = part.get_payload(decode=True).decode(
+                    body = _payload_bytes(part).decode(
                         part.get_content_charset() or "utf-8", errors="replace"
                     )
                     return body[:max_chars]
@@ -61,7 +73,7 @@ def _extract_body(msg: email.message.Message, max_chars: int = 4000) -> str:
                     continue
         return ""
     try:
-        body = msg.get_payload(decode=True).decode(msg.get_content_charset() or "utf-8", errors="replace")
+        body = _payload_bytes(msg).decode(msg.get_content_charset() or "utf-8", errors="replace")
         return body[:max_chars]
     except Exception:
         return ""
@@ -114,10 +126,10 @@ def list_messages(folder: str = "INBOX", limit: int | None = None) -> list[dict]
                 status, msg_data = imap.fetch(mid, "(RFC822)")
                 if status != "OK" or not msg_data or not msg_data[0]:
                     continue
-                msg = email.message_from_bytes(msg_data[0][1])
+                msg = email.message_from_bytes(_fetched_bytes(msg_data))
                 date = None
                 try:
-                    date = parsedate_to_datetime(msg.get("Date")).timestamp()
+                    date = parsedate_to_datetime(str(msg.get("Date") or "")).timestamp()
                 except Exception:
                     pass
                 out.append({
@@ -142,10 +154,10 @@ def get_message(message_id: str, folder: str = "INBOX") -> dict:
         with imaplib.IMAP4_SSL(host, port, timeout=15) as imap:
             imap.login(user, pw)
             imap.select(folder, readonly=True)
-            status, msg_data = imap.fetch(message_id.encode(), "(RFC822)")
+            status, msg_data = imap.fetch(message_id, "(RFC822)")
             if status != "OK" or not msg_data or not msg_data[0]:
                 raise EmailError("Message not found.")
-            msg = email.message_from_bytes(msg_data[0][1])
+            msg = email.message_from_bytes(_fetched_bytes(msg_data))
             return {
                 "id": message_id,
                 "subject": _decode(msg.get("Subject")),

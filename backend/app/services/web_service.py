@@ -21,9 +21,12 @@ can't blow up the context window or hang a turn.
 from __future__ import annotations
 
 import asyncio
+import contextvars
+import ipaddress
 import re
+import socket
 from typing import Any
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import urlparse
 
 import httpx
 
@@ -42,6 +45,47 @@ URL_RE = re.compile(r"https?://[^\s<>\"')\]]+", re.IGNORECASE)
 
 class WebError(RuntimeError):
     pass
+
+
+# Whether the current fetch may reach loopback/private/link-local hosts.
+# fetch_url(allow_private=...) sets it; every httpx client built by
+# _client() enforces it on each request, redirects included.
+_ALLOW_PRIVATE: contextvars.ContextVar[bool] = contextvars.ContextVar("zenith_allow_private", default=True)
+
+
+def _is_non_public_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        ip = mapped
+    return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+            or ip.is_multicast or ip.is_unspecified)
+
+
+def host_is_non_public(host: str) -> bool:
+    """True if `host` is, or resolves to, any non-public address. Unresolvable
+    hosts count as non-public (fail closed)."""
+    host = host.strip("[]")
+    try:
+        return _is_non_public_ip(ipaddress.ip_address(host))
+    except ValueError:
+        pass
+    if host.lower() in ("localhost",) or host.lower().endswith((".localhost", ".local", ".internal")):
+        return True
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return True
+    return any(_is_non_public_ip(ipaddress.ip_address(info[4][0])) for info in infos)
+
+
+async def _guard_request(request: httpx.Request) -> None:
+    if _ALLOW_PRIVATE.get():
+        return
+    if await asyncio.to_thread(host_is_non_public, request.url.host):
+        raise WebError(
+            f"Blocked: {request.url.host} is a local/private address. Model-initiated fetches "
+            "(agent mode, Deep Research) can't reach this machine or your LAN."
+        )
 
 
 def extract_urls(text: str, limit: int = 3) -> list[str]:
@@ -71,8 +115,28 @@ async def search(query: str, max_results: int | None = None) -> list[dict[str, s
     failure so a flaky network never fails the whole chat turn."""
     max_results = max_results or int(settings.get("web_search_max_results", 5))
     if settings.get("web_search_backend", "duckduckgo") == "searxng":
-        return await _search_searxng(query, max_results)
+        results = await _search_searxng(query, max_results)
+        if results:
+            return results
+        # SearXNG down or misconfigured: degrade to DuckDuckGo rather than
+        # silently searching nothing.
+        log.warning("web.searxng_fallback_to_duckduckgo", query=query[:120])
     return await _search_duckduckgo(query, max_results)
+
+
+async def test_search() -> dict[str, Any]:
+    """Settings "Test search" button: which backend answered, and how many results."""
+    backend = settings.get("web_search_backend", "duckduckgo")
+    if backend == "searxng":
+        results = await _search_searxng("zenith test", 3)
+        if results:
+            return {"ok": True, "backend": "searxng", "results": len(results)}
+        ddg = await _search_duckduckgo("zenith test", 3)
+        return {"ok": bool(ddg), "backend": "duckduckgo (fallback)", "results": len(ddg),
+                "error": f"SearXNG at {settings.get('searxng_url') or '(unset)'} returned nothing — "
+                         "is it running with the JSON format enabled?"}
+    results = await _search_duckduckgo("zenith test", 3)
+    return {"ok": bool(results), "backend": "duckduckgo", "results": len(results)}
 
 
 async def _search_searxng(query: str, max_results: int) -> list[dict[str, str]]:
@@ -134,7 +198,7 @@ def _unwrap_ddg_redirect(href: str) -> str:
     """DDG's HTML endpoint links go through /l/?uddg=<encoded target> —
     unwrap so we fetch the real page, not a redirect stub."""
     if href.startswith("//duckduckgo.com/l/") or "uddg=" in href:
-        from urllib.parse import parse_qs, urlsplit, unquote
+        from urllib.parse import parse_qs, unquote, urlsplit
         qs = parse_qs(urlsplit(href if href.startswith("http") else "https:" + href).query)
         target = qs.get("uddg", [None])[0]
         if target:
@@ -142,11 +206,25 @@ def _unwrap_ddg_redirect(href: str) -> str:
     return href
 
 
-async def fetch_url(url: str) -> dict[str, Any] | None:
+async def fetch_url(url: str, allow_private: bool = True) -> dict[str, Any] | None:
     """Fetch + extract readable text for one URL. Returns
     {"url", "title", "text"} or None on failure. Routes GitHub/Reddit
-    through their APIs; everything else through generic HTML extraction."""
+    through their APIs; everything else through generic HTML extraction.
+
+    `allow_private=False` is for URLs a *model* chose (agent fetch_url,
+    Deep Research): a prompt-injected page could otherwise have it read
+    http://127.0.0.1:8420/api/... (a trusted local client) or a LAN admin
+    page, then leak the result in a follow-up request. URLs the user typed
+    keep working against localhost dev servers."""
     max_chars = int(settings.get("web_fetch_max_chars", 4000))
+    token = _ALLOW_PRIVATE.set(allow_private or bool(settings.get("agent_fetch_allow_private", False)))
+    try:
+        return await _fetch_url(url, max_chars)
+    finally:
+        _ALLOW_PRIVATE.reset(token)
+
+
+async def _fetch_url(url: str, max_chars: int) -> dict[str, Any] | None:
     try:
         host = urlparse(url).netloc.lower()
         if host.endswith("github.com"):
@@ -164,7 +242,10 @@ async def fetch_url(url: str) -> dict[str, Any] | None:
 
 async def _client(timeout: float | None = None) -> httpx.AsyncClient:
     timeout = timeout or float(settings.get("web_fetch_timeout_seconds", 8))
-    return httpx.AsyncClient(timeout=timeout, headers={"User-Agent": _UA}, follow_redirects=True)
+    return httpx.AsyncClient(
+        timeout=timeout, headers={"User-Agent": _UA}, follow_redirects=True,
+        event_hooks={"request": [_guard_request]},
+    )
 
 
 async def _fetch_generic(url: str, max_chars: int) -> dict[str, Any] | None:

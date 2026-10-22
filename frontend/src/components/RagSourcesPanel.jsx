@@ -13,7 +13,7 @@ function formatTimestamp(seconds) {
   if (!seconds) return "unknown";
   try {
     return new Date(seconds * 1000).toLocaleString();
-  } catch (_) {
+  } catch {
     return "unknown";
   }
 }
@@ -56,15 +56,33 @@ export default function RagSourcesPanel({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [reindexing, setReindexing] = useState(false);
+  const [reindexResult, setReindexResult] = useState(null);
 
   const load = () => {
     setLoading(true);
     setError(null);
+    api.ragStatus().then(setStatus).catch(() => setStatus(null));
     api
       .listRagSources()
       .then((res) => setSources(res.sources || []))
       .catch((err) => setError(err.message || "Failed to load RAG sources."))
       .finally(() => setLoading(false));
+  };
+
+  const reindex = async () => {
+    setReindexing(true);
+    setReindexResult(null);
+    try {
+      const res = await api.ragReindex();
+      setReindexResult(`Embedded ${res.embedded} chunk${res.embedded === 1 ? "" : "s"}${res.failed ? `, ${res.failed} failed` : ""}.`);
+      api.ragStatus().then(setStatus).catch(() => {});
+    } catch (err) {
+      setReindexResult(err.message || "Re-index failed.");
+    } finally {
+      setReindexing(false);
+    }
   };
 
   useEffect(() => {
@@ -117,6 +135,32 @@ export default function RagSourcesPanel({ onClose }) {
           </div>
         </div>
         <div style={{ padding: "var(--space-3) var(--space-4)", maxHeight: "75vh", overflowY: "auto" }}>
+          {status && (
+            <div className="health-row" style={{ marginBottom: "var(--space-3)" }}>
+              <div className="health-row-main">
+                <span className="health-row-label">
+                  Retrieval: {status.mode === "hybrid" ? "hybrid (vectors + keywords)" : "keywords only"}
+                </span>
+              </div>
+              <div className="health-row-detail">
+                <span className="health-row-field">
+                  embedding model: {status.embedding_model || "none installed"}
+                </span>
+                <span className="health-row-field">
+                  {status.chunks_with_vectors}/{status.chunks} chunks embedded
+                </span>
+                {!status.vector_extension && <span className="health-row-field">sqlite-vec unavailable</span>}
+              </div>
+              {status.embedding_model && status.vector_extension && status.chunks_missing_vectors > 0 && (
+                <div style={{ marginTop: "var(--space-1)", display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+                  <button className="icon-btn" onClick={reindex} disabled={reindexing}>
+                    {reindexing ? "Embedding…" : `Embed ${status.chunks_missing_vectors} missing`}
+                  </button>
+                  {reindexResult && <span className="health-row-field">{reindexResult}</span>}
+                </div>
+              )}
+            </div>
+          )}
           {loading && !sources && <p className="conversation-empty">Loading…</p>}
           {error && <p className="conversation-empty">{error}</p>}
           {sources && sources.length === 0 && !loading && (

@@ -57,4 +57,4 @@ async def get_server_tools(server_id: str):
     try:
         return await mcp_service._list_tools_raw(server)
     except Exception as exc:
-        raise HTTPException(502, f"Couldn't connect to '{server['name']}': {exc}")
+        raise HTTPException(502, f"Couldn't connect to '{server['name']}': {exc}") from exc

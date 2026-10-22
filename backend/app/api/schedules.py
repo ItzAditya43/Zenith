@@ -29,7 +29,7 @@ async def create_schedule(body: ScheduleCreate):
     try:
         return schedule_service.create_schedule(body.name, body.prompt, body.mode, body.interval_minutes)
     except ValueError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.patch("/{schedule_id}")
