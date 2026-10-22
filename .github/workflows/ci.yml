@@ -33,7 +33,7 @@ jobs:
         # test_agent_sandbox.py's real-container tests skip without it.
         run: docker pull -q python:3.12-slim
       - name: Run tests with coverage
-        run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=40
+        run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=50
 
   frontend:
     runs-on: ubuntu-latest

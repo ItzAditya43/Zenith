@@ -62,6 +62,7 @@ def add_memory(content: str, category: str = "fact",
         return None
     now = time.time()
     mid = str(uuid.uuid4())
+    evicted_id: str | None = None
     with _conn() as conn:
         # Case-insensitive dedupe against existing rows.
         dup = conn.execute(
@@ -77,18 +78,22 @@ def add_memory(content: str, category: str = "fact",
                 "SELECT id FROM memories ORDER BY created_at ASC LIMIT 1"
             ).fetchone()
             conn.execute("DELETE FROM memories WHERE id IN (SELECT id FROM memories ORDER BY created_at ASC LIMIT 1)")
-            if evicted:
-                try:
-                    from app.services import rag_service
-                    rag_service.delete_memory_chunks(evicted["id"])
-                except Exception as exc:
-                    log.debug("memory.evict_chunk_cleanup_failed", error=str(exc))
+            evicted_id = evicted["id"] if evicted else None
         conn.execute(
             """INSERT INTO memories
                (id, content, category, source_conversation_id, enabled, created_at, updated_at, project_id)
                VALUES (?, ?, ?, ?, 1, ?, ?, ?)""",
             (mid, content, category, source_conversation_id, now, now, project_id),
         )
+    # Chunk cleanup only after the transaction above has committed: RAG uses
+    # its own connection, and doing this inside it deadlocked on the write
+    # lock for the full busy_timeout, then left the evicted memory retrievable.
+    if evicted_id:
+        try:
+            from app.services import rag_service
+            rag_service.delete_memory_chunks(evicted_id)
+        except Exception as exc:
+            log.warning("memory.evict_chunk_cleanup_failed", error=str(exc))
     # Embed for retrieval-based injection — best-effort, memory still works
     # (via the recency fallback below) if no embedding model is configured.
     try:
@@ -276,13 +281,9 @@ async def review_conflicts() -> list[dict]:
         out = await OllamaClient().chat(
             model, [{"role": "user", "content": _CONFLICT_REVIEW_PROMPT + numbered}]
         )
-        # Non-greedy: a small model's reply sometimes has trailing prose
-        # with its own brackets after the JSON array, which a greedy
-        # match would swallow and then fail to parse as one JSON value.
-        m_json = re.search(r"\[.*?\]", out, re.DOTALL)
-        if not m_json:
+        pairs = _first_json_array(out)
+        if pairs is None:
             return []
-        pairs = json.loads(m_json.group(0))
 
         created = []
         for pair in pairs:
@@ -308,16 +309,26 @@ async def review_conflicts() -> list[dict]:
         return []
 
 
+def _first_json_array(raw: str) -> list | None:
+    """The first complete JSON array in a model reply, tolerating fences
+    and prose on either side. A regex can't do this: greedy `\\[.*\\]`
+    swallows brackets in trailing prose, non-greedy stops at a `]` inside
+    a string ("uses [zsh]")."""
+    decoder = json.JSONDecoder()
+    for m in re.finditer(r"\[", raw or ""):
+        try:
+            value, _ = decoder.raw_decode(raw, m.start())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, list):
+            return value
+    return None
+
+
 def _parse_facts(raw: str) -> list[str]:
     """Parse the model's reply into a list of fact strings. Tolerates
     markdown fences and stray prose around the JSON array."""
-    if not raw:
-        return []
-    m = re.search(r"\[.*\]", raw, re.DOTALL)
-    if not m:
-        return []
-    try:
-        arr = json.loads(m.group(0))
-    except json.JSONDecodeError:
+    arr = _first_json_array(raw)
+    if not arr:
         return []
     return [f.strip() for f in arr if isinstance(f, str) and f.strip()]

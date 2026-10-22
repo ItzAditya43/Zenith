@@ -75,6 +75,25 @@ def _clean_malformed_final(raw: str) -> str:
     return text.strip() or raw.strip()
 
 
+async def _report_from_gathered(client: OllamaClient, model: str, loop_messages: list[dict], max_iters: int) -> str:
+    note = (f"_Research hit the step limit ({max_iters} tool calls); this report covers what was "
+            "gathered so far — ask me to continue for more._\n\n")
+    prompt = loop_messages + [{
+        "role": "user",
+        "content": "You've reached the step limit — no more tools. Write the final report now from "
+                   'what you have already gathered, as {"final": "<markdown report>"}. Only cite '
+                   "sources you actually fetched, and say which sub-questions remain open.",
+    }]
+    try:
+        raw = await client.chat(model, prompt)
+    except OllamaError as exc:
+        log.warning("research.final_report_failed", error=str(exc))
+        return note.strip()
+    step = _parse_step(raw)
+    body = str(step["final"]) if step and "final" in step else _clean_malformed_final(raw)
+    return note + body
+
+
 async def run_deep_research(
     conversation_id: str,
     user_text: str,
@@ -199,10 +218,10 @@ async def run_deep_research(
 
     if final_text is None:
         if used_tool:
-            final_text = (
-                f"I wasn't able to finish this research within the step limit ({max_iters} "
-                "tool calls). Here's what I found so far — ask me to continue if you'd like more."
-            )
+            # Out of steps but with real material gathered: ask for the
+            # report from what's already in context instead of returning a
+            # "here's what I found" message that contained nothing.
+            final_text = await _report_from_gathered(client, decision.model, loop_messages, max_iters)
         else:
             final_text = (
                 "I wasn't able to get this model to actually search before answering — "

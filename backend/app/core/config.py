@@ -207,6 +207,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "web_fetch_max_chars": 4000,
     "web_fetch_timeout_seconds": 8,
     "web_fetch_max_urls_per_turn": 3,
+    # Model-initiated fetches (agent fetch_url, Deep Research) are blocked
+    # from loopback/private/link-local addresses — see web_service.fetch_url.
+    # Turn on only if you want the agent to read your LAN / localhost services.
+    "agent_fetch_allow_private": False,
     # --- Personal assistant / memory ---
     "memory_enabled": True,          # extract + inject long-term user facts
     "memory_max_items": 200,
