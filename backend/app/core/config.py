@@ -170,6 +170,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "log_level": "INFO",
     "request_timeout_seconds": 600,
     "prewarm_model_on_startup": False,
+    "trace_retention_days": 30,  # per-turn traces (trace_service) older than this are pruned
     # --- Agent tool use (bash/files/web) ---
     "agent_enabled": False,          # master switch — off until you opt in
     "agent_mode": "manual",          # "manual" | "semi" | "full"

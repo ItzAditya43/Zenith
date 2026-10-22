@@ -21,6 +21,7 @@ import OnboardingTour from "./components/OnboardingTour.jsx";
 import WhatsNewPanel from "./components/WhatsNewPanel.jsx";
 import UsageDashboard from "./components/UsageDashboard.jsx";
 import HealthPanel from "./components/HealthPanel.jsx";
+import TracesPanel from "./components/TracesPanel";
 import CodeEditorPanel from "./components/CodeEditorPanel.jsx";
 import SnippetsPanel from "./components/SnippetsPanel.jsx";
 import KnowledgeGraphPanel from "./components/KnowledgeGraphPanel.jsx";
@@ -102,6 +103,7 @@ export default function App() {
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
+  const [tracesOpen, setTracesOpen] = useState(false);
   const [ragSourcesOpen, setRagSourcesOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -1189,6 +1191,11 @@ export default function App() {
       action: () => setVoiceReplyEnabled((v) => !v),
     });
     list.push({
+      id: "open-traces", group: "Actions", icon: "layers",
+      label: "Show turn traces (routing, context, tool calls, timing)",
+      action: () => setTracesOpen(true),
+    });
+    list.push({
       id: "toggle-focus", group: "Actions", icon: "target",
       label: focusMode ? "Exit focus mode" : "Enter focus mode",
       hint: "⌘.",
@@ -1611,6 +1618,7 @@ export default function App() {
         )}
         {usageOpen && <UsageDashboard onClose={() => setUsageOpen(false)} />}
         {healthOpen && <HealthPanel onClose={() => setHealthOpen(false)} />}
+        {tracesOpen && <TracesPanel conversationId={activeConversation?.id} onClose={() => setTracesOpen(false)} />}
         {ragSourcesOpen && <RagSourcesPanel onClose={() => setRagSourcesOpen(false)} />}
         {settingsHistoryOpen && <SettingsHistoryPanel onClose={() => setSettingsHistoryOpen(false)} />}
         {batchJobOpen && <BatchJobPanel onClose={() => setBatchJobOpen(false)} />}
