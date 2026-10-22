@@ -25,9 +25,24 @@ def _resolve_data_dir() -> Path:
     """Resolve the data directory at access time so monkeypatched
     `ZENITH_DATA_DIR` env vars in tests take effect."""
     d = env("DATA_DIR")
-    if d:
-        return Path(d)
-    return BASE_DIR / "data"
+    base = Path(d) if d else BASE_DIR / "data"
+    # ZENITH_PROFILE=<name>: a fully separate install (database, config,
+    # uploads, passcode, memories) under <data>/profiles/<name>. One backend
+    # process serves one profile; run several on different ports to give
+    # each person on a shared machine their own Zenith (see MULTIDEVICE.md).
+    profile = profile_name()
+    return base / "profiles" / profile if profile else base
+
+
+def profile_name() -> str | None:
+    import re
+
+    raw = (os.environ.get("ZENITH_PROFILE") or "").strip()
+    if not raw:
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}", raw):
+        raise ValueError(f"Invalid ZENITH_PROFILE {raw!r}: use letters, digits, '-' or '_' (max 40).")
+    return raw
 
 
 def data_dir() -> Path:

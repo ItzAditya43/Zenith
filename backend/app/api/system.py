@@ -17,7 +17,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.core.config import settings
+from app.core.config import profile_name, settings
 from app.core.logging import get_logger
 from app.core.security import redact_config, strip_redacted
 from app.models.schemas import ConfigPatch
@@ -220,6 +220,7 @@ async def health(request: Request):
             "embedding_model": embedding_model,
         },
         "security": _security_status(request),
+        "profile": profile_name(),
     }
     if status == "down":
         # Use 503 so monitoring / load balancers can act on it.

@@ -66,6 +66,24 @@ malicious web page points its own domain at `127.0.0.1`. If you front Zenith
 with a proxy on the same machine under a real hostname, add it to
 `ZENITH_ALLOWED_HOSTS` (comma-separated) or `allowed_hosts` in `config.json`.
 
+## Several people on one machine: profiles
+
+Each **profile** is a completely separate Zenith: its own database,
+settings, memories, uploads and passcode, under `data/profiles/<name>/`.
+One backend process serves one profile, so run one per person:
+
+```bash
+cd backend
+./run.sh --profile alice --port 8430
+./run.sh --profile sam   --port 8431
+```
+
+Then open `http://localhost:5173/?backendPort=8430` (Alice) or
+`?backendPort=8431` (Sam). Add a passcode to each profile if the people
+sharing the machine shouldn't read each other's chats. With Docker, set
+`ZENITH_PROFILE` per backend service. This is isolation between profiles,
+not accounts with permissions inside a single instance.
+
 ## What this is *not*: true multi-device sync
 
 Every device here is a thin client of the **one** backend and its **one**

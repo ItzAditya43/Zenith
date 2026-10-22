@@ -312,3 +312,19 @@ def test_limiter_backoff_grows_and_caps():
     assert tail == sorted(tail) and tail[-1] <= AttemptLimiter.MAX_DELAY
     lim.succeed("k")
     assert lim.retry_after("k") == 0
+
+
+def test_profiles_get_separate_data_dirs(monkeypatch, tmp_path):
+    from app.core import config as cfg
+
+    monkeypatch.setenv("ZENITH_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("ZENITH_PROFILE", raising=False)
+    assert cfg.data_dir() == tmp_path
+    monkeypatch.setenv("ZENITH_PROFILE", "alice")
+    assert cfg.data_dir() == tmp_path / "profiles" / "alice"
+    assert cfg.db_path() == tmp_path / "profiles" / "alice" / "zenith.db"
+    for bad in ("../etc", "a/b", "-leading", "x" * 41):
+        monkeypatch.setenv("ZENITH_PROFILE", bad)
+        if bad.strip():
+            with pytest.raises(ValueError):
+                cfg.profile_name()
