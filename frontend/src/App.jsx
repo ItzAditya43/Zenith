@@ -464,10 +464,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // The desktop app's bundled backend can take a moment to finish
-    // booting after the window appears — retry a few times (with backoff)
-    // before surfacing a connection error, instead of failing permanently
-    // on whatever request happens to fire first.
+    // The bundled backend can take a while to boot on a first launch or a
+    // slower machine. Retry with a capped backoff for as long as this window
+    // is open, so a late sidecar startup never leaves the app disconnected.
     let cancelled = false;
     const loadWithRetry = async (attempt = 0) => {
       setRetryAttempt(attempt);
@@ -486,11 +485,8 @@ export default function App() {
         setRetryAttempt(0);
       } catch (err) {
         if (cancelled) return;
-        if (attempt < 6) {
-          setTimeout(() => loadWithRetry(attempt + 1), Math.min(700 * 2 ** attempt, 8000));
-        } else {
-          setConnectionError(err.message);
-        }
+        if (attempt >= 6) setConnectionError(err.message);
+        setTimeout(() => loadWithRetry(attempt + 1), Math.min(700 * 2 ** attempt, 8000));
       }
     };
     loadWithRetry();

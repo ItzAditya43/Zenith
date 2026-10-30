@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.10.1",
+    date: "2026-10-30",
+    title: "Desktop startup reliability",
+    items: [
+      "Fixed desktop backend connections on Linux, Windows, and macOS by using the sidecar's loopback address instead of the webview URL scheme.",
+      "Desktop startup now retries backend connections until the sidecar is ready.",
+    ],
+  },
+  {
     version: "0.10.0",
     date: "2026-10-30",
     title: "OLED Ember, live thinking, and a security pass",

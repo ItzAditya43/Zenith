@@ -9,7 +9,7 @@ export default function AboutSection() {
         A local-first AI cockpit — chat, agent tools, email, calendar, notes, research,
         and multi-device sync, all running on your own machine. No cloud, no accounts.
       </p>
-      <p className="setting-hint">Version 0.10.0 · built on Ollama</p>
+      <p className="setting-hint">Version 0.10.1 · built on Ollama</p>
     </section>
   );
 }
