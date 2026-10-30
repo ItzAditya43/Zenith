@@ -65,9 +65,22 @@ jobs:
           npm ci
           npm run build
 
+      # actions/setup-python's macOS build lacks SQLite extension loading
+      # (sqlite3.Connection.enable_load_extension), so the frozen app could
+      # never load sqlite-vec. Homebrew's Python is built with it.
+      - name: Use Homebrew Python for the macOS freeze
+        if: runner.os == 'macOS'
+        run: |
+          brew install python@3.11
+          "$(brew --prefix python@3.11)/bin/python3.11" -m venv "$RUNNER_TEMP/freeze-venv"
+          echo "$RUNNER_TEMP/freeze-venv/bin" >> "$GITHUB_PATH"
+
       - name: Install pinned freeze toolchain
         working-directory: backend
+        shell: bash
         run: |
+          python -c "import sqlite3; sqlite3.connect(':memory:').enable_load_extension(True)" \
+            || { echo "this Python can't load SQLite extensions — sqlite-vec would be missing"; exit 1; }
           python -m pip install --upgrade pip
           pip install -r requirements-freeze.txt
 
