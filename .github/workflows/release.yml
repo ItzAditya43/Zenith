@@ -65,6 +65,10 @@ jobs:
           npm ci
           npm run build
 
+      - name: Install Tauri CLI
+        working-directory: desktop
+        run: npm ci
+
       # actions/setup-python's macOS build lacks SQLite extension loading
       # (sqlite3.Connection.enable_load_extension), so the frozen app could
       # never load sqlite-vec. Homebrew's Python is built with it.
