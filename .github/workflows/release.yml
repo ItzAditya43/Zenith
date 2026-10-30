@@ -90,18 +90,8 @@ jobs:
         run: backend/scripts/freeze.sh
 
       - name: Smoke-test the frozen backend
-        shell: bash
         timeout-minutes: 5
-        run: |
-          BIN=backend/dist/zenith-backend; [ -f "$BIN.exe" ] && BIN="$BIN.exe"
-          export ZENITH_DATA_DIR="$RUNNER_TEMP/zenith-smoke" ZENITH_PORT=8499
-          "$BIN" > "$RUNNER_TEMP/backend.log" 2>&1 &
-          for i in $(seq 1 60); do
-            if curl -s -m 2 http://127.0.0.1:8499/api/rag/status > "$RUNNER_TEMP/rag.json"; then break; fi
-            sleep 2
-          done
-          cat "$RUNNER_TEMP/rag.json"; echo
-          grep -q '"vector_extension": *true' "$RUNNER_TEMP/rag.json" || { echo "sqlite-vec missing from the frozen build"; tail -50 "$RUNNER_TEMP/backend.log"; exit 1; }
+        run: python backend/scripts/smoke_frozen.py
 
       - name: Place backend sidecar
         shell: bash

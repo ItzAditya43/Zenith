@@ -117,6 +117,9 @@ jobs:
         shell: bash
         timeout-minutes: 50
         run: backend/scripts/freeze.sh
+      - name: Smoke-test the frozen backend
+        timeout-minutes: 5
+        run: python backend/scripts/smoke_frozen.py
       - name: Place backend sidecar
         run: |
           $triple = (rustc -vV | Select-String "^host:").ToString().Split(" ")[1]
