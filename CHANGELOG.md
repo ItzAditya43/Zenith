@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.1] — 2026-10-30
+
+### Fixed
+- Desktop API connections now use the sidecar's IPv4 loopback URL instead of deriving a fetch URL from Tauri's custom webview scheme. This fixes startup failures across Linux, Windows, and macOS.
+- Desktop startup retries backend connections with capped backoff until the sidecar becomes available.
+
 ## [0.10.0] — 2026-10-30
 
 Version numbers jump to continue the in-app "What's new" sequence (0.8, 0.9);

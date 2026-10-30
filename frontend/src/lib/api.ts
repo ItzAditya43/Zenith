@@ -1,23 +1,45 @@
-// API base resolution, in priority order:
-//   1. An explicit VITE_API_BASE (set at build/deploy time) always wins.
-//   2. Otherwise derive it from wherever the frontend itself was loaded — same
-//      hostname, backend port 8420. This is what makes multi-device access work:
-//      open the app from a phone at http://192.168.1.5:5173 (or a Tailscale
-//      hostname) and it talks to the backend at that same host, not "localhost"
-//      (which on the phone would mean the phone itself).
-//   3. Fall back to localhost for SSR/other odd contexts.
+// Resolve the desktop sidecar separately from browser access: a Tauri
+// webview's URL identifies the frontend origin and is not a fetchable API URL.
+// In browsers, an explicit HTTP(S) override wins, then the page's own host is
+// used for LAN/Tailscale access, with IPv4 loopback as the final fallback.
 const BACKEND_PORT = "8420";
 function resolveBase(): string {
+  const location = typeof window !== "undefined" ? window.location : undefined;
+  const requested = new URLSearchParams(location?.search ?? "").get("backendPort");
+  const requestedPort = requested ? Number(requested) : NaN;
+  const port = Number.isInteger(requestedPort) && requestedPort > 0 && requestedPort <= 65535
+    ? String(requestedPort)
+    : BACKEND_PORT;
+
+  // Tauri uses non-web URL schemes on macOS and a reserved tauri.localhost
+  // origin on Linux/Windows. Those identify the UI, not a backend endpoint:
+  // constructing fetch URLs from them produces WebKit's opaque
+  // "The string did not match the expected pattern" error. The bundled
+  // sidecar always binds to IPv4 loopback, so use that directly on every OS.
+  const tauriRuntime = typeof window !== "undefined" && (
+    "__TAURI_INTERNALS__" in window ||
+    location?.protocol === "tauri:" ||
+    location?.hostname === "tauri.localhost"
+  );
+  if (tauriRuntime) return `http://127.0.0.1:${port}`;
+
   const explicit = import.meta.env.VITE_API_BASE;
-  if (explicit) return explicit;
-  if (typeof window !== "undefined" && window.location?.hostname) {
-    const { protocol, hostname } = window.location;
-    // ?backendPort=8430 targets another profile's backend (ZENITH_PROFILE).
-    const requested = new URLSearchParams(window.location.search ?? "").get("backendPort");
-    const port = requested && /^\d{2,5}$/.test(requested) ? requested : BACKEND_PORT;
-    return `${protocol}//${hostname}:${port}`;
+  if (explicit) {
+    try {
+      const url = new URL(explicit);
+      if (url.protocol === "http:" || url.protocol === "https:") return explicit.replace(/\/$/, "");
+    } catch {
+      // Ignore malformed build-time overrides and use the page's HTTP(S) host.
+    }
   }
-  return "http://localhost:8420";
+
+  if (location?.hostname && (location.protocol === "http:" || location.protocol === "https:")) {
+    // Build with URL so IPv6 hosts, ports and schemes are serialized safely.
+    const url = new URL(location.origin);
+    url.port = port;
+    return url.origin;
+  }
+  return `http://127.0.0.1:${BACKEND_PORT}`;
 }
 const BASE = resolveBase();
 export const API_BASE = BASE;
