@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="shortcut icon" href="/favicon.ico" />
@@ -16,7 +17,7 @@
          a production build served over HTTPS (the service worker below only
          registers in a prod build — see main.jsx). -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#0d1017" />
+    <meta name="theme-color" content="#000000" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -27,7 +28,7 @@
     <div id="root">
       <!-- Boot splash: shown until React mounts and removes it, so first
            paint is the brand mark instead of a blank frame. -->
-      <div id="boot-splash" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0d1017;z-index:9999;">
+      <div id="boot-splash" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000000;z-index:9999;">
         <img src="/icon-192.png" width="56" height="56" style="border-radius:14px;animation:boot-pulse 1.4s ease-in-out infinite;" alt="" />
       </div>
       <style>

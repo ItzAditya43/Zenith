@@ -1,3 +1,5 @@
+<img src="docs/brand/zenith-mark.svg" width="72" alt="Zenith logo: a ring with a horizon line and an ember point at its top">
+
 # Zenith
 
 A self-hosted AI workspace that runs on your own hardware with your own
