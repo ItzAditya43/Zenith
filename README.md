@@ -44,6 +44,7 @@ them when you confirm. You can re-run it any time from `backend/`.
 | **Deep Research** | Multi-step search, read and report with inline citations. It can't touch your files or shell. |
 | **Voice and images** | Whisper speech-to-text, Piper text-to-speech, wake word, and local Stable Diffusion if you point it at one. |
 | **Personal tools** | Notes, to-dos, calendar, email (IMAP/SMTP), schedules, automations and webhooks, daily digest. |
+| **Interface** | OLED Ember theme by default (true black, one warm accent) plus eight others. Thinking models stream their reasoning live, `y`/`n` approve agent steps, Esc stops, and a status line shows model, context and speed. |
 | **Observability** | Per-turn traces: routing decision, retrieved context, every tool call, time to first token. Health panel and usage dashboard. |
 
 The full reference is in [docs/FEATURES.md](docs/FEATURES.md).
@@ -57,6 +58,9 @@ down by default:
   until you set a passcode or a shared secret, even with LAN access enabled.
   Requests with a foreign `Host` header are rejected, which blocks DNS-rebinding
   attacks from web pages. See [MULTIDEVICE.md](MULTIDEVICE.md).
+- **Chats never auto-route to Ollama Cloud models.** Cloud models you've pulled
+  are used only when you pin one or pick it for a single message. Automatic
+  routing chooses the most capable *local* model that fits your GPU.
 - **Agent mode is off by default.** In semi-auto, only genuinely read-only steps
   inside the working folder run without asking. The agent can't fetch your LAN
   or `localhost`, so a prompt-injected page can't pull local data out.
