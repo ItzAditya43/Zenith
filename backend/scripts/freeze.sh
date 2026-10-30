@@ -26,7 +26,7 @@ ATTEMPTS="${FREEZE_ATTEMPTS:-3}"
 PER_ATTEMPT="${FREEZE_TIMEOUT_SECONDS:-900}"
 for i in $(seq 1 "$ATTEMPTS"); do
   echo "::group::PyInstaller attempt $i/$ATTEMPTS"
-  if timeout "$PER_ATTEMPT" python -m PyInstaller zenith-backend.spec --noconfirm --workpath "build/attempt-$i"; then
+  if python scripts/run_with_timeout.py "$PER_ATTEMPT" python -m PyInstaller zenith-backend.spec --noconfirm --workpath "build/attempt-$i"; then
     echo "::endgroup::"
     exit 0
   fi
