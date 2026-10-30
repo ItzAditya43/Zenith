@@ -3918,3 +3918,9 @@ button.msg-source-chip-recall:hover {
 .traces-spark { font-size: var(--text-base); letter-spacing: 1px; white-space: pre; overflow: hidden; }
 .traces-spark-speed { color: var(--signal-code); }
 .traces-spark-ttft { color: var(--signal-general); }
+
+.awaiting-you {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--signal-general);
+}
