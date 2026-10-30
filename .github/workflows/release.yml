@@ -72,9 +72,9 @@ jobs:
           pip install -r requirements-freeze.txt
 
       - name: Freeze backend with PyInstaller
-        working-directory: backend
-        timeout-minutes: 40
-        run: pyinstaller zenith-backend.spec --noconfirm
+        shell: bash
+        timeout-minutes: 50
+        run: backend/scripts/freeze.sh
 
       - name: Smoke-test the frozen backend
         shell: bash

@@ -25,6 +25,7 @@ hiddenimports = (
 
 import glob
 import os
+import sys
 
 import sqlite_vec
 
@@ -56,7 +57,11 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "pytest"],
+    # python-magic needs a native libmagic that Windows/macOS don't ship (and
+    # on CI runners it found ImageMagick DLLs instead, crashing the build).
+    # attachments.py already falls back to extension-based MIME detection.
+    excludes=["tkinter", "matplotlib", "pytest"]
+    + (["magic"] if sys.platform in ("win32", "darwin") else []),
     noarchive=False,
 )
 pyz = PYZ(a.pure)
