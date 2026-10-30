@@ -1106,7 +1106,7 @@ export default function SettingsPanel({
       >
         <div className="settings-header">
           <div className="settings-title">
-            <span className="settings-title-mark" aria-hidden="true" />
+            <img className="settings-title-mark" src="/favicon.svg" alt="" aria-hidden="true" />
             <div>
               <h2>Settings</h2>
               <p className="settings-subtitle">Tune how Zenith runs on your machine</p>

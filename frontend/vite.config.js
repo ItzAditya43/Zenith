@@ -18,4 +18,10 @@ function previewRuntimePlugin() {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), previewRuntimePlugin()],
+  build: {
+    // Never base64-inline font files into the CSS: small subsets (<4 kB) were
+    // being embedded, bloating the render-blocking stylesheet. As separate
+    // files they load only when their unicode-range is actually used.
+    assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
+  },
 })

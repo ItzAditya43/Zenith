@@ -2322,8 +2322,8 @@ button.msg-source-chip-recall:hover {
     z-index: 5;
     background: rgba(0, 0, 0, 0.45);
   }
-  .mobile-menu-btn {
-    display: grid;
+  header.chat-header .mobile-menu-btn {
+    display: grid; /* higher specificity: the base display:none rule comes later in the file */
   }
   .msg-bubble {
     max-width: 88vw;
@@ -2347,7 +2347,7 @@ button.msg-source-chip-recall:hover {
   }
 }
 
-.mobile-menu-btn {
+.chat-header .mobile-menu-btn {
   display: none;
   width: 32px;
   height: 32px;
@@ -3923,4 +3923,125 @@ button.msg-source-chip-recall:hover {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--signal-general);
+}
+
+/* ===== Header "More" menu ===== */
+.header-more { position: relative; }
+.header-more-panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 50;
+  min-width: 220px;
+  padding: var(--space-2);
+  display: grid;
+  gap: 2px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+.header-more-panel .icon-btn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.header-more-panel .icon-btn::after { content: attr(data-label); }
+.header-more-panel .icon-btn:hover { color: var(--text-primary); background: var(--bg-panel); }
+.chat-header h1 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 720px) {
+  .chat-header { gap: var(--space-2); }
+  .chat-header .status-rail,
+  .header-actions > .header-tool-group,
+  .header-actions .icon-btn[title^="Create a read-only"],
+  .header-actions .icon-btn[title^="Extract this"],
+  .header-actions .icon-btn[title^="Download this"] { display: none; }
+}
+
+/* ===== Message rhythm: actions float in the gap, not inside the bubble ===== */
+.chat-scroll { gap: 28px; }
+.msg-bubble { position: relative; }
+.msg-actions-row {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  margin-top: 0;
+  pointer-events: none;
+}
+.msg-actions-row > * { pointer-events: auto; }
+.msg-bubble-user .msg-actions-row { justify-content: flex-end; }
+.msg-actions-row .msg-actions { gap: var(--space-1); }
+.msg-row:focus-within .msg-actions { opacity: 1; }
+
+/* ===== Markdown: tables, quotes, code fallback ===== */
+.msg-content table {
+  border-collapse: collapse;
+  margin: var(--space-3) 0;
+  font-size: var(--text-sm);
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.msg-content th, .msg-content td {
+  border: 1px solid var(--border-soft);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+}
+.msg-content th { background: var(--bg-panel-raised); font-weight: 600; }
+.msg-content blockquote {
+  margin: var(--space-3) 0;
+  padding: var(--space-1) var(--space-4);
+  border-left: 2px solid var(--border-soft);
+  color: var(--text-secondary);
+}
+.code-fallback {
+  margin: var(--space-2) 0;
+  padding: 1em;
+  border-radius: var(--radius-md);
+  background: #1d1f21; /* matches the atomDark highlighter background: no jump when it loads */
+  color: #c5c8c6;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* ===== OLED Ember: replies are text on black, not cards ===== */
+[data-theme="oled-ember"] .msg-bubble-assistant {
+  background: transparent;
+  border: none;
+  padding-left: 0;
+  padding-right: 0;
+  max-width: 72ch;
+}
+[data-theme="oled-ember"] .msg-bubble-assistant::before { display: none; }
+[data-theme="oled-ember"] .msg-bubble-assistant .msg-content { font-size: var(--text-base); line-height: 1.7; }
+[data-theme="oled-ember"] .msg-bubble-user {
+  border-color: var(--border-hairline);
+  padding: var(--space-2) var(--space-4);
+}
+
+/* ===== Brand mark in empty state + settings; stacked setting hints ===== */
+.empty-state-logo { width: 56px; height: 56px; margin-bottom: var(--space-4); }
+img.settings-title-mark { background: none; object-fit: contain; }
+.setting-row > div > .setting-hint { display: block; margin-top: 2px; }
+.setting-row > div > strong { font-weight: 500; }
+.role-card { border-left: 1px solid var(--border-hairline); }
+
+/* ===== Long content never widens the page ===== */
+.msg-row, .msg-bubble, .msg-content { min-width: 0; }
+.msg-bubble { max-width: min(100%, 74ch); }
+.code-block-wrap { max-width: 100%; overflow-x: auto; }
+.msg-content pre, .msg-content div[class*="language-"] { max-width: 100%; overflow-x: auto; }
+.msg-content { overflow-wrap: anywhere; }
+
+/* On true black a 45% black scrim is invisible: dim harder and blur. */
+@media (max-width: 720px) {
+  [data-theme="oled-ember"] .sidebar-backdrop { background: rgba(0, 0, 0, 0.78); backdrop-filter: blur(2px); }
+  [data-theme="oled-ember"] .sidebar:not(.sidebar-collapsed) { border-right: 1px solid var(--border-soft); }
 }

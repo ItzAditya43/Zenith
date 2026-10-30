@@ -21,6 +21,27 @@ import re
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+DEMO_REPLY = """Here's a weekly review you can keep to **20 minutes**:
+
+### 1. Clear the decks
+- Empty inbox and notes into one list
+- Close loops older than a week
+
+### 2. Look back
+| Question | Time |
+|---|---|
+| What moved forward? | 5 min |
+| What got stuck, and why? | 5 min |
+
+```python
+def review(week):
+    wins = [t for t in week.tasks if t.done]
+    return f"{len(wins)} wins this week"
+```
+
+> Keep it short — a review you skip is worth less than a quick one you do.
+"""
+
 MODELS = ["llama3.2:3b", "qwen2.5-coder:7b", "nomic-embed-text"]
 
 
@@ -44,6 +65,8 @@ def _reply(body: dict) -> str:
         return json.dumps({"tool": "write_file", "args": {"path": "e2e.txt", "content": "hello from e2e"}})
     if "long-term memory" in last or "Facts:" in last or "title" in last.lower()[:200]:
         return "[]"
+    if "[demo]" in last:
+        return DEMO_REPLY
     first_line = last.split("\n", 1)[0][:80]
     docs = sorted(set(re.findall(r"\[From '([^']+)'\]", last)))
     return f"Echo: {first_line}" + (f" | docs: {', '.join(docs)}" if docs else "")
