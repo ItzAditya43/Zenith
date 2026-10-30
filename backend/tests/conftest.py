@@ -63,3 +63,4 @@ def fake_ollama(temp_data_dir, monkeypatch):
 async def collect(agen) -> list[dict]:
     """Drain an async generator of events into a list."""
     return [ev async for ev in agen]
+os.environ.setdefault("ZENITH_NO_BACKGROUND_REINDEX", "1")

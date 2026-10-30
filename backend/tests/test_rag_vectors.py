@@ -203,3 +203,46 @@ def test_run_sync_inside_and_outside_a_loop():
 
     with pytest.raises(ValueError, match="propagates"):
         asyncio.run(inside_boom())
+
+
+def test_model_switch_reembeds_in_background(rag, monkeypatch):
+    import time
+
+    from app.core.config import settings
+
+    rag_service, calls = rag
+    rag_service.index_document("doc-1", "alpha beta")
+    calls["dim"] = 1024
+    settings.update({"rag_embedding_model": "bigger-embed"})
+    monkeypatch.delenv("ZENITH_NO_BACKGROUND_REINDEX", raising=False)
+    rag_service.index_document("doc-2", "gamma delta")  # triggers rebuild + background re-embed
+    for _ in range(50):
+        if rag_service.status()["chunks_missing_vectors"] == 0:
+            break
+        time.sleep(0.05)
+    assert rag_service.status()["chunks_missing_vectors"] == 0
+
+
+def test_shared_connection_survives_concurrent_threads(rag):
+    """Index and retrieve from many threads at once (this used to segfault)."""
+    import threading
+
+    rag_service, _ = rag
+    errors: list[Exception] = []
+
+    def worker(i: int) -> None:
+        try:
+            for j in range(10):
+                rag_service.index_message(f"c{i}", "user", f"message {i}-{j} about topic {j}")
+                rag_service.retrieve(f"topic {j}", source_kind="message")
+                rag_service.status()
+        except Exception as exc:  # pragma: no cover - failure path
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    assert rag_service.status()["chunks"] == 60

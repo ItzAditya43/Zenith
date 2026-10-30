@@ -768,6 +768,7 @@ async def _after_reply(request: Request, user_text: str, key: str, full_text: st
     background after the stream has ended and the lock is free."""
     try:
         from app.services import rag_service
+        await asyncio.to_thread(rag_service.index_message, key, "user", user_text)
         await asyncio.to_thread(rag_service.index_message, key, "assistant", full_text)
     except Exception as exc:
         log.warning("chat.rag_index_failed", error=str(exc))

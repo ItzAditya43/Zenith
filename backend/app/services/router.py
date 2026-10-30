@@ -79,6 +79,13 @@ def is_cloud_model(name: str) -> bool:
     return tag == "cloud" or tag.endswith("-cloud")
 
 
+# name -> Ollama-reported capabilities ("vision", "tools", "thinking", "embedding"...)
+_model_caps: dict[str, frozenset[str]] = {}
+
+# Roles a model can fill by what it *does*, when no name keyword matches
+# (e.g. qwen3.5 handles images, but nothing in its name says so).
+_CAPABILITY_FOR_ROLE = {"vision": "vision", "embedding": "embedding", "reasoning": "thinking"}
+
 # name -> parameters in billions, as Ollama reports them (details.parameter_size),
 # for tags like `llama3:latest` whose name carries no size.
 _reported_params: dict[str, float] = {}
@@ -165,6 +172,14 @@ class ModelRegistry:
                     if reported is not None:
                         _reported_params[m["name"]] = reported
                 self._fetched_at = time.time()
+                caps_of = getattr(self.client, "capabilities", None)
+                if caps_of is not None:
+                    for name in self._cache:
+                        if name not in _model_caps and not is_cloud_model(name):
+                            try:
+                                _model_caps[name] = await caps_of(name)
+                            except Exception:
+                                _model_caps[name] = frozenset()
             except OllamaError:
                 # Keep serving the stale cache (or empty list) rather than crash;
                 # the caller surfaces a clear error if it ends up with nothing.
@@ -246,6 +261,11 @@ class ModelRouter:
             if role in ("embedding", "small_fast") or len(matches) == 1:
                 return matches[0]
             return _best_fit(matches)
+        cap = _CAPABILITY_FOR_ROLE.get(role)
+        if cap:
+            capable = [n for n in installed if cap in _model_caps.get(n, frozenset())]
+            if capable:
+                return capable[0] if len(capable) == 1 else _best_fit(capable)
         if role == "small_fast":
             # Name lists can't keep up with new releases; any local chat model
             # of ~2B parameters or less is a sensible quick-reply model.
@@ -369,6 +389,14 @@ class ModelRouter:
             elif _QUICK_HINTS.match(text.strip()):
                 text_hint = "small_fast"
 
+        # Sticky only while the topic hasn't clearly moved: a confident
+        # semantic match to a role the previous model doesn't serve breaks it
+        # (a document question after a code turn stayed on the coder before).
+        semantic_moved = bool(
+            embedding_role
+            and embedding_score >= float(settings.get("router_confidence_threshold", 0.55))
+            and self._match_capability(embedding_role, installed) not in (None, history_last_model)
+        )
         if (
             history_last_model
             and history_last_model in installed
@@ -376,6 +404,7 @@ class ModelRouter:
             and not has_video
             and not has_long_document
             and not text_hint
+            and not semantic_moved
         ):
             return RouteDecision(
                 model=history_last_model,
