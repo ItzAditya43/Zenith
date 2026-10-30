@@ -1,8 +1,46 @@
+import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import StatusRail from "./StatusRail.jsx";
 import { api } from "../lib/api";
 
 /** The chat header toolbar, extracted from App.jsx. App owns all state; this is presentational. */
+/** Secondary panels live behind one labelled "More" menu instead of a row of
+ * fourteen unlabeled icons (which also overflowed the header on phones). */
+function HeaderMore({ children }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
+    const esc = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  return (
+    <div className="header-more" ref={ref}>
+      <button
+        className={`icon-btn ${open ? "is-active" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="More panels"
+        title="More panels"
+      >
+        <Icon name="grid" size={16} />
+      </button>
+      {open && (
+        <div className="header-more-panel" role="menu" onClick={() => setOpen(false)}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ChatHeader({
   activeId,
   messages,
@@ -70,12 +108,12 @@ export default function ChatHeader({
       <h1>{activeConversation?.title || "Zenith"}</h1>
       <StatusRail genStats={genStats} />
       <div className="header-actions">
-        <div className="header-tool-group">
+        <HeaderMore>
           {Object.values(branches).some((s) => s.length > 1) && (
             <button
               className={`icon-btn branch-tree-toggle ${branchTreeOpen ? "is-active" : ""}`}
               onClick={() => setBranchTreeOpen((v) => !v)}
-              title="Branch tree — see and switch between alternate versions"
+              title="Branch tree — see and switch between alternate versions" data-label="Branch tree"
             >
               <Icon name="layers" size={16} />
             </button>
@@ -84,7 +122,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${calendarOpen ? "is-active" : ""}`}
               onClick={() => setCalendarOpen((v) => !v)}
-              title="Calendar"
+              title="Calendar" data-label="Calendar"
             >
               <Icon name="clock" size={16} />
             </button>
@@ -93,7 +131,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${notesOpen ? "is-active" : ""}`}
               onClick={() => setNotesOpen((v) => !v)}
-              title="Notes"
+              title="Notes" data-label="Notes"
             >
               <Icon name="pencil" size={16} />
             </button>
@@ -102,7 +140,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${todosOpen ? "is-active" : ""}`}
               onClick={() => setTodosOpen((v) => !v)}
-              title="To-do"
+              title="To-do" data-label="To-do"
             >
               <Icon name="check" size={16} />
             </button>
@@ -111,7 +149,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${researchOpen ? "is-active" : ""}`}
               onClick={() => setResearchOpen((v) => !v)}
-              title="Research reports"
+              title="Research reports" data-label="Research reports"
             >
               <Icon name="flask" size={16} />
             </button>
@@ -123,7 +161,7 @@ export default function ChatHeader({
                 setSnippetsOpen((v) => !v);
                 api.listQuickActions().then(setQuickActions).catch(() => {});
               }}
-              title="Prompt snippets"
+              title="Prompt snippets" data-label="Prompt snippets"
             >
               <Icon name="copy" size={16} />
             </button>
@@ -132,7 +170,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${graphOpen ? "is-active" : ""}`}
               onClick={() => setGraphOpen((v) => !v)}
-              title="Knowledge graph — how conversations, memories, and documents connect"
+              title="Knowledge graph — how conversations, memories, and documents connect" data-label="Knowledge graph"
             >
               <Icon name="share" size={16} />
             </button>
@@ -141,7 +179,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${digestOpen ? "is-active" : ""}`}
               onClick={() => setDigestOpen((v) => !v)}
-              title="Daily digest"
+              title="Daily digest" data-label="Daily digest"
             >
               <Icon name="sun" size={16} />
             </button>
@@ -150,7 +188,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${usageOpen ? "is-active" : ""}`}
               onClick={() => setUsageOpen((v) => !v)}
-              title="Usage & diagnostics"
+              title="Usage & diagnostics" data-label="Usage"
             >
               <Icon name="grid" size={16} />
             </button>
@@ -159,7 +197,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${healthOpen ? "is-active" : ""}`}
               onClick={() => setHealthOpen((v) => !v)}
-              title="System health"
+              title="System health" data-label="System health"
             >
               <Icon name="target" size={16} />
             </button>
@@ -168,7 +206,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${ragSourcesOpen ? "is-active" : ""}`}
               onClick={() => setRagSourcesOpen((v) => !v)}
-              title="RAG sources — what's indexed for retrieval"
+              title="RAG sources — what's indexed for retrieval" data-label="RAG sources"
             >
               <Icon name="layers" size={16} />
             </button>
@@ -177,7 +215,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${settingsHistoryOpen ? "is-active" : ""}`}
               onClick={() => setSettingsHistoryOpen((v) => !v)}
-              title="Settings history — see and revert changes"
+              title="Settings history — see and revert changes" data-label="Settings history"
             >
               <Icon name="rotate-ccw" size={16} />
             </button>
@@ -186,7 +224,7 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${batchJobOpen ? "is-active" : ""}`}
               onClick={() => setBatchJobOpen((v) => !v)}
-              title="Batch job — run a prompt against every file in a folder"
+              title="Batch job — run a prompt against every file in a folder" data-label="Batch job"
             >
               <Icon name="hourglass" size={16} />
             </button>
@@ -195,12 +233,12 @@ export default function ChatHeader({
             <button
               className={`icon-btn ${backupOpen ? "is-active" : ""}`}
               onClick={() => setBackupOpen((v) => !v)}
-              title="Backup & restore"
+              title="Backup & restore" data-label="Backup"
             >
               <Icon name="folder-open" size={16} />
             </button>
           )}
-        </div>
+        </HeaderMore>
         {!focusMode && agentAvailable && (
           <button
             className={`workdir-btn ${activeConversation?.workdir ? "is-active" : ""}`}

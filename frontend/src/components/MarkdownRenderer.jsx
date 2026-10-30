@@ -4,7 +4,7 @@ import Icon from "./Icon.jsx";
 // Heavy libs loaded lazily — split into separate chunks.
 const ReactMarkdown = lazy(() => import("react-markdown"));
 const SyntaxHighlighter = lazy(() =>
-  import("react-syntax-highlighter").then((m) => ({ default: m.Prism }))
+  import("../lib/highlighter.js")
 );
 
 // Small-ish deps loaded eagerly (just plugin functions, not component trees).

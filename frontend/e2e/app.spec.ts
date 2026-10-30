@@ -91,6 +91,7 @@ test("every settings section renders", async ({ page }) => {
   page.on("pageerror", (err) => errors.push(err.message));
   await page.getByRole("button", { name: "Settings" }).first().click();
   const nav = page.getByRole("navigation", { name: "Settings sections" });
+  await expect(nav).toBeVisible();
   const items = nav.getByRole("button");
   const count = await items.count();
   expect(count).toBeGreaterThanOrEqual(18);

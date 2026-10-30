@@ -6,3 +6,4 @@ public/preview-runtime/react-runtime.js
 e2e/.data/
 test-results/
 playwright-report/
+audit-shots/

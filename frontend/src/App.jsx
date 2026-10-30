@@ -1,48 +1,59 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Composer from "./components/Composer";
 import MessageBubble from "./components/MessageBubble";
-import SettingsPanel from "./components/SettingsPanel";
 import CommandPalette from "./components/CommandPalette";
 import ToastStack from "./components/ToastStack";
 import Icon from "./components/Icon.jsx";
 import LockScreen from "./components/LockScreen.jsx";
 import AccessGate from "./components/AccessGate.jsx";
-import BranchTree from "./components/BranchTree.jsx";
-import DocumentEditor from "./components/DocumentEditor.jsx";
-import CalendarPanel from "./components/CalendarPanel.jsx";
-import NotesPanel from "./components/NotesPanel.jsx";
-import TodoPanel from "./components/TodoPanel.jsx";
-import ResearchDashboard from "./components/ResearchDashboard.jsx";
-import GroupChatPicker from "./components/GroupChatPicker.jsx";
 import AmbientCanvas from "./components/AmbientCanvas.jsx";
-import OnboardingTour from "./components/OnboardingTour.jsx";
-import WhatsNewPanel from "./components/WhatsNewPanel.jsx";
-import UsageDashboard from "./components/UsageDashboard.jsx";
-import HealthPanel from "./components/HealthPanel.jsx";
-import TracesPanel from "./components/TracesPanel";
 import BootSplash from "./components/BootSplash";
-import CodeEditorPanel from "./components/CodeEditorPanel.jsx";
-import SnippetsPanel from "./components/SnippetsPanel.jsx";
-import KnowledgeGraphPanel from "./components/KnowledgeGraphPanel.jsx";
-import DigestPanel from "./components/DigestPanel.jsx";
-import RagSourcesPanel from "./components/RagSourcesPanel.jsx";
-import SettingsHistoryPanel from "./components/SettingsHistoryPanel.jsx";
-import BatchJobPanel from "./components/BatchJobPanel.jsx";
 import WakeWordListener from "./components/WakeWordListener.jsx";
-import BackupPanel from "./components/BackupPanel.jsx";
-import ShortcutsOverlay from "./components/ShortcutsOverlay.jsx";
 import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api, authHeaders, GATE_EVENT } from "./lib/api";
 import { buildCommands } from "./lib/commands.js";
 import ChatHeader from "./components/ChatHeader.jsx";
 
-const EMPTY_HORIZON = [
-  "          ░░░░▒▒▒▓▓▓█████████▓▓▓▒▒▒░░░░",
-  "     ░░░▒▒▒▓▓▓███████████████████▓▓▓▒▒▒░░░",
-  "  ░░▒▒▓▓▓█████████████████████████████▓▓▓▒▒░░",
-].join("\n");
+// Overlay panels load on first open instead of with the app: they were ~half
+// of the startup bundle and most sessions never open most of them. Each gets
+// its own Suspense boundary so loading one never blanks the rest of the UI.
+function lazyPanel(loader) {
+  const Inner = lazy(loader);
+  function LazyPanel(props) {
+    return (
+      <Suspense fallback={null}>
+        <Inner {...props} />
+      </Suspense>
+    );
+  }
+  LazyPanel.preload = loader;
+  return LazyPanel;
+}
+const SettingsPanel = lazyPanel(() => import("./components/SettingsPanel"));
+const BranchTree = lazyPanel(() => import("./components/BranchTree.jsx"));
+const DocumentEditor = lazyPanel(() => import("./components/DocumentEditor.jsx"));
+const CalendarPanel = lazyPanel(() => import("./components/CalendarPanel.jsx"));
+const NotesPanel = lazyPanel(() => import("./components/NotesPanel.jsx"));
+const TodoPanel = lazyPanel(() => import("./components/TodoPanel.jsx"));
+const ResearchDashboard = lazyPanel(() => import("./components/ResearchDashboard.jsx"));
+const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
+const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
+const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
+const UsageDashboard = lazyPanel(() => import("./components/UsageDashboard.jsx"));
+const HealthPanel = lazyPanel(() => import("./components/HealthPanel.jsx"));
+const TracesPanel = lazyPanel(() => import("./components/TracesPanel"));
+const CodeEditorPanel = lazyPanel(() => import("./components/CodeEditorPanel.jsx"));
+const SnippetsPanel = lazyPanel(() => import("./components/SnippetsPanel.jsx"));
+const KnowledgeGraphPanel = lazyPanel(() => import("./components/KnowledgeGraphPanel.jsx"));
+const DigestPanel = lazyPanel(() => import("./components/DigestPanel.jsx"));
+const RagSourcesPanel = lazyPanel(() => import("./components/RagSourcesPanel.jsx"));
+const SettingsHistoryPanel = lazyPanel(() => import("./components/SettingsHistoryPanel.jsx"));
+const BatchJobPanel = lazyPanel(() => import("./components/BatchJobPanel.jsx"));
+const BackupPanel = lazyPanel(() => import("./components/BackupPanel.jsx"));
+const ShortcutsOverlay = lazyPanel(() => import("./components/ShortcutsOverlay.jsx"));
+
 
 export default function App() {
   const [locked, setLocked] = useState(false);
@@ -113,6 +124,14 @@ export default function App() {
   const [healthOpen, setHealthOpen] = useState(false);
   const [tracesOpen, setTracesOpen] = useState(false);
   const [runFlags, setRunFlags] = useState({ agentMode: "manual", sandbox: false });
+  // Warm the panels people open most once the app is idle, so first open is
+  // instant without putting them back in the startup bundle.
+  useEffect(() => {
+    const warm = () => [SettingsPanel, HealthPanel, TracesPanel, DocumentEditor].forEach((p) => p.preload());
+    const id = window.requestIdleCallback ? window.requestIdleCallback(warm, { timeout: 4000 }) : setTimeout(warm, 2000);
+    return () => (window.cancelIdleCallback ? window.cancelIdleCallback(id) : clearTimeout(id));
+  }, []);
+
   const [booting, setBooting] = useState(() => {
     try {
       return !sessionStorage.getItem("zenith-booted");
@@ -608,6 +627,7 @@ export default function App() {
     setConversations((c) => [conv, ...c]);
     setActiveId(conv.id);
     setMessages([]);
+    if (window.innerWidth <= 720) setSidebarCollapsed(true); // phones: drawer closes after choosing
   };
 
   const handleDelete = async (id) => {
@@ -1495,7 +1515,7 @@ export default function App() {
           />
           {messages.length === 0 && (
             <div className="empty-state">
-              <pre className="empty-state-horizon" aria-hidden="true">{EMPTY_HORIZON}</pre>
+              <img className="empty-state-logo" src="/favicon.svg" alt="" aria-hidden="true" />
               <h2>Everything runs on your machine.</h2>
               <p>
                 Type, drop an image, upload a document, or hold the mic — Zenith reads

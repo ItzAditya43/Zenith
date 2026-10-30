@@ -485,6 +485,8 @@ export default function Composer({
               ? "Listening… release to stop"
               : transcribing
               ? "Transcribing…"
+              : typeof window !== "undefined" && window.innerWidth < 560
+              ? "Message Zenith"
               : "Message Zenith — attach files, or hold the mic to talk"
           }
           aria-label="Message"
