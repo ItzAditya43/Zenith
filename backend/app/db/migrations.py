@@ -717,6 +717,49 @@ def _settings_history_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _redact_secret_history(conn: sqlite3.Connection) -> None:
+    """settings_history used to record secret values verbatim (the email
+    password, shared secret and passcode hash), and the history API is
+    readable by the UI. Scrub them; new rows are redacted at write time
+    (settings_history_service.log_change)."""
+    conn.execute(
+        "UPDATE settings_history SET "
+        "old_value = CASE WHEN old_value IS NULL OR old_value IN ('null', '\"\"') THEN old_value ELSE '\"[redacted]\"' END, "
+        "new_value = CASE WHEN new_value IS NULL OR new_value IN ('null', '\"\"') THEN new_value ELSE '\"[redacted]\"' END "
+        "WHERE key IN ('email_password', 'auth_shared_secret', 'lock_pass_hash')"
+    )
+
+
+def _turn_traces_table(conn: sqlite3.Connection) -> None:
+    """Per-turn traces (routing, retrieved context, tool calls, timing) —
+    see app/services/trace_service.py."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS turn_traces (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT,
+            mode TEXT NOT NULL,
+            user_text TEXT,
+            model TEXT,
+            role TEXT,
+            reason TEXT,
+            confidence REAL,
+            sources TEXT,
+            tool_calls TEXT,
+            token_count INTEGER,
+            first_token_ms INTEGER,
+            total_ms INTEGER,
+            downgraded_to TEXT,
+            status TEXT NOT NULL,
+            error TEXT,
+            created_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_turn_traces_conv ON turn_traces(conversation_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_turn_traces_created ON turn_traces(created_at);
+        """
+    )
+
+
 # Ordered list — never reorder, only append.
 MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "baseline", _baseline),
@@ -753,6 +796,8 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (32, "quick_actions_table", _quick_actions_table),
     (33, "routing_overrides_table", _routing_overrides_table),
     (34, "settings_history_table", _settings_history_table),
+    (35, "redact_secret_history", _redact_secret_history),
+    (36, "turn_traces_table", _turn_traces_table),
 ]
 
 

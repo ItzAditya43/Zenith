@@ -13,12 +13,19 @@ export default function CommandPalette({ open, onClose, commands }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef(null);
 
-  useEffect(() => {
+  // Reset when (re)opened — adjusted during render, React's recommended
+  // alternative to a setState-in-effect that renders twice.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setQuery("");
       setActiveIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 0);
     }
+  }
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 0);
   }, [open]);
 
   const filtered = useMemo(() => {
@@ -28,10 +35,10 @@ export default function CommandPalette({ open, onClose, commands }) {
           (c) => c.label.toLowerCase().includes(q) || c.group.toLowerCase().includes(q)
         )
       : commands;
-    return list.slice(0, 50);
+    return list
+      .slice(0, 50)
+      .map((c, i, arr) => ({ ...c, showGroup: i === 0 || arr[i - 1].group !== c.group }));
   }, [query, commands]);
-
-  useEffect(() => setActiveIndex(0), [query]);
 
   if (!open) return null;
 
@@ -55,8 +62,6 @@ export default function CommandPalette({ open, onClose, commands }) {
     }
   };
 
-  let lastGroup = null;
-
   return (
     <div className="cmdk-overlay" onClick={onClose}>
       <div className="cmdk-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Command palette">
@@ -70,7 +75,10 @@ export default function CommandPalette({ open, onClose, commands }) {
             placeholder="Jump to a conversation, switch persona, open a setting…"
             aria-label="Search commands"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIndex(0);
+            }}
             onKeyDown={handleKeyDown}
           />
           <span className="cmdk-hint">esc</span>
@@ -78,8 +86,7 @@ export default function CommandPalette({ open, onClose, commands }) {
         <div className="cmdk-list" role="listbox">
           {filtered.length === 0 && <p className="cmdk-empty">No matches.</p>}
           {filtered.map((cmd, i) => {
-            const showGroup = cmd.group !== lastGroup;
-            lastGroup = cmd.group;
+            const showGroup = cmd.showGroup;
             return (
               <div key={cmd.id}>
                 {showGroup && <p className="cmdk-group-label">{cmd.group}</p>}

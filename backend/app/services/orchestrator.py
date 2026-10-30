@@ -12,7 +12,7 @@ list of chat messages, so routes stay thin.
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -82,34 +82,50 @@ async def build_turn_context(attachment_ids: list[str]) -> TurnContext:
     return ctx
 
 
-def _build_messages(history: list[dict], user_text: str, ctx: TurnContext) -> list[dict]:
-    max_msgs = settings.get("max_context_messages", 24)
-    trimmed = history[-max_msgs:]
-    messages = [{"role": m["role"], "content": m["content"]} for m in trimmed]
+def _compose_user_content(
+    user_text: str, ctx: TurnContext, retrieved: dict[str, str] | None = None, web_section: str = "",
+) -> str:
+    """The final user message: the typed text, then documents, then other
+    attachment text (transcripts, OCR), then web context.
 
-    # Split out document parts (marked with __DOC__:name) and feed them
-    # through the multi-doc synthesizer so each is labeled and
-    # proportionally budgeted. Other text parts (transcripts, OCR results)
-    # join in as before.
-    doc_parts: list[dict] = []
+    A document with retrieved chunks in `retrieved` (name -> rendered
+    chunks) is represented by those; any other document goes through the
+    multi-doc synthesizer as full text. Previously retrieval overwrote the
+    whole message per document, so with two documents only the last
+    survived, and web context / transcripts were dropped."""
+    retrieved = retrieved or {}
+    raw_docs: list[dict] = []
+    retrieved_sections: list[str] = []
     other_parts: list[str] = []
     for p in ctx.text_parts:
         if p.startswith("__DOC__:"):
             name, _, body = p.partition("\n")
-            doc_parts.append({"name": name[len("__DOC__:"):], "text": body})
+            name = name[len("__DOC__:"):]
+            if name in retrieved:
+                retrieved_sections.append(retrieved[name])
+            else:
+                raw_docs.append({"name": name, "text": body})
         else:
             other_parts.append(p)
 
-    sections: list[str] = []
-    if doc_parts:
-        sections.append(document_service.synthesize_multi_doc(doc_parts))
+    sections: list[str] = list(retrieved_sections)
+    if raw_docs:
+        sections.append(document_service.synthesize_multi_doc(raw_docs))
     if other_parts:
         sections.append("\n\n".join(other_parts))
+    if web_section:
+        sections.append(web_section)
+    return "\n\n".join([user_text, *sections]).strip() if sections else user_text
 
-    full_user_text = user_text
-    if sections:
-        full_user_text = (user_text + "\n\n" + "\n\n".join(sections)).strip()
-    messages.append({"role": "user", "content": full_user_text})
+
+def _build_messages(
+    history: list[dict], user_text: str, ctx: TurnContext,
+    retrieved: dict[str, str] | None = None, web_section: str = "",
+) -> list[dict]:
+    max_msgs = settings.get("max_context_messages", 24)
+    trimmed = history[-max_msgs:]
+    messages = [{"role": m["role"], "content": m["content"]} for m in trimmed]
+    messages.append({"role": "user", "content": _compose_user_content(user_text, ctx, retrieved, web_section)})
     return messages
 
 
@@ -241,18 +257,18 @@ async def _gather_web_context(user_text: str, web_search: bool) -> tuple[str, li
     # already covered by a pasted URL, all concurrently.
     search_urls = [r["url"] for r in search_results if r["url"] not in urls]
     to_fetch = urls + search_urls
-    if not to_fetch:
+    if not to_fetch and not web_search:
         return "", []
 
     pages = await asyncio.gather(
         *(web_service.fetch_url(u) for u in to_fetch), return_exceptions=True
-    )
+    ) if to_fetch else []
 
     sections: list[str] = []
     sources: list[dict] = []
     snippet_by_url = {r["url"]: r.get("snippet", "") for r in search_results}
-    for url, page in zip(to_fetch, pages):
-        if isinstance(page, Exception) or not page:
+    for url, page in zip(to_fetch, pages, strict=True):
+        if isinstance(page, BaseException) or not page:
             # Fall back to the search snippet so a failed fetch doesn't
             # silently drop a result the user can see was found.
             if url in snippet_by_url and snippet_by_url[url]:
@@ -294,6 +310,14 @@ async def _gather_web_context(user_text: str, web_search: bool) -> tuple[str, li
     return header + "\n\n---\n\n".join(sections), sources
 
 
+def should_think(role: str) -> bool:
+    """`thinking_mode`: "auto" lets thinking models reason only on the
+    reasoning route (everything else answers immediately), "on" always,
+    "off" never. Models without the capability are unaffected."""
+    mode = str(settings.get("thinking_mode", "auto"))
+    return mode == "on" or (mode == "auto" and role == "reasoning")
+
+
 async def run_turn(
     conversation_id: str,
     user_text: str,
@@ -304,6 +328,7 @@ async def run_turn(
     parent_explicit: bool = False,
     regenerate_user_message_id: str | None = None,
     model_override: str | None = None,
+    emit_thinking: bool = False,
 ) -> tuple[RouteDecision, AsyncIterator[str], list[dict], str]:
     """Returns the routing decision, an async generator of reply tokens,
     a list of web sources used (possibly empty), and the parent_id the
@@ -333,45 +358,36 @@ async def run_turn(
 
     ctx = await build_turn_context(attachment_ids)
     history = storage.get_messages(conversation_id)
-    messages = _build_messages(history, user_text, ctx)
 
     web_section, web_sources = await _gather_web_context(user_text, web_search)
-    if web_section:
-        messages[-1]["content"] = (messages[-1]["content"] + "\n\n" + web_section).strip()
 
-    # Phase 5: if a document is attached, do a top-k retrieval against
-    # the RAG index and use those chunks instead of head+tail truncation
-    # so the model can answer questions about page 300, not just the
-    # first and last pages. Falls back to the truncate path if no
-    # embedding model is available.
+    # If a document is attached, do a top-k retrieval against the RAG index
+    # and use those chunks instead of head+tail truncation, so the model can
+    # answer questions about page 300, not just the first and last pages.
+    # A document with no chunks yet (still indexing, or no RAG) keeps its
+    # full text — see _compose_user_content.
     doc_citations: list[dict] = []
-    if ctx.attachment_summaries:
+    retrieved: dict[str, str] = {}
+    for att in ctx.attachment_summaries:
+        if att.get("kind") != "document":
+            continue
         try:
             from app.services import rag_service
-            for att in ctx.attachment_summaries:
-                if att.get("kind") != "document":
-                    continue
-                chunks = await asyncio.to_thread(
-                    rag_service.retrieve, user_text, att["id"],
-                )
-                if chunks:
-                    rendered = "\n\n".join(
-                        f"[From '{att['name']}']\n{c['text']}" for c in chunks
-                    )
-                    # Replace the raw doc text in messages[-1] with the
-                    # retrieved, top-k chunk(s).
-                    messages[-1]["content"] = (
-                        user_text + "\n\n" + rendered
-                    ).strip()
-                    doc_citations.extend(
-                        {
-                            "kind": "document", "text": c["text"][:300], "source_id": att["name"],
-                            "attachment_id": att["id"], "chunk_index": c.get("chunk_index"),
-                        }
-                        for c in chunks
-                    )
+            chunks = await asyncio.to_thread(rag_service.retrieve, user_text, att["id"])
         except Exception as exc:
-            log.warning("orchestrator.rag_failed", error=str(exc))
+            log.warning("orchestrator.rag_failed", attachment=att["id"], error=str(exc))
+            continue
+        if chunks:
+            retrieved[att["name"]] = "\n\n".join(f"[From '{att['name']}']\n{c['text']}" for c in chunks)
+            doc_citations.extend(
+                {
+                    "kind": "document", "text": c["text"][:300], "source_id": att["name"],
+                    "attachment_id": att["id"], "chunk_index": c.get("chunk_index"),
+                }
+                for c in chunks
+            )
+
+    messages = _build_messages(history, user_text, ctx, retrieved, web_section)
 
     # Personal-assistant context: system prompt + long-term memories +
     # recall of relevant excerpts from *other* conversations. All
@@ -445,7 +461,8 @@ async def run_turn(
 
     client = OllamaClient()
     stream = client.chat_stream(
-        decision.model, messages, images_b64=ctx.images_b64 or None
+        decision.model, messages, images_b64=ctx.images_b64 or None,
+        think=should_think(decision.role), emit_thinking=emit_thinking,
     )
     all_sources = web_sources + recall_citations + doc_citations
     return decision, stream, all_sources, assistant_parent_id

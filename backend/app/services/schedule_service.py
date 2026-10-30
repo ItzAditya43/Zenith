@@ -137,8 +137,8 @@ async def run_schedule(schedule: dict) -> dict:
                 if ev.get("type") == "done":
                     full_text = ev["full_text"]
         else:
-            from app.services.orchestrator import run_turn
             from app.db import storage as _storage
+            from app.services.orchestrator import run_turn
             decision, stream, _sources, assistant_parent_id = await run_turn(
                 conversation_id, schedule["prompt"], [],
             )

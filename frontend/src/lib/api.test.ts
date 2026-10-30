@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // of that logic we have to control those globals *before* importing the
 // module, then re-import fresh (vi.resetModules) for each scenario.
 
-function stubWindowLocation(protocol, hostname) {
+function stubWindowLocation(protocol: string, hostname: string) {
   // The repo's own .env sets VITE_API_BASE=http://localhost:8420 for local
   // dev, which would otherwise always win over window-derived resolution
   // (see resolveBase()'s priority order). Force it empty here so tests can
@@ -19,7 +19,7 @@ function stubWindowLocation(protocol, hostname) {
 
 async function freshApi() {
   vi.resetModules();
-  const mod = await import("./api.js");
+  const mod = await import("./api");
   return mod.api;
 }
 
@@ -47,6 +47,14 @@ describe("resolveBase() / api.base", () => {
     stubWindowLocation("http:", "192.168.1.5");
     const api = await freshApi();
     expect(api.base).toBe("http://192.168.1.5:8420");
+  });
+
+  it("honours ?backendPort= for a second profile, ignoring junk", async () => {
+    vi.stubEnv("VITE_API_BASE", "");
+    vi.stubGlobal("window", { location: { protocol: "http:", hostname: "localhost", search: "?backendPort=8430" } });
+    expect((await freshApi()).base).toBe("http://localhost:8430");
+    vi.stubGlobal("window", { location: { protocol: "http:", hostname: "localhost", search: "?backendPort=evil.com" } });
+    expect((await freshApi()).base).toBe("http://localhost:8420");
   });
 
   it("derives the base from a Tailscale-style hostname, preserving https", async () => {
@@ -126,7 +134,7 @@ describe("unlockHeaders (via request())", () => {
     const api = await freshApi();
     await api.listConversations();
 
-    const [, init] = fetchMock.mock.calls[0];
+    const [, init] = fetchMock.mock.calls[0]!;
     expect(init.headers).not.toHaveProperty("X-Zenith-Unlock");
   });
 
@@ -142,7 +150,7 @@ describe("unlockHeaders (via request())", () => {
     const api = await freshApi();
     await api.listConversations();
 
-    const [, init] = fetchMock.mock.calls[0];
+    const [, init] = fetchMock.mock.calls[0]!;
     expect(init.headers).toMatchObject({ "X-Zenith-Unlock": "secret-token" });
   });
 
@@ -158,7 +166,7 @@ describe("unlockHeaders (via request())", () => {
     const api = await freshApi();
     await api.createConversation("Hello");
 
-    const [, init] = fetchMock.mock.calls[0];
+    const [, init] = fetchMock.mock.calls[0]!;
     expect(init.headers).toMatchObject({
       "X-Zenith-Unlock": "secret-token",
       "Content-Type": "application/json",
@@ -292,3 +300,76 @@ describe("api.health() (bypasses the generic request() error path)", () => {
 // the Streams API that the test would mostly be validating the mock, not
 // api.js. That needs an actual backend (or a fuller integration harness)
 // and is out of scope for this pure-logic unit-test pass.
+
+function memoryStorage(initial: Record<string, string> = {}) {
+  const data: Record<string, string> = { ...initial };
+  return {
+    getItem: (k: string) => (k in data ? data[k] : null),
+    setItem: (k: string, v: unknown) => (data[k] = String(v)),
+  };
+}
+
+describe("authHeaders()", () => {
+  it("sends the shared secret as a bearer token alongside the unlock token", async () => {
+    vi.stubGlobal("sessionStorage", memoryStorage({ "zenith-unlock": "tok" }));
+    vi.stubGlobal("localStorage", memoryStorage({ "zenith-secret": "s3cret" }));
+    vi.resetModules();
+    const { authHeaders } = await import("./api");
+    expect(authHeaders()).toEqual({ "X-Zenith-Unlock": "tok", Authorization: "Bearer s3cret" });
+  });
+
+  it("returns no headers when storage is missing or throws", async () => {
+    vi.stubGlobal("sessionStorage", undefined);
+    vi.stubGlobal("localStorage", { getItem: () => { throw new Error("blocked"); } });
+    vi.resetModules();
+    const { authHeaders } = await import("./api");
+    expect(authHeaders()).toEqual({});
+  });
+});
+
+describe("access-gate signalling", () => {
+  type Dispatched = { type: string; detail: { kind: string; message: string } };
+  async function failWith(code: string | undefined, status: number) {
+    const dispatched: Dispatched[] = [];
+    vi.stubGlobal("window", {
+      location: { protocol: "http:", hostname: "localhost" },
+      dispatchEvent: (e: Dispatched) => dispatched.push(e),
+    });
+    vi.stubGlobal("CustomEvent", class { type: string; detail: unknown; constructor(type: string, init: { detail: unknown }) { this.type = type; this.detail = init.detail; } });
+    vi.stubGlobal("sessionStorage", memoryStorage());
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false, status, statusText: "nope",
+      json: async () => ({ detail: "blocked here", code }),
+    })));
+    vi.resetModules();
+    const mod = await import("./api");
+    await expect(mod.api.getConfig()).rejects.toThrow("blocked here");
+    return { dispatched, GATE_EVENT: mod.GATE_EVENT };
+  }
+
+  it("raises a 'remote' gate on remote_access_blocked", async () => {
+    const { dispatched, GATE_EVENT } = await failWith("remote_access_blocked", 403);
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]!.type).toBe(GATE_EVENT);
+    expect(dispatched[0]!.detail).toEqual({ kind: "remote", message: "blocked here" });
+  });
+
+  it("raises an 'auth' gate on auth_required", async () => {
+    const { dispatched } = await failWith("auth_required", 401);
+    expect(dispatched[0]!.detail.kind).toBe("auth");
+  });
+
+  it("does not raise a gate for ordinary errors", async () => {
+    const { dispatched } = await failWith(undefined, 500);
+    expect(dispatched).toHaveLength(0);
+  });
+});
+
+describe("sparkline()", () => {
+  it("scales values onto block characters and keeps gaps", async () => {
+    const { sparkline } = await import("./sparkline");
+    expect(sparkline([0, 7, null, 3.5])).toBe("▁█ ▅");
+    expect(sparkline([5, 5])).toBe("▄▄");
+    expect(sparkline([])).toBe("");
+  });
+});

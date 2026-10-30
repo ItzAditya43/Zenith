@@ -19,6 +19,8 @@ export const ANIMATIONS = [
 export const THEME_ANIMATIONS = {
   "midnight-glass": ["bokeh", "rain", "aurora"],
   "terminal-noir": ["matrix"],
+  // Moving backgrounds light pixels and burn battery on OLED.
+  "oled-ember": [],
   "command-center": ["stars"],
   "deep-space": ["stars", "aurora", "snow"],
   "cyber-grid": ["matrix", "rain"],

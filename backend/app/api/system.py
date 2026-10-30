@@ -17,8 +17,9 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.core.config import settings
+from app.core.config import profile_name, settings
 from app.core.logging import get_logger
+from app.core.security import redact_config, strip_redacted
 from app.models.schemas import ConfigPatch
 from app.services.ollama_client import OllamaClient, OllamaError
 from app.services.router import ModelRegistry, ModelRouter
@@ -113,8 +114,10 @@ def _image_gen_status() -> dict:
 
 def _agent_mode_status() -> dict:
     """Not a network probe — just reflects the settings switch."""
+    from app.services import sandbox
+
     enabled = bool(settings.get("agent_enabled", False))
-    return {"ok": enabled, "enabled": enabled}
+    return {"ok": enabled, "enabled": enabled, "sandbox": sandbox.status()}
 
 
 def _mcp_status() -> dict:
@@ -134,22 +137,41 @@ def _mcp_status() -> dict:
 
 
 async def _embedding_model_status() -> dict:
-    """Whether an embedding-capable model is installed. Without one, hybrid
-    RAG fusion/reranking silently degrade to lexical-only search — this
-    surfaces that instead of leaving it invisible. Uses the same
-    ModelRegistry-based install listing as the other probes here, scored
-    with hardware_service.embedding_model_installed()'s keyword heuristic
-    (which mirrors rag_service._resolve_embed_model())."""
+    """Which embedding model RAG will really use and whether retrieval is
+    hybrid or has fallen back to lexical-only — straight from
+    rag_service.status(), so this can't drift from what retrieval does."""
     try:
-        from app.services import hardware_service
-        from app.services.router import ModelRegistry
+        from app.services import rag_service
 
-        registry = ModelRegistry()
-        installed = await registry.models()
-        model = hardware_service.embedding_model_installed(installed)
-        return {"ok": model is not None, "model": model}
-    except Exception:
+        st = await asyncio.to_thread(rag_service.status)
+        return {
+            "ok": st["embedding_model"] is not None,
+            "model": st["embedding_model"],
+            "mode": st["mode"],
+            "chunks_missing_vectors": st["chunks_missing_vectors"],
+        }
+    except Exception as exc:
+        log.warning("health.embedding_status_failed", error=str(exc))
         return {"ok": False, "model": None}
+
+
+def _security_status(request: Request) -> dict:
+    """Lets the UI warn when the LAN toggle is on with nothing gating it
+    (remote clients are refused in that state — see app/core/security.py)."""
+    from app.core.security import is_local_client, remote_gate_configured, shared_secret_active
+
+    gated = remote_gate_configured()
+    lan = bool(settings.get("cors_allow_lan", False))
+    return {
+        "client_is_local": is_local_client(request.client.host if request.client else None),
+        "remote_access_gated": gated,
+        "shared_secret_auth": shared_secret_active(),
+        "lan_enabled": lan,
+        "warning": None if gated or not lan else (
+            "LAN/Tailscale access is on but no passcode or shared secret is set — "
+            "other devices will be refused until you set one."
+        ),
+    }
 
 
 def _overall(ollama: dict, whisper: dict, tts: dict) -> Literal["ok", "degraded", "down"]:
@@ -167,7 +189,7 @@ def _overall(ollama: dict, whisper: dict, tts: dict) -> Literal["ok", "degraded"
 
 
 @router.get("/health")
-async def health():
+async def health(request: Request):
     """Probes the real dependencies instead of returning a static `ok`.
 
     The shape is deliberately forward-compatible: `components` lists each
@@ -197,6 +219,8 @@ async def health():
             "mcp": mcp,
             "embedding_model": embedding_model,
         },
+        "security": _security_status(request),
+        "profile": profile_name(),
     }
     if status == "down":
         # Use 503 so monitoring / load balancers can act on it.
@@ -252,7 +276,7 @@ async def models():
     try:
         raw = await client.list_models()
     except OllamaError as exc:
-        raise HTTPException(503, str(exc))
+        raise HTTPException(503, str(exc)) from exc
 
     keywords = settings.get("capability_keywords", {})
     overrides = settings.get("model_overrides", {})
@@ -262,7 +286,9 @@ async def models():
         lname = name.lower()
         roles = [role for role, kws in keywords.items() if any(kw in lname for kw in kws)]
         roles += [role for role, override in overrides.items() if override == name and role not in roles]
-        enriched.append({**m, "roles": roles})
+        from app.services.router import is_cloud_model
+
+        enriched.append({**m, "roles": roles, "cloud": is_cloud_model(name)})
     return JSONResponse(enriched, headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
 
 
@@ -346,7 +372,7 @@ async def models_delete(name: str):
     try:
         await client.delete_model(name)
     except OllamaError as exc:
-        raise HTTPException(503, str(exc))
+        raise HTTPException(503, str(exc)) from exc
     await ModelRegistry().models(force=True)
     return {"ok": True}
 
@@ -358,12 +384,14 @@ async def models_show(name: str):
     try:
         return await client.show_model(name)
     except OllamaError as exc:
-        raise HTTPException(503, str(exc))
+        raise HTTPException(503, str(exc)) from exc
 
 
 @router.get("/config")
 async def get_config():
-    return JSONResponse(dict(settings.all()), headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
+    # Secrets are redacted and the response is never cached by shared
+    # caches — it used to ship email_password/auth_shared_secret in clear.
+    return JSONResponse(redact_config(dict(settings.all())), headers={"Cache-Control": "private, no-store"})
 
 
 @router.patch("/config")
@@ -371,7 +399,7 @@ async def patch_config(body: ConfigPatch):
     """Apply a partial config update. `ConfigPatch` (Pydantic) rejects
     unknown fields and validates enums/ranges, so we get a 422 instead of
     silently writing garbage into config.json."""
-    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    patch = strip_redacted({k: v for k, v in body.model_dump().items() if v is not None})
     updated = settings.update(patch)
     # Bust the model registry so role/override changes take effect on the
     # next /api/chat request instead of waiting for the TTL.
@@ -379,11 +407,11 @@ async def patch_config(body: ConfigPatch):
         await ModelRegistry().models(force=True)
     except Exception:  # never let a cache-bust failure block a config save
         pass
-    return updated
+    return redact_config(dict(updated))
 
 
 @router.post("/route/preview")
-async def preview_route(text: str = "", has_image: bool = False, has_video: bool = False, request: Request = None):
+async def preview_route(request: Request, text: str = "", has_image: bool = False, has_video: bool = False):
     """Lets the Settings UI show 'this message would go to <model>' live,
     without actually sending anything to Ollama."""
     router_ = ModelRouter()
@@ -395,7 +423,7 @@ async def preview_route(text: str = "", has_image: bool = False, has_video: bool
             history_last_model=(getattr(request.app.state, "last_route_model", None) if request else None),
         )
     except OllamaError as exc:
-        raise HTTPException(503, str(exc))
+        raise HTTPException(503, str(exc)) from exc
     return {
         "model": decision.model,
         "role": decision.role,
@@ -428,14 +456,21 @@ async def remove_skill(skill_id: str):
     return {"ok": True}
 
 
+@router.post("/web/search-test")
+async def web_search_test():
+    from app.services import web_service
+
+    return await web_service.test_search()
+
+
 @router.get("/hardware")
 async def hardware_report():
     """Detected CPU/RAM/GPU + a fit rating for installed models and a
     small cookbook of recommended models sized to what this machine can
     actually run. Heuristic, not a guarantee — see hardware_service."""
+    from app.core.config import settings
     from app.services import hardware_service
     from app.services.router import ModelRegistry
-    from app.core.config import settings
 
     registry = ModelRegistry()
     installed = await registry.models()
@@ -449,7 +484,7 @@ async def email_test():
     try:
         return await asyncio.to_thread(email_service.test_connection)
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.get("/email/messages")
@@ -458,7 +493,7 @@ async def email_messages(folder: str = "INBOX"):
     try:
         return await asyncio.to_thread(email_service.list_messages, folder)
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.get("/email/messages/{message_id}")
@@ -467,7 +502,7 @@ async def email_message(message_id: str, folder: str = "INBOX"):
     try:
         return await asyncio.to_thread(email_service.get_message, message_id, folder)
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.post("/email/messages/{message_id}/summarize")
@@ -476,7 +511,7 @@ async def email_summarize(message_id: str, folder: str = "INBOX"):
     try:
         return {"summary": await email_service.summarize(message_id, folder)}
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.post("/email/messages/{message_id}/draft-reply")
@@ -487,7 +522,7 @@ async def email_draft_reply(message_id: str, body: dict, folder: str = "INBOX"):
             message_id, body.get("instruction", ""), folder, body.get("auto_research", True)
         )
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.post("/email/send")
@@ -502,7 +537,7 @@ async def email_send(body: dict):
         await asyncio.to_thread(email_service.send_message, to, subject, text, body.get("in_reply_to"))
         return {"ok": True}
     except email_service.EmailError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.get("/email/flags")
@@ -525,12 +560,13 @@ async def usage_summary(days: int = 14):
     live-only status rail."""
     import shutil
     from pathlib import Path
+
     from app.core.config import data_dir, db_path
     from app.db import storage
 
     summary = storage.usage_summary(days)
 
-    disk = {}
+    disk: dict[str, float | None] = {}
     try:
         disk["free_gb"] = round(shutil.disk_usage("/").free / (1024 ** 3), 1)
     except Exception:

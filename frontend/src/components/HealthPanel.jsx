@@ -1,24 +1,6 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { api, API_BASE, authHeaders } from "../lib/api";
 import Icon from "./Icon.jsx";
-
-// Mirrors lib/api.js's own base-URL + unlock-header resolution (not
-// exported from there, so duplicated here rather than editing that file
-// for one extra read-only fetch). Keep in sync if that logic changes.
-const JOBS_BACKEND_PORT = "8420";
-function jobsBase() {
-  const explicit = import.meta.env.VITE_API_BASE;
-  if (explicit) return explicit;
-  if (typeof window !== "undefined" && window.location?.hostname) {
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:${JOBS_BACKEND_PORT}`;
-  }
-  return "http://localhost:8420";
-}
-function jobsUnlockHeaders() {
-  const token = sessionStorage.getItem("zenith-unlock");
-  return token ? { "X-Zenith-Unlock": token } : {};
-}
 
 function relativeTime(epochSeconds) {
   if (!epochSeconds) return "never";
@@ -103,24 +85,27 @@ export default function HealthPanel({ onClose }) {
   const [jobs, setJobs] = useState(null);
   const [jobsError, setJobsError] = useState(null);
 
-  const load = () => {
-    setLoading(true);
-    setError(null);
+  const fetchAll = () => {
     api
       .health()
       .then((res) => setData(res))
       .catch((err) => setError(err.message || "Failed to check health."))
       .finally(() => setLoading(false));
-
-    setJobsError(null);
-    fetch(`${jobsBase()}/api/jobs/status`, { headers: jobsUnlockHeaders() })
+    fetch(`${API_BASE}/api/jobs/status`, { headers: authHeaders() })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(res.statusText))))
       .then((res) => setJobs(res))
       .catch((err) => setJobsError(err.message || "Failed to load background job status."));
   };
 
+  const load = () => {
+    setLoading(true);
+    setError(null);
+    setJobsError(null);
+    fetchAll();
+  };
+
   useEffect(() => {
-    load();
+    fetchAll();
   }, []);
 
   const components = data?.components ? Object.entries(data.components) : [];

@@ -1,6 +1,27 @@
 // Human-curated changelog — updated when a real feature ships, not
 // generated from commits. Newest first.
-export const CHANGELOG = [
+export interface ChangelogEntry {
+  version: string;
+  date: string;
+  title: string;
+  items: string[];
+}
+
+export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "0.10.0",
+    date: "2026-10-30",
+    title: "OLED Ember, live thinking, and a security pass",
+    items: [
+      "New OLED Ember theme (now the default): true black, one warm accent, light as hierarchy.",
+      "Thinking models stream their reasoning live; everyday replies no longer wait for it.",
+      "Replies finish instantly: memory and indexing now run after the answer, not before.",
+      "Your chats never auto-route to Ollama Cloud models; routing picks the best model your GPU can run.",
+      "Approve or deny agent steps with y / n, stop with Esc; a status line shows model, context and speed.",
+      "Security: localhost-only by default, secrets never returned by the API, optional Docker sandbox for the agent.",
+      "Document search runs on real vectors (it silently fell back to keywords before) — in the desktop app too.",
+    ],
+  },
   {
     version: "0.9",
     date: "2026-08-01",

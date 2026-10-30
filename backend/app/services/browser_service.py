@@ -100,7 +100,7 @@ async def _launch_session(conversation_id: str) -> dict:
         )
     binary = _find_chromium()
     port = _free_port()
-    user_data_dir = tempfile.mkdtemp(prefix="cortex-browser-")
+    user_data_dir = tempfile.mkdtemp(prefix="zenith-browser-")
 
     proc = await asyncio.create_subprocess_exec(
         binary,

@@ -21,5 +21,7 @@ async def get_history(key: str | None = None, limit: int = 100):
 async def revert(history_id: str):
     try:
         return settings_history_service.revert_to(history_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

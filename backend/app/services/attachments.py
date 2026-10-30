@@ -13,8 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.core.config import (
-    upload_dir as _upload_dir,
     settings,
+)
+from app.core.config import (
+    upload_dir as _upload_dir,
 )
 from app.core.logging import get_logger
 from app.services.document_service import SUPPORTED_EXTS as DOC_EXTS

@@ -31,8 +31,18 @@ def _row_to_dict(r) -> dict:
     return d
 
 
+REDACTED_MARKER = "[redacted]"
+
+
 def log_change(key: str, old_value, new_value) -> None:
-    """Insert one history row. Best-effort — never raises."""
+    """Insert one history row. Best-effort — never raises. Secret values
+    (passwords, the shared secret, the passcode hash) are recorded as a
+    marker only — the history API is readable by the UI."""
+    from app.core.security import is_sensitive_key
+
+    if is_sensitive_key(key):
+        old_value = REDACTED_MARKER if old_value else old_value
+        new_value = REDACTED_MARKER if new_value else new_value
     try:
         with _conn() as conn:
             conn.execute(
@@ -79,6 +89,10 @@ def revert_to(history_id: str) -> dict:
     entry = _row_to_dict(row)
     key = entry["key"]
     old_value = entry["old_value"]
+    from app.core.security import is_sensitive_key
+
+    if is_sensitive_key(key):
+        raise PermissionError(f"{key!r} is a secret — its history is redacted and can't be reverted. Set it again instead.")
 
     from app.core.config import settings as config_settings
 

@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.10.0] — 2026-10-30
+
+Version numbers jump to continue the in-app "What's new" sequence (0.8, 0.9);
+the 0.2.0 entry below was an internal development milestone.
+
+### Highlights
+- OLED Ember theme (default for new installs), boot splash with health checks, live "thinking" stream, status line, y/n/Esc keys, dithered empty state, trace sparklines.
+- Thinking models no longer stall replies (`thinking_mode`: auto/on/off); post-reply work moved off the critical path.
+- Chats never auto-route to Ollama Cloud models (`route_to_cloud_models`, off); hardware-aware model choice; specialised models kept out of the general pool.
+- Desktop: sqlite-vec now bundled (vector search worked only in dev before); pinned PyInstaller toolchain fixes the hung Windows build; macOS build added.
+
+
+### Security (hardening)
+- Backend binds to 127.0.0.1 by default; remote clients are refused until a passcode or shared secret exists; DNS-rebinding protection (Host allowlist).
+- `/api/config` no longer returns the email password, shared secret or passcode hash; settings history redacts secrets (existing rows scrubbed).
+- Passcode lock: per-install salt, 600k PBKDF2, unlock tokens are HMACs (not the hash), brute-force backoff.
+- Agent: optional Docker sandbox; semi-auto no longer auto-runs `git reset/clean/push`, `find -delete`, `env`, newline/`$VAR` tricks, or out-of-tree reads; model-initiated fetches can't reach loopback/LAN/metadata addresses.
+- Dependency upgrades clearing all pip-audit advisories (starlette 1.x, mcp 2.x, pypdf 6, Pillow 13, lxml 6, python-multipart).
+
+### Fixed
+- Vector search never ran with real embedding models (table fixed at 384 dims); memories were never embedded; `rag_embedding_model` was ignored. New RAG status + re-embed button.
+- Piper TTS wrote empty audio (piper-tts 1.4 API change).
+- Attaching 2+ documents kept only the last one and dropped web/transcript context.
+- "Web search returned nothing" note never fired; Deep Research step-limit reply was empty.
+- Memory eviction / folder rescans deadlocked for 10s and left deleted content retrievable.
+- Command-palette actions ran with stale state; router misreported semantic-match confidence; recovery skills never recorded for file-tool errors.
+
+### Added
+- Per-turn traces (routing, context, tool calls, timing) with a traces panel.
+- `python -m evals`: routing, RAG recall and agent task-success benchmarks.
+- Hardware-aware starter model setup (`python -m app.setup_models`, run by install scripts).
+- SearXNG compose profile + settings UI, with DuckDuckGo fallback.
+- Per-person profiles on a shared machine (`ZENITH_PROFILE`, `run.sh --profile`).
+- Playwright end-to-end suite; strict TypeScript for the API layer and hooks; tests 114 → 330+, coverage 35% → 55%.
+
+### Changed
+- SettingsPanel split into 18 section components; App.jsx header/palette extracted.
+- Remaining "Cortex" names → Zenith (`ZENITH_*` env vars; `CORTEX_*` still accepted).
+- README rewritten as a short overview; full reference moved to docs/FEATURES.md.
+
 ## [0.2.0] — 2026-07-08 — Full audit implementation
 
 ### Phase 0 — Safety net

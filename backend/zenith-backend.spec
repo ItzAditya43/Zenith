@@ -2,9 +2,9 @@
 # executable so the desktop app can ship it as a Tauri sidecar and end users
 # don't need Python installed.
 #
-#   pip install pyinstaller
-#   pyinstaller cortex-backend.spec
-#   -> dist/cortex-backend  (or dist/cortex-backend.exe on Windows)
+#   pip install -r requirements-freeze.txt   (pinned toolchain)
+#   pyinstaller zenith-backend.spec
+#   -> dist/zenith-backend  (or dist/zenith-backend.exe on Windows)
 #
 # NOTE: several backend deps ship native libraries and/or load code lazily,
 # which PyInstaller's static analysis can miss — they're listed explicitly in
@@ -23,17 +23,31 @@ hiddenimports = (
     ]
 )
 
+import glob
+import os
+import sys
+
+import sqlite_vec
+
+# sqlite-vec's loadable extension must sit inside the bundled `sqlite_vec`
+# package dir, where sqlite_vec.loadable_path() looks for it.
+# collect_dynamic_libs() put it at the bundle root, so frozen builds silently
+# lost vector search (rag.vec_unavailable: "vec0.so: cannot open shared
+# object file").
+_vec_dir = os.path.dirname(sqlite_vec.__file__)
+_vec_libs = [(f, "sqlite_vec") for f in glob.glob(os.path.join(_vec_dir, "vec0.*"))
+             if f.endswith((".so", ".dll", ".dylib"))]
+if not _vec_libs:
+    raise SystemExit(f"sqlite-vec loadable extension not found in {_vec_dir}")
+
 binaries = (
     collect_dynamic_libs("ctranslate2")
     + collect_dynamic_libs("onnxruntime")
     + collect_dynamic_libs("av")
-    + collect_dynamic_libs("sqlite_vec")
+    + _vec_libs
 )
 
-datas = (
-    collect_data_files("faster_whisper")
-    + collect_data_files("sqlite_vec")
-)
+datas = collect_data_files("faster_whisper")
 
 a = Analysis(
     ["run_frozen.py"],
@@ -43,13 +57,17 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "pytest"],
+    # python-magic needs a native libmagic that Windows/macOS don't ship (and
+    # on CI runners it found ImageMagick DLLs instead, crashing the build).
+    # attachments.py already falls back to extension-based MIME detection.
+    excludes=["tkinter", "matplotlib", "pytest"]
+    + (["magic"] if sys.platform in ("win32", "darwin") else []),
     noarchive=False,
 )
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, a.binaries, a.datas, [],
-    name="cortex-backend",
+    name="zenith-backend",
     console=True,
     disable_windowed_traceback=False,
     strip=False,

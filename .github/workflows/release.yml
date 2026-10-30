@@ -1,52 +1,63 @@
 name: Release
 
-# Builds and publishes signed desktop installers to a GitHub Release
-# whenever a version tag (v0.1.0, v0.2.0, ...) is pushed. This is what
-# the in-app "Check for Updates" (desktop/src-tauri/src/main.rs) reads
-# from — tauri-action generates the latest.json manifest the updater
-# plugin expects automatically.
+# Push a version tag (v0.10.0, ...) and this builds signed desktop installers
+# for Windows, Linux and macOS, attaches them to a GitHub Release and
+# publishes it, so it shows up under Releases and the in-app updater
+# (which reads releases/latest/download/latest.json) can find it.
 #
-# Requires two repo secrets before this will actually sign anything
-# (see DESKTOP.md "Auto-update" section for how they were generated):
-#   TAURI_SIGNING_PRIVATE_KEY           - the private half of the update
-#                                          signing keypair
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  - its password (blank string is
-#                                          fine if generated without one)
-# Without those secrets set, this workflow still builds installers but
-# tauri-action will skip signing and updates won't verify.
+# Signing uses two repo secrets (see DESKTOP.md "Auto-update"):
+#   TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+# macOS builds are not notarized (no Apple Developer ID yet): first launch
+# needs right-click → Open.
 
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build, e.g. v0.10.0"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
-  release:
+  build:
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: windows-latest
-          - platform: ubuntu-latest
+          - platform: ubuntu-22.04
+          - platform: macos-latest
     runs-on: ${{ matrix.platform }}
+    # The freeze once hung for 6 hours on Windows; fail fast instead.
+    timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
 
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux system deps
-        if: matrix.platform == 'ubuntu-latest'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libmagic1
 
       - name: Build frontend
         working-directory: frontend
@@ -54,52 +65,87 @@ jobs:
           npm ci
           npm run build
 
-      - name: Freeze backend with PyInstaller
-        working-directory: backend
+      # actions/setup-python's macOS build lacks SQLite extension loading
+      # (sqlite3.Connection.enable_load_extension), so the frozen app could
+      # never load sqlite-vec. Homebrew's Python is built with it.
+      - name: Use Homebrew Python for the macOS freeze
+        if: runner.os == 'macOS'
         run: |
+          brew install python@3.11
+          "$(brew --prefix python@3.11)/bin/python3.11" -m venv "$RUNNER_TEMP/freeze-venv"
+          echo "$RUNNER_TEMP/freeze-venv/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned freeze toolchain
+        working-directory: backend
+        shell: bash
+        run: |
+          python -c "import sqlite3; sqlite3.connect(':memory:').enable_load_extension(True)" \
+            || { echo "this Python can't load SQLite extensions — sqlite-vec would be missing"; exit 1; }
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install -r requirements-freeze.txt
 
-      - name: Freeze backend (Windows)
-        if: matrix.platform == 'windows-latest'
-        working-directory: backend
-        run: pyinstaller cortex-backend.spec --noconfirm
+      - name: Freeze backend with PyInstaller
+        shell: bash
+        timeout-minutes: 50
+        run: backend/scripts/freeze.sh
 
-      - name: Freeze backend (Linux)
-        if: matrix.platform == 'ubuntu-latest'
-        working-directory: backend
-        run: pyinstaller cortex-backend.spec --noconfirm
+      - name: Smoke-test the frozen backend
+        timeout-minutes: 5
+        run: python backend/scripts/smoke_frozen.py
 
-      - name: Place backend sidecar (Windows)
-        if: matrix.platform == 'windows-latest'
-        run: |
-          $triple = (rustc -vV | Select-String "^host:").ToString().Split(" ")[1]
-          New-Item -ItemType Directory -Force -Path desktop/src-tauri/binaries | Out-Null
-          Copy-Item backend/dist/cortex-backend.exe "desktop/src-tauri/binaries/cortex-backend-$triple.exe"
-
-      - name: Place backend sidecar (Linux)
-        if: matrix.platform == 'ubuntu-latest'
+      - name: Place backend sidecar
+        shell: bash
         run: |
           triple=$(rustc -vV | grep '^host:' | cut -d' ' -f2)
           mkdir -p desktop/src-tauri/binaries
-          cp backend/dist/cortex-backend "desktop/src-tauri/binaries/cortex-backend-$triple"
+          if [ -f backend/dist/zenith-backend.exe ]; then
+            cp backend/dist/zenith-backend.exe "desktop/src-tauri/binaries/zenith-backend-$triple.exe"
+          else
+            cp backend/dist/zenith-backend "desktop/src-tauri/binaries/zenith-backend-$triple"
+          fi
 
-      - name: Place backend sidecar (macOS)
-        if: matrix.platform == 'macos-latest'
-        run: |
-          triple=$(rustc -vV | grep '^host:' | cut -d' ' -f2)
-          mkdir -p desktop/src-tauri/binaries
-          cp backend/dist/cortex-backend "desktop/src-tauri/binaries/cortex-backend-$triple"
-
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: desktop
-          tagName: ${{ github.ref_name }}
-          releaseName: "Zenith ${{ github.ref_name }}"
-          releaseBody: "See CHANGELOG.md for what's new."
+          tagName: ${{ env.TAG }}
+          releaseName: "Zenith ${{ env.TAG }}"
+          releaseBody: |
+            ## Install
+
+            | Platform | Download |
+            |---|---|
+            | **Windows** | `Zenith_*_x64-setup.exe` (or the `.msi`) |
+            | **Linux** | `.AppImage` (any distro: `chmod +x` and run) or `.deb` (Debian/Ubuntu) |
+            | **macOS** (Apple silicon) | `.dmg` — not notarized yet: right-click → Open the first time |
+
+            Zenith needs [Ollama](https://ollama.com) running on the same machine. On first launch it checks
+            your hardware and suggests models that fit.
+
+            What's new: see [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ env.TAG }}/CHANGELOG.md).
+          # Built as a draft so a half-finished matrix never shows up as
+          # "latest"; the publish job below flips it once assets exist.
           releaseDraft: true
           prerelease: false
+
+  publish:
+    needs: build
+    # Publish whatever platforms succeeded; a single flaky runner shouldn't
+    # block the others. Skipped only if the run was cancelled.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          assets=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets | length' || echo 0)
+          echo "assets: $assets"
+          if [ "$assets" -gt 0 ]; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          else
+            echo "No installers were built — leaving the release as a draft."; exit 1
+          fi

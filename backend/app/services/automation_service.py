@@ -57,7 +57,7 @@ async def _run_prompt_action(rule: dict, data: dict) -> None:
 
     if cfg.get("mode") == "research":
         from app.services import research_service
-        async for ev in research_service.run_deep_research(conversation_id, prompt, []):
+        async for _ev in research_service.run_deep_research(conversation_id, prompt, []):
             pass  # persists its own messages; nothing else to do with the events here
         return
 
@@ -74,6 +74,7 @@ async def _run_prompt_action(rule: dict, data: dict) -> None:
 
 async def _run_webhook_action(rule: dict, data: dict) -> None:
     import time
+
     import httpx
 
     cfg = rule.get("action_config") or {}

@@ -143,6 +143,9 @@ function ModelPicker({ models, value, onChange }) {
                 }}
               >
                 <span className="mode-picker-option-label">{m}</span>
+                {/(^|-)cloud$/.test(m.split(":")[1] || "") && (
+                  <span className="mode-picker-option-hint">Ollama Cloud — leaves this machine</span>
+                )}
               </button>
             </li>
           ))}
@@ -170,6 +173,9 @@ export default function Composer({
   messages = [],
   contextWindow = 8192,
   maxContextMessages = 24,
+  statusModel = null,
+  tokPerSec = null,
+  runFlags = { agentMode: "manual", sandbox: false },
 }) {
   const [text, setText] = useState("");
   const [modelOverride, setModelOverride] = useState("");
@@ -186,6 +192,7 @@ export default function Composer({
       setCompareA(installedModels[0]);
       setCompareB(installedModels[1]);
     }
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- seed the pickers only when entering compare mode, not on every pick
   }, [mode, installedModels]);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
@@ -238,6 +245,7 @@ export default function Composer({
     if (autoListenNonce == null || !continuousVoice) return;
     setMicError(null);
     start().catch(() => {});
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- fire only when App hands the mic back (nonce bump), not when start/continuousVoice identities change
   }, [autoListenNonce]);
 
   const handleFiles = async (files) => {
@@ -517,10 +525,26 @@ export default function Composer({
         </button>
       </div>
       )}
-      {!recording && !transcribing && contextUsage.pct >= 40 && (
-        <div className="composer-context-bar" title={`~${contextUsage.tokens.toLocaleString()} tokens of an estimated ${contextUsage.limit.toLocaleString()}-token context window (rough estimate — actual tokenization varies by model)`}>
-          <div className="composer-context-fill" style={{ width: `${Math.min(contextUsage.pct, 100)}%` }} data-level={contextUsage.pct >= 90 ? "high" : contextUsage.pct >= 70 ? "medium" : "low"} />
-          <span>{contextUsage.pct}% of context window</span>
+      {!recording && !transcribing && (
+        <div className="composer-status-line" aria-label="Session status">
+          {statusModel && (
+            <span><span className="composer-status-mark" aria-hidden="true">◆</span> {statusModel}</span>
+          )}
+          {mode === "agent" && (
+            <span>
+              {runFlags.agentMode === "semi" ? "semi-auto" : runFlags.agentMode === "plan" ? "plan-first" : runFlags.agentMode}
+              {runFlags.sandbox ? " · sandbox ◉" : " · no sandbox"}
+            </span>
+          )}
+          <span
+            className="composer-status-ctx"
+            data-level={contextUsage.pct >= 90 ? "high" : contextUsage.pct >= 70 ? "medium" : "low"}
+            title={`~${contextUsage.tokens.toLocaleString()} tokens of an estimated ${contextUsage.limit.toLocaleString()}-token context window (rough estimate — actual tokenization varies by model)`}
+          >
+            ctx <span aria-hidden="true">{"▰".repeat(Math.min(10, Math.round(contextUsage.pct / 10)))}{"▱".repeat(10 - Math.min(10, Math.round(contextUsage.pct / 10)))}</span> {contextUsage.pct}%
+          </span>
+          {isStreaming && tokPerSec > 0 && <span className="composer-status-speed">⌁ {tokPerSec.toFixed(0)} tok/s</span>}
+          <span className="composer-status-keys">{isStreaming ? "esc stop" : "↵ send · ⇧↵ newline"}</span>
         </div>
       )}
     </div>

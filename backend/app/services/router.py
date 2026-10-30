@@ -21,7 +21,6 @@ classifier over installed models, refreshed periodically from `ollama list`.
 """
 from __future__ import annotations
 
-import asyncio
 import re
 import time
 from dataclasses import dataclass, field
@@ -44,7 +43,12 @@ _CODE_HINTS = re.compile(
     r"implement a (?:sort|search|tree|graph|hash|queue|stack|linked[- ]list|binary)|"
     r"code (?:a|an|the|this|that)|"
     r"in (?:python|javascript|typescript|rust|go|java|c\+\+|c#|ruby|kotlin|swift)|"
-    r"algorithm)\b",
+    r"algorithm|"
+    # Languages/tools named on their own ("why does my Rust borrow checker
+    # ...") and SQL/shell — gaps found by `python -m evals routing`.
+    r"rust|golang|java|kotlin|c\+\+|c#|ruby|php|sql|bash|zsh|powershell|shell script|"
+    r"borrow checker|dockerfile|makefile|unit tests?|compiler|"
+    r"select (?:\*|\w+(?:\s*,\s*\w+)+|distinct \w+) from|react component)\b",
     re.IGNORECASE,
 )
 _REASONING_HINTS = re.compile(
@@ -68,8 +72,82 @@ class RouteDecision:
     matched_signal: str = ""  # what drove the pick (regex / keyword / sticky / context)
 
 
+def is_cloud_model(name: str) -> bool:
+    """Ollama Cloud models run on Ollama's servers, not this machine. Their
+    tags end in `cloud` (`gpt-oss:120b-cloud`, `glm-5.3:cloud`)."""
+    tag = name.lower().rsplit(":", 1)[-1] if ":" in name else ""
+    return tag == "cloud" or tag.endswith("-cloud")
+
+
+# name -> parameters in billions, as Ollama reports them (details.parameter_size),
+# for tags like `llama3:latest` whose name carries no size.
+_reported_params: dict[str, float] = {}
+
+
+def _parse_reported(size: object) -> float | None:
+    m = re.match(r"\s*([\d.]+)\s*([BMK])", str(size or ""), re.IGNORECASE)
+    if not m:
+        return None
+    scale = {"B": 1.0, "M": 1e-3, "K": 1e-6}[m.group(2).upper()]
+    return float(m.group(1)) * scale
+
+
+def _params_b(name: str) -> float | None:
+    from app.services.hardware_service import _parse_params_b
+
+    try:
+        parsed = _parse_params_b(name)
+    except Exception:
+        parsed = None
+    return parsed if parsed is not None else _reported_params.get(name)
+
+
+# Comfortable and tight both fit — among those, size decides.
+_FIT_RANK = {"comfortable": 0, "tight": 0, "unknown": 1, "will_struggle": 2}
+_budget_cache: list[float | None] = []
+
+
+def _memory_budget_gb() -> float | None:
+    """VRAM if there's a GPU, else RAM — the same budget setup_models and
+    the Settings model cookbook use. Detected once per process."""
+    if not _budget_cache:
+        try:
+            from app.services.hardware_service import detect_hardware
+
+            hw = detect_hardware()
+            gpu = hw.get("gpu") or {}
+            _budget_cache.append(gpu.get("vram_gb") or hw.get("ram_gb"))
+        except Exception:
+            _budget_cache.append(None)
+    return _budget_cache[0]
+
+
+def _best_fit(names: list[str]) -> str:
+    """Among several models matching a role, prefer the most capable one
+    that fits this machine: best fit class first, then the most parameters.
+    Before this, the first match in `ollama list` order won, so general chat
+    could land on a 1B model with a 4B one installed. Stable for ties."""
+    from app.services.hardware_service import _fit
+
+    budget = _memory_budget_gb()
+
+    def key(item: tuple[int, str]) -> tuple[int, float, int]:
+        idx, name = item
+        p = _params_b(name)
+        return (_FIT_RANK[_fit(p, budget)], -(p or 0.0), idx)
+
+    return min(enumerate(names), key=key)[1]
+
+
 class ModelRegistry:
-    """Caches `ollama list` for a few seconds so every keystroke doesn't re-hit it."""
+    """Caches `ollama list` for a few seconds so every keystroke doesn't re-hit it.
+
+    `models()` returns LOCAL models only unless `route_to_cloud_models` is on:
+    every automatic pick in the app (routing, fallbacks, titles, memory,
+    digests, email) goes through here, and an installed cloud model used to
+    win the 'general' keyword match, silently sending chats off the machine.
+    A cloud model the user pins explicitly (role override or per-message
+    pick) still works — see ModelRouter._match_capability."""
 
     def __init__(self, client: OllamaClient | None = None, ttl: float = 15.0):
         self.client = client or OllamaClient()
@@ -77,17 +155,27 @@ class ModelRegistry:
         self._cache: list[str] = []
         self._fetched_at = 0.0
 
-    async def models(self, force: bool = False) -> list[str]:
+    async def all_models(self, force: bool = False) -> list[str]:
         if force or (time.time() - self._fetched_at) > self.ttl:
             try:
                 raw = await self.client.list_models()
                 self._cache = [m["name"] for m in raw]
+                for m in raw:
+                    reported = _parse_reported((m.get("details") or {}).get("parameter_size"))
+                    if reported is not None:
+                        _reported_params[m["name"]] = reported
                 self._fetched_at = time.time()
             except OllamaError:
                 # Keep serving the stale cache (or empty list) rather than crash;
                 # the caller surfaces a clear error if it ends up with nothing.
                 pass
         return self._cache
+
+    async def models(self, force: bool = False) -> list[str]:
+        names = await self.all_models(force)
+        if bool(settings.get("route_to_cloud_models", False)):
+            return names
+        return [n for n in names if not is_cloud_model(n)]
 
 
 # Above this confidence, the keyword/embedding match is considered strong
@@ -111,7 +199,7 @@ class ModelRouter:
 
     def _apply_learned_override(
         self, role: str, model: str, confidence: float, installed: list[str]
-    ) -> str | None:
+    ) -> str:
         """If past manual overrides show a strong, repeated pattern of the
         user redirecting `role` decisions to a specific installed model, and
         the current pick's confidence isn't already high, prefer the
@@ -138,14 +226,36 @@ class ModelRouter:
 
     def _match_capability(self, role: str, installed: list[str]) -> str | None:
         override = settings.get("model_overrides", {}).get(role)
-        if override and override in installed:
+        # An explicitly pinned cloud model is the user's choice, so honour it
+        # even though cloud models are filtered out of `installed`.
+        if override and (override in installed or is_cloud_model(override)):
             return override
 
         keywords = settings.get("capability_keywords", {}).get(role, [])
-        for name in installed:
-            lname = name.lower()
-            if any(kw in lname for kw in keywords):
-                return name
+        matches = [n for n in installed if any(kw in n.lower() for kw in keywords)]
+        # "qwen" (general) also matches qwen2.5-coder and qwen2.5vl: keep
+        # models claimed by a more specialised role out of this role's pool,
+        # unless that would leave nothing.
+        kw_map = settings.get("capability_keywords", {})
+        specialised = [kw for r in ("vision", "code", "reasoning", "embedding") if r != role
+                       for kw in kw_map.get(r, [])]
+        own = [n for n in matches if not any(kw in n.lower() for kw in specialised)]
+        if own:
+            matches = own
+        if matches:
+            if role in ("embedding", "small_fast") or len(matches) == 1:
+                return matches[0]
+            return _best_fit(matches)
+        if role == "small_fast":
+            # Name lists can't keep up with new releases; any local chat model
+            # of ~2B parameters or less is a sensible quick-reply model.
+            kw_map = settings.get("capability_keywords", {})
+            other_kws = [kw for r in ("embedding", "vision", "code", "reasoning") for kw in kw_map.get(r, [])]
+            small = [(p, n) for n in installed
+                     if (p := _params_b(n)) is not None and p <= 2.0
+                     and not any(kw in n.lower() for kw in other_kws)]
+            if small:
+                return max(small)[1]
         return None
 
     @staticmethod
@@ -206,11 +316,24 @@ class ModelRouter:
                     ranked = await er.rank(text, embed_model)
                     if ranked:
                         embedding_role, embedding_score = ranked[0]
+                        # A semantic pick must clearly beat the runner-up, or
+                        # near-ties ("summarise a novel" ~ code 0.60 vs
+                        # general 0.58) flip the route on noise.
+                        runner_up = ranked[1][1] if len(ranked) > 1 else 0.0
+                        margin = float(settings.get("router_semantic_margin", 0.05))
+                        if embedding_score - runner_up < margin:
+                            embedding_role, embedding_score = None, 0.0
             except Exception as exc:
                 log.debug("embedding.router_unavailable", error=str(exc))
 
         installed = await self.registry.models()
         if not installed:
+            if await self.registry.all_models():
+                raise OllamaError(
+                    "No local models installed — only Ollama Cloud models, which Zenith won't use "
+                    "automatically. Pull a local one (e.g. `ollama pull llama3.2:3b`), pin a cloud model "
+                    "in Settings → Model routing, or enable 'Use cloud models for automatic routing'."
+                )
             raise OllamaError(
                 "No models found on this Ollama instance. Run `ollama pull llama3.2` "
                 "(and `ollama pull llava` for images) then try again."
@@ -267,6 +390,7 @@ class ModelRouter:
         role = "general"
         reason = "General conversation."
         confidence = 0.9
+        signal = f"regex:{text_hint or 'general'}"
         if text_hint == "code":
             role, reason = "code", "Message looks code-related."
         elif text_hint == "reasoning":
@@ -287,7 +411,8 @@ class ModelRouter:
                 f"Semantic match: your message is closest to other '{role}' prompts "
                 f"(score {embedding_score:.2f})."
             )
-            confidence = float(embedding_score)
+            confidence = round(float(embedding_score), 3)
+            signal = f"embedding:{role}"
 
         # --- context-window-aware pick (Tier 2 #3) ---
         if has_long_document or context_chars:
@@ -319,7 +444,7 @@ class ModelRouter:
 
         model = self._match_capability(role, installed)
         if model:
-            match_confidence = 0.9
+            match_confidence = confidence
             learned = self._apply_learned_override(role, model, match_confidence, installed)
             if learned != model:
                 reason = (
@@ -333,7 +458,7 @@ class ModelRouter:
                 reason=reason,
                 confidence=match_confidence,
                 installed_models=installed,
-                matched_signal=f"regex:{role}",
+                matched_signal=signal,
             )
 
         # Requested bucket not installed — fall back to general, then to

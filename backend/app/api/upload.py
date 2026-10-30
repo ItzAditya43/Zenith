@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 
-from app.services import attachments as att_service
 from app.core.logging import get_logger
+from app.services import attachments as att_service
 
 log = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["upload"])
@@ -32,12 +31,12 @@ async def upload(file: UploadFile, conversation_id: str | None = Form(None)):
 
     try:
         att = att_service.save_upload(
-            file.filename, data, conversation_id=conversation_id
+            file.filename or "upload", data, conversation_id=conversation_id
         )
     except att_service.AttachmentError as exc:
         # 4xx: declared extension doesn't match sniffed content, etc.
         log.warning("upload_rejected", filename=file.filename, error=str(exc))
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Index documents into the RAG store in the background so "what's on
     # page 300" works via retrieval instead of head+tail truncation.
@@ -67,6 +66,7 @@ async def import_history(file: UploadFile):
     produced by GET /api/export/json, into this instance. Auto-detects
     which of the three it is from the JSON shape."""
     import json as _json
+
     from app.services import import_service
 
     data = await file.read()
@@ -75,7 +75,7 @@ async def import_history(file: UploadFile):
     try:
         parsed_json = _json.loads(data.decode("utf-8", errors="ignore"))
     except _json.JSONDecodeError:
-        raise HTTPException(400, "That file isn't valid JSON — upload the conversations.json from your export.")
+        raise HTTPException(400, "That file isn't valid JSON — upload the conversations.json from your export.") from None
 
     if import_service.is_zenith_backup(parsed_json):
         result = import_service.import_zenith_backup(parsed_json)
@@ -85,7 +85,7 @@ async def import_history(file: UploadFile):
     try:
         normalized = import_service.detect_and_parse(parsed_json)
     except ValueError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
     if not normalized:
         raise HTTPException(400, "No importable conversations found in that file.")
     result = import_service.import_conversations(normalized)

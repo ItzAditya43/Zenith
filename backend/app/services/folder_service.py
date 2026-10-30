@@ -128,14 +128,21 @@ def scan_folder(folder: dict) -> dict:
 
     # Files that were indexed before but no longer exist/match — drop
     # their chunks so deleted/renamed notes don't linger in recall.
+    # (RAG cleanup runs outside the write transaction: rag_service has its
+    # own connection, and interleaving them deadlocked on the write lock
+    # as soon as two or more files had gone stale.)
     with _conn() as conn:
-        stale = conn.execute(
-            "SELECT path FROM watched_files WHERE folder_id = ?", (folder["id"],)
-        ).fetchall()
-        for r in stale:
-            if r["path"] not in seen_paths:
-                rag_service.delete_folder_chunks(r["path"])
-                conn.execute("DELETE FROM watched_files WHERE path = ?", (r["path"],))
+        stale = [
+            r["path"] for r in conn.execute(
+                "SELECT path FROM watched_files WHERE folder_id = ?", (folder["id"],)
+            ).fetchall()
+            if r["path"] not in seen_paths
+        ]
+    for path in stale:
+        rag_service.delete_folder_chunks(path)
+    if stale:
+        with _conn() as conn:
+            conn.executemany("DELETE FROM watched_files WHERE path = ?", [(p,) for p in stale])
 
     with _conn() as conn:
         conn.execute(
@@ -148,6 +155,7 @@ def scan_folder(folder: dict) -> dict:
 
 async def scan_all_enabled() -> None:
     import asyncio
+
     from app.services import events
 
     for folder in list_watched_folders():

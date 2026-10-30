@@ -60,6 +60,12 @@ def _load_or_create_key() -> bytes:
     return key
 
 
+def machine_key() -> bytes:
+    """The raw local key, for callers that need a keyed MAC rather than
+    encryption (e.g. passcode unlock tokens in app/api/lock.py)."""
+    return _load_or_create_key()
+
+
 def encrypt(plaintext: str) -> str:
     if not plaintext:
         return plaintext

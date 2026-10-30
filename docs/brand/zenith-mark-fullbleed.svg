@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Zenith">
+  <!-- Square, no rounding: for platforms that apply their own mask (iOS apple-touch-icon, Android). -->
+  <rect width="1024" height="1024" fill="#000000"/>
+  <circle cx="512" cy="548" r="286" fill="none" stroke="#EDEDED" stroke-width="40"/>
+  <line x1="176" y1="652" x2="848" y2="652" stroke="#EDEDED" stroke-width="40" stroke-linecap="round"/>
+  <circle cx="512" cy="262" r="84" fill="#000000"/>
+  <circle cx="512" cy="262" r="56" fill="#E8875C"/>
+</svg>
