@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Icon from "./Icon.jsx";
 
 const PROFILES = [
@@ -77,15 +77,13 @@ export default function OnboardingTour({ onClose }) {
   // Read back a profile picked in a previous visit (e.g. replaying this
   // tour via the command palette) so it isn't dead data — pre-highlights
   // the earlier pick rather than making the user choose again from scratch.
-  const [previousProfileId, setPreviousProfileId] = useState(null);
-
-  useEffect(() => {
+  const [previousProfileId] = useState(() => {
     try {
-      setPreviousProfileId(localStorage.getItem("zenith-profile"));
+      return localStorage.getItem("zenith-profile");
     } catch {
-      // storage unavailable — fine, just no pre-highlight
+      return null; // storage unavailable — fine, just no pre-highlight
     }
-  }, []);
+  });
 
   function pickProfile(p) {
     setProfile(p);

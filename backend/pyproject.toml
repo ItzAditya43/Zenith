@@ -14,7 +14,7 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi==0.159.1",
     "starlette>=1.3.1,<2.0",
-    "uvicorn[standard]==0.34.0",
+    "uvicorn[standard]==0.52.4",
     "mcp==2.3.0",
     "httpx==0.28.1",
     "pydantic==2.13.4",
@@ -24,12 +24,12 @@ dependencies = [
     "fpdf2==2.8.8",
     "Pillow==13.0.0",
     "faster-whisper==1.1.1",
-    "piper-tts==1.4.2",
-    "pyttsx3==2.98",
+    "piper-tts==1.7.0",
+    "pyttsx3==2.99",
     "aiofiles==24.1.0",
     "cryptography>=42.0.0",
     "python-magic==0.4.27",
-    "beautifulsoup4==4.12.3",
+    "beautifulsoup4==4.15.0",
     "lxml==6.1.3",
     "youtube-transcript-api==1.2.4",
     "sqlite-vec>=0.1.6",
@@ -43,8 +43,8 @@ dependencies = [
 # (includes -r requirements.txt plus pytest, ruff, mypy, pip-audit, etc.);
 # this list is kept only for tools that resolve dev deps via pyproject.
 dev = [
-    "pytest==8.3.4",
-    "pytest-asyncio==0.25.0",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.1",
     "pytest-cov",
     "ruff",
     "mypy",
