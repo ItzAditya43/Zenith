@@ -8,11 +8,11 @@
     "shell:default",
     {
       "identifier": "shell:allow-execute",
-      "allow": [{ "name": "binaries/cortex-backend", "sidecar": true }]
+      "allow": [{ "name": "binaries/zenith-backend", "sidecar": true }]
     },
     {
       "identifier": "shell:allow-spawn",
-      "allow": [{ "name": "binaries/cortex-backend", "sidecar": true }]
+      "allow": [{ "name": "binaries/zenith-backend", "sidecar": true }]
     }
   ]
 }

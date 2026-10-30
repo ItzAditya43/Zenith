@@ -3727,3 +3727,200 @@ button.msg-source-chip-recall:hover {
   border-radius: 16px;
   margin-bottom: var(--space-3);
 }
+
+/* ===== Star spinner — "✻ Thinking… (12s · esc to stop)" ===== */
+@keyframes star-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.star-spinner {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+.star-spinner-glyph {
+  display: inline-block;
+  width: 1.1em;
+  text-align: center;
+  color: var(--signal-general);
+}
+.star-spinner[data-role="code"] .star-spinner-glyph { color: var(--signal-code); }
+.star-spinner[data-role="reasoning"] .star-spinner-glyph { color: var(--signal-reasoning); }
+.star-spinner[data-role="vision"] .star-spinner-glyph { color: var(--signal-vision); }
+.star-spinner-verb {
+  background: linear-gradient(90deg, var(--text-tertiary) 0%, var(--text-tertiary) 35%,
+    var(--text-primary) 50%, var(--text-tertiary) 65%, var(--text-tertiary) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: star-shimmer 2.2s linear infinite;
+}
+.star-spinner-meta { font-size: var(--text-xs); }
+.live-thinking .thinking-trace-toggle { gap: var(--space-2); }
+@media (prefers-reduced-motion: reduce) {
+  .star-spinner-verb { animation: none; color: var(--text-secondary); background: none; }
+}
+
+/* ===== Composer status line ===== */
+.composer-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-2) 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+.composer-status-mark { color: var(--signal-general); }
+.composer-status-ctx[data-level="medium"] { color: var(--signal-voice); }
+.composer-status-ctx[data-level="high"] { color: var(--signal-danger); }
+.composer-status-speed { color: var(--signal-code); }
+.composer-status-keys { margin-left: auto; }
+
+/* ===== Boot splash ===== */
+.boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--bg-void);
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  font-family: var(--font-mono);
+  padding: var(--space-4);
+}
+.boot-wordmark {
+  margin: 0;
+  color: var(--signal-general);
+  font-size: clamp(7px, 1.4vw, 15px);
+  line-height: 1.15;
+}
+.boot-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: min(440px, 100%);
+  font-size: var(--text-sm);
+}
+.boot-check { display: grid; grid-template-columns: 6ch 8ch 1fr; gap: var(--space-2); }
+.boot-ok .boot-mark { color: var(--signal-code); }
+.boot-warn .boot-mark { color: var(--signal-voice); }
+.boot-off .boot-mark, .boot-off { color: var(--text-tertiary); }
+.boot-label { color: var(--text-primary); }
+.boot-horizon { margin: 0; color: var(--signal-general); opacity: 0.6; font-size: var(--text-sm); }
+.boot-hint { font-size: var(--text-xs); color: var(--text-tertiary); }
+
+/* ===== Empty state: dithered horizon + starters ===== */
+.empty-state-horizon {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 1.2vw, 14px);
+  line-height: 1.05;
+  color: var(--signal-general);
+  opacity: 0.75;
+  white-space: pre;
+  overflow: hidden;
+  max-width: 100%;
+}
+.empty-state-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+.empty-state-suggestion {
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.empty-state-suggestion:hover,
+.empty-state-suggestion:focus-visible {
+  border-color: var(--signal-general);
+  color: var(--text-primary);
+}
+
+/* ===== Tool calls: status glyphs + keycaps (all themes) ===== */
+.tool-call-status-chip::before { font-family: var(--font-mono); margin-right: 0.4em; }
+.tool-call-status-running::before, .tool-call-status-approving::before { content: "◐"; }
+.tool-call-status-pending::before { content: "◆"; }
+.tool-call-status-done::before { content: "✓"; }
+.tool-call-status-denied::before { content: "⊘"; }
+.tool-call-status-reverted::before { content: "↺"; }
+.keycap {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 0.35em;
+  margin-left: 0.35em;
+  border: 1px solid currentColor;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  line-height: 1.35;
+  opacity: 0.7;
+}
+
+/* ===== OLED Ember: tool calls as a compact log, light only where you're needed ===== */
+[data-theme="oled-ember"] .tool-call-card {
+  background: transparent;
+  border: 1px solid var(--border-hairline);
+  box-shadow: none;
+}
+[data-theme="oled-ember"] .tool-call-header {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+[data-theme="oled-ember"] .tool-call-body { background: var(--bg-panel); }
+[data-theme="oled-ember"] .tool-call-pending {
+  border-color: rgba(232, 135, 92, 0.45);
+  box-shadow: var(--shadow-glow);
+}
+[data-theme="oled-ember"] .tool-call-approve-btn {
+  background: var(--signal-general);
+  color: var(--text-on-accent);
+  border-color: transparent;
+}
+[data-theme="oled-ember"] .msg-bubble-user {
+  background: var(--bg-panel-raised);
+}
+
+/* ===== Traces sparklines ===== */
+.traces-sparklines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+.traces-sparklines > div { display: grid; grid-template-columns: 11ch 1fr auto; gap: var(--space-3); align-items: center; }
+.traces-spark { font-size: var(--text-base); letter-spacing: 1px; white-space: pre; overflow: hidden; }
+.traces-spark-speed { color: var(--signal-code); }
+.traces-spark-ttft { color: var(--signal-general); }
+
+.awaiting-you {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--signal-general);
+}

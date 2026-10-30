@@ -4,12 +4,29 @@ Zenith runs one backend on one machine; other devices (a phone, a laptop, a
 tablet) reach that same backend over your network. This is **shared access to
 one instance**, not multi-master sync — see the note at the bottom.
 
+## Before you start: how exposure works
+
+By default Zenith only listens on `127.0.0.1`, so nothing else on your
+network can reach it. Opening it up takes three deliberate steps, and the
+backend enforces the last one:
+
+1. **Listen on the network.** Start the backend with `ZENITH_BIND=0.0.0.0`
+   (`run.sh` / `run.ps1` / `docker compose` all honour it; the desktop app
+   uses the same variable).
+2. **Allow the origin.** Settings → Connection → **Allow LAN/Tailscale
+   access** widens CORS to private-network and `*.ts.net` origins.
+3. **Set a passcode** (Settings → Data) or shared-secret auth. Until one
+   exists, every request that doesn't come from the host machine itself
+   gets `403 Remote access is blocked` — CORS only stops browsers, and
+   agent mode can run shell commands, so "anyone on the Wi-Fi" is never
+   allowed in ungated.
+
 ## Same Wi-Fi / LAN
 
 1. Find the host machine's LAN IP (e.g. `192.168.1.20`).
-2. In Zenith → Settings → Connection, turn on **Allow LAN/Tailscale access**
-   (this widens CORS to accept private-network and `*.ts.net` origins).
-3. On the other device, open `http://192.168.1.20:5173`.
+2. Do the three steps above.
+3. On the other device, open `http://192.168.1.20:5173` and enter the
+   passcode.
 
 The frontend auto-detects that it was loaded from `192.168.1.20` and talks to
 the backend at `192.168.1.20:8420` — no rebuild or config needed (it no longer
@@ -27,16 +44,45 @@ personal use, self-hostable via Headscale):
 
 `*.ts.net` origins are covered by the LAN/Tailscale CORS toggle above.
 
-## Secure it
+## Gates
 
-Opening the backend beyond `localhost` means other devices on that network can
-reach the API. Turn on **at least one** of:
+Remote devices need **at least one** of these (the backend refuses them
+otherwise):
 
-- **Passcode lock** (Settings → Data) — a login gate for the UI/API.
-- **Shared-secret auth** (`AUTH_ENABLED` + `AUTH_SHARED_SECRET` env) — a bearer
-  token required on every request, for a fixed deployment.
+- **Passcode lock** (Settings → Data) — a login gate for the UI/API. Wrong
+  guesses back off exponentially (5 free tries, then 30s doubling up to 15
+  minutes).
+- **Shared-secret auth** (`AUTH_ENABLED=true` + `AUTH_SHARED_SECRET=...` env,
+  or `auth_enabled` / `auth_shared_secret` in `config.json`) — a bearer token
+  required on every request. The UI asks for it once per device.
 
 Tailscale additionally keeps traffic on an encrypted, private tailnet.
+
+### Reverse proxies and custom hostnames
+
+Requests from the host machine must use `localhost`, a `*.localhost` name or
+a literal IP in the `Host` header — this blocks DNS-rebinding attacks, where a
+malicious web page points its own domain at `127.0.0.1`. If you front Zenith
+with a proxy on the same machine under a real hostname, add it to
+`ZENITH_ALLOWED_HOSTS` (comma-separated) or `allowed_hosts` in `config.json`.
+
+## Several people on one machine: profiles
+
+Each **profile** is a completely separate Zenith: its own database,
+settings, memories, uploads and passcode, under `data/profiles/<name>/`.
+One backend process serves one profile, so run one per person:
+
+```bash
+cd backend
+./run.sh --profile alice --port 8430
+./run.sh --profile sam   --port 8431
+```
+
+Then open `http://localhost:5173/?backendPort=8430` (Alice) or
+`?backendPort=8431` (Sam). Add a passcode to each profile if the people
+sharing the machine shouldn't read each other's chats. With Docker, set
+`ZENITH_PROFILE` per backend service. This is isolation between profiles,
+not accounts with permissions inside a single instance.
 
 ## What this is *not*: true multi-device sync
 

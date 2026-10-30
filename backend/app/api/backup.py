@@ -202,7 +202,7 @@ async def restore_backup(file: UploadFile, confirm: bool = Form(False)):
     try:
         zf = zipfile.ZipFile(io.BytesIO(raw))
     except zipfile.BadZipFile:
-        raise HTTPException(400, "Uploaded file is not a valid zip.")
+        raise HTTPException(400, "Uploaded file is not a valid zip.") from None
 
     with zf:
         _validate_backup_zip(zf)

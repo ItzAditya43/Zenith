@@ -62,5 +62,5 @@ async def sync_import(body: dict):
     try:
         counts = sync_service.apply_import_blob(passphrase, blob)
     except ValueError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
     return {"ok": True, "counts": counts}

@@ -1,0 +1,19 @@
+{
+  "documents": {
+    "handbook.txt": "Employees accrue 25 days of paid holiday per year. Unused holiday can be carried over up to 5 days into the next year. Sick leave is unlimited but requires a doctor's note after 3 consecutive days.",
+    "office.txt": "The Lisbon office is on the 4th floor of Rua Augusta 120. Visitors must sign in at reception. The office closes at 8pm on weekdays and is closed on weekends.",
+    "expenses.txt": "Meals while travelling are reimbursed up to 40 euros per day. Taxis are reimbursed only when public transport is unavailable. Submit receipts within 30 days of the trip.",
+    "security.txt": "Laptops must use full-disk encryption. Passwords must be at least 14 characters. Report lost devices to security@example.com within one hour.",
+    "onboarding.txt": "New starters receive their laptop on day one. The buddy programme pairs each new hire with a colleague for their first three months."
+  },
+  "questions": [
+    {"q": "How many holiday days can I carry over?", "doc": "handbook.txt", "answer_contains": "5"},
+    {"q": "Which floor is the Lisbon office on?", "doc": "office.txt", "answer_contains": "4th"},
+    {"q": "What is the daily meal allowance when travelling?", "doc": "expenses.txt", "answer_contains": "40"},
+    {"q": "How long must passwords be?", "doc": "security.txt", "answer_contains": "14"},
+    {"q": "Who do I tell if I lose my laptop?", "doc": "security.txt", "answer_contains": "security@example.com"},
+    {"q": "When do I need a doctor's note for being ill?", "doc": "handbook.txt", "answer_contains": "3"},
+    {"q": "How long does the buddy programme last?", "doc": "onboarding.txt", "answer_contains": "three months"},
+    {"q": "Can I expense a taxi?", "doc": "expenses.txt", "answer_contains": "public transport"}
+  ]
+}

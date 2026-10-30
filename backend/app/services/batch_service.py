@@ -16,8 +16,8 @@ predictable bound on one directory's contents.
 """
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import AsyncIterator
 
 from app.core.logging import get_logger
 from app.services.ollama_client import OllamaClient, OllamaError

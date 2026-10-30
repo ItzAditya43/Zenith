@@ -142,11 +142,11 @@ fn main() {
 
             let sidecar = app
                 .shell()
-                .sidecar("cortex-backend")
-                .expect("cortex-backend sidecar missing")
-                .env("CORTEX_DATA_DIR", data_dir)
-                .env("CORTEX_PORT", "8420")
-                .env("CORTEX_BIND", "127.0.0.1");
+                .sidecar("zenith-backend")
+                .expect("zenith-backend sidecar missing")
+                .env("ZENITH_DATA_DIR", data_dir)
+                .env("ZENITH_PORT", "8420")
+                .env("ZENITH_BIND", "127.0.0.1");
 
             let (_rx, child) = sidecar.spawn().expect("failed to start backend");
             app.state::<Backend>().0.lock().unwrap().replace(child);

@@ -29,5 +29,5 @@ async def generate(body: dict):
         # 400 for config/prompt problems, 502 for upstream server failures —
         # both carry a user-facing message.
         code = 400 if "configured" in str(exc) or "required" in str(exc) else 502
-        raise HTTPException(code, str(exc))
+        raise HTTPException(code, str(exc)) from exc
     return {"images": images}

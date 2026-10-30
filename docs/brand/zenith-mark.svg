@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Zenith">
+  <!-- Zenith — the highest point of the sky. A ring (the sky), a horizon
+       line, and one ember point breaking the ring at its very top.
+       True black, off-white #EDEDED, ember #E8875C (OLED Ember theme). -->
+  <rect width="1024" height="1024" rx="232" fill="#000000"/>
+  <rect x="5" y="5" width="1014" height="1014" rx="227" fill="none" stroke="#FFFFFF" stroke-opacity="0.09" stroke-width="10"/>
+  <circle cx="512" cy="548" r="286" fill="none" stroke="#EDEDED" stroke-width="40"/>
+  <line x1="176" y1="652" x2="848" y2="652" stroke="#EDEDED" stroke-width="40" stroke-linecap="round"/>
+  <circle cx="512" cy="262" r="84" fill="#000000"/>
+  <circle cx="512" cy="262" r="56" fill="#E8875C"/>
+</svg>

@@ -7,7 +7,6 @@ path is intact.
 """
 from __future__ import annotations
 
-import asyncio
 import sys
 from pathlib import Path
 
@@ -35,8 +34,8 @@ class FakeOllama:
 
 @pytest.mark.asyncio
 async def test_router_picks_installed_code_model(monkeypatch):
-    from app.services import router as router_mod
     from app.core import config as cfg
+    from app.services import router as router_mod
 
     cfg.settings.reload()
     # Make sure a code-role override resolves to a model the fake lists.
@@ -62,8 +61,8 @@ async def test_router_picks_installed_code_model(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_router_picks_vision_for_image(monkeypatch):
-    from app.services import router as router_mod
     from app.core import config as cfg
+    from app.services import router as router_mod
 
     cfg.settings.reload()
     cfg.settings.update(

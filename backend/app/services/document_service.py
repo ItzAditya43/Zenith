@@ -101,8 +101,8 @@ def _ocr_pdf(path: Path) -> str:
     if not shutil.which("tesseract") or not shutil.which("pdftoppm"):
         return ""
     import tempfile
-    with tempfile.TemporaryDirectory() as td:
-        td = Path(td)
+    with tempfile.TemporaryDirectory() as tmp:
+        td = Path(tmp)
         try:
             subprocess.run(
                 ["pdftoppm", "-r", "200", str(path), str(td / "page")],

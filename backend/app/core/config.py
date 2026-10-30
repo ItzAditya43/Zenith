@@ -12,13 +12,37 @@ from typing import Any
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
+def env(name: str, default: str | None = None) -> str | None:
+    """Read `ZENITH_<name>`, falling back to the pre-rename `CORTEX_<name>`
+    so existing deployments and desktop installs keep working."""
+    val = os.environ.get(f"ZENITH_{name}")
+    if val is None:
+        val = os.environ.get(f"CORTEX_{name}")
+    return default if val is None else val
+
+
 def _resolve_data_dir() -> Path:
     """Resolve the data directory at access time so monkeypatched
-    `CORTEX_DATA_DIR` env vars in tests take effect."""
-    env = os.environ.get("CORTEX_DATA_DIR")
-    if env:
-        return Path(env)
-    return BASE_DIR / "data"
+    `ZENITH_DATA_DIR` env vars in tests take effect."""
+    d = env("DATA_DIR")
+    base = Path(d) if d else BASE_DIR / "data"
+    # ZENITH_PROFILE=<name>: a fully separate install (database, config,
+    # uploads, passcode, memories) under <data>/profiles/<name>. One backend
+    # process serves one profile; run several on different ports to give
+    # each person on a shared machine their own Zenith (see MULTIDEVICE.md).
+    profile = profile_name()
+    return base / "profiles" / profile if profile else base
+
+
+def profile_name() -> str | None:
+    import re
+
+    raw = (os.environ.get("ZENITH_PROFILE") or "").strip()
+    if not raw:
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}", raw):
+        raise ValueError(f"Invalid ZENITH_PROFILE {raw!r}: use letters, digits, '-' or '_' (max 40).")
+    return raw
 
 
 def data_dir() -> Path:
@@ -52,9 +76,9 @@ DATA_DIR = data_dir()
 
 def refresh_paths() -> None:
     """Re-evaluate DB_PATH / DATA_DIR / etc. from the current
-    `CORTEX_DATA_DIR` env var. Useful for tests that set the env var
+    `ZENITH_DATA_DIR` env var. Useful for tests that set the env var
     after config.py was first imported. Call this from the test fixture
-    right after `monkeypatch.setenv('CORTEX_DATA_DIR', ...)`."""
+    right after `monkeypatch.setenv('ZENITH_DATA_DIR', ...)`."""
     global DB_PATH, CONFIG_PATH, UPLOAD_DIR, DATA_DIR
     DB_PATH = db_path()
     CONFIG_PATH = config_path()
@@ -89,7 +113,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # Fallback when the chosen model fails mid-stream (Tier 1 #5).
     # Resolved by capability role: a role name (e.g. "general") or an
     # exact model name. Default role-based fallback.
-    "fallback_model": os.environ.get("CORTEX_FALLBACK_MODEL", "general"),
+    "fallback_model": env("FALLBACK_MODEL", "general"),
     # --- STT / TTS ---
     "whisper_model_size": os.environ.get("WHISPER_MODEL_SIZE", "small"),
     "whisper_device": os.environ.get("WHISPER_DEVICE", "cpu"),
@@ -109,6 +133,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "default_context_window": 8192,
     "router_confidence_threshold": 0.55,
     "router_show_confidence": True,
+    # Semantic (embedding) routing must beat the runner-up role by this much.
+    "router_semantic_margin": 0.05,
+    # Ollama Cloud models run on Ollama's servers. Off: automatic routing and
+    # every background pick use local models only; a cloud model you pin
+    # yourself (role override / per-message pick) still works.
+    "route_to_cloud_models": False,
+    # Thinking models: "auto" = reason only on the reasoning route (fast
+    # answers elsewhere), "on" = always, "off" = never. See orchestrator.should_think.
+    "thinking_mode": "auto",
     # --- Auth (off by default — see Tier1 #8) ---
     "auth_enabled": False,
     "auth_shared_secret": "",
@@ -153,10 +186,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # on the same network. Off by default — it widens who can reach the API,
     # so pair it with the passcode lock or shared-secret auth. See MULTIDEVICE.md.
     "cors_allow_lan": False,
+    # Extra hostnames a *local* client may use in its Host header (DNS-
+    # rebinding protection — see app/core/security.py). localhost, *.localhost
+    # and literal IPs are always allowed; add e.g. a reverse-proxy name here.
+    "allowed_hosts": [],
     # --- Operational ---
     "log_level": "INFO",
     "request_timeout_seconds": 600,
     "prewarm_model_on_startup": False,
+    "trace_retention_days": 30,  # per-turn traces (trace_service) older than this are pruned
     # --- Agent tool use (bash/files/web) ---
     "agent_enabled": False,          # master switch — off until you opt in
     "agent_mode": "manual",          # "manual" | "semi" | "full"
@@ -168,6 +206,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "agent_check_command": "",       # e.g. "pytest -q" or "npm test" — run_checks default
     "agent_auto_check": False,       # auto-run the check command after each file edit
     "agent_check_timeout_seconds": 180,  # tests/lint can be slower than a plain command
+    # Optional container sandbox for bash/run_checks/shell_start — see
+    # app/services/sandbox.py. "off" runs as your OS user (the default).
+    "agent_sandbox": "off",          # "off" | "docker"
+    "agent_sandbox_image": "python:3.12-slim",
+    "agent_sandbox_network": "none",  # "none" | "bridge"
+    "agent_sandbox_memory": "2g",
+    "agent_sandbox_cpus": "2",
     # --- Scheduled/recurring turns ---
     "schedule_check_interval_seconds": 60,  # how often the scanner checks for due schedules
     # --- Folder watcher ---
@@ -187,6 +232,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "web_fetch_max_chars": 4000,
     "web_fetch_timeout_seconds": 8,
     "web_fetch_max_urls_per_turn": 3,
+    # Model-initiated fetches (agent fetch_url, Deep Research) are blocked
+    # from loopback/private/link-local addresses — see web_service.fetch_url.
+    # Turn on only if you want the agent to read your LAN / localhost services.
+    "agent_fetch_allow_private": False,
     # --- Personal assistant / memory ---
     "memory_enabled": True,          # extract + inject long-term user facts
     "memory_max_items": 200,
@@ -200,7 +249,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "rag_chunk_chars": 1200,
     "rag_chunk_overlap": 200,
     "rag_top_k": 5,
-    "rag_embedding_model": "",  # blank => use the auto-classified "embedding" role
+    "rag_embedding_model": "",
+    "embedding_timeout_seconds": 120,  # see OllamaClient.embeddings — model swaps on small GPUs are slow  # blank => use the auto-classified "embedding" role
     "rag_rerank_enabled": False,  # second-pass cross-encoder-style rerank via Ollama; off by default (extra latency)
     "show_cloud_model_suggestions": False,  # opt-in: surface Ollama Cloud (":cloud") model suggestions in Settings — these run on Ollama's servers, not this machine; off by default per "no hosted APIs" philosophy
     "rag_rerank_model": "",  # blank => reuse the router's installed general/chat model
@@ -258,7 +308,43 @@ def _decrypt_sensitive(data: dict[str, Any]) -> None:
         # crypto_service unavailable at very-early import time — degrade to plaintext
 
 
-def _load() -> dict[str, Any]:
+def _env_bool(raw: str) -> bool:
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Deploy-time overrides (docker-compose / systemd). Applied only when the
+# variable is set and non-empty, so an unset var never clobbers a value the
+# user chose in Settings. Env wins over config.json when present.
+_ENV_OVERRIDES: dict[str, tuple[tuple[str, ...], Any]] = {
+    "auth_enabled": (("ZENITH_AUTH_ENABLED", "AUTH_ENABLED"), _env_bool),
+    "auth_shared_secret": (("ZENITH_AUTH_SHARED_SECRET", "AUTH_SHARED_SECRET"), str),
+    "cors_allow_origins": (
+        ("ZENITH_CORS_ALLOW_ORIGINS", "CORS_ALLOW_ORIGINS"),
+        lambda raw: [o.strip() for o in raw.split(",") if o.strip()],
+    ),
+    "cors_allow_lan": (("ZENITH_CORS_ALLOW_LAN",), _env_bool),
+    "searxng_url": (("ZENITH_SEARXNG_URL",), str),
+    "web_search_backend": (("ZENITH_WEB_SEARCH_BACKEND",), str),
+}
+
+
+def _apply_env_overrides(data: dict[str, Any]) -> set[str]:
+    applied = set()
+    # Pointing at a SearXNG instance implies using it.
+    if os.environ.get("ZENITH_SEARXNG_URL", "").strip() and not os.environ.get("ZENITH_WEB_SEARCH_BACKEND"):
+        data["web_search_backend"] = "searxng"
+        applied.add("web_search_backend")
+    for key, (names, parse) in _ENV_OVERRIDES.items():
+        for name in names:
+            raw = os.environ.get(name, "")
+            if raw.strip():
+                data[key] = parse(raw)
+                applied.add(key)
+                break
+    return applied
+
+
+def _load_file() -> dict[str, Any]:
     cp = config_path()
     if cp.exists():
         try:
@@ -281,7 +367,9 @@ class Settings:
     """Thin mutable wrapper so the whole app can share live config state."""
 
     def __init__(self) -> None:
-        self._data = _load()
+        self._data: dict[str, Any] = {}
+        self._env_keys: set[str] = set()
+        self.reload()
 
     def get(self, key: str, default=None):
         return self._data.get(key, default)
@@ -304,6 +392,12 @@ class Settings:
 
     def save(self) -> None:
         to_write = dict(self._data)
+        if self._env_keys:
+            # Env-supplied values live only in memory; keep whatever the
+            # file had so unsetting the variable restores the user's choice.
+            on_disk = _load_file()
+            for key in self._env_keys:
+                to_write[key] = on_disk.get(key)
         try:
             from app.services.crypto_service import SENSITIVE_KEYS, encrypt
             for key in SENSITIVE_KEYS:
@@ -319,8 +413,9 @@ class Settings:
         """Re-read `config.json` from disk into memory.
 
         Useful after the file was edited out-of-band (Settings UI,
-        tests with monkeypatched CORTEX_DATA_DIR, etc.)."""
-        self._data = _load()
+        tests with monkeypatched ZENITH_DATA_DIR, etc.)."""
+        self._data = _load_file()
+        self._env_keys = _apply_env_overrides(self._data)
 
     def set(self, key: str, value: Any) -> None:
         """Convenience: set one key and persist. Lets tests / callers

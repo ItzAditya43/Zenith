@@ -18,14 +18,13 @@ Phase 3 additions:
 """
 from __future__ import annotations
 
-import os
 import re
 import tempfile
 import time
 import wave
+from collections.abc import Iterator
 from pathlib import Path
 from threading import RLock
-from typing import Iterator
 
 from app.core.config import settings
 
@@ -138,7 +137,13 @@ def _synthesize_piper(text: str, out_path: Path, onnx: Path, config: Path) -> Pa
 
     voice = PiperVoice.load(str(onnx), config_path=str(config))
     with wave.open(str(out_path), "wb") as wav_file:
-        voice.synthesize(text, wav_file)
+        # piper-tts >= 1.3 split the API: synthesize() now yields audio
+        # chunks (its 2nd arg is a SynthesisConfig), and writing a WAV moved
+        # to synthesize_wav(). Calling the old form silently wrote an empty file.
+        if hasattr(voice, "synthesize_wav"):
+            voice.synthesize_wav(text, wav_file)
+        else:  # piper-tts < 1.3
+            voice.synthesize(text, wav_file)  # type: ignore[arg-type]
     return out_path
 
 

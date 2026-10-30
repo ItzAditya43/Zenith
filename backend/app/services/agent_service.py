@@ -39,11 +39,13 @@ import json
 import re
 import time
 import uuid
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.storage import _conn
+from app.services import sandbox
 from app.services.ollama_client import OllamaClient, OllamaError
 from app.services.router import ModelRouter, RouteDecision
 
@@ -186,29 +188,95 @@ def _build_system_prompt(mcp_tools: list[dict]) -> str:
 _SAFE_BASH_CMDS = {
     "ls", "cat", "pwd", "echo", "grep", "find", "head", "tail", "wc",
     "git", "which", "whoami", "date", "df", "du", "ps", "uname", "file",
-    "stat", "tree", "env", "id", "hostname",
+    "stat", "tree", "id", "hostname",
 }
+# `env` used to be here — but `env <prog>` runs any program, and bare
+# `env` dumps every environment variable (API keys included).
 _UNSAFE_BASH_TOKENS = (">", ">>", "|", "&", ";", "`", "$(", "sudo", "rm ", "rm\t",
                        "mv ", "cp ", "chmod", "chown", "kill", "dd ", "mkfs",
-                       "wget", "curl", ":(){", "shutdown", "reboot", "eval")
+                       "wget", "curl", ":(){", "shutdown", "reboot", "eval",
+                       "\n", "\r")
+# Read-only git subcommands. Anything else (reset --hard, clean -fdx,
+# push --force, checkout, -c core.pager=...) pauses for approval.
+_SAFE_GIT_SUBCOMMANDS = {"status", "log", "diff", "show", "blame", "ls-files", "rev-parse", "describe", "shortlog"}
+# Per-command flags that turn a read-only command into a writer/executor.
+_UNSAFE_FLAGS = {
+    "find": ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"),
+    "git": ("--output", "--ext-diff", "--textconv", "--exec", "-o"),
+    "tree": ("-o",),
+    "date": ("-s", "--set"),
+}
+_NO_ARGS_ONLY = {"hostname"}  # `hostname foo` renames the machine
 
 
 class AgentError(RuntimeError):
     pass
 
 
-def _classify_bash_command(cmd: str) -> str:
+def _within(path: str, workdir: str | None) -> bool:
+    """True when `path` resolves inside the conversation's working
+    directory. No working directory bound -> nothing counts as inside."""
+    from pathlib import Path
+
+    if not workdir:
+        return False
+    root = Path(workdir).resolve()
+    p = Path(path).expanduser()
+    if not p.is_absolute():
+        p = root / p
+    try:
+        resolved = p.resolve()
+    except (OSError, RuntimeError):
+        return False
+    return resolved == root or root in resolved.parents
+
+
+def _classify_bash_command(cmd: str, workdir: str | None = None) -> str:
+    import shlex
+
     cmd = cmd.strip()
-    first = cmd.split(" ", 1)[0] if cmd else ""
-    if first in _SAFE_BASH_CMDS and not any(tok in cmd for tok in _UNSAFE_BASH_TOKENS):
-        return "safe"
-    return "risky"
+    if not cmd or any(tok in cmd for tok in _UNSAFE_BASH_TOKENS):
+        return "risky"
+    try:
+        parts = shlex.split(cmd)
+    except ValueError:
+        return "risky"
+    first = parts[0] if parts else ""
+    if first not in _SAFE_BASH_CMDS:
+        return "risky"
+    args = parts[1:]
+    if first in _NO_ARGS_ONLY and args:
+        return "risky"
+    if first == "git" and (not args or args[0] not in _SAFE_GIT_SUBCOMMANDS):
+        return "risky"
+    bad_flags = _UNSAFE_FLAGS.get(first, ())
+    if any(a == f or a.startswith(f + "=") or (f.startswith("--") and a.startswith(f)) for a in args for f in bad_flags):
+        return "risky"
+    # Reading outside the working directory (`cat ~/.ssh/id_rsa`) isn't
+    # "safe" just because the command is read-only — in semi mode that's an
+    # unattended read a prompt-injected page could ask for and then leak.
+    if "$" in cmd:
+        return "risky"  # variable expansion — can't know where it points
+    for a in args:
+        if a.startswith("-"):
+            continue
+        if a.startswith(("/", "~")) or ".." in a:
+            if not _within(a, workdir):
+                return "risky"
+    return "safe"
 
 
-def classify_risk(tool: str, args: dict[str, Any]) -> str:
+_PATH_READ_TOOLS = ("read_file", "list_dir")
+
+
+def classify_risk(tool: str, args: dict[str, Any], workdir: str | None = None) -> str:
     """Returns "safe" or "risky". Safe calls auto-run in "semi" mode;
     risky calls always pause for approval outside "full" mode."""
-    if tool in ("read_file", "list_dir", "web_search", "fetch_url", "shell_output", "shell_list", "shell_kill",
+    if tool in _PATH_READ_TOOLS:
+        # Safe only inside the bound working directory — see
+        # _classify_bash_command for why out-of-tree reads pause.
+        return "safe" if _within(str(args.get("path", ".")), workdir) else "risky"
+    if tool in ("web_search", "fetch_url", "shell_output", "shell_list", "shell_kill",
                 "browser_get_text", "browser_close", "note_add", "note_update", "todo_add", "todo_update"):
         # Notes/to-dos are low-stakes personal-list edits (trivially
         # reversible from the Notes/To-do panels), not filesystem/shell
@@ -221,11 +289,11 @@ def classify_risk(tool: str, args: dict[str, Any]) -> str:
         # file write, not treated as merely "reading a page."
         return "risky"
     if tool == "bash":
-        return _classify_bash_command(str(args.get("command", "")))
+        return _classify_bash_command(str(args.get("command", "")), workdir)
     if tool == "shell_start":
         # Starting a background process is at least as consequential as
         # running the same command with `bash` — same classification.
-        return _classify_bash_command(str(args.get("command", "")))
+        return _classify_bash_command(str(args.get("command", "")), workdir)
     if tool == "spawn_subagent":
         # Always risky: it's one approval that authorizes a whole
         # unattended sub-loop, not a single action — the sub-agent's own
@@ -262,7 +330,7 @@ async def _await_approval(call_id: str, timeout: float) -> bool:
     _pending[call_id] = fut
     try:
         return await asyncio.wait_for(fut, timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return False
     finally:
         _pending.pop(call_id, None)
@@ -311,7 +379,6 @@ def revert_tool_call(call_id: str) -> str:
     file to what `previous_content`/`had_previous_file` recorded before the
     edit ran — or deleting the file if the edit created it. Same one-step
     undo model as an editor's Cmd+Z, scoped to a single tool call."""
-    from pathlib import Path
     from app.db import storage
 
     with _conn() as conn:
@@ -330,7 +397,7 @@ def revert_tool_call(call_id: str) -> str:
     path = args.get("path")
     if not path:
         raise AgentError("No path recorded for this call.")
-    workdir = storage.get_conversation_workdir(call["conversation_id"])
+    workdir = effective_workdir(call["conversation_id"], storage.get_conversation_workdir(call["conversation_id"]))
     p = _resolve_path(path, workdir)
 
     try:
@@ -414,7 +481,7 @@ def _preview_diff(tool: str, args: dict, workdir: str | None) -> tuple[str | Non
     if tool == "edit_file":
         old_string = args.get("old_string")
         new_string = args.get("new_string", "")
-        if not had_previous_file or old_string is None or previous_content.count(old_string) != 1:
+        if not had_previous_file or old_string is None or previous_content is None or previous_content.count(old_string) != 1:
             return None, previous_content, had_previous_file
         new_content = previous_content.replace(old_string, new_string, 1)
     else:  # write_file
@@ -439,9 +506,19 @@ def _resolve_path(path: str, workdir: str | None):
     from pathlib import Path
 
     p = Path(path)
-    if p.is_absolute() or not workdir:
-        return p
-    return Path(workdir) / p
+    if not (p.is_absolute() or not workdir):
+        p = Path(workdir) / p
+    if workdir and sandbox.enabled():
+        return sandbox.confine(p, Path(workdir).resolve())
+    return p
+
+
+def effective_workdir(conversation_id: str | None, workdir: str | None) -> str | None:
+    """With the sandbox on, every conversation gets a workspace (its bound
+    directory, or a private scratch dir) and all tools are confined to it."""
+    if sandbox.enabled():
+        return str(sandbox.workspace(conversation_id, workdir))
+    return workdir
 
 
 async def _run_bash(args: dict, timeout: float, max_chars: int, workdir: str | None = None) -> str:
@@ -449,6 +526,21 @@ async def _run_bash(args: dict, timeout: float, max_chars: int, workdir: str | N
     cwd = args.get("cwd") or workdir or None
     if not command:
         return "Error: no command given."
+    if sandbox.enabled() and workdir:
+        from pathlib import Path
+
+        try:
+            code, out, err = await sandbox.run(command, Path(workdir), args.get("cwd"), timeout)
+        except sandbox.SandboxError as exc:
+            return f"Error: {exc}"
+        if code is None:
+            return f"Error: command timed out after {timeout}s."
+        parts = [f"exit_code: {code}"]
+        if out.strip():
+            parts.append(f"stdout:\n{out}")
+        if err.strip():
+            parts.append(f"stderr:\n{err}")
+        return "\n".join(parts)[:max_chars]
     try:
         proc = await asyncio.create_subprocess_shell(
             command, cwd=cwd,
@@ -456,7 +548,7 @@ async def _run_bash(args: dict, timeout: float, max_chars: int, workdir: str | N
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             await proc.wait()
             return f"Error: command timed out after {timeout}s."
@@ -475,7 +567,7 @@ async def _run_bash(args: dict, timeout: float, max_chars: int, workdir: str | N
 _COAUTHOR_RE = re.compile(r"(?im)^\s*co-authored-by:.*$")
 
 
-async def _git_exec(argv: list[str], cwd: str, timeout: float) -> tuple[int, str, str]:
+async def _git_exec(argv: list[str], cwd: str, timeout: float) -> tuple[int | None, str, str]:
     """argv-based (no shell) so a commit message can't be shell-injected."""
     proc = await asyncio.create_subprocess_exec(
         *argv, cwd=cwd,
@@ -483,7 +575,7 @@ async def _git_exec(argv: list[str], cwd: str, timeout: float) -> tuple[int, str
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         await proc.wait()
         return 124, "", f"git timed out after {timeout}s."
@@ -557,27 +649,38 @@ async def _run_checks(args: dict, workdir: str | None = None) -> str:
     cwd = workdir or None
     timeout = float(settings.get("agent_check_timeout_seconds", 180))
     max_chars = int(settings.get("agent_output_max_chars", 4000))
-    try:
-        proc = await asyncio.create_subprocess_shell(
-            command, cwd=cwd,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-        )
+    if sandbox.enabled() and workdir:
+        from pathlib import Path
+
         try:
-            out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
+            returncode, output, _ = await sandbox.run(command, Path(workdir), None, timeout, merge_stderr=True)
+        except sandbox.SandboxError as exc:
+            return f"Error running checks: {exc}"
+        if returncode is None:
             return f"Checks TIMED OUT after {timeout}s (command: {command})."
-    except Exception as exc:
-        return f"Error running checks: {exc}"
-    verdict = "PASSED" if proc.returncode == 0 else "FAILED"
-    output = out.decode(errors="ignore")
+    else:
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                command, cwd=cwd,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            )
+            try:
+                out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            except TimeoutError:
+                proc.kill()
+                await proc.wait()
+                return f"Checks TIMED OUT after {timeout}s (command: {command})."
+        except Exception as exc:
+            return f"Error running checks: {exc}"
+        returncode = proc.returncode
+        output = out.decode(errors="ignore")
+    verdict = "PASSED" if returncode == 0 else "FAILED"
     # For a passing run the tail is what matters (summary line); for a
     # failing one the model needs to see the failure, which tools also
     # print near the end — so keep the tail either way.
     if len(output) > max_chars:
         output = "…(truncated)…\n" + output[-max_chars:]
-    return f"Checks {verdict} (exit {proc.returncode}, command: {command}).\n{output}".rstrip()
+    return f"Checks {verdict} (exit {returncode}, command: {command}).\n{output}".rstrip()
 
 
 # --- Persistent shell sessions ---------------------------------------------
@@ -622,7 +725,7 @@ async def _pump_session_output(session: dict) -> None:
             # never let that block forever.
             try:
                 session["exit_code"] = await asyncio.wait_for(proc.wait(), timeout=5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 session["exit_code"] = proc.returncode  # best-effort; may stay None
 
 
@@ -634,13 +737,19 @@ async def _run_shell_start(args: dict, conversation_id: str, workdir: str | None
     if live >= _MAX_SESSIONS:
         return f"Error: {_MAX_SESSIONS} shell sessions are already running — kill one with shell_kill first."
     cwd = args.get("cwd") or workdir or None
+    container = None
     try:
-        proc = await asyncio.create_subprocess_shell(
-            command, cwd=cwd,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            stdin=asyncio.subprocess.PIPE,
-            start_new_session=True,  # own process group — see _run_shell_kill
-        )
+        if sandbox.enabled() and workdir:
+            from pathlib import Path
+
+            proc, container = await sandbox.start(command, Path(workdir), args.get("cwd"))
+        else:
+            proc = await asyncio.create_subprocess_shell(
+                command, cwd=cwd,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+                stdin=asyncio.subprocess.PIPE,
+                start_new_session=True,  # own process group — see _run_shell_kill
+            )
     except Exception as exc:
         return f"Error starting session: {exc}"
 
@@ -649,6 +758,7 @@ async def _run_shell_start(args: dict, conversation_id: str, workdir: str | None
         "id": session_id, "conversation_id": conversation_id, "command": command,
         "cwd": cwd, "proc": proc, "buffer": "", "last_sent": 0,
         "alive": True, "exit_code": None, "created_at": time.time(),
+        "container": container,
     }
     _shell_sessions[session_id] = session
     session["reader_task"] = asyncio.create_task(_pump_session_output(session))
@@ -720,6 +830,8 @@ async def _run_shell_kill(args: dict, conversation_id: str) -> str:
         pass  # already gone
     except Exception as exc:
         return f"Error killing session: {exc}"
+    if session.get("container"):
+        await sandbox.kill(session["container"])
     # Exit is settled by _pump_session_output's own (timeout-guarded) wait
     # once stdout hits EOF — don't wait() here too, since calling it from
     # two places at once caused a hang during development.
@@ -829,9 +941,9 @@ async def _run_fetch_url(args: dict, max_chars: int) -> str:
     url = args.get("url", "")
     if not url.strip():
         return "Error: no url given."
-    page = await web_service.fetch_url(url)
+    page = await web_service.fetch_url(url, allow_private=False)
     if not page:
-        return f"Could not fetch {url}."
+        return f"Could not fetch {url} (unreachable, or a local/private address — those are blocked for model-initiated fetches)."
     return f"[{page['title']}]\n{page['text']}"[:max_chars]
 
 
@@ -943,6 +1055,7 @@ async def _execute_tool(
     tool: str, args: dict, timeout: float, max_chars: int, workdir: str | None = None,
     conversation_id: str | None = None,
 ) -> str:
+    conversation_id = conversation_id or ""
     if tool == "bash":
         return await _run_bash(args, timeout, max_chars, workdir)
     if tool == "read_file":
@@ -1092,7 +1205,7 @@ async def _run_subagent(
             loop_messages.append({"role": "user", "content": f"Error: unknown tool '{tool}'. Choose one of: {allowed}."})
             continue
 
-        risk = classify_risk(tool, args)
+        risk = classify_risk(tool, args, workdir)
         diff, previous_content, had_previous_file = _preview_diff(tool, args, workdir)
         call_id = _log_call(conversation_id, tool, args, risk, diff, previous_content, had_previous_file)
         yield {"type": "tool_call", "id": call_id, "tool": tool, "args": args, "risk": risk,
@@ -1130,7 +1243,7 @@ async def run_agent_turn(
     error. Mirrors orchestrator.run_turn's shape but drives a multi-step
     loop instead of one retrieve-then-answer turn."""
     from app.db import storage
-    from app.services.orchestrator import build_turn_context, _build_system_context
+    from app.services.orchestrator import _build_system_context, build_turn_context
 
     conv = storage.get_conversation(conversation_id)
     # A project can pin autonomy to something other than the global default
@@ -1147,20 +1260,21 @@ async def run_agent_turn(
     ctx = await build_turn_context(attachment_ids)
     history = storage.get_messages(conversation_id)
     system_text, _sys_citations = await _build_system_context(conversation_id, user_text)
-    workdir = storage.get_conversation_workdir(conversation_id)
+    workdir = effective_workdir(conversation_id, storage.get_conversation_workdir(conversation_id))
 
     from app.services import mcp_service
     mcp_tools = await mcp_service.list_all_tools()
     mcp_by_name = {t["agent_tool_name"]: t for t in mcp_tools}
 
     router = ModelRouter()
+    decision: RouteDecision
     if model_override:
         decision = RouteDecision(
             model=model_override, role="general", reason="Manually selected for this message.",
             confidence=1.0,
         )
     else:
-        decision: RouteDecision = await router.decide(
+        decision = await router.decide(
             text=user_text, has_image=ctx.has_image, has_video=ctx.has_video,
             has_long_document=ctx.has_long_document, history_last_model=history_last_model,
         )
@@ -1181,6 +1295,12 @@ async def run_agent_turn(
         "Relative paths (in bash, read_file, write_file, edit_file, list_dir) resolve "
         "against this directory automatically — you don't need to give full paths."
         if workdir else ""
+    ) + (
+        "\n\nShell commands run in an isolated container: the working directory is "
+        f"mounted at {sandbox.CONTAINER_WORKSPACE}, nothing outside it exists, and "
+        + ("there is no network access." if settings.get("agent_sandbox_network", "none") == "none"
+           else "network access is available.")
+        if sandbox.enabled() else ""
     )
     trimmed_history = [
         {"role": m["role"], "content": m["content"]}
@@ -1287,7 +1407,7 @@ async def run_agent_turn(
             loop_messages.append({"role": "user", "content": f"Error: unknown tool '{tool}'. Choose one of: {allowed}."})
             continue
 
-        risk = classify_risk(tool, args)
+        risk = classify_risk(tool, args, workdir)
         diff, previous_content, had_previous_file = _preview_diff(tool, args, workdir)
         call_id = _log_call(conversation_id, tool, args, risk, diff, previous_content, had_previous_file, run_id=assistant_parent_id)
         tool_seq.append(tool)
@@ -1330,7 +1450,9 @@ async def run_agent_turn(
             result = await _execute_tool(tool, args, cmd_timeout, max_chars, workdir, conversation_id)
         _resolve_call(call_id, "executed", result)
         yield {"type": "tool_result", "id": call_id, "tool": tool, "result": result}
-        if isinstance(result, str) and result.startswith("Error:"):
+        # Tool errors are "Error: ..." or "Error reading file: ..." etc. —
+        # matching only "Error:" missed every file-tool failure.
+        if isinstance(result, str) and result.startswith("Error"):
             had_failure = True
             last_failure = f"{tool}: {result[:200]}"
 
@@ -1395,7 +1517,7 @@ async def run_agent_turn(
         if had_failure and not checkpointed:
             try:
                 correction_id = storage.record_skill_correction(
-                    conversation_id, last_failure, tool_seq, user_text
+                    conversation_id, last_failure or "", tool_seq, user_text
                 )
                 if correction_id and not new_skill:
                     new_skill = correction_id

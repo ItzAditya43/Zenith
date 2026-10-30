@@ -40,7 +40,7 @@ async def revert(call_id: str):
     try:
         message = agent_service.revert_tool_call(call_id)
     except agent_service.AgentError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
     return {"ok": True, "message": message}
 
 

@@ -3,6 +3,8 @@
 # Does not start any servers — see the printed "Next steps" at the end.
 set -euo pipefail
 cd "$(dirname "$0")"
+ASSUME_YES=""
+[ "${1:-}" = "--yes" ] && ASSUME_YES="--yes"
 
 info()  { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
 warn()  { printf '\033[1;33m!!\033[0m %s\n' "$1"; }
@@ -45,6 +47,10 @@ pip install -q --upgrade pip
 pip install -q -r requirements.txt
 info "Backend dependencies installed. Verifying the app imports cleanly..."
 python -c "import app.main" || fail "Backend failed to import — dependency install likely incomplete."
+if command -v ollama >/dev/null; then
+  info "Checking this machine's hardware and recommending models..."
+  python -m app.setup_models $ASSUME_YES || warn "Model setup didn't finish — re-run later: cd backend && .venv/bin/python -m app.setup_models"
+fi
 deactivate
 cd ..
 
@@ -59,8 +65,8 @@ info "Setup complete."
 cat <<'EOF'
 
 Next steps:
-  1. Make sure Ollama is running with at least one model pulled:
-       ollama pull llama3.2
+  1. Make sure Ollama is running (`ollama serve`). For hardware-matched
+     model suggestions any time:  cd backend && .venv/bin/python -m app.setup_models
 
   2. Start the backend (terminal 1):
        cd backend && ./run.sh

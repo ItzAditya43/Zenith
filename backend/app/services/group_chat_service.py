@@ -6,7 +6,7 @@ said this round — so they can react to each other, not just to the user.
 from __future__ import annotations
 
 import re
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from app.core.logging import get_logger
 from app.db import storage
@@ -24,8 +24,7 @@ async def run_group_turn(
     — one full response per persona, run sequentially, each with the
     whole conversation history plus this round's earlier replies appended
     so personas can address each other."""
-    personas = [persona_service.get_persona(pid) for pid in persona_ids]
-    personas = [p for p in personas if p]
+    personas = [p for p in (persona_service.get_persona(pid) for pid in persona_ids) if p]
     if not personas:
         yield {"type": "error", "message": "No valid personas set for this group chat."}
         return

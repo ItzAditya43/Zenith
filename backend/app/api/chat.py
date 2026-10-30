@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -22,8 +23,9 @@ from app.models.schemas import (
     PersonaCreate,
     PersonaUpdate,
 )
-from app.services.ollama_client import OllamaClient, OllamaError
-from app.services.orchestrator import build_turn_context, run_turn
+from app.services import trace_service
+from app.services.ollama_client import OllamaClient, OllamaError, ThinkingDelta
+from app.services.orchestrator import run_turn
 from app.services.router import ModelRouter
 from app.services.stream_registry import registry
 
@@ -325,6 +327,7 @@ async def chat(body: ChatRequest, request: Request):
     """
     if body.agent_mode_on and bool(settings.get("agent_enabled", False)):
         async def agent_guarded_gen():
+            trace_service.start(body.conversation_id, "agent", body.message)
             try:
                 async with conversation_lock(body.conversation_id):
                     async for ev in _agent_event_gen(body, request):
@@ -336,6 +339,7 @@ async def chat(body: ChatRequest, request: Request):
 
     if body.deep_research:
         async def research_guarded_gen():
+            trace_service.start(body.conversation_id, "research", body.message)
             try:
                 async with conversation_lock(body.conversation_id):
                     async for ev in _research_event_gen(body, request):
@@ -394,13 +398,14 @@ async def chat(body: ChatRequest, request: Request):
             web_search=body.web_search,
             parent_message_id=parent_message_id,
             parent_explicit=parent_explicit,
+            emit_thinking=True,
             regenerate_user_message_id=regenerate_user_message_id,
             model_override=body.model_override,
         )
     except OllamaError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     heartbeat = int(settings.get("sse_heartbeat_seconds", 15))
     max_idle = float(settings.get("stream_idle_timeout_seconds", 120))
@@ -416,6 +421,7 @@ async def chat(body: ChatRequest, request: Request):
         current_reason = decision.reason
         downgraded = False
         collected: list[str] = []
+        post_reply: tuple[str, str] | None = None
         turn_start = time.monotonic()
         first_token_ms: int | None = None
         try:
@@ -424,6 +430,11 @@ async def chat(body: ChatRequest, request: Request):
                     async for piece in _with_heartbeat(stream, heartbeat, max_idle):
                         if piece is None:
                             continue  # heartbeats aren't replayed — a resumer doesn't need them
+                        if isinstance(piece, ThinkingDelta):
+                            # Reasoning from a thinking model: streamed so the UI
+                            # can show it live, never persisted as the reply.
+                            await registry.publish(key, _sse({"type": "thinking", "text": str(piece)}))
+                            continue
                         if first_token_ms is None:
                             first_token_ms = int((time.monotonic() - turn_start) * 1000)
                         collected.append(piece)
@@ -475,39 +486,18 @@ async def chat(body: ChatRequest, request: Request):
                     parent_id=assistant_parent_id,
                 )
                 try:
-                    from app.services import rag_service
-                    await asyncio.to_thread(rag_service.index_message, key, "assistant", full_text)
-                except Exception as exc:
-                    log.warning("chat.rag_index_failed", error=str(exc))
-
-                try:
-                    from app.services import memory_service
-                    added = await memory_service.extract_from_text(body.message, key)
-                    if added:
-                        await registry.publish(key, _sse({
-                            "type": "memory_saved", "facts": [m["content"] for m in added],
-                        }))
-                except Exception as exc:
-                    log.debug("chat.memory_extract_failed", error=str(exc))
-
-                if not getattr(request.app.state, "_titled_for", None):
-                    request.app.state._titled_for = set()
-                if key not in request.app.state._titled_for:
-                    request.app.state._titled_for.add(key)
-                    try:
-                        from app.services.title_service import maybe_generate_title
-                        maybe_generate_title(key, full_text)
-                    except Exception as exc:
-                        log.debug("chat.title_gen_failed", error=str(exc))
-
-                try:
                     storage.record_usage_event(
                         current_model, current_role, len(collected),
                         int((time.monotonic() - turn_start) * 1000), first_token_ms,
                     )
                 except Exception as exc:
                     log.debug("chat.usage_record_failed", error=str(exc))
-
+                # Post-reply work (embedding the reply, memory extraction —
+                # an LLM call — and title generation) used to run here, BEFORE
+                # "done" and inside the conversation lock: the UI stayed
+                # "generating" for minutes on slow hardware and the next message
+                # queued behind it. Now it runs after the lock is released.
+                post_reply = (key, full_text)
                 await registry.publish(key, _sse({"type": "done"}))
         except TimeoutError as exc:
             await registry.publish(key, _sse({"type": "error", "message": str(exc)}))
@@ -517,8 +507,13 @@ async def chat(body: ChatRequest, request: Request):
         finally:
             await registry.finish(key)
             registry.cleanup_later(key)
+        if post_reply:
+            asyncio.create_task(_after_reply(request, body.message, *post_reply))
 
     async def event_gen():
+        # Bound before produce() is spawned, so that task (which publishes the
+        # tokens and the final done/error) inherits this trace.
+        trace_service.start(body.conversation_id, "chat", body.message)
         yield _sse({
             "type": "route", "model": decision.model, "role": decision.role,
             "reason": decision.reason, "confidence": decision.confidence,
@@ -768,7 +763,34 @@ async def _pick_fallback(request: Request, current_model: str) -> str | None:
     return None
 
 
+async def _after_reply(request: Request, user_text: str, key: str, full_text: str) -> None:
+    """Best-effort follow-ups to a finished plain-chat turn, run in the
+    background after the stream has ended and the lock is free."""
+    try:
+        from app.services import rag_service
+        await asyncio.to_thread(rag_service.index_message, key, "assistant", full_text)
+    except Exception as exc:
+        log.warning("chat.rag_index_failed", error=str(exc))
+    try:
+        from app.services import memory_service
+        added = await memory_service.extract_from_text(user_text, key)
+        if added:
+            log.info("chat.memories_saved", count=len(added))
+    except Exception as exc:
+        log.debug("chat.memory_extract_failed", error=str(exc))
+    if not getattr(request.app.state, "_titled_for", None):
+        request.app.state._titled_for = set()
+    if key not in request.app.state._titled_for:
+        request.app.state._titled_for.add(key)
+        try:
+            from app.services.title_service import maybe_generate_title
+            maybe_generate_title(key, full_text)
+        except Exception as exc:
+            log.debug("chat.title_gen_failed", error=str(exc))
+
+
 def _sse(payload: dict[str, Any]) -> str:
+    trace_service.observe(payload)
     return f"data: {json.dumps(payload)}\n\n"
 
 

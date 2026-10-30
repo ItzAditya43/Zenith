@@ -55,6 +55,46 @@ function SlowReplyHint() {
   );
 }
 
+const STAR_FRAMES = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
+
+/** "✻ Thinking… (12s · esc to stop)" — a cycling glyph and a light sweep
+ * across the verb while a reply hasn't started. Static under reduced motion. */
+export function StarSpinner({ verb = "Thinking", role }) {
+  const [tick, setTick] = useState(0);
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const id = setInterval(() => {
+      setTick((t) => t + 1);
+      setSecs(Math.floor((Date.now() - start) / 1000));
+    }, 120);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span className="star-spinner" data-role={role} role="status" aria-label={`${verb}…`}>
+      <span className="star-spinner-glyph" aria-hidden="true">{STAR_FRAMES[Math.floor(tick / 1.5) % STAR_FRAMES.length]}</span>
+      <span className="star-spinner-verb">{verb}…</span>
+      <span className="star-spinner-meta">({secs}s · esc to stop)</span>
+    </span>
+  );
+}
+
+/** Reasoning streamed from a thinking model (the `thinking` SSE event):
+ * live and expandable while it thinks, then "Thought for Ns". */
+function LiveThinking({ text, thoughtMs, active }) {
+  const [open, setOpen] = useState(false);
+  const label = active ? "Thinking" : `Thought for ${Math.max(1, Math.round((thoughtMs || 0) / 1000))}s`;
+  return (
+    <div className="thinking-trace live-thinking">
+      <button className="thinking-trace-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <Icon name={open ? "chevron-down" : "chevron-right"} size={12} />
+        {active ? <StarSpinner verb={label} /> : label}
+      </button>
+      {open && <pre className="thinking-trace-body">{text}</pre>}
+    </div>
+  );
+}
+
 function ThinkingTrace({ trace, thinking }) {
   const [open, setOpen] = useState(false);
   return (
@@ -213,11 +253,11 @@ function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
 
       {call.status === "pending" && (
         <div className="tool-call-actions">
-          <button className="tool-call-approve-btn" onClick={() => onApprove?.(call.id)}>
-            <Icon name="check" size={13} /> Approve
+          <button className="tool-call-approve-btn" onClick={() => onApprove?.(call.id)} aria-keyshortcuts="y">
+            <Icon name="check" size={13} /> Approve <kbd className="keycap" aria-hidden="true">y</kbd>
           </button>
-          <button className="tool-call-deny-btn" onClick={() => onDeny?.(call.id)}>
-            <Icon name="x" size={13} /> Deny
+          <button className="tool-call-deny-btn" onClick={() => onDeny?.(call.id)} aria-keyshortcuts="n">
+            <Icon name="x" size={13} /> Deny <kbd className="keycap" aria-hidden="true">n</kbd>
           </button>
         </div>
       )}
@@ -442,15 +482,20 @@ export default function MessageBubble({
           <div className="msg-content">
             {message.streaming && !message.content ? (
               <>
-                <span className="thinking-dots" data-role={message.route_role} aria-label="Thinking">
-                  <span />
-                  <span />
-                  <span />
-                </span>
-                <SlowReplyHint />
+                {(message.toolCalls || []).some((tc) => tc.status === "pending") || message.plan?.status === "pending" ? (
+                  <span className="awaiting-you" role="status">
+                    <span aria-hidden="true">◆</span> waiting for you — <kbd className="keycap">y</kbd> approve · <kbd className="keycap">n</kbd> deny
+                  </span>
+                ) : message.thinking ? (
+                  <LiveThinking text={message.thinking} active />
+                ) : (
+                  <StarSpinner role={message.route_role} />
+                )}
+                {!((message.toolCalls || []).some((tc) => tc.status === "pending") || message.plan?.status === "pending") && <SlowReplyHint />}
               </>
             ) : (
               <>
+                {message.thinking && <LiveThinking text={message.thinking} thoughtMs={message.thoughtMs} />}
                 {(() => {
                   const { trace, rest, thinking } = splitThinking(message.content);
                   return (

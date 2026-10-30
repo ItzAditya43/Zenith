@@ -3,8 +3,8 @@
 // assets. Network-first for navigations (so a running backend always wins),
 // cache-fallback so the shell still opens if the network blips. API calls are
 // never cached — they must always hit the live local backend.
-const CACHE = "cortex-shell-v1";
-const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
+const CACHE = "zenith-shell-v2"; // bump to refresh cached icons/shell on installed PWAs
+const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/favicon.svg"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

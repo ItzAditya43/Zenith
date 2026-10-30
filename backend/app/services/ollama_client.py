@@ -8,9 +8,8 @@ httpx client keeps this framework-agnostic and easy to read/debug.
 from __future__ import annotations
 
 import json
-import re
-import time
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 
@@ -28,6 +27,16 @@ class OllamaError(RuntimeError):
 # Populated lazily on first request. Resets on process restart, which is
 # fine — Ollama is local, the cache is hot within a single chat session.
 _CONTEXT_WINDOW_CACHE: dict[str, int] = {}
+
+# model -> Ollama-reported capabilities ("completion", "thinking", "vision",
+# "tools", ...), from /api/show. One lookup per model per process.
+_CAPABILITIES_CACHE: dict[str, frozenset[str]] = {}
+
+
+class ThinkingDelta(str):
+    """A chunk of a thinking model's reasoning (Ollama's `message.thinking`),
+    yielded by chat_stream(emit_thinking=True) alongside plain-str content
+    chunks so callers can tell them apart with isinstance()."""
 
 
 class OllamaClient:
@@ -81,6 +90,16 @@ class OllamaClient:
                 ) from exc
             return resp.json().get("models", [])
 
+    async def capabilities(self, model: str) -> frozenset[str]:
+        if model not in _CAPABILITIES_CACHE:
+            try:
+                caps = (await self.show_model(model)).get("capabilities") or []
+                _CAPABILITIES_CACHE[model] = frozenset(str(c) for c in caps)
+            except Exception as exc:  # unknown -> behave as before (no think flag)
+                log.debug("ollama.capabilities_unavailable", model=model, error=str(exc))
+                return frozenset()
+        return _CAPABILITIES_CACHE[model]
+
     async def chat_stream(
         self,
         model: str,
@@ -88,6 +107,8 @@ class OllamaClient:
         images_b64: list[str] | None = None,
         options: dict[str, Any] | None = None,
         format: str | dict[str, Any] | None = None,
+        think: bool | None = None,
+        emit_thinking: bool = False,
     ) -> AsyncIterator[str]:
         """
         Streams token chunks from `/api/chat`. If `images_b64` is provided it
@@ -115,6 +136,13 @@ class OllamaClient:
         }
         if format is not None:
             payload["format"] = format
+        # Thinking models (qwen3.x, deepseek-r1, ...) reason before answering
+        # — 762 tokens to say "OK." on qwen3.5:2b, with nothing streamed to
+        # the user meanwhile. Off unless the caller asks (think=True); only
+        # sent to models that report the capability, since think=True is a
+        # 400 on the rest.
+        if "thinking" in await self.capabilities(model):
+            payload["think"] = bool(think)
 
         # Per-stream timeout — we use a connect timeout of 10s and the
         # configured request timeout for the read side.
@@ -140,7 +168,10 @@ class OllamaClient:
                             continue
                         if chunk.get("done"):
                             break
-                        piece = chunk.get("message", {}).get("content", "")
+                        message = chunk.get("message", {})
+                        if emit_thinking and message.get("thinking"):
+                            yield ThinkingDelta(message["thinking"])
+                        piece = message.get("content", "")
                         if piece:
                             yield piece
             except httpx.ConnectError as exc:
@@ -186,7 +217,12 @@ class OllamaClient:
                 ) from exc
 
     async def embeddings(self, model: str, text: str) -> list[float]:
-        async with httpx.AsyncClient(timeout=30) as client:
+        # Generous read timeout: on a small GPU Ollama swaps the chat model
+        # out to load the embedding model, and an embedding queued behind a
+        # generation can wait well past 30s. The old fixed 30s silently left
+        # documents indexed without vectors.
+        timeout = httpx.Timeout(10.0, read=float(settings.get("embedding_timeout_seconds", 120)))
+        async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 resp = await client.post(
                     f"{self.host}/api/embeddings", json={"model": model, "prompt": text}
@@ -196,6 +232,15 @@ class OllamaClient:
             except httpx.ConnectError as exc:
                 raise OllamaError(
                     f"Can't reach Ollama at {self.host}. Is `ollama serve` running?"
+                ) from exc
+            except httpx.TimeoutException as exc:
+                raise OllamaError(
+                    f"Embedding with '{model}' timed out — Ollama may be busy swapping models "
+                    "(raise embedding_timeout_seconds on low-VRAM machines)."
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                raise OllamaError(
+                    f"Ollama returned {exc.response.status_code} embedding with '{model}'."
                 ) from exc
 
     # --- Model management (pull / create / delete / show) ------------------

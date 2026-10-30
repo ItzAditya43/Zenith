@@ -7,6 +7,6 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['src/**/*.test.js'],
+    include: ['src/**/*.test.{js,ts,jsx,tsx}'],
   },
 })

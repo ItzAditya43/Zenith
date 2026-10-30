@@ -2,7 +2,6 @@
 function (FTS5 or LIKE fallback) returns the right conversations."""
 from __future__ import annotations
 
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -17,8 +16,8 @@ if str(BACKEND_ROOT) not in sys.path:
 
 @pytest.fixture
 def temp_data_dir(monkeypatch):
-    d = tempfile.mkdtemp(prefix="cortex-search-")
-    monkeypatch.setenv("CORTEX_DATA_DIR", d)
+    d = tempfile.mkdtemp(prefix="zenith-search-")
+    monkeypatch.setenv("ZENITH_DATA_DIR", d)
     from app.core import config as cfg
 
     cfg.refresh_paths()

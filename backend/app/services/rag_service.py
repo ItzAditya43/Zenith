@@ -15,6 +15,7 @@ import re
 import sqlite3
 from typing import Any
 
+from app.core.aio import run_sync
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.services.ollama_client import OllamaClient, OllamaError
@@ -27,10 +28,11 @@ log = get_logger(__name__)
 # between the event loop and asyncio.to_thread workers; SQLite serializes
 # writes internally and we're single-user.
 _CONN: sqlite3.Connection | None = None
+_VEC_LOADED = False
 
 
 def _conn() -> sqlite3.Connection:
-    global _CONN
+    global _CONN, _VEC_LOADED
     if _CONN is None:
         from app.core.config import db_path
         conn = sqlite3.connect(str(db_path()), timeout=10, check_same_thread=False)
@@ -41,14 +43,16 @@ def _conn() -> sqlite3.Connection:
             conn.enable_load_extension(True)
             conn.load_extension(sqlite_vec.loadable_path())
             conn.enable_load_extension(False)
+            _VEC_LOADED = True
         except Exception as exc:
+            _VEC_LOADED = False
             log.info("rag.vec_unavailable", error=str(exc))
         _CONN = conn
     return _CONN
 
 
 def reset_conn() -> None:
-    """Close and drop the cached connection (tests switch CORTEX_DATA_DIR)."""
+    """Close and drop the cached connection (tests switch ZENITH_DATA_DIR)."""
     global _CONN
     if _CONN is not None:
         try:
@@ -59,28 +63,23 @@ def reset_conn() -> None:
 
 
 def _embed_sync(model: str, text: str) -> list[float] | None:
-    """Blocking embedding call, safe from both sync and async contexts.
-    Runs the coroutine in a private loop; when we're already inside a
-    running loop (asyncio.run would raise), callers must invoke the whole
-    RAG function via asyncio.to_thread — then this path is fine."""
-    import asyncio
+    """Blocking embedding call, safe from both sync and async contexts
+    (see app/core/aio.py — this used to return None whenever it was
+    reached from inside the event loop)."""
     try:
-        return asyncio.run(OllamaClient().embeddings(model, text))
-    except RuntimeError:
-        log.warning("rag.embed_called_from_event_loop")
-        return None
+        return run_sync(OllamaClient().embeddings(model, text))
     except Exception as exc:
-        log.debug("rag.embed_failed", error=str(exc))
+        log.warning("rag.embed_failed", model=model, error=str(exc) or type(exc).__name__)
         return None
 
 
 def _ensure_table() -> None:
-    """Create the chunks + vec_chunks virtual table if missing.
+    """Create the chunks table (and the small rag_meta table) if missing.
 
-    sqlite-vec is an optional dependency; if it's not installed we
-    silently fall back to a plain index on `chunks` and the caller
-    (retrieve) will use LIKE-based fallback retrieval. The app still
-    works without the extension — just without true vector search."""
+    The vector table is created lazily by _ensure_vec_table() once the
+    first embedding comes back — its width has to match the embedding
+    model's real dimension (384 / 768 / 1024 / ...), which isn't known
+    until then. sqlite-vec is optional; without it retrieval is lexical."""
     conn = _conn()
     cur = conn.cursor()
     cur.execute(
@@ -97,34 +96,92 @@ def _ensure_table() -> None:
         """
     )
     cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source_kind, source_id)")
-    try:
-        dim = _probe_dim()
-        if dim:
-            cur.execute(
-                f"CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0("
-                f"chunk_id INTEGER PRIMARY KEY, embedding float[{dim}])"
-            )
-    except Exception as exc:
-        log.info("rag.vec_unavailable", error=str(exc))
+    cur.execute("CREATE TABLE IF NOT EXISTS rag_meta (key TEXT PRIMARY KEY, value TEXT)")
     conn.commit()
 
 
-_DIM_CACHE: int | None = None
+def _meta_get(key: str) -> str | None:
+    row = _conn().execute("SELECT value FROM rag_meta WHERE key = ?", (key,)).fetchone()
+    return row[0] if row else None
 
 
-def _probe_dim() -> int | None:
-    """Try a tiny embedding call to discover the dimension, or read it
-    from a saved metadata table."""
-    global _DIM_CACHE
-    if _DIM_CACHE is not None:
-        return _DIM_CACHE
+def _meta_set(cur: sqlite3.Cursor, key: str, value: str) -> None:
+    cur.execute("INSERT INTO rag_meta (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
+
+
+def _vec_table_dim() -> int | None:
+    """Width of the existing vec_chunks table, read from its DDL (covers
+    databases created before rag_meta existed, which were always 384)."""
+    row = _conn().execute("SELECT sql FROM sqlite_master WHERE name = 'vec_chunks'").fetchone()
+    if not row or not row[0]:
+        return None
+    m = re.search(r"float\[(\d+)\]", row[0])
+    return int(m.group(1)) if m else None
+
+
+def _ensure_vec_table(dim: int, model: str) -> bool:
+    """Make sure vec_chunks exists with width `dim` for `model`. Switching
+    embedding model (or dimension) drops the old vectors — vectors from two
+    different models aren't comparable — and logs it; the chunks stay, so
+    lexical recall keeps working and reindex_missing_vectors() re-embeds."""
+    if not _VEC_LOADED:
+        return False
+    conn = _conn()
+    existing = _vec_table_dim()
+    stored_model = _meta_get("vec_model")
+    if existing == dim and stored_model in (model, None):
+        if stored_model is None:
+            cur = conn.cursor()
+            _meta_set(cur, "vec_model", model)
+            _meta_set(cur, "vec_dim", str(dim))
+            conn.commit()
+        return True
+    cur = conn.cursor()
+    if existing is not None:
+        log.warning("rag.vec_table_rebuilt", old_dim=existing, new_dim=dim,
+                    old_model=stored_model, new_model=model)
+        cur.execute("DROP TABLE vec_chunks")
+    cur.execute(f"CREATE VIRTUAL TABLE vec_chunks USING vec0(chunk_id INTEGER PRIMARY KEY, embedding float[{int(dim)}])")
+    _meta_set(cur, "vec_model", model)
+    _meta_set(cur, "vec_dim", str(dim))
+    conn.commit()
+    return True
+
+
+def _vectors_usable_for(model: str) -> bool:
+    return _VEC_LOADED and _vec_table_dim() is not None and _meta_get("vec_model") in (model, None)
+
+
+def _insert_vector(cur: sqlite3.Cursor, chunk_id: int, vec: list[float], model: str) -> bool:
+    if not vec or not _ensure_vec_table(len(vec), model):
+        return False
     try:
-        # We don't have a model name here; rely on config to provide a
-        # default dimension hint.
-        _DIM_CACHE = int(settings.get("rag_embedding_dim", 384))
-        return _DIM_CACHE
-    except Exception:
-        return 384
+        cur.execute("INSERT INTO vec_chunks (chunk_id, embedding) VALUES (?, ?)", (chunk_id, _vec_blob(vec)))
+        return True
+    except Exception as exc:
+        log.warning("rag.vec_insert_failed", error=str(exc))
+        return False
+
+
+def _delete_chunks(where: str, params: tuple) -> int:
+    """Delete chunks matching `where` *and* their vectors (the old
+    per-kind deletes left orphaned vec_chunks rows behind)."""
+    _ensure_table()
+    conn = _conn()
+    cur = conn.cursor()
+    ids = [r[0] for r in cur.execute(f"SELECT id FROM chunks WHERE {where}", params).fetchall()]
+    if not ids:
+        return 0
+    placeholders = ",".join("?" * len(ids))
+    if _vec_table_dim() is not None:
+        try:
+            cur.execute(f"DELETE FROM vec_chunks WHERE chunk_id IN ({placeholders})", ids)
+        except Exception as exc:
+            log.warning("rag.vec_delete_failed", error=str(exc))
+    cur.execute(f"DELETE FROM chunks WHERE id IN ({placeholders})", ids)
+    conn.commit()
+    return len(ids)
 
 
 def _chunk_text(text: str) -> list[str]:
@@ -167,9 +224,9 @@ def index_document(uuid: str, text: str, conversation_id: str | None = None,
         for chunk in chunks:
             vectors.append(_embed_sync(embed_model, chunk) or [])
 
-    cur = conn.cursor()
     # Wipe previous chunks for this source so re-uploads/re-scans stay consistent.
-    cur.execute("DELETE FROM chunks WHERE source_kind = ? AND source_id = ?", (source_kind, uuid))
+    _delete_chunks("source_kind = ? AND source_id = ?", (source_kind, uuid))
+    cur = conn.cursor()
     for i, chunk in enumerate(chunks):
         cur.execute(
             "INSERT INTO chunks (source_kind, source_id, conversation_id, chunk_index, text) "
@@ -177,14 +234,8 @@ def index_document(uuid: str, text: str, conversation_id: str | None = None,
             (source_kind, uuid, conversation_id, i, chunk),
         )
         cid = cur.lastrowid
-        if i < len(vectors) and vectors[i]:
-            try:
-                cur.execute(
-                    "INSERT INTO vec_chunks (chunk_id, embedding) VALUES (?, ?)",
-                    (cid, _vec_blob(vectors[i])),
-                )
-            except Exception as exc:
-                log.debug("rag.vec_insert_failed", error=str(exc))
+        if embed_model and cid is not None and i < len(vectors) and vectors[i]:
+            _insert_vector(cur, cid, vectors[i], embed_model)
     conn.commit()
     return len(chunks)
 
@@ -200,8 +251,7 @@ def index_folder_file(path: str, text: str, folder_id: str) -> int:
 def delete_folder_chunks(path: str) -> None:
     """Removes a file's chunks — called when a watched file disappears
     or its folder is removed, so stale content doesn't linger in recall."""
-    with _conn() as conn:
-        conn.execute("DELETE FROM chunks WHERE source_kind = 'folder' AND source_id = ?", (path,))
+    _delete_chunks("source_kind = 'folder' AND source_id = ?", (path,))
 
 
 def index_memory(memory_id: str, content: str) -> None:
@@ -213,13 +263,11 @@ def index_memory(memory_id: str, content: str) -> None:
 
 
 def delete_memory_chunks(memory_id: str) -> None:
-    with _conn() as conn:
-        conn.execute("DELETE FROM chunks WHERE source_kind = 'memory' AND source_id = ?", (memory_id,))
+    _delete_chunks("source_kind = 'memory' AND source_id = ?", (memory_id,))
 
 
 def clear_memory_chunks() -> None:
-    with _conn() as conn:
-        conn.execute("DELETE FROM chunks WHERE source_kind = 'memory'")
+    _delete_chunks("source_kind = 'memory'", ())
 
 
 def _vec_blob(vec: list[float]) -> bytes:
@@ -228,26 +276,32 @@ def _vec_blob(vec: list[float]) -> bytes:
     return struct.pack(f"{len(vec)}f", *vec)
 
 
-def _resolve_embed_model() -> str | None:
-    """Resolve the configured embedding model from the model registry, or
-    return the user-pinned one if any."""
-    override = settings.get("embedding_model_override")
-    if override:
-        return override
+def _installed_models() -> list[str]:
+    from app.services.router import ModelRegistry
+
     try:
-        from app.services.router import ModelRegistry
-        import asyncio
-        registry = ModelRegistry()
-        try:
-            installed = asyncio.run(registry.models())
-        except Exception:
-            installed = []
-        for name in installed:
-            lname = name.lower()
-            if "embed" in lname or "nomic-embed" in lname or "mxbai" in lname:
-                return name
-    except Exception:
-        pass
+        return run_sync(ModelRegistry().models())
+    except Exception as exc:
+        log.warning("rag.model_list_failed", error=str(exc))
+        return []
+
+
+def _resolve_embed_model() -> str | None:
+    """Embedding model, in priority order: the documented
+    `rag_embedding_model` setting, the router's `embedding` role override,
+    the pre-v0.1 `embedding_model_override` key, then the first installed
+    model whose name looks embedding-capable."""
+    for pinned in (
+        settings.get("rag_embedding_model"),
+        (settings.get("model_overrides") or {}).get("embedding"),
+        settings.get("embedding_model_override"),
+    ):
+        if pinned:
+            return str(pinned)
+    for name in _installed_models():
+        lname = name.lower()
+        if "embed" in lname or "nomic-embed" in lname or "mxbai" in lname:
+            return name
     return None
 
 
@@ -283,7 +337,7 @@ def retrieve(
     filters = _Filters(source_id, source_kind, exclude_conversation_id)
 
     embed_model = _resolve_embed_model()
-    if embed_model:
+    if embed_model and _vectors_usable_for(embed_model):
         qvec = _embed_sync(embed_model, query)
         if qvec:
             fan_out = min(top_k * 3, 50)
@@ -358,21 +412,11 @@ def _resolve_rerank_model() -> str | None:
     override = settings.get("rag_rerank_model")
     if override:
         return override
-    try:
-        from app.services.router import ModelRegistry
-        import asyncio
-        registry = ModelRegistry()
-        try:
-            installed = asyncio.run(registry.models())
-        except Exception:
-            installed = []
-        for name in installed:
-            lname = name.lower()
-            if "embed" in lname or "nomic-embed" in lname or "mxbai" in lname:
-                continue
-            return name
-    except Exception:
-        pass
+    for name in _installed_models():
+        lname = name.lower()
+        if "embed" in lname or "nomic-embed" in lname or "mxbai" in lname:
+            continue
+        return name
     return None
 
 
@@ -424,11 +468,8 @@ def _rerank_sync(query: str, candidates: list[dict]) -> list[dict] | None:
         )
 
     try:
-        reply = asyncio.run(_call())
-    except RuntimeError:
-        log.warning("rag.rerank_called_from_event_loop")
-        return None
-    except (asyncio.TimeoutError, OllamaError) as exc:
+        reply = run_sync(_call())
+    except (TimeoutError, OllamaError) as exc:
         log.warning("rag.rerank_call_failed", error=str(exc))
         return None
     except Exception as exc:
@@ -439,7 +480,7 @@ def _rerank_sync(query: str, candidates: list[dict]) -> list[dict] | None:
     if scores is None:
         log.warning("rag.rerank_unparseable_reply")
         return None
-    scored = sorted(zip(candidates, scores), key=lambda cs: cs[1], reverse=True)
+    scored = sorted(zip(candidates, scores, strict=False), key=lambda cs: cs[1], reverse=True)
     out = []
     for cand, score in scored:
         row = dict(cand)
@@ -607,27 +648,9 @@ def delete_source(source_id: str, source_kind: str | None = None) -> int:
     omit it only if the caller is certain source_id can't collide across
     kinds (in this codebase source_ids are UUIDs or absolute paths, so in
     practice they don't, but the API layer requires the param anyway)."""
-    _ensure_table()
-    conn = _conn()
-    cur = conn.cursor()
     if source_kind:
-        cur.execute(
-            "SELECT id FROM chunks WHERE source_kind = ? AND source_id = ?",
-            (source_kind, source_id),
-        )
-    else:
-        cur.execute("SELECT id FROM chunks WHERE source_id = ?", (source_id,))
-    ids = [r[0] for r in cur.fetchall()]
-    if not ids:
-        return 0
-    placeholders = ",".join("?" * len(ids))
-    try:
-        cur.execute(f"DELETE FROM vec_chunks WHERE chunk_id IN ({placeholders})", ids)
-    except Exception as exc:
-        log.debug("rag.delete_source_vec_cleanup_failed", error=str(exc))
-    cur.execute(f"DELETE FROM chunks WHERE id IN ({placeholders})", ids)
-    conn.commit()
-    return len(ids)
+        return _delete_chunks("source_kind = ? AND source_id = ?", (source_kind, source_id))
+    return _delete_chunks("source_id = ?", (source_id,))
 
 
 def index_message(conversation_id: str, role: str, text: str) -> None:
@@ -641,10 +664,74 @@ def index_message(conversation_id: str, role: str, text: str) -> None:
     cur = conn.cursor()
     # Use one chunk per message; the value of cross-conversation retrieval
     # is in the *existence* of the message, not in its chunking.
+    chunk_text = f"[{role}] {text}"
     cur.execute(
         "INSERT INTO chunks (source_kind, source_id, conversation_id, chunk_index, text) "
         "VALUES (?, ?, ?, ?, ?)",
         ("message", f"{conversation_id}:{int(hashlib.sha1(text.encode()).hexdigest()[:8], 16)}",
-         conversation_id, 0, f"[{role}] {text}"),
+         conversation_id, 0, chunk_text),
     )
+    cid = cur.lastrowid
+    embed_model = _resolve_embed_model()
+    if embed_model and cid is not None:
+        vec = _embed_sync(embed_model, chunk_text[: int(settings.get("rag_chunk_chars", 1200))])
+        if vec:
+            _insert_vector(cur, cid, vec, embed_model)
     conn.commit()
+
+
+def _chunks_missing_vectors(limit: int | None = None) -> list[tuple[int, str]]:
+    sql = "SELECT id, text FROM chunks"
+    if _vec_table_dim() is not None:
+        sql += " WHERE id NOT IN (SELECT chunk_id FROM vec_chunks)"
+    sql += " ORDER BY id DESC"
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+    return _conn().execute(sql).fetchall()
+
+
+def status() -> dict[str, Any]:
+    """What RAG is actually doing — surfaced in the RAG source manager and
+    /api/health so "hybrid search" can't silently be lexical-only again."""
+    _ensure_table()
+    model = _resolve_embed_model()
+    total = _conn().execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+    vectors = 0
+    if _vec_table_dim() is not None:
+        vectors = _conn().execute("SELECT COUNT(*) FROM vec_chunks").fetchone()[0]
+    return {
+        "embedding_model": model,
+        "vector_extension": _VEC_LOADED,
+        "vector_model": _meta_get("vec_model"),
+        "vector_dim": _vec_table_dim(),
+        "chunks": total,
+        "chunks_with_vectors": vectors,
+        "chunks_missing_vectors": max(0, total - vectors),
+        "mode": "hybrid" if model and _VEC_LOADED and vectors else "lexical",
+    }
+
+
+def reindex_missing_vectors(limit: int | None = None) -> dict[str, Any]:
+    """Embed every chunk that has no vector yet — chunks indexed while no
+    embedding model was installed, before the dimension fix, or after an
+    embedding-model switch. Blocking; call via asyncio.to_thread."""
+    _ensure_table()
+    model = _resolve_embed_model()
+    if not model:
+        return {"embedded": 0, "failed": 0, "error": "No embedding model installed (e.g. `ollama pull nomic-embed-text`)."}
+    if not _VEC_LOADED:
+        return {"embedded": 0, "failed": 0, "error": "sqlite-vec isn't available, so vectors can't be stored."}
+    conn = _conn()
+    embedded = failed = 0
+    for chunk_id, text in _chunks_missing_vectors(limit):
+        vec = _embed_sync(model, text)
+        cur = conn.cursor()
+        if vec and _insert_vector(cur, chunk_id, vec, model):
+            embedded += 1
+        else:
+            failed += 1
+        if (embedded + failed) % 50 == 0:
+            conn.commit()
+    conn.commit()
+    log.info("rag.reindex_done", model=model, embedded=embedded, failed=failed)
+    return {"embedded": embedded, "failed": failed, "error": None}

@@ -6,14 +6,46 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
-from app.api import agent, automation, backup, batch, chat, digest, documents, export, files, folders, graph, images, jobs, lock, mcp, memory, metrics, rag_sources, routing, schedules, settings_history, sync, system, upload, usage_stats, voice
+from app.api import (
+    agent,
+    automation,
+    backup,
+    batch,
+    chat,
+    digest,
+    documents,
+    export,
+    files,
+    folders,
+    graph,
+    images,
+    jobs,
+    lock,
+    mcp,
+    memory,
+    metrics,
+    rag_sources,
+    routing,
+    schedules,
+    settings_history,
+    sync,
+    system,
+    traces,
+    upload,
+    usage_stats,
+    voice,
+)
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.security import NetworkGuard, SharedSecretAuth
 from app.db.storage import init_db
+from app.services import jobs_registry
 from app.services.attachments import sweep_orphans
 from app.services.ollama_client import OllamaClient
-from app.services import jobs_registry
 
 log = get_logger(__name__)
 
@@ -28,6 +60,8 @@ async def _orphan_sweeper(interval_seconds: int) -> None:
             _t0 = time.monotonic()
             try:
                 removed = await asyncio.to_thread(sweep_orphans)
+                from app.services import trace_service
+                await asyncio.to_thread(trace_service.prune, int(settings.get("trace_retention_days", 30)))
                 if removed:
                     log.info("upload.sweeper_tick", removed=removed)
                 jobs_registry.record_run("orphan_sweeper", "success", (time.monotonic() - _t0) * 1000)
@@ -189,7 +223,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Zenith",
-    version="0.1.0",
+    version="0.10.0",
     lifespan=lifespan,
     description="Local-first AI chat with a small router over local Ollama models.",
 )
@@ -231,57 +265,10 @@ _LAN_ORIGIN_REGEX = (
     r")(:\d+)?$"
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    allow_origin_regex=_LAN_ORIGIN_REGEX if bool(settings.get("cors_allow_lan", False)) else None,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# --- Optional shared-secret auth (Tier 1 #8) ---
-# Off by default. When enabled, callers must send
-#   Authorization: Bearer <auth_shared_secret>
-# on every /api/* request, or  X-Zenith-Secret: <auth_shared_secret>.
-# Health endpoint is always reachable so monitoring still works.
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-
-
-class SharedSecretAuth(BaseHTTPMiddleware):
-    def __init__(self, app, secret: str) -> None:
-        super().__init__(app)
-        self.secret = secret
-
-    async def dispatch(self, request: Request, call_next):
-        # Always allow: health, docs, openapi, and CORS preflights.
-        path = request.url.path
-        if (
-            path in {"/api/health", "/docs", "/openapi.json", "/redoc"}
-            or path.startswith("/docs")
-            or request.method == "OPTIONS"
-        ):
-            return await call_next(request)
-
-        auth = request.headers.get("authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
-        else:
-            token = request.headers.get("x-zenith-secret", "")
-        if token != self.secret:
-            return JSONResponse(
-                {"detail": "Unauthorized — set Authorization: Bearer <auth_shared_secret>"},
-                status_code=401,
-            )
-        return await call_next(request)
-
-
-if bool(settings.get("auth_enabled", False)) and settings.get("auth_shared_secret"):
-    app.add_middleware(SharedSecretAuth, secret=settings.get("auth_shared_secret", ""))
-    log.info("auth.enabled", kind="shared_secret")
+# --- Gates, outermost first: CORS -> NetworkGuard -> SharedSecretAuth ->
+# PasscodeLock -> routes. Starlette runs the last-added middleware first, so
+# they're added in reverse. CORS must be outermost so 401/403/423 responses
+# still carry CORS headers and the UI can actually read them.
 
 
 class PasscodeLock(BaseHTTPMiddleware):
@@ -311,6 +298,16 @@ class PasscodeLock(BaseHTTPMiddleware):
 
 
 app.add_middleware(PasscodeLock)
+app.add_middleware(SharedSecretAuth)
+app.add_middleware(NetworkGuard)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins(),
+    allow_origin_regex=_LAN_ORIGIN_REGEX if bool(settings.get("cors_allow_lan", False)) else None,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 app.include_router(chat.router)
@@ -338,4 +335,5 @@ app.include_router(usage_stats.router)
 app.include_router(batch.router)
 app.include_router(jobs.router)
 app.include_router(metrics.router)
+app.include_router(traces.router)
 app.include_router(backup.router)
