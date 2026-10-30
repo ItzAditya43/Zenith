@@ -92,6 +92,8 @@ jobs:
 
   desktop-windows:
     runs-on: windows-latest
+    # A hung PyInstaller run once burned the full 6-hour limit.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -108,9 +110,10 @@ jobs:
           npm run build
       - name: Freeze backend with PyInstaller
         working-directory: backend
+        timeout-minutes: 40
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install -r requirements-freeze.txt
           pyinstaller zenith-backend.spec --noconfirm
       - name: Place backend sidecar
         run: |
