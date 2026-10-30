@@ -479,12 +479,16 @@ export default function MessageBubble({
           <div className="msg-content">
             {message.streaming && !message.content ? (
               <>
-                {message.thinking ? (
+                {(message.toolCalls || []).some((tc) => tc.status === "pending") || message.plan?.status === "pending" ? (
+                  <span className="awaiting-you" role="status">
+                    <span aria-hidden="true">◆</span> waiting for you — <kbd className="keycap">y</kbd> approve · <kbd className="keycap">n</kbd> deny
+                  </span>
+                ) : message.thinking ? (
                   <LiveThinking text={message.thinking} active />
                 ) : (
                   <StarSpinner role={message.route_role} />
                 )}
-                <SlowReplyHint />
+                {!((message.toolCalls || []).some((tc) => tc.status === "pending") || message.plan?.status === "pending") && <SlowReplyHint />}
               </>
             ) : (
               <>

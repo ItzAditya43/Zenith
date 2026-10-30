@@ -1,8 +1,18 @@
 # Changelog
 
-## [Unreleased] — hardening
+## [0.10.0] — 2026-10-30
 
-### Security
+Version numbers jump to continue the in-app "What's new" sequence (0.8, 0.9);
+the 0.2.0 entry below was an internal development milestone.
+
+### Highlights
+- OLED Ember theme (default for new installs), boot splash with health checks, live "thinking" stream, status line, y/n/Esc keys, dithered empty state, trace sparklines.
+- Thinking models no longer stall replies (`thinking_mode`: auto/on/off); post-reply work moved off the critical path.
+- Chats never auto-route to Ollama Cloud models (`route_to_cloud_models`, off); hardware-aware model choice; specialised models kept out of the general pool.
+- Desktop: sqlite-vec now bundled (vector search worked only in dev before); pinned PyInstaller toolchain fixes the hung Windows build; macOS build added.
+
+
+### Security (hardening)
 - Backend binds to 127.0.0.1 by default; remote clients are refused until a passcode or shared secret exists; DNS-rebinding protection (Host allowlist).
 - `/api/config` no longer returns the email password, shared secret or passcode hash; settings history redacts secrets (existing rows scrubbed).
 - Passcode lock: per-install salt, 600k PBKDF2, unlock tokens are HMACs (not the hash), brute-force backoff.
