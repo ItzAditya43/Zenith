@@ -61,12 +61,15 @@ const STAR_FRAMES = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳
  * across the verb while a reply hasn't started. Static under reduced motion. */
 export function StarSpinner({ verb = "Thinking", role }) {
   const [tick, setTick] = useState(0);
-  const [start] = useState(() => Date.now());
+  const [secs, setSecs] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 120);
+    const start = Date.now();
+    const id = setInterval(() => {
+      setTick((t) => t + 1);
+      setSecs(Math.floor((Date.now() - start) / 1000));
+    }, 120);
     return () => clearInterval(id);
   }, []);
-  const secs = Math.floor((Date.now() - start) / 1000);
   return (
     <span className="star-spinner" data-role={role} role="status" aria-label={`${verb}…`}>
       <span className="star-spinner-glyph" aria-hidden="true">{STAR_FRAMES[Math.floor(tick / 1.5) % STAR_FRAMES.length]}</span>

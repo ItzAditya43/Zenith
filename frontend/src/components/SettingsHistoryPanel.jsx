@@ -54,18 +54,21 @@ export default function SettingsHistoryPanel({ onClose }) {
   const [error, setError] = useState(null);
   const [reverting, setReverting] = useState(null);
 
-  const load = () => {
-    setLoading(true);
-    setError(null);
+  const fetchHistory = () =>
     api
       .getSettingsHistory()
       .then((res) => setData(res))
       .catch((err) => setError(err.message || "Failed to load settings history."))
       .finally(() => setLoading(false));
+
+  const load = () => {
+    setLoading(true);
+    setError(null);
+    fetchHistory();
   };
 
   useEffect(() => {
-    load();
+    fetchHistory();
   }, []);
 
   const handleRevert = async (entry) => {

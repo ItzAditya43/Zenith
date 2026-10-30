@@ -85,24 +85,27 @@ export default function HealthPanel({ onClose }) {
   const [jobs, setJobs] = useState(null);
   const [jobsError, setJobsError] = useState(null);
 
-  const load = () => {
-    setLoading(true);
-    setError(null);
+  const fetchAll = () => {
     api
       .health()
       .then((res) => setData(res))
       .catch((err) => setError(err.message || "Failed to check health."))
       .finally(() => setLoading(false));
-
-    setJobsError(null);
     fetch(`${API_BASE}/api/jobs/status`, { headers: authHeaders() })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(res.statusText))))
       .then((res) => setJobs(res))
       .catch((err) => setJobsError(err.message || "Failed to load background job status."));
   };
 
+  const load = () => {
+    setLoading(true);
+    setError(null);
+    setJobsError(null);
+    fetchAll();
+  };
+
   useEffect(() => {
-    load();
+    fetchAll();
   }, []);
 
   const components = data?.components ? Object.entries(data.components) : [];

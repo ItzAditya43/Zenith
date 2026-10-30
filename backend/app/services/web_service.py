@@ -181,12 +181,15 @@ async def _search_duckduckgo(query: str, max_results: int) -> list[dict[str, str
     results: list[dict[str, str]] = []
     for node in soup.select("div.result"):
         a = node.select_one("a.result__a")
-        if not a or not a.get("href"):
+        href = a.get("href") if a else None
+        if isinstance(href, list):  # bs4 types attributes as possibly multi-valued
+            href = href[0] if href else None
+        if not a or not href:
             continue
         snippet_el = node.select_one("a.result__snippet") or node.select_one(".result__snippet")
         results.append({
             "title": a.get_text(strip=True),
-            "url": _unwrap_ddg_redirect(a["href"]),
+            "url": _unwrap_ddg_redirect(str(href)),
             "snippet": snippet_el.get_text(strip=True) if snippet_el else "",
         })
         if len(results) >= max_results:

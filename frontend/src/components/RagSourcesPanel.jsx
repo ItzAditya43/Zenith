@@ -60,15 +60,19 @@ export default function RagSourcesPanel({ onClose }) {
   const [reindexing, setReindexing] = useState(false);
   const [reindexResult, setReindexResult] = useState(null);
 
-  const load = () => {
-    setLoading(true);
-    setError(null);
+  const fetchAll = () => {
     api.ragStatus().then(setStatus).catch(() => setStatus(null));
     api
       .listRagSources()
       .then((res) => setSources(res.sources || []))
       .catch((err) => setError(err.message || "Failed to load RAG sources."))
       .finally(() => setLoading(false));
+  };
+
+  const load = () => {
+    setLoading(true);
+    setError(null);
+    fetchAll();
   };
 
   const reindex = async () => {
@@ -86,7 +90,7 @@ export default function RagSourcesPanel({ onClose }) {
   };
 
   useEffect(() => {
-    load();
+    fetchAll();
   }, []);
 
   const handleDelete = async (source) => {
