@@ -12,7 +12,10 @@ async function patchConfig(page: Page, patch: Record<string, unknown>) {
 
 test.beforeEach(async ({ page }) => {
   // Skip the first-run tour so it doesn't cover the composer.
-  await page.addInitScript(() => localStorage.setItem("zenith-onboarded", "1"));
+  await page.addInitScript(() => {
+    localStorage.setItem("zenith-onboarded", "1");
+    sessionStorage.setItem("zenith-booted", "1");
+  });
   await patchConfig(page, { agent_enabled: false, memory_enabled: false });
   await page.goto("/");
   await page.locator(".new-chat-btn").click();
@@ -107,4 +110,36 @@ test("command palette opens and runs an action", async ({ page }) => {
   await input.fill("focus mode");
   await page.keyboard.press("Enter");
   await expect(page.locator(".app-shell-focus")).toBeVisible();
+});
+
+test("agent approval works from the keyboard (y)", async ({ page }) => {
+  const workdir = mkdtempSync(join(tmpdir(), "zenith-e2e-key-"));
+  await patchConfig(page, { agent_enabled: true, agent_mode: "manual", agent_sandbox: "off" });
+  await page.reload();
+  await page.locator(".new-chat-btn").click();
+  const convs = await (await page.request.get(`${API}/api/conversations`)).json();
+  const convId = (convs[0] ?? convs.conversations?.[0]).id;
+  await page.request.patch(`${API}/api/conversations/${convId}/workdir`, { data: { workdir } });
+  await page.locator(".mode-picker-btn").click();
+  await page.getByRole("option", { name: /Agent/ }).click();
+  await send(page, "Please create the e2e file");
+  await expect(page.getByRole("button", { name: /^Approve$/ })).toBeVisible();
+  await page.locator("textarea").first().blur();
+  await page.keyboard.press("y");
+  await expect(page.getByText("Wrote e2e.txt for you.")).toBeVisible();
+  expect(readFileSync(join(workdir, "e2e.txt"), "utf8")).toBe("hello from e2e");
+});
+
+test("boot splash shows health checks once per session", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem("zenith-onboarded", "1"));
+  await page.goto("/");
+  await expect(page.getByRole("status", { name: "Starting Zenith" })).toBeVisible();
+  await expect(page.getByText("[ ok ]").first()).toBeVisible();
+  await expect(page.locator(".new-chat-btn")).toBeVisible({ timeout: 5000 });
+  await page.reload();
+  await expect(page.locator(".new-chat-btn")).toBeVisible();
+  await expect(page.getByRole("status", { name: "Starting Zenith" })).toHaveCount(0);
+  await ctx.close();
 });

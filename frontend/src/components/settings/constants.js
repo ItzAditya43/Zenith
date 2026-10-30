@@ -1,6 +1,7 @@
 // Static data shared by SettingsPanel and its section components.
 
 export const THEMES = [
+  { id: "oled-ember", name: "OLED Ember", bg: "#000000", fg: "#ededed", accent: "#e8875c", font: "'Geist', sans-serif" },
   { id: "midnight-glass", name: "Midnight Glass", bg: "#12151f", fg: "#dde1ea", accent: "#4dd9c0", font: "'Space Grotesk', sans-serif" },
   { id: "terminal-noir", name: "Terminal Noir", bg: "#081008", fg: "#b8ffce", accent: "#58ff8a", font: "'JetBrains Mono', monospace" },
   { id: "command-center", name: "Command Center", bg: "#0b1319", fg: "#d6e4ec", accent: "#00d9ff", font: "'JetBrains Mono', monospace" },

@@ -133,6 +133,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "default_context_window": 8192,
     "router_confidence_threshold": 0.55,
     "router_show_confidence": True,
+    # Semantic (embedding) routing must beat the runner-up role by this much.
+    "router_semantic_margin": 0.05,
+    # Ollama Cloud models run on Ollama's servers. Off: automatic routing and
+    # every background pick use local models only; a cloud model you pin
+    # yourself (role override / per-message pick) still works.
+    "route_to_cloud_models": False,
+    # Thinking models: "auto" = reason only on the reasoning route (fast
+    # answers elsewhere), "on" = always, "off" = never. See orchestrator.should_think.
+    "thinking_mode": "auto",
     # --- Auth (off by default — see Tier1 #8) ---
     "auth_enabled": False,
     "auth_shared_secret": "",
@@ -240,7 +249,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "rag_chunk_chars": 1200,
     "rag_chunk_overlap": 200,
     "rag_top_k": 5,
-    "rag_embedding_model": "",  # blank => use the auto-classified "embedding" role
+    "rag_embedding_model": "",
+    "embedding_timeout_seconds": 120,  # see OllamaClient.embeddings — model swaps on small GPUs are slow  # blank => use the auto-classified "embedding" role
     "rag_rerank_enabled": False,  # second-pass cross-encoder-style rerank via Ollama; off by default (extra latency)
     "show_cloud_model_suggestions": False,  # opt-in: surface Ollama Cloud (":cloud") model suggestions in Settings — these run on Ollama's servers, not this machine; off by default per "no hosted APIs" philosophy
     "rag_rerank_model": "",  # blank => reuse the router's installed general/chat model

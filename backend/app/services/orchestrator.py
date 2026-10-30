@@ -310,6 +310,14 @@ async def _gather_web_context(user_text: str, web_search: bool) -> tuple[str, li
     return header + "\n\n---\n\n".join(sections), sources
 
 
+def should_think(role: str) -> bool:
+    """`thinking_mode`: "auto" lets thinking models reason only on the
+    reasoning route (everything else answers immediately), "on" always,
+    "off" never. Models without the capability are unaffected."""
+    mode = str(settings.get("thinking_mode", "auto"))
+    return mode == "on" or (mode == "auto" and role == "reasoning")
+
+
 async def run_turn(
     conversation_id: str,
     user_text: str,
@@ -320,6 +328,7 @@ async def run_turn(
     parent_explicit: bool = False,
     regenerate_user_message_id: str | None = None,
     model_override: str | None = None,
+    emit_thinking: bool = False,
 ) -> tuple[RouteDecision, AsyncIterator[str], list[dict], str]:
     """Returns the routing decision, an async generator of reply tokens,
     a list of web sources used (possibly empty), and the parent_id the
@@ -452,7 +461,8 @@ async def run_turn(
 
     client = OllamaClient()
     stream = client.chat_stream(
-        decision.model, messages, images_b64=ctx.images_b64 or None
+        decision.model, messages, images_b64=ctx.images_b64 or None,
+        think=should_think(decision.role), emit_thinking=emit_thinking,
     )
     all_sources = web_sources + recall_citations + doc_citations
     return decision, stream, all_sources, assistant_parent_id

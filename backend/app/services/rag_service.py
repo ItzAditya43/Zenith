@@ -69,7 +69,7 @@ def _embed_sync(model: str, text: str) -> list[float] | None:
     try:
         return run_sync(OllamaClient().embeddings(model, text))
     except Exception as exc:
-        log.warning("rag.embed_failed", model=model, error=str(exc))
+        log.warning("rag.embed_failed", model=model, error=str(exc) or type(exc).__name__)
         return None
 
 

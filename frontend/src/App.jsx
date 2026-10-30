@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Composer from "./components/Composer";
 import MessageBubble from "./components/MessageBubble";
@@ -21,6 +21,7 @@ import WhatsNewPanel from "./components/WhatsNewPanel.jsx";
 import UsageDashboard from "./components/UsageDashboard.jsx";
 import HealthPanel from "./components/HealthPanel.jsx";
 import TracesPanel from "./components/TracesPanel";
+import BootSplash from "./components/BootSplash";
 import CodeEditorPanel from "./components/CodeEditorPanel.jsx";
 import SnippetsPanel from "./components/SnippetsPanel.jsx";
 import KnowledgeGraphPanel from "./components/KnowledgeGraphPanel.jsx";
@@ -36,6 +37,12 @@ import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api, authHeaders, GATE_EVENT } from "./lib/api";
 import { buildCommands } from "./lib/commands.js";
 import ChatHeader from "./components/ChatHeader.jsx";
+
+const EMPTY_HORIZON = [
+  "          ░░░░▒▒▒▓▓▓█████████▓▓▓▒▒▒░░░░",
+  "     ░░░▒▒▒▓▓▓███████████████████▓▓▓▒▒▒░░░",
+  "  ░░▒▒▓▓▓█████████████████████████████▓▓▓▒▒░░",
+].join("\n");
 
 export default function App() {
   const [locked, setLocked] = useState(false);
@@ -63,7 +70,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [theme, setTheme] = useState(
-    () => localStorage.getItem("zenith-theme") || "midnight-glass"
+    () => localStorage.getItem("zenith-theme") || "oled-ember"
   );
   const [density, setDensity] = useState(() => localStorage.getItem("zenith-density") || "comfortable");
   const [fontScale, setFontScale] = useState(() => localStorage.getItem("zenith-font-scale") || "1");
@@ -105,6 +112,22 @@ export default function App() {
   const [usageOpen, setUsageOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [tracesOpen, setTracesOpen] = useState(false);
+  const [runFlags, setRunFlags] = useState({ agentMode: "manual", sandbox: false });
+  const [booting, setBooting] = useState(() => {
+    try {
+      return !sessionStorage.getItem("zenith-booted");
+    } catch {
+      return false;
+    }
+  });
+  const finishBoot = useCallback(() => {
+    try {
+      sessionStorage.setItem("zenith-booted", "1");
+    } catch {
+      /* storage blocked: splash shows again next load, harmless */
+    }
+    setBooting(false);
+  }, []);
   const [ragSourcesOpen, setRagSourcesOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -235,6 +258,7 @@ export default function App() {
       setMaxContextMessages(c.max_context_messages || 24);
       setWakeWordEnabled(!!c.wake_word_enabled);
       setWakeWordPhrase(c.wake_word_phrase || "hey zenith");
+      setRunFlags({ agentMode: c.agent_mode || "manual", sandbox: c.agent_sandbox === "docker" });
     }).catch(() => {});
     api.listPersonas().then(setPersonas).catch(() => {});
     api.listQuickActions().then(setQuickActions).catch(() => {});
@@ -700,6 +724,42 @@ export default function App() {
     }
   };
 
+  // Terminal-style keys while a turn is live: y / n settle the waiting tool
+  // call or plan, Esc stops the reply (the spinner promises it). Ignored
+  // while typing or with modifiers, and when overlays own the keyboard.
+  const liveKeys = useRef({});
+  liveKeys.current = { messages, handleApproveTool, handleDenyTool, handlePlanDecision, handleStop,
+    overlayOpen: commandPaletteOpen || shortcutsOpen || settingsOpen };
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      const t = e.target;
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
+      const k = liveKeys.current;
+      if (k.overlayOpen) return;
+      const live = [...k.messages].reverse().find((m) => m.streaming);
+      if (!live) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        k.handleStop();
+        return;
+      }
+      if (e.key !== "y" && e.key !== "n") return;
+      const approve = e.key === "y";
+      const call = (live.toolCalls || []).find((tc) => tc.status === "pending");
+      if (call) {
+        e.preventDefault();
+        (approve ? k.handleApproveTool : k.handleDenyTool)(call.id);
+      } else if (live.plan?.status === "pending") {
+        e.preventDefault();
+        k.handlePlanDecision(live.plan.id, approve);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+
   const maybeGenerateTitle = (convId, firstUserText) => {
     // Tier 6 #4 — auto-title after first user message.
     if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
@@ -911,6 +971,19 @@ export default function App() {
     }
 
     let fullText = "";
+    let thinkingText = "";
+    let thinkingStartedAt = 0;
+    let thoughtFor = 0;
+    let flushScheduled = false;
+    const flushText = () => {
+      flushScheduled = false;
+      const text = fullText;
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantMsg.id ? { ...msg, content: text, ...(thoughtFor ? { thoughtMs: thoughtFor } : {}) } : msg
+        )
+      );
+    };
     await api.streamChat(
       { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode, deepResearch, editOf, regenerateOf, modelOverride },
       (event) => {
@@ -1023,11 +1096,22 @@ export default function App() {
                 : msg
             )
           );
+        } else if (event.type === "thinking") {
+          // Live reasoning from a thinking model (never part of the reply).
+          thinkingText += event.text;
+          if (!thinkingStartedAt) thinkingStartedAt = Date.now();
+          setMessages((m) =>
+            m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, thinking: thinkingText } : msg))
+          );
         } else if (event.type === "token") {
           fullText += event.text;
-          setMessages((m) =>
-            m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, content: fullText } : msg))
-          );
+          if (thinkingStartedAt && !thoughtFor) thoughtFor = Date.now() - thinkingStartedAt;
+          // One render per animation frame instead of one per token: an even
+          // cadence for bursty local models, and far less work on fast ones.
+          if (!flushScheduled) {
+            flushScheduled = true;
+            requestAnimationFrame(flushText);
+          }
           genTokenCountRef.current += 1;
           const elapsed = (Date.now() - genStartRef.current) / 1000;
           if (elapsed > 0.3) {
@@ -1036,8 +1120,13 @@ export default function App() {
         } else if (event.type === "resumed") {
           showToast("Resuming from where the last run left off…", "info");
         } else if (event.type === "done") {
+          const finalText = fullText;
           setMessages((m) =>
-            m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, streaming: false } : msg))
+            m.map((msg) =>
+              msg.id === assistantMsg.id
+                ? { ...msg, streaming: false, content: finalText || msg.content }
+                : msg
+            )
           );
           setTimeout(() => setGenStats(null), 2500); // let the final tok/s linger briefly
           if (event.checkpointed) {
@@ -1151,6 +1240,20 @@ export default function App() {
   // handlers directly — that froze them at whatever state existed when the
   // list was last rebuilt (an auto-send quick action used stale composer
   // settings). Actions read the latest handlers through this ref instead.
+  // Starters for the empty chat: pick up recent threads first, then defaults.
+  const emptySuggestions = useMemo(() => {
+    const recent = conversations
+      .filter((c) => c.id !== activeId && c.title && !/^new chat$/i.test(c.title))
+      .slice(0, 2)
+      .map((c) => `Pick up where we left off on “${c.title}”`);
+    const defaults = [
+      "Summarise a document I'll attach",
+      "Plan my week from my to-do list",
+      "Explain the last error I got",
+    ];
+    return [...recent, ...defaults].slice(0, 3);
+  }, [conversations, activeId]);
+
   const paletteHandlers = useRef({});
   paletteHandlers.current = { handleSend, handleSetWorkdir, handlePersonaChange };
 
@@ -1186,6 +1289,7 @@ export default function App() {
 
   if (accessGate) return <AccessGate kind={accessGate.kind} message={accessGate.message} />;
   if (!lockChecked) return null; // avoid a flash of the app before we know
+  if (booting && !locked) return <BootSplash onDone={finishBoot} />;
   if (locked) return <LockScreen onUnlocked={() => window.location.reload()} />;
 
   return (
@@ -1395,12 +1499,23 @@ export default function App() {
           />
           {messages.length === 0 && (
             <div className="empty-state">
-              <img className="empty-state-mark" src="/icon-192.png" alt="" />
+              <pre className="empty-state-horizon" aria-hidden="true">{EMPTY_HORIZON}</pre>
               <h2>Everything runs on your machine.</h2>
               <p>
                 Type, drop an image, upload a document, or hold the mic — Zenith reads
                 what's installed on your Ollama and routes the turn automatically.
               </p>
+              <div className="empty-state-suggestions" role="group" aria-label="Suggestions">
+                {emptySuggestions.map((sug) => (
+                  <button
+                    key={sug}
+                    className="empty-state-suggestion"
+                    onClick={() => setSeedText({ text: sug, nonce: Date.now() })}
+                  >
+                    {sug}
+                  </button>
+                ))}
+              </div>
               <div className="empty-state-features">
                 <div className="empty-state-feature">
                   <span className="empty-state-feature-icon"><Icon name="search" size={18} /></span>
@@ -1480,6 +1595,9 @@ export default function App() {
           messages={messages}
           contextWindow={contextWindow}
           maxContextMessages={maxContextMessages}
+          statusModel={genStats?.model || [...messages].reverse().find((m) => m.model)?.model}
+          tokPerSec={genStats?.tokPerSec}
+          runFlags={runFlags}
         />
         </div>
 

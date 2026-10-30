@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useEscapeToClose } from "../hooks/useEscapeToClose";
+import { sparkline } from "../lib/sparkline";
 
 interface ToolCall {
   tool: string;
@@ -32,6 +33,12 @@ interface Trace {
 
 const secs = (ms: number | null) => (ms == null ? "—" : `${(ms / 1000).toFixed(1)}s`);
 
+function tokPerSec(t: Trace): number | null {
+  if (!t.token_count || t.total_ms == null || t.first_token_ms == null) return null;
+  const genMs = t.total_ms - t.first_token_ms;
+  return genMs > 0 ? (t.token_count / genMs) * 1000 : null;
+}
+
 /** "Why did this reply come out like that?" — one row per turn: routing
  * decision, what was pulled into context, every tool call, and timing.
  * Backed by /api/traces (backend/app/services/trace_service.py). */
@@ -57,6 +64,19 @@ export default function TracesPanel({ conversationId, onClose }: { conversationI
         </div>
         <div style={{ padding: "var(--space-3) var(--space-4)", maxHeight: "75vh", overflowY: "auto" }}>
           {error && <p className="conversation-empty">{error}</p>}
+          {traces && traces.length > 1 && (() => {
+            const series = [...traces].reverse();
+            const speeds = series.map(tokPerSec);
+            const ttft = series.map((t) => t.first_token_ms);
+            const known = speeds.filter((v): v is number => v != null);
+            const avg = known.length ? known.reduce((a, b) => a + b, 0) / known.length : null;
+            return (
+              <div className="traces-sparklines" aria-label="Recent turn performance">
+                <div><span>chunks/s</span><span className="traces-spark traces-spark-speed" aria-hidden="true">{sparkline(speeds)}</span><span>avg {avg == null ? "—" : avg.toFixed(1)}</span></div>
+                <div><span>first token</span><span className="traces-spark traces-spark-ttft" aria-hidden="true">{sparkline(ttft)}</span><span>last {secs(series[series.length - 1]?.first_token_ms ?? null)}</span></div>
+              </div>
+            );
+          })()}
           {traces && traces.length === 0 && <p className="conversation-empty">No turns traced yet.</p>}
           <div className="health-list">
             {traces?.map((t) => (

@@ -364,3 +364,12 @@ describe("access-gate signalling", () => {
     expect(dispatched).toHaveLength(0);
   });
 });
+
+describe("sparkline()", () => {
+  it("scales values onto block characters and keeps gaps", async () => {
+    const { sparkline } = await import("./sparkline");
+    expect(sparkline([0, 7, null, 3.5])).toBe("▁█ ▅");
+    expect(sparkline([5, 5])).toBe("▄▄");
+    expect(sparkline([])).toBe("");
+  });
+});

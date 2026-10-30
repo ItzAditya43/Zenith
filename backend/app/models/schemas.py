@@ -103,6 +103,10 @@ class ConfigPatch(StrictModel):
     agent_check_command: str | None = Field(default=None, max_length=500)
     agent_auto_check: bool | None = None
     agent_check_timeout_seconds: int | None = Field(default=None, ge=5, le=1800)
+    route_to_cloud_models: bool | None = None
+    router_semantic_margin: float | None = Field(default=None, ge=0, le=0.5)
+    thinking_mode: Literal["auto", "on", "off"] | None = None
+    embedding_timeout_seconds: int | None = Field(default=None, ge=10, le=900)
     agent_sandbox: Literal["off", "docker"] | None = None
     agent_sandbox_image: str | None = Field(default=None, min_length=1, max_length=200, pattern=r"^[A-Za-z0-9][A-Za-z0-9._/:@-]*$")
     agent_sandbox_network: Literal["none", "bridge"] | None = None
