@@ -35,9 +35,13 @@ function resolveBase(): string {
 
   if (location?.hostname && (location.protocol === "http:" || location.protocol === "https:")) {
     // Build with URL so IPv6 hosts, ports and schemes are serialized safely.
-    const url = new URL(location.origin);
-    url.port = port;
-    return url.origin;
+    try {
+      const url = new URL(location.origin || `${location.protocol}//${location.host || location.hostname}`);
+      url.port = port;
+      return url.origin;
+    } catch {
+      // Unusual location object: fall through to loopback.
+    }
   }
   return `http://127.0.0.1:${BACKEND_PORT}`;
 }

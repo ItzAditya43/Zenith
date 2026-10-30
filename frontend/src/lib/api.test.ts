@@ -69,11 +69,19 @@ describe("resolveBase() / api.base", () => {
     expect(api.base).toBe("http://localhost:8420");
   });
 
-  it("falls back to http://localhost:8420 when window is unavailable", async () => {
+  it("falls back to IPv4 loopback when window is unavailable", async () => {
     vi.stubEnv("VITE_API_BASE", "");
     vi.stubGlobal("window", undefined);
     const api = await freshApi();
-    expect(api.base).toBe("http://localhost:8420");
+    expect(api.base).toBe("http://127.0.0.1:8420");
+  });
+
+  it("uses the loopback sidecar inside the desktop webview, whatever the page origin", async () => {
+    vi.stubEnv("VITE_API_BASE", "");
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {}, location: { protocol: "tauri:", hostname: "localhost", search: "" } });
+    expect((await freshApi()).base).toBe("http://127.0.0.1:8420");
+    vi.stubGlobal("window", { location: { protocol: "http:", hostname: "tauri.localhost", search: "?backendPort=8430" } });
+    expect((await freshApi()).base).toBe("http://127.0.0.1:8430");
   });
 });
 
