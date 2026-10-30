@@ -259,3 +259,37 @@ def test_general_pool_excludes_specialised_models(monkeypatch):
     assert r._match_capability("general", installed) == "qwen3.5:4b"
     assert r._match_capability("code", installed) == "qwen2.5-coder:7b"
     assert r._match_capability("general", ["qwen2.5-coder:7b"]) == "qwen2.5-coder:7b"  # nothing else left
+
+
+@pytest.mark.asyncio
+async def test_capability_routing_finds_unnamed_vision_model(monkeypatch):
+    from app.services import router as router_mod
+
+    class Client:
+        async def list_models(self):
+            return [{"name": "qwen3.5:2b"}, {"name": "llama3.2:1b"}]
+
+        async def capabilities(self, name):
+            return frozenset({"completion", "vision"} if name.startswith("qwen3.5") else {"completion"})
+
+    router_mod._model_caps.clear()
+    settings.update({"model_overrides": {r: None for r in ("vision", "general", "small_fast")}, "route_to_cloud_models": False})
+    r = ModelRouter(registry=ModelRegistry(client=Client(), ttl=0))
+    d = await r.decide(text="what is in this picture?", has_image=True)
+    assert d.model == "qwen3.5:2b" and d.role == "vision"
+
+
+def test_sticky_breaks_when_topic_clearly_moves(monkeypatch):
+    import asyncio
+
+    from app.services import router as router_mod
+
+    async def fake_rank(self, text, embed_model):
+        return [("general", 0.9), ("code", 0.3)]
+
+    monkeypatch.setattr("app.services.embedding_router.EmbeddingRouter.rank", fake_rank)
+    settings.update({"model_overrides": {r: None for r in ("code", "general", "embedding")}, "route_to_cloud_models": False})
+    r = ModelRouter(registry=ModelRegistry(client=_FakeClient(["qwen2.5-coder:7b", "llama3:8b", "nomic-embed-text"]), ttl=0))
+    d = asyncio.run(r.decide(text="Who owns the budget in this plan?", history_last_model="qwen2.5-coder:7b"))
+    assert d.role != "sticky" and d.model == "llama3:8b"
+    router_mod._model_caps.clear()

@@ -453,11 +453,9 @@ async def run_turn(
             attachments=ctx.attachment_summaries, parent_id=parent_for_user,
         )
         assistant_parent_id = new_user_msg["id"]
-        try:
-            from app.services import rag_service
-            await asyncio.to_thread(rag_service.index_message, conversation_id, "user", user_text)
-        except Exception as exc:
-            log.debug("orchestrator.index_user_failed", error=str(exc))
+        # The user message is embedded after the reply (chat._after_reply),
+        # not here: on small GPUs embedding before generation forced Ollama to
+        # swap models in and out right before the answer started.
 
     client = OllamaClient()
     stream = client.chat_stream(
