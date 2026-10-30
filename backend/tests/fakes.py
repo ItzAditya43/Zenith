@@ -73,7 +73,7 @@ class FakeOllama:
         async def list_models(_self):
             return [{"name": m, "size": 1} for m in fake.models]
 
-        async def chat_stream(_self, model, messages, images_b64=None, options=None, format=None):
+        async def chat_stream(_self, model, messages, images_b64=None, options=None, format=None, **_kw):
             fake.calls.append({"model": model, "messages": [dict(m) for m in messages],
                                "images": images_b64, "format": format, "options": options})
             text = fake._next_reply(model, messages, format)

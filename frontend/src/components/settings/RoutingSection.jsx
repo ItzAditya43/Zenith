@@ -1,4 +1,5 @@
 import { recommendedModelForRole, ROLES, ROLE_LABEL } from "./constants.js";
+import { api } from "../../lib/api";
 import { useSettings } from "./SettingsContext.js";
 
 /** Settings → "routing" section. State lives in SettingsPanel (see SettingsContext). */
@@ -11,7 +12,9 @@ export default function RoutingSection() {
     overrideSummary,
     refreshModels,
     setOverride,
+    setConfig,
   } = useSettings();
+  const patch = async (fields) => setConfig(await api.patchConfig(fields));
 
   return (
     <section className="settings-section">
@@ -33,6 +36,43 @@ export default function RoutingSection() {
             : "Semantic routing is inactive: no model is tagged into the \"embedding\" role, so routing falls back to keyword matching only. Pull an embedding model (e.g. `ollama pull nomic-embed-text`) to enable it."}
         </p>
       )}
+      <div className="setting-row">
+        <div>
+          <strong>Thinking models</strong>
+          <span className="setting-hint">
+            Models like qwen3.5 and deepseek-r1 can reason before answering. Auto: only on reasoning questions,
+            so everyday replies start instantly. The reasoning streams live and can be expanded.
+          </span>
+        </div>
+        <select
+          className="settings-input"
+          aria-label="Thinking models"
+          value={config?.thinking_mode || "auto"}
+          onChange={(e) => patch({ thinking_mode: e.target.value })}
+        >
+          <option value="auto">Auto</option>
+          <option value="on">Always think</option>
+          <option value="off">Never think</option>
+        </select>
+      </div>
+      <div className="setting-row">
+        <div>
+          <strong>Use cloud models for automatic routing</strong>
+          <span className="setting-hint">
+            Off: Zenith only auto-picks models that run on this machine. Ollama Cloud models still work when you
+            pin one above or pick it for a single message, but your chats then leave this machine.
+          </span>
+        </div>
+        <button
+          className={`switch ${config?.route_to_cloud_models ? "switch-on" : ""}`}
+          onClick={() => patch({ route_to_cloud_models: !config?.route_to_cloud_models })}
+          role="switch"
+          aria-checked={!!config?.route_to_cloud_models}
+          aria-label="Use cloud models for automatic routing"
+        >
+          <span className="switch-thumb" />
+        </button>
+      </div>
       <div className="role-grid">
         {ROLES.map((role) => {
           const recommended = recommendedModelForRole(role, models, hardware);

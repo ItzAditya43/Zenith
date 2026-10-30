@@ -13,7 +13,10 @@ test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to regenerate docs images
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
 
 test("readme screenshots", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("zenith-onboarded", "1"));
+  await page.addInitScript(() => {
+    localStorage.setItem("zenith-onboarded", "1");
+    sessionStorage.setItem("zenith-booted", "1");
+  });
   await page.request.patch(`${API}/api/config`, { data: { agent_enabled: true, agent_mode: "manual", memory_enabled: false } });
   await page.goto("/");
 

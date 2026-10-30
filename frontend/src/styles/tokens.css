@@ -95,6 +95,61 @@
   --bg-glow-2: rgba(139, 127, 232, 0.045);
 }
 
+/* ===== OLED Ember — true black, one warm accent, light as hierarchy =====
+   Built for OLED panels: large areas stay #000 (pixels off), elevation is
+   hairlines + a single glow rather than grey fills, text tops out at
+   #EDEDED (pure white blooms on OLED), and no near-black gradients (they
+   smear while scrolling). Ember doubles as the accent and the "general"
+   signal; code moves to teal so the two warm hues never sit side by side.
+   Tertiary text is #7A7A7A (4.9:1 on #000) — passes AA at small sizes. */
+[data-theme="oled-ember"] {
+  --bg-void: #000000;
+  --bg-base: #000000;
+  --bg-panel: #050505;
+  --bg-panel-raised: #0a0a0a;
+  --bg-inset: #000000;
+  --border-hairline: rgba(255, 255, 255, 0.08);
+  --border-soft: rgba(255, 255, 255, 0.14);
+
+  --glass-bg: rgba(0, 0, 0, 0.86);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-blur: 16px;
+
+  --text-primary: #ededed;
+  --text-secondary: #a3a3a3;
+  --text-tertiary: #7a7a7a;
+  --text-on-accent: #0a0502;
+
+  --signal-general: #e8875c;
+  --signal-vision: #a496ff;
+  --signal-code: #4fe3c8;
+  --signal-voice: #f2c14e;
+  --signal-reasoning: #7cc4ff;
+  --signal-danger: #ff6b6b;
+
+  --signal-general-dim: rgba(232, 135, 92, 0.12);
+  --signal-vision-dim: rgba(164, 150, 255, 0.12);
+  --signal-code-dim: rgba(79, 227, 200, 0.12);
+  --signal-voice-dim: rgba(242, 193, 78, 0.12);
+  --signal-reasoning-dim: rgba(124, 196, 255, 0.12);
+
+  --font-display: "Geist", "Inter", system-ui, sans-serif;
+  --font-body: "Geist", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  --shadow-panel: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-float: 0 0 0 1px rgba(255, 255, 255, 0.10), 0 24px 64px rgba(0, 0, 0, 0.9);
+  --shadow-glow: 0 0 0 1px rgba(232, 135, 92, 0.45), 0 0 48px rgba(232, 135, 92, 0.14);
+
+  --bg-glow-1: transparent;
+  --bg-glow-2: transparent;
+}
+
 /* ===== Terminal Noir — green-on-black CRT, sharp corners, monospace-first ===== */
 [data-theme="terminal-noir"] {
   --bg-void: #030503;

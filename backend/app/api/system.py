@@ -286,7 +286,9 @@ async def models():
         lname = name.lower()
         roles = [role for role, kws in keywords.items() if any(kw in lname for kw in kws)]
         roles += [role for role, override in overrides.items() if override == name and role not in roles]
-        enriched.append({**m, "roles": roles})
+        from app.services.router import is_cloud_model
+
+        enriched.append({**m, "roles": roles, "cloud": is_cloud_model(name)})
     return JSONResponse(enriched, headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
 
 

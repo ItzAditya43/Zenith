@@ -167,3 +167,95 @@ def test_plain_prompts_do_not_hint_code(text):
     from app.services.router import _CODE_HINTS
 
     assert not _CODE_HINTS.search(text)
+
+
+# --- cloud models never auto-routed; small-model detection; semantic margin ---
+
+
+def test_cloud_model_detection():
+    from app.services.router import is_cloud_model
+
+    for name in ("gpt-oss:120b-cloud", "glm-5.3:cloud", "mistral-large-3:675b-cloud"):
+        assert is_cloud_model(name)
+    for name in ("llama3.2:1b", "qwen2.5-coder:3b", "cloudy-model:7b", "nomic-embed-text"):
+        assert not is_cloud_model(name)
+
+
+def _router(models):
+    return ModelRouter(registry=ModelRegistry(client=_FakeClient(models), ttl=0))
+
+
+@pytest.mark.asyncio
+async def test_general_chat_never_routes_to_a_cloud_model():
+    settings.update({"model_overrides": {r: None for r in ("vision", "code", "reasoning", "embedding", "small_fast", "general")},
+                     "route_to_cloud_models": False})
+    r = _router(["mistral-large-3:675b-cloud", "llama3:latest"])
+    d = await r.decide(text="What are good houseplants for a dark flat?")
+    assert d.model == "llama3:latest"
+    assert await r.registry.models() == ["llama3:latest"]
+    assert await r.registry.all_models() == ["mistral-large-3:675b-cloud", "llama3:latest"]
+
+
+@pytest.mark.asyncio
+async def test_only_cloud_models_installed_gives_a_clear_error():
+    settings.update({"route_to_cloud_models": False, "model_overrides": {"general": None}})
+    with pytest.raises(OllamaError, match="No local models installed"):
+        await _router(["gpt-oss:120b-cloud"]).decide(text="hello there friend")
+
+
+@pytest.mark.asyncio
+async def test_cloud_routing_is_opt_in_and_pins_are_honoured():
+    settings.update({"route_to_cloud_models": True})
+    assert await _router(["gpt-oss:120b-cloud"]).registry.models() == ["gpt-oss:120b-cloud"]
+    settings.update({"route_to_cloud_models": False, "model_overrides": {"general": "glm-5.3:cloud"}})
+    d = await _router(["glm-5.3:cloud", "llama3:latest"]).decide(text="What are good houseplants for a dark flat?")
+    assert d.model == "glm-5.3:cloud"
+    settings.update({"model_overrides": {"general": None}})
+
+
+@pytest.mark.asyncio
+async def test_small_models_detected_by_size():
+    settings.update({"route_to_cloud_models": False, "model_overrides": {r: None for r in ("small_fast", "general")}})
+    r = _router(["llama3:latest", "cyberuser42/DeepSeek-R1-Distill-Qwen-1.5B:latest", "llama3.2:1b", "nomic-embed-text"])
+    d = await r.decide(text="hi")
+    assert d.role == "small_fast" and d.model == "llama3.2:1b"
+
+
+def test_best_fit_prefers_largest_model_that_fits(monkeypatch):
+    from app.services import router as router_mod
+
+    monkeypatch.setattr(router_mod, "_memory_budget_gb", lambda: 8.0)
+    assert router_mod._best_fit(["llama3.2:1b", "qwen3.5:4b", "llama3:70b"]) == "qwen3.5:4b"
+    monkeypatch.setattr(router_mod, "_memory_budget_gb", lambda: 64.0)
+    assert router_mod._best_fit(["llama3.2:1b", "qwen3.5:4b", "llama3:70b"]) == "llama3:70b"
+    monkeypatch.setattr(router_mod, "_memory_budget_gb", lambda: None)
+    assert router_mod._best_fit(["llama3.2:1b", "qwen3.5:4b"]) == "qwen3.5:4b"
+
+
+@pytest.mark.asyncio
+async def test_reported_parameter_size_used_for_untagged_models(monkeypatch):
+    from app.services import router as router_mod
+
+    class Client:
+        async def list_models(self):
+            return [{"name": "llama3:latest", "details": {"parameter_size": "8.0B"}},
+                    {"name": "llama3.2:1b", "details": {"parameter_size": "1.2B"}}]
+
+    monkeypatch.setattr(router_mod, "_memory_budget_gb", lambda: 16.0)
+    reg = ModelRegistry(client=Client(), ttl=0)
+    await reg.models()
+    assert router_mod._params_b("llama3:latest") == 8.0
+    assert router_mod._best_fit(["llama3.2:1b", "llama3:latest"]) == "llama3:latest"
+    assert router_mod._parse_reported("494.03M") == pytest.approx(0.494, rel=1e-3)
+
+
+def test_general_pool_excludes_specialised_models(monkeypatch):
+    from app.services import router as router_mod
+
+    monkeypatch.setattr(router_mod, "_memory_budget_gb", lambda: 16.0)
+    settings.update({"model_overrides": {r: None for r in ("vision", "code", "reasoning", "embedding", "small_fast", "general")}})
+    r = ModelRouter(registry=ModelRegistry(client=_FakeClient([]), ttl=0))
+    installed = ["qwen2.5vl:7b", "qwen2.5-coder:7b", "qwen3.5:4b"]
+    assert r._match_capability("general", installed) == "qwen3.5:4b"
+    assert r._match_capability("code", installed) == "qwen2.5-coder:7b"
+    assert r._match_capability("general", ["qwen2.5-coder:7b"]) == "qwen2.5-coder:7b"  # nothing else left

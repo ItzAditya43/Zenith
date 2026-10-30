@@ -328,3 +328,12 @@ def test_profiles_get_separate_data_dirs(monkeypatch, tmp_path):
         if bad.strip():
             with pytest.raises(ValueError):
                 cfg.profile_name()
+
+
+def test_new_routing_settings_can_be_saved_from_the_ui(client):
+    res = client.patch("/api/config", json={"thinking_mode": "off", "route_to_cloud_models": True,
+                                            "router_semantic_margin": 0.1, "embedding_timeout_seconds": 200})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["thinking_mode"] == "off" and body["route_to_cloud_models"] is True
+    assert client.patch("/api/config", json={"thinking_mode": "sometimes"}).status_code == 422
