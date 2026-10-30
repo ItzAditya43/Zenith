@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Zenith">
+  <!-- Small-size cut (favicons, <=48px): heavier strokes and dot, no hairline. -->
+  <rect width="1024" height="1024" rx="232" fill="#000000"/>
+  <circle cx="512" cy="560" r="300" fill="none" stroke="#EDEDED" stroke-width="84"/>
+  <line x1="150" y1="672" x2="874" y2="672" stroke="#EDEDED" stroke-width="84" stroke-linecap="round"/>
+  <circle cx="512" cy="260" r="128" fill="#000000"/>
+  <circle cx="512" cy="260" r="92" fill="#E8875C"/>
+</svg>
