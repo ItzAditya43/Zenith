@@ -1,5 +1,5 @@
 import { api } from "../../lib/api";
-import { POPULAR_MCP_SERVERS } from "./constants.js";
+import McpGallery from "./McpGallery.jsx";
 import { useSettings } from "./SettingsContext.js";
 
 /** Settings → "agent" section. State lives in SettingsPanel (see SettingsContext). */
@@ -28,6 +28,7 @@ export default function AgentSection() {
     saveCheckCommand,
     toggleAutoCheck,
     toggleNativeTools,
+    refreshMcpServers,
   } = useSettings();
 
   return (
@@ -228,26 +229,15 @@ export default function AgentSection() {
         they're always classified risky).
       </p>
 
-      <p className="setting-hint" style={{ marginBottom: "0.4rem" }}>
-        Popular servers (keyless, run locally via npx — click to fill in the form below,
-        then adjust and add):
-      </p>
-      <div className="mcp-popular-list">
-        {POPULAR_MCP_SERVERS.map((s) => (
-          <button
-            key={s.name}
-            className="mcp-popular-chip"
-            onClick={() => {
-              setNewMcpName(s.name);
-              setNewMcpCommand(s.command);
-              setNewMcpArgs(s.args);
-            }}
-            title={s.description}
-          >
-            {s.name}
-          </button>
-        ))}
-      </div>
+      <McpGallery
+        installed={mcpServers}
+        onInstalled={refreshMcpServers}
+        onPrefill={(name, command, args) => {
+          setNewMcpName(name);
+          setNewMcpCommand(command);
+          setNewMcpArgs(args);
+        }}
+      />
 
       <div className="settings-row">
         <input

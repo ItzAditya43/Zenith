@@ -100,7 +100,7 @@ test("agent mode denial leaves the filesystem untouched", async ({ page }) => {
 test("every settings section renders", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
-  await page.getByRole("button", { name: "Settings" }).first().click();
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   const nav = page.getByRole("navigation", { name: "Settings sections" });
   await expect(nav).toBeVisible();
   const items = nav.getByRole("button");
@@ -166,7 +166,7 @@ test("hands-free voice mode opens the orb and Esc closes it", async ({ page }) =
 });
 
 test("pair a phone shows a QR code and the remaining steps", async ({ page }) => {
-  await page.getByRole("button", { name: "Settings" }).first().click();
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   const nav = page.getByRole("navigation", { name: "Settings sections" });
   await expect(nav).toBeVisible();
   await nav.getByRole("button", { name: /connection/i }).click();
@@ -187,4 +187,24 @@ test("project settings save instructions for the workspace", async ({ page }) =>
   await expect(dlg).toBeHidden();
   const list = await (await page.request.get(`${API}/api/projects`)).json();
   expect(list.find((p: { id: string }) => p.id === proj.id).instructions).toBe("Answer in haiku.");
+});
+
+test("MCP gallery searches the registry and hands keyed servers to the form", async ({ page }) => {
+  await page.route("**/api/mcp/registry**", (route) =>
+    route.fulfill({
+      json: [{ name: "weather", full_name: "io.x/weather", description: "Forecasts", command: "npx",
+        args: ["-y", "weather-mcp"], env: [{ name: "WEATHER_KEY", required: true, description: "" }] }],
+    })
+  );
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  const nav = page.getByRole("navigation", { name: "Settings sections" });
+  await nav.getByRole("button", { name: /^agent/i }).click();
+  await expect(page.locator(".mcp-card").first()).toContainText("curated");
+  await page.getByLabel("Search MCP servers").fill("weather");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  const card = page.locator(".mcp-card", { hasText: "weather" });
+  await expect(card).toContainText("community");
+  await card.getByRole("button", { name: "Set up" }).click();
+  await expect(page.getByLabel("MCP server name")).toHaveValue("weather");
+  await expect(page.getByRole("status")).toContainText("WEATHER_KEY");
 });

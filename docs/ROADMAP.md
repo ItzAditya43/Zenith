@@ -21,7 +21,6 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 | P1 | **Notarized macOS builds** | Needs an Apple Developer ID; removes the right-click → Open step. | S (+ account) |
 | P2 | **Windows code signing** | SmartScreen warns on unsigned installers. | S (+ certificate) |
 | P3 | **Encrypted sync between your machines** | Multi-master sync with conflict resolution; today devices share one backend. | L |
-| P4 | **Plugin / skill gallery** | Discover and install MCP servers and skills from inside the app. | L |
 | P5 | **In-app accounts with permissions** | Today: separate profiles per person (`ZENITH_PROFILE`). Real roles inside one instance is a large change to every table. | L |
 
 ## Known follow-ups
