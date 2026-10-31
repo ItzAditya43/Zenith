@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSilenceStop } from "../hooks/useVoiceActivity";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
@@ -179,6 +180,8 @@ export default function Composer({
   seedText = null,
   continuousVoice = false,
   autoListenNonce = null,
+  voiceStopNonce = null,
+  onVoicePhase,
   installedModels = [],
   centered = false,
   messages = [],
@@ -371,6 +374,18 @@ export default function Composer({
     const blob = await stop();
     await transcribeAndInsert(blob);
   };
+
+  // Hands-free: end the turn on its own once you stop talking.
+  useSilenceStop(continuousVoice && recording ? stream : null, handleMicStopFromPanel);
+
+  useEffect(() => {
+    if (voiceStopNonce != null) handleMicStopFromPanel();
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- fire only on the nonce bump from the voice orb
+  }, [voiceStopNonce]);
+
+  useEffect(() => {
+    onVoicePhase?.(recording ? "listening" : transcribing ? "transcribing" : null);
+  }, [recording, transcribing, onVoicePhase]);
 
   const handleMicCancel = () => {
     cancel();

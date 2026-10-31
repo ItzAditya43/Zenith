@@ -155,3 +155,12 @@ test("boot splash shows health checks once per session", async ({ browser }) => 
   await expect(page.getByRole("status", { name: "Starting Zenith" })).toHaveCount(0);
   await ctx.close();
 });
+
+test("hands-free voice mode opens the orb and Esc closes it", async ({ page }) => {
+  await page.getByTitle(/Hands-free conversation/).click();
+  const orb = page.getByRole("dialog", { name: "Hands-free voice mode" });
+  await expect(orb).toBeVisible();
+  await expect(orb.locator(".voice-orb-label")).toHaveText(/listening|tap to talk/);
+  await page.keyboard.press("Escape");
+  await expect(orb).toBeHidden();
+});

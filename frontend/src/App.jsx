@@ -33,6 +33,7 @@ function lazyPanel(loader) {
 }
 const SettingsPanel = lazyPanel(() => import("./components/SettingsPanel"));
 const BranchTree = lazyPanel(() => import("./components/BranchTree.jsx"));
+const VoiceOrb = lazyPanel(() => import("./components/VoiceOrb.jsx"));
 const DocumentEditor = lazyPanel(() => import("./components/DocumentEditor.jsx"));
 const CalendarPanel = lazyPanel(() => import("./components/CalendarPanel.jsx"));
 const NotesPanel = lazyPanel(() => import("./components/NotesPanel.jsx"));
@@ -77,6 +78,8 @@ export default function App() {
   const [voiceReplyEnabled, setVoiceReplyEnabled] = useState(false);
   const [continuousVoice, setContinuousVoice] = useState(false);
   const [autoListenNonce, setAutoListenNonce] = useState(null);
+  const [voiceStopNonce, setVoiceStopNonce] = useState(null);
+  const [micPhase, setMicPhase] = useState(null);
   const [connectionError, setConnectionError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
@@ -1359,6 +1362,32 @@ export default function App() {
     <div className={`app-shell ${focusMode ? "app-shell-focus" : ""}`}>
       <a href="#chat-main-content" className="skip-link">Skip to chat</a>
       <AmbientCanvas animationId={ambientAnim} />
+      {continuousVoice && (
+        <Suspense fallback={null}>
+          <VoiceOrb
+            phase={micPhase || (status === "speaking" ? "speaking" : status === "thinking" ? "thinking" : "idle")}
+            userText={[...messages].reverse().find((m) => m.role === "user")?.content}
+            replyText={[...messages].reverse().find((m) => m.role === "assistant")?.content}
+            onTap={() => {
+              if (micPhase === "listening") setVoiceStopNonce(Date.now());
+              else if (status === "speaking") {
+                audioRef.current?.pause();
+                setStatus("idle");
+                setAutoListenNonce(Date.now());
+              } else if (!micPhase && status === "idle") setAutoListenNonce(Date.now());
+            }}
+            onBargeIn={() => {
+              audioRef.current?.pause();
+              setStatus("idle");
+              setAutoListenNonce(Date.now());
+            }}
+            onExit={() => {
+              if (micPhase === "listening") setVoiceStopNonce(Date.now());
+              setContinuousVoice(false);
+            }}
+          />
+        </Suspense>
+      )}
       <WakeWordListener
         enabled={wakeWordEnabled}
         phrase={wakeWordPhrase}
@@ -1409,7 +1438,10 @@ export default function App() {
           voiceReplyEnabled={voiceReplyEnabled}
           setVoiceReplyEnabled={setVoiceReplyEnabled}
           continuousVoice={continuousVoice}
-          setContinuousVoice={setContinuousVoice}
+          setContinuousVoice={(on) => {
+            setContinuousVoice(on);
+            if (on) setAutoListenNonce(Date.now()); // voice mode opens listening
+          }}
           focusMode={focusMode}
           setFocusMode={setFocusMode}
           agentAvailable={agentAvailable}
@@ -1655,6 +1687,8 @@ export default function App() {
           installedModels={installedModels}
           continuousVoice={continuousVoice}
           autoListenNonce={autoListenNonce}
+          voiceStopNonce={voiceStopNonce}
+          onVoicePhase={setMicPhase}
           messages={messages}
           contextWindow={contextWindow}
           maxContextMessages={maxContextMessages}
