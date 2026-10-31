@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import tempfile
 from pathlib import Path
@@ -28,7 +29,9 @@ async def transcribe(file: UploadFile):
         tmp_path = Path(tmp.name)
 
     try:
-        result = whisper_service.transcribe(tmp_path)
+        # Off the event loop: Whisper (and its first-run model download)
+        # takes seconds and would stall every other request meanwhile.
+        result = await asyncio.to_thread(whisper_service.transcribe, tmp_path)
     except Exception as exc:
         raise HTTPException(500, f"Transcription failed: {exc}") from exc
     finally:
@@ -52,7 +55,7 @@ async def speak(body: SpeakRequest):
         return StreamingResponse(gen(), media_type="application/x-ndjson")
 
     try:
-        wav_path = tts_service.synthesize(body.text)
+        wav_path = await asyncio.to_thread(tts_service.synthesize, body.text)
     except Exception as exc:
         raise HTTPException(500, f"Speech synthesis failed: {exc}") from exc
     return FileResponse(wav_path, media_type="audio/wav", filename="speech.wav")
