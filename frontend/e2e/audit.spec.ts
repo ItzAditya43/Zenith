@@ -32,6 +32,14 @@ for (const [label, size] of [["desktop", { width: 1440, height: 900 }], ["mobile
     await page.screenshot({ path: `${OUT}/${label}-01-empty.png` });
     await chat(page);
     await page.screenshot({ path: `${OUT}/${label}-02-chat.png` });
+    await page.locator("textarea").first().fill("/agent write a hello file");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.locator(".tool-call-pending")).toBeVisible();
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${OUT}/${label}-02b-agent.png` });
+    await page.keyboard.press("y");
+    await expect(page.getByText("Wrote e2e.txt")).toBeVisible();
+    await page.screenshot({ path: `${OUT}/${label}-02c-agent-done.png` });
     await page.keyboard.press("Control+k");
     await page.screenshot({ path: `${OUT}/${label}-03-palette.png` });
     await page.keyboard.press("Escape");

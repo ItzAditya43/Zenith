@@ -555,11 +555,7 @@ export default function Composer({
           disabled={transcribing}
         />
 
-        {isStreaming ? (
-          <button className="composer-send-btn stop-btn" onClick={onStop} title="Stop generating" aria-label="Stop generating">
-            <Icon name="square" size={14} />
-          </button>
-        ) : (
+        {!isStreaming && (
           <button
             className={`composer-icon-btn mic-btn ${recording ? "mic-btn-active" : ""}`}
             onMouseDown={handleMicDown}
@@ -574,14 +570,15 @@ export default function Composer({
           </button>
         )}
 
+        {/* One slot: send morphs into stop while a reply streams. */}
         <button
-          className="composer-send-btn"
-          onClick={handleSend}
-          disabled={disabled || (!text.trim() && pending.length === 0)}
-          title="Send"
-          aria-label="Send"
+          className={`composer-send-btn ${isStreaming ? "is-stop" : ""}`}
+          onClick={isStreaming ? onStop : handleSend}
+          disabled={!isStreaming && (disabled || (!text.trim() && pending.length === 0))}
+          title={isStreaming ? "Stop generating" : "Send"}
+          aria-label={isStreaming ? "Stop generating" : "Send"}
         >
-          <Icon name="send" size={16} />
+          <Icon name={isStreaming ? "square" : "send"} size={isStreaming ? 14 : 16} />
         </button>
       </div>
       )}

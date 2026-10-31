@@ -4138,3 +4138,95 @@ img.settings-title-mark { background: none; object-fit: contain; }
 .mcp-card-desc { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); flex: 1; }
 .mcp-card-cmd { font-size: var(--text-xs); color: var(--text-tertiary); overflow-wrap: anywhere; }
 .mcp-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); font-size: var(--text-sm); }
+
+/* =====================================================================
+   Terminal pass — matches the OLED UI reference (ASCII motifs, tool tree,
+   one glow per screen, mono status voice).
+   ===================================================================== */
+.md-fallback { white-space: pre-wrap; }
+
+/* Empty state: dithered horizon + three prompts */
+.empty-dither {
+  margin: 0 auto var(--space-4); font-family: var(--font-mono); font-size: 13px; line-height: 1.05;
+  color: var(--signal-general); opacity: 0.9; max-width: 100%; overflow: hidden; white-space: pre;
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent);
+}
+.empty-kicker { display: block; font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.12em; color: var(--text-tertiary); margin-bottom: var(--space-2); }
+.empty-state h2 { letter-spacing: -0.02em; }
+.empty-state-suggestions { flex-direction: column; align-items: stretch; max-width: 460px; margin-inline: auto; }
+.empty-state-suggestion { text-align: left; border-radius: var(--radius-md); }
+.empty-suggestion-caret { color: var(--signal-general); font-family: var(--font-mono); margin-right: var(--space-1); }
+.empty-hints { margin-top: var(--space-5); font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-tertiary); }
+.empty-hints .keycap { margin: 0 0.15em 0 0.6em; }
+@media (max-width: 560px) { .empty-dither { font-size: 8px; } }
+
+/* Route badge: ◆ code · model · ▰▰▰▱▱ 0.64 */
+.model-badge { font-family: var(--font-mono); font-size: var(--text-xs); gap: 0.45em; background: transparent; border: 1px solid color-mix(in srgb, var(--signal-general) 35%, transparent); color: var(--signal-general); }
+.model-badge-dot { background: none; width: auto; height: auto; font-size: 0.85em; }
+.model-badge-role { font-weight: 500; letter-spacing: 0; text-transform: none; }
+.model-badge-sep { display: none; }
+.model-badge-name { color: var(--text-secondary); }
+.model-badge-meter { color: var(--text-secondary); letter-spacing: 0.02em; }
+.model-badge-meter > span:first-child { color: var(--signal-general); }
+.model-badge-meter-empty { color: var(--text-tertiary); opacity: 0.6; }
+
+/* Tool calls as a tree log; only the call waiting on you is a card with the glow */
+[data-theme="oled-ember"] .tool-calls { gap: 0; padding-left: var(--space-3); border-left: 1px solid var(--border-soft); }
+[data-theme="oled-ember"] .tool-call-card { border: 0; background: transparent; border-radius: 0; }
+[data-theme="oled-ember"] .tool-call-header { padding: 3px 0; font-family: var(--font-mono); font-size: var(--text-xs); }
+[data-theme="oled-ember"] .tool-call-icon { display: none; }
+[data-theme="oled-ember"] .tool-call-name { font-weight: 500; }
+[data-theme="oled-ember"] .tool-call-summary { color: var(--text-primary); }
+[data-theme="oled-ember"] .tool-call-status-chip { order: -1; background: transparent; padding: 0; font-size: 0; min-width: 1.2em; }
+[data-theme="oled-ember"] .tool-call-status-chip::before { font-size: var(--text-xs); margin: 0; }
+[data-theme="oled-ember"] .tool-call-body { background: transparent; padding: 0 0 var(--space-2) 1.6em; position: relative; }
+[data-theme="oled-ember"] .tool-call-body::before { content: "⎿"; position: absolute; left: 0.3em; top: 0; font-family: var(--font-mono); color: var(--text-tertiary); }
+[data-theme="oled-ember"] .tool-call-card.tool-call-pending {
+  margin: var(--space-2) 0; border: 1px solid color-mix(in srgb, var(--signal-general) 45%, transparent);
+  border-radius: var(--radius-md); background: var(--bg-base);
+  box-shadow: 0 0 48px color-mix(in srgb, var(--signal-general) 14%, transparent);
+  animation: tool-pending-in 120ms ease-out;
+}
+[data-theme="oled-ember"] .tool-call-card.tool-call-pending .tool-call-header { padding: var(--space-2) var(--space-3); }
+[data-theme="oled-ember"] .tool-call-card.tool-call-pending .tool-call-body { padding: 0 var(--space-3) var(--space-2); }
+[data-theme="oled-ember"] .tool-call-card.tool-call-pending .tool-call-body::before { content: none; }
+[data-theme="oled-ember"] .tool-call-card.tool-call-pending .tool-call-status-chip { order: 0; font-size: 0.7rem; margin-left: auto; color: var(--signal-general); }
+[data-theme="oled-ember"] .tool-call-actions { padding: var(--space-2) var(--space-3); border-top: 1px solid var(--border-hairline); }
+[data-theme="oled-ember"] .tool-call-denied .tool-call-name,
+[data-theme="oled-ember"] .tool-call-denied .tool-call-summary { color: var(--text-tertiary); text-decoration: line-through; }
+@keyframes tool-pending-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* Sidebar: mono wordmark, outlined ember New chat, dot markers, status footer */
+[data-theme="oled-ember"] .brand-name { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.2em; font-size: var(--text-sm); font-weight: 500; }
+[data-theme="oled-ember"] .brand-name::after { content: "_"; color: var(--signal-general); }
+[data-theme="oled-ember"] .new-chat-btn {
+  background: color-mix(in srgb, var(--signal-general) 10%, transparent); color: var(--signal-general);
+  border: 1px solid color-mix(in srgb, var(--signal-general) 45%, transparent); box-shadow: none;
+}
+[data-theme="oled-ember"] .new-chat-btn:hover { background: color-mix(in srgb, var(--signal-general) 16%, transparent); }
+[data-theme="oled-ember"] .conversation-group-label { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; color: var(--text-tertiary); }
+[data-theme="oled-ember"] .conversation-item { border-left: 0; position: relative; padding-left: calc(var(--space-3) + 12px); }
+[data-theme="oled-ember"] .conversation-item::before {
+  content: ""; position: absolute; left: var(--space-3); top: 50%; width: 5px; height: 5px; margin-top: -2.5px;
+  border-radius: 50%; background: var(--text-tertiary); opacity: 0.5;
+}
+[data-theme="oled-ember"] .conversation-item-active { background: var(--bg-panel-raised); }
+[data-theme="oled-ember"] .conversation-item-active::before { background: var(--signal-general); opacity: 1; }
+.sidebar-status { display: flex; gap: 0.4em; align-items: center; margin: 0; padding: var(--space-2) var(--space-4); font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-tertiary); }
+.sidebar-status-ok { color: var(--signal-voice, #4fe3c8); }
+.sidebar-status-bad { color: var(--signal-danger, #ff6b6b); }
+.sidebar-status-count { margin-left: auto; }
+
+/* Send morphs into stop */
+.composer-send-btn { transition: background 120ms ease-out, color 120ms ease-out, transform 120ms ease-out, border-radius 120ms ease-out; }
+.composer-send-btn.is-stop { background: var(--text-primary); color: var(--bg-base); border-radius: var(--radius-sm); transform: scale(0.94); }
+@media (prefers-reduced-motion: reduce) { .composer-send-btn, .tool-call-card.tool-call-pending { transition: none; animation: none; } }
+
+[data-theme="oled-ember"] .tool-call-revert-btn {
+  width: auto; align-self: flex-start; margin: 0 0 var(--space-2) 1.6em; padding: 2px var(--space-2);
+  background: transparent; border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-secondary);
+}
+[data-theme="oled-ember"] .tool-call-revert-btn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+.sidebar-status-ok { color: #4fe3c8; }
