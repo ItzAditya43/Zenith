@@ -280,6 +280,9 @@ async def models():
 
     keywords = settings.get("capability_keywords", {})
     overrides = settings.get("model_overrides", {})
+    from app.services import eval_scores
+
+    scores = eval_scores.load()
     enriched = []
     for m in raw:
         name = m["name"]
@@ -288,7 +291,7 @@ async def models():
         roles += [role for role, override in overrides.items() if override == name and role not in roles]
         from app.services.router import is_cloud_model
 
-        enriched.append({**m, "roles": roles, "cloud": is_cloud_model(name)})
+        enriched.append({**m, "roles": roles, "cloud": is_cloud_model(name), "agent_eval": scores.get(name)})
     return JSONResponse(enriched, headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
 
 

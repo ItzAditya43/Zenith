@@ -56,6 +56,14 @@ export default function ModelsSection() {
                     {r}
                   </span>
                 ))}
+                {m.agent_eval?.total > 0 && (
+                  <span
+                    className={`fit-chip ${m.agent_eval.passed / m.agent_eval.total >= 0.8 ? "fit-chip-comfortable" : "fit-chip-tight"}`}
+                    title="Agent eval on this machine (python -m evals agent)"
+                  >
+                    agent {m.agent_eval.passed}/{m.agent_eval.total}
+                  </span>
+                )}
                 {hw && hw.fit !== "unknown" && (
                   <span className={`fit-chip fit-chip-${hw.fit}`} title="Estimated fit for your hardware">
                     {hw.fit === "comfortable" ? "fits well" : hw.fit === "tight" ? "tight fit" : "will struggle"}

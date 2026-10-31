@@ -19,3 +19,6 @@ python -m evals --json report.json -v
 Small models are noisy, so use `--repeat 3` or more before comparing models. Add cases to
 `evals/data/*.json*` or `AGENT_TASKS` in `__main__.py`. `tests/test_evals_harness.py`
 checks that every agent task accepts its reference solution and rejects the unsolved state.
+
+Agent scores are also saved per model to `<data dir>/eval_scores.json` and
+shown next to each model in Settings → Models (e.g. "agent 4/5").
