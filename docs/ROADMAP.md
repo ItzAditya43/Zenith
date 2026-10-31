@@ -8,7 +8,6 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 | # | Feature | Why | Effort |
 |---|---|---|---|
 | C1 | **Hunk-level diff approvals** | Accept the fix, reject the noise: approve or reject each hunk of an agent edit, with word-level highlights. | L |
-| C3 | **Native tool calling** | Use Ollama's `tools` API for models that support it instead of JSON-in-text, so small models make fewer protocol slips. | M |
 | C6 | **Eval-ranked model picks** | Feed `python -m evals` results into setup and Settings: "on your GPU, this model passed 4/5 agent tasks". | M |
 | C8 | **Model-swap aware queueing** | On small GPUs, chat and embedding models evict each other; batch background embeddings and avoid swaps during a live reply. | M |
 

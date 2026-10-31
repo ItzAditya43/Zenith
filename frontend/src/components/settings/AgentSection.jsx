@@ -27,6 +27,7 @@ export default function AgentSection() {
     setAgentMode,
     saveCheckCommand,
     toggleAutoCheck,
+    toggleNativeTools,
   } = useSettings();
 
   return (
@@ -126,6 +127,26 @@ export default function AgentSection() {
           disabled={!config?.agent_enabled}
           role="switch"
           aria-checked={!!config?.agent_auto_check}
+        >
+          <span className="switch-thumb" />
+        </button>
+      </div>
+
+      <div className="setting-row" style={{ marginTop: "0.75rem" }}>
+        <div>
+          <strong>Native tool calling</strong>
+          <span className="setting-hint">
+            Use Ollama&apos;s built-in tool API on models that support it (fewer format slips on
+            small models). Other models keep the JSON protocol.
+          </span>
+        </div>
+        <button
+          className={`switch ${config?.agent_native_tools !== false ? "switch-on" : ""}`}
+          onClick={() => toggleNativeTools(config?.agent_native_tools === false)}
+          disabled={!config?.agent_enabled}
+          role="switch"
+          aria-checked={config?.agent_native_tools !== false}
+          aria-label="Native tool calling"
         >
           <span className="switch-thumb" />
         </button>

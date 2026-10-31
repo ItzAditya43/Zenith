@@ -776,6 +776,11 @@ export default function SettingsPanel({
     setConfig(updated);
   };
 
+  const toggleNativeTools = async (checked) => {
+    const updated = await api.patchConfig({ agent_native_tools: checked });
+    setConfig(updated);
+  };
+
   const addMemory = async () => {
     const text = newMemory.trim();
     if (!text) return;
@@ -1086,6 +1091,7 @@ export default function SettingsPanel({
     handleDisablePasscode,
     handleImport,
     toggleAutoCheck,
+    toggleNativeTools,
     addMemory,
     toggleMemory,
     deleteMemory,
