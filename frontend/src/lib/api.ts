@@ -598,7 +598,8 @@ export const api = {
   listSkills: () => request("/api/skills").then((r) => r.json()),
   deleteSkill: (id: string) => request(`/api/skills/${id}`, { method: "DELETE" }),
 
-  listMemories: () => request("/api/memories").then((r) => r.json()),
+  listMemories: (since: number | null = null) =>
+    request(`/api/memories${since ? `?since=${since}` : ""}`).then((r) => r.json()),
   addMemory: (content: string, category: string = "fact") =>
     request("/api/memories", {
       method: "POST",

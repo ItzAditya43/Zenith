@@ -132,6 +132,29 @@ export default function App() {
     return () => (window.cancelIdleCallback ? window.cancelIdleCallback(id) : clearTimeout(id));
   }, []);
 
+  const announcedMemories = useRef(new Set());
+
+  // E3: OLED night dim — text eases off at night (22:00–07:00) when enabled.
+  useEffect(() => {
+    const apply = () => {
+      let on = false;
+      try {
+        on = localStorage.getItem("zenith-night-dim") === "1";
+      } catch {
+        /* storage blocked */
+      }
+      const h = new Date().getHours();
+      document.documentElement.toggleAttribute("data-night", on && (h >= 22 || h < 7));
+    };
+    apply();
+    const id = setInterval(apply, 5 * 60 * 1000);
+    window.addEventListener("zenith:night-dim", apply);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("zenith:night-dim", apply);
+    };
+  }, []);
+
   const [booting, setBooting] = useState(() => {
     try {
       return !sessionStorage.getItem("zenith-booted");
@@ -164,9 +187,31 @@ export default function App() {
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
 
-  const showToast = (message, type = "info", duration) => {
+  const showToast = (message, type = "info", duration, action) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    setToasts((t) => [...t, { id, message, type, duration }]);
+    setToasts((t) => [...t, { id, message, type, duration, action }]);
+  };
+
+  // Memories are extracted in the background after a reply; look for new ones
+  // a little later and offer an Undo, so remembering is never silent.
+  const announceNewMemories = (sinceSeconds) => {
+    for (const delay of [5000, 15000]) {
+      setTimeout(async () => {
+        try {
+          const fresh = await api.listMemories(sinceSeconds);
+          for (const m of fresh) {
+            if (announcedMemories.current.has(m.id)) continue;
+            announcedMemories.current.add(m.id);
+            showToast(`Remembered: ${m.content}`, "success", 9000, {
+              label: "Undo",
+              onClick: () => api.deleteMemory(m.id).catch(() => {}),
+            });
+          }
+        } catch {
+          /* best-effort */
+        }
+      }, delay);
+    }
   };
   const dismissToast = (id) => setToasts((t) => t.filter((x) => x.id !== id));
 
@@ -986,6 +1031,7 @@ export default function App() {
       maybeGenerateTitle(activeId, text);
     }
 
+    const turnStartedAt = Date.now() / 1000 - 1;
     let fullText = "";
     let thinkingText = "";
     let thinkingStartedAt = 0;
@@ -1161,6 +1207,7 @@ export default function App() {
           }
           // Notify when the tab is backgrounded and the user opted in.
           notify("Zenith", "Your response is ready.", { onlyWhenHidden: true });
+          if (!agentMode && !deepResearch) announceNewMemories(turnStartedAt);
         } else if (event.type === "error") {
           setConnectionError(event.message);
           setStatus("idle");

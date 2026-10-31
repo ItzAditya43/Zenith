@@ -30,6 +30,18 @@ function Toast({ toast, onDismiss }) {
         <Icon name={ICON[toast.type] || ICON.info} size={16} />
       </span>
       <span className="toast-message">{toast.message}</span>
+      {toast.action && (
+        <button
+          className="toast-action"
+          onClick={(e) => {
+            e.stopPropagation();
+            toast.action.onClick();
+            onDismiss();
+          }}
+        >
+          {toast.action.label}
+        </button>
+      )}
     </div>
   );
 }
