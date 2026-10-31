@@ -11,11 +11,19 @@ that needs the web.
 Run it with Docker, install it as a desktop app (Tauri), or open it from your
 phone over your LAN or Tailscale.
 
+[![Latest release](https://img.shields.io/github/v/release/ItzAditya43/Zenith?label=latest%20release)](https://github.com/ItzAditya43/Zenith/releases/latest)
+
 ![Agent mode asking for approval before writing a file, with a diff preview](docs/assets/screenshot-agent-approval.png)
 
 ## Quick start
 
 You need [Ollama](https://ollama.com) running locally.
+
+**Desktop app** — download the installer for your OS from
+[the latest release](https://github.com/ItzAditya43/Zenith/releases/latest):
+`.AppImage` / `.deb` / `.rpm` (Linux), `.exe` / `.msi` (Windows), `.dmg`
+(macOS). It bundles the backend, so there's nothing else to run — just point
+it at Ollama on first launch. See [DESKTOP.md](DESKTOP.md).
 
 **Docker**
 
@@ -40,14 +48,16 @@ them when you confirm. You can re-run it any time from `backend/`.
 
 | | |
 |---|---|
-| **Chat** | Routes each message to the right installed model (code, reasoning, quick, vision) and shows why it picked it. Branching, edit-and-resend, per-message model override. |
-| **Agent mode** | Multi-step tool use: shell, file edits with diff preview and undo, git, test runs, browser automation, sub-agents, MCP tools. Manual, semi-auto, full or plan-first autonomy. Optional Docker sandbox. |
-| **Documents and memory** | Hybrid vector and keyword retrieval over uploads, watched folders and past conversations, with citations. Long-term memory with conflict review. |
+| **Chat** | Routes each message to the right installed model (code, reasoning, quick, vision) and shows why it picked it, with a confidence meter. Branching, edit-and-resend, per-message model override with search, slash commands (`/agent`, `/research`, `/image`…). |
+| **Agent mode** | Multi-step tool use: shell, file edits with diff preview and per-hunk accept/skip, git, test runs, browser automation, sub-agents, native Ollama tool calling on models that support it, and an MCP server gallery (search the official registry, install in one click). Manual, semi-auto, full or plan-first autonomy. Optional Docker sandbox. |
+| **Documents and memory** | Hybrid vector and keyword retrieval over uploads, watched folders and past conversations, with citations. Long-term memory with conflict review and an undoable "Remembered: …" toast. |
+| **Projects** | Group conversations into a workspace with its own folder, default persona and standing instructions, plus a per-project agent autonomy override. |
 | **Deep Research** | Multi-step search, read and report with inline citations. It can't touch your files or shell. |
-| **Voice and images** | Whisper speech-to-text, Piper text-to-speech, wake word, and local Stable Diffusion if you point it at one. |
+| **Voice and images** | Whisper speech-to-text, Piper text-to-speech, wake word, a hands-free voice mode (auto-stops when you stop talking, talk over a reply to interrupt), and local Stable Diffusion if you point it at one. |
 | **Personal tools** | Notes, to-dos, calendar, email (IMAP/SMTP), schedules, automations and webhooks, daily digest. |
-| **Interface** | OLED Ember theme by default (true black, one warm accent) plus eight others. Thinking models stream their reasoning live, `y`/`n` approve agent steps, Esc stops, and a status line shows model, context and speed. |
-| **Observability** | Per-turn traces: routing decision, retrieved context, every tool call, time to first token. Health panel and usage dashboard. |
+| **Interface** | OLED Ember theme by default (true black, one warm accent, optional night dim) plus eight others. Thinking models stream their reasoning live, `y`/`n` approve agent steps, `j`/`k` move between chats, Esc stops, and a status line shows model, context and speed. |
+| **Multi-device** | Open Zenith on your phone by scanning a QR code for your LAN/Tailscale address, with a checklist of what's left to enable (Settings → Connection). |
+| **Observability** | Per-turn traces: routing decision, retrieved context, every tool call, time to first token. Health panel, usage dashboard, and agent eval scores per model (`python -m evals`). |
 
 The full reference is in [docs/FEATURES.md](docs/FEATURES.md).
 
