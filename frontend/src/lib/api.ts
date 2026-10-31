@@ -633,6 +633,7 @@ export const api = {
   revertRun: (runId: string) => request(`/api/agent/runs/${runId}/revert`, { method: "POST" }).then((r) => r.json()),
 
   listModels: () => request("/api/models").then((r) => r.json()),
+  getPairing: () => request("/api/pairing").then((r) => r.json()),
   // Settings change history — see settings_history_service.py.
   getSettingsHistory: (key: string | null = null, limit: number = 100) => {
     const params = new URLSearchParams({ limit: String(limit) });
