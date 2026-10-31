@@ -27,7 +27,23 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 # Isolate from the user's real data before anything imports app.config.
+_REAL_DATA_DIR = os.environ.get("ZENITH_DATA_DIR")
 os.environ["ZENITH_DATA_DIR"] = tempfile.mkdtemp(prefix="zenith-evals-")
+
+
+def _save_agent_score(model: str, passed: int, total: int) -> None:
+    """Record the score in the *real* data dir so Settings can show it."""
+    from app.services import eval_scores
+
+    tmp = os.environ["ZENITH_DATA_DIR"]
+    if _REAL_DATA_DIR is None:
+        del os.environ["ZENITH_DATA_DIR"]
+    else:
+        os.environ["ZENITH_DATA_DIR"] = _REAL_DATA_DIR
+    try:
+        eval_scores.record(model, passed, total)
+    finally:
+        os.environ["ZENITH_DATA_DIR"] = tmp
 
 
 @dataclass
@@ -178,6 +194,7 @@ async def run_agent(args) -> SuiteResult:
             res.passed += ok
             res.details.append({"task": task.name, "attempt": attempt + 1, "ok": ok, "steps": steps,
                                 "seconds": round(time.monotonic() - t0, 1), "error": error})
+    _save_agent_score(model, res.passed, res.total)
     return res
 
 
