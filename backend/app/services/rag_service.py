@@ -10,9 +10,12 @@ the silent head+tail truncation we had before.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import re
 import sqlite3
+import threading
+import time
 from typing import Any
 
 from app.core.aio import run_sync
@@ -173,6 +176,31 @@ def _ensure_vec_table(dim: int, model: str) -> bool:
 
 
 _reindex_lock = __import__("threading").Lock()
+
+
+# C8: live replies in flight. Background re-embedding waits while this is
+# non-zero so it never pulls the embedding model into VRAM mid-reply (on a
+# small GPU that evicts the chat model and stalls the answer).
+_live_replies = 0
+_live_lock = threading.Lock()
+
+
+@contextlib.contextmanager
+def live_reply():
+    global _live_replies
+    with _live_lock:
+        _live_replies += 1
+    try:
+        yield
+    finally:
+        with _live_lock:
+            _live_replies -= 1
+
+
+def _wait_for_idle(max_wait: float = 600.0) -> None:
+    deadline = time.monotonic() + max_wait
+    while _live_replies > 0 and time.monotonic() < deadline:
+        time.sleep(0.25)
 
 
 def _schedule_reindex() -> None:
@@ -779,6 +807,7 @@ def reindex_missing_vectors(limit: int | None = None) -> dict[str, Any]:
         return {"embedded": 0, "failed": 0, "error": "sqlite-vec isn't available, so vectors can't be stored."}
     embedded = failed = 0
     for chunk_id, text in _chunks_missing_vectors(limit):
+        _wait_for_idle()
         vec = _embed_sync(model, text)  # outside the lock: requests keep flowing
         with _DB_LOCK:
             conn = _conn()

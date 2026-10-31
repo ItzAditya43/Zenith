@@ -811,6 +811,18 @@ def _sse(payload: dict[str, Any]) -> str:
 async def _with_heartbeat(
     stream: AsyncIterator[str], interval: float, max_idle_seconds: float | None = None,
 ) -> AsyncIterator[str | None]:
+    """Live-reply bookkeeping around `_heartbeat_stream` (background
+    re-embedding pauses while any reply is streaming)."""
+    from app.services import rag_service
+
+    with rag_service.live_reply():
+        async for piece in _heartbeat_stream(stream, interval, max_idle_seconds):
+            yield piece
+
+
+async def _heartbeat_stream(
+    stream: AsyncIterator[str], interval: float, max_idle_seconds: float | None = None,
+) -> AsyncIterator[str | None]:
     """Re-yields `stream`, interleaving a `None` whenever `interval` seconds
     pass without a token (the caller turns that into an SSE comment frame).
 
