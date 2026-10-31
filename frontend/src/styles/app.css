@@ -4045,3 +4045,24 @@ img.settings-title-mark { background: none; object-fit: contain; }
   [data-theme="oled-ember"] .sidebar-backdrop { background: rgba(0, 0, 0, 0.78); backdrop-filter: blur(2px); }
   [data-theme="oled-ember"] .sidebar:not(.sidebar-collapsed) { border-right: 1px solid var(--border-soft); }
 }
+
+/* ===== Slash commands ===== */
+.composer-row:has(.slash-menu) { position: relative; }
+.slash-menu {
+  position: absolute; bottom: calc(100% + var(--space-2)); left: var(--space-2);
+  list-style: none; margin: 0; padding: var(--space-1); min-width: 280px; z-index: 20;
+  background: var(--bg-panel-raised); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-float);
+}
+.slash-menu button {
+  display: flex; gap: var(--space-3); width: 100%; padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm); text-align: left; font-size: var(--text-sm); color: var(--text-secondary);
+}
+.slash-menu button:hover { background: var(--bg-panel); color: var(--text-primary); }
+.slash-cmd { font-family: var(--font-mono); color: var(--signal-general); }
+.slash-tip { padding: var(--space-1) var(--space-3); font-size: var(--text-xs); color: var(--text-tertiary); font-family: var(--font-mono); }
+/* ===== Toast action ===== */
+.toast-action { margin-left: auto; padding: 2px var(--space-2); border-radius: var(--radius-sm); color: var(--signal-general); font-weight: 600; font-size: var(--text-sm); }
+.toast-action:hover { background: var(--bg-panel-raised); }
+/* ===== E3 night dim (OLED) ===== */
+[data-theme="oled-ember"][data-night] { --text-primary: #d2d2d2; --text-secondary: #949494; }

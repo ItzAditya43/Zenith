@@ -17,6 +17,17 @@ const MODES = [
   { id: "image", icon: "image", label: "Image", hint: "Generate an image from your prompt with a local Stable Diffusion server.", requires: "imageAvailable" },
 ];
 
+// "/research how do heat pumps work" runs one message in that mode without
+// touching the mode picker. Tab completes the command.
+const SLASH = [
+  { cmd: "/search", mode: "search", hint: "search the web for this message" },
+  { cmd: "/research", mode: "research", hint: "multi-step research report" },
+  { cmd: "/agent", mode: "agent", hint: "let the agent use tools", requires: "agentAvailable" },
+  { cmd: "/council", mode: "council", hint: "ask all council models", requires: "councilAvailable" },
+  { cmd: "/image", mode: "image", hint: "generate an image", requires: "imageAvailable" },
+  { cmd: "/chat", mode: "off", hint: "plain chat, no tools" },
+];
+
 function ModePicker({ mode, setMode, agentAvailable, councilAvailable, imageAvailable, compareAvailable }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -184,6 +195,7 @@ export default function Composer({
   const [dragging, setDragging] = useState(false);
   const [micError, setMicError] = useState(null);
   const [mode, setMode] = useState("off");
+  const activeMode = mode;
   const [compareA, setCompareA] = useState("");
   const [compareB, setCompareB] = useState("");
 
@@ -266,13 +278,27 @@ export default function Composer({
 
   const removeAttachment = (id) => setPending((p) => p.filter((a) => a.id !== id));
 
+  const slashAvailable = SLASH.filter(
+    (s) => !s.requires || { agentAvailable, councilAvailable, imageAvailable }[s.requires]
+  );
+  const slashMatches =
+    text.startsWith("/") && !/\s/.test(text) ? slashAvailable.filter((s) => s.cmd.startsWith(text.toLowerCase())) : [];
+
   const handleSend = () => {
     if (disabled) return;
     if (!text.trim() && pending.length === 0) return;
     if (pending.some((a) => a.uploading)) return;
+    let body = text.trim();
+    let mode = activeMode;
+    const slash = /^\/(\w+)\s+([\s\S]+)$/.exec(body);
+    const hit = slash && slashAvailable.find((s) => s.cmd === `/${slash[1].toLowerCase()}`);
+    if (hit) {
+      mode = hit.mode;
+      body = slash[2].trim();
+    }
     const isCompare = mode === "compare" && compareA && compareB && compareA !== compareB;
     onSend(
-      text.trim(),
+      body,
       pending.map((a) => a.id),
       null,
       mode === "search",
@@ -290,6 +316,11 @@ export default function Composer({
   };
 
   const handleKeyDown = (e) => {
+    if (e.key === "Tab" && slashMatches.length > 0) {
+      e.preventDefault();
+      setText(`${slashMatches[0].cmd} `);
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -477,6 +508,18 @@ export default function Composer({
           }}
         />
 
+        {slashMatches.length > 0 && (
+          <ul className="slash-menu" role="listbox" aria-label="Commands">
+            {slashMatches.map((s) => (
+              <li key={s.cmd}>
+                <button type="button" role="option" aria-selected="false" onClick={() => setText(`${s.cmd} `)}>
+                  <span className="slash-cmd">{s.cmd}</span> <span className="slash-hint">{s.hint}</span>
+                </button>
+              </li>
+            ))}
+            <li className="slash-tip" aria-hidden="true">tab to complete</li>
+          </ul>
+        )}
         <textarea
           ref={textareaRef}
           className="composer-input"

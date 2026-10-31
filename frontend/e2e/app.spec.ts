@@ -32,6 +32,17 @@ test("sends a message and streams the reply", async ({ page }) => {
   await expect(page.getByText("Echo: Hello from the e2e suite")).toBeVisible();
 });
 
+test("slash command autocompletes and is stripped before sending", async ({ page }) => {
+  const box = page.locator("textarea").first();
+  await box.fill("/ch");
+  await expect(page.getByRole("listbox", { name: "Commands" })).toContainText("/chat");
+  await box.press("Tab");
+  await expect(box).toHaveValue("/chat ");
+  await box.pressSequentially("plain slash turn");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText("Echo: plain slash turn")).toBeVisible();
+});
+
 test("answers from an uploaded document via RAG", async ({ page }) => {
   const dir = mkdtempSync(join(tmpdir(), "zenith-e2e-"));
   const file = join(dir, "budget.txt");
