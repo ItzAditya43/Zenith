@@ -18,6 +18,61 @@ log = get_logger(__name__)
 router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 
 
+_REGISTRY = "https://registry.modelcontextprotocol.io/v0/servers"
+_RUNNERS = {"npm": "npx", "pypi": "uvx"}
+
+
+def _registry_entry(item: dict) -> dict | None:
+    """Map one MCP registry record to an installable local (stdio) server,
+    or None when it only ships as a remote/docker server."""
+    srv = item.get("server") or item
+    for pkg in srv.get("packages") or []:
+        runner = _RUNNERS.get(pkg.get("registryType", ""))
+        if not runner or (pkg.get("transport") or {}).get("type", "stdio") != "stdio":
+            continue
+        args = ["-y", pkg["identifier"]] if runner == "npx" else [pkg["identifier"]]
+        args += [str(a["value"]) for a in pkg.get("packageArguments") or [] if a.get("type") == "positional" and a.get("value")]
+        return {
+            "name": srv.get("name", pkg["identifier"]).rsplit("/", 1)[-1],
+            "full_name": srv.get("name"),
+            "description": (srv.get("description") or "")[:300],
+            "repository": (srv.get("repository") or {}).get("url"),
+            "command": runner,
+            "args": args,
+            "env": [
+                {"name": e["name"], "required": bool(e.get("isRequired")), "description": e.get("description", "")}
+                for e in pkg.get("environmentVariables") or [] if e.get("name")
+            ],
+        }
+    return None
+
+
+@router.get("/registry")
+async def search_registry(q: str = "", limit: int = 20):
+    """Search the official MCP registry for servers that run locally."""
+    import httpx
+
+    limit = max(1, min(limit, 50))
+    params: dict[str, str | int] = {"limit": 100}  # many entries are remote-only; filter below
+    if q.strip():
+        params["search"] = q.strip()
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(_REGISTRY, params=params)
+            resp.raise_for_status()
+            items = resp.json().get("servers") or []
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(502, f"MCP registry unavailable: {exc}") from exc
+    seen: set[str] = set()
+    out = []
+    for item in items:
+        entry = _registry_entry(item)
+        if entry and entry["full_name"] not in seen:
+            seen.add(entry["full_name"])
+            out.append(entry)
+    return out[:limit]
+
+
 @router.get("/servers")
 async def list_servers():
     return mcp_service.list_servers()

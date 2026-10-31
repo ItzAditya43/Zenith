@@ -338,6 +338,7 @@ export const api = {
   runScheduleNow: (id: string) => request(`/api/schedules/${id}/run-now`, { method: "POST" }).then((r) => r.json()),
 
   listMcpServers: () => request("/api/mcp/servers").then((r) => r.json()),
+  searchMcpRegistry: (q: string) => request(`/api/mcp/registry?q=${encodeURIComponent(q)}`).then((r) => r.json()),
   addMcpServer: (name: string, command: string, args: string[] = [], env: Record<string, string> = {}) =>
     request("/api/mcp/servers", {
       method: "POST",

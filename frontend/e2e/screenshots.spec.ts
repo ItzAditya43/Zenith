@@ -32,7 +32,7 @@ test("readme screenshots", async ({ page }) => {
   await expect(page.getByRole("button", { name: /^Approve$/ })).toBeVisible();
   await page.screenshot({ path: `${OUT}/screenshot-agent-approval.png` });
 
-  await page.getByRole("button", { name: "Settings" }).first().click();
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Agent tools" }).click();
   await page.screenshot({ path: `${OUT}/screenshot-settings.png` });
 });
