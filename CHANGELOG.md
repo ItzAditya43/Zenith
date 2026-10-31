@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.1] — 2026-11-01
+
+### Added
+- Native directory picker for working directories and watched folders: browse with breadcrumbs, quick locations (Home, Desktop, Documents, Downloads…), recent working directories, or the OS's own folder dialog in the desktop app — replaces the old plain-text prompt.
+
+### Fixed
+- Model picker (composer ⚡ icon) grew past the top of the window with a realistic model list and had no way to search or tell local models from Ollama Cloud ones. Now bounded with scroll, searchable past 6 models, and grouped local-first with cloud models under their own labelled, flagged section.
+- Header "More panels" menu rendered each icon above its label instead of beside it, and used CSS-generated text for labels (not reliably exposed to screen readers). Fixed the layout, added real label text and `aria-label`s, and grouped the 13 actions into Workspace / Reports & Knowledge / System.
+- Every small floating menu (model picker, header-more, mode picker, slash menu, selection toolbar, status rail, model badge) now uses the same frosted-glass surface as the command palette — on the OLED theme their previous near-black background was visually indistinguishable from the page behind them.
+
 ## [0.11.0] — 2026-10-31
 
 ### Added

@@ -9,6 +9,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.11.1",
+    date: "2026-11-01",
+    title: "A real folder picker, and the popovers people actually use",
+    items: [
+      "Browse for a working directory or watched folder instead of typing a path: breadcrumbs, quick locations, recent folders, or the OS's own dialog in the desktop app.",
+      "Fixed the model picker growing past the window — it's now searchable, scrollable, and groups local models before Ollama Cloud ones.",
+      "Fixed the header's \"More panels\" menu showing each icon above its label instead of beside it, and grouped its 13 actions.",
+      "Every small popover in the app is now opaque against the OLED theme instead of reading as translucent.",
+    ],
+  },
+  {
     version: "0.11.0",
     date: "2026-10-31",
     title: "Terminal feel, voice orb, and smarter agent",
