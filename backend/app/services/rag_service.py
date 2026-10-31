@@ -10,9 +10,12 @@ the silent head+tail truncation we had before.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import re
 import sqlite3
+import threading
+import time
 from typing import Any
 
 from app.core.aio import run_sync
@@ -29,6 +32,22 @@ log = get_logger(__name__)
 # writes internally and we're single-user.
 _CONN: sqlite3.Connection | None = None
 _VEC_LOADED = False
+
+# One SQLite connection is shared across threads (asyncio.to_thread workers,
+# the background re-index). sqlite3 connections aren't safe for concurrent
+# use — a background re-index racing a request crashed the process — so every
+# database touch holds this lock. Embedding calls (slow, network) never do.
+_DB_LOCK = __import__("threading").RLock()
+
+
+def _locked(fn):
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with _DB_LOCK:
+            return fn(*args, **kwargs)
+    return wrapper
 
 
 def _conn() -> sqlite3.Connection:
@@ -51,6 +70,7 @@ def _conn() -> sqlite3.Connection:
     return _CONN
 
 
+@_locked
 def reset_conn() -> None:
     """Close and drop the cached connection (tests switch ZENITH_DATA_DIR)."""
     global _CONN
@@ -73,6 +93,7 @@ def _embed_sync(model: str, text: str) -> list[float] | None:
         return None
 
 
+@_locked
 def _ensure_table() -> None:
     """Create the chunks table (and the small rag_meta table) if missing.
 
@@ -100,6 +121,7 @@ def _ensure_table() -> None:
     conn.commit()
 
 
+@_locked
 def _meta_get(key: str) -> str | None:
     row = _conn().execute("SELECT value FROM rag_meta WHERE key = ?", (key,)).fetchone()
     return row[0] if row else None
@@ -110,6 +132,7 @@ def _meta_set(cur: sqlite3.Cursor, key: str, value: str) -> None:
                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
 
 
+@_locked
 def _vec_table_dim() -> int | None:
     """Width of the existing vec_chunks table, read from its DDL (covers
     databases created before rag_meta existed, which were always 384)."""
@@ -120,6 +143,7 @@ def _vec_table_dim() -> int | None:
     return int(m.group(1)) if m else None
 
 
+@_locked
 def _ensure_vec_table(dim: int, model: str) -> bool:
     """Make sure vec_chunks exists with width `dim` for `model`. Switching
     embedding model (or dimension) drops the old vectors — vectors from two
@@ -146,7 +170,59 @@ def _ensure_vec_table(dim: int, model: str) -> bool:
     _meta_set(cur, "vec_model", model)
     _meta_set(cur, "vec_dim", str(dim))
     conn.commit()
+    if existing is not None:
+        _schedule_reindex()
     return True
+
+
+_reindex_lock = __import__("threading").Lock()
+
+
+# C8: live replies in flight. Background re-embedding waits while this is
+# non-zero so it never pulls the embedding model into VRAM mid-reply (on a
+# small GPU that evicts the chat model and stalls the answer).
+_live_replies = 0
+_live_lock = threading.Lock()
+
+
+@contextlib.contextmanager
+def live_reply():
+    global _live_replies
+    with _live_lock:
+        _live_replies += 1
+    try:
+        yield
+    finally:
+        with _live_lock:
+            _live_replies -= 1
+
+
+def _wait_for_idle(max_wait: float = 600.0) -> None:
+    deadline = time.monotonic() + max_wait
+    while _live_replies > 0 and time.monotonic() < deadline:
+        time.sleep(0.25)
+
+
+def _schedule_reindex() -> None:
+    """After an embedding-model switch, re-embed the dropped chunks in the
+    background instead of waiting for the user to press a button."""
+    import os
+    import threading
+
+    if os.environ.get("ZENITH_NO_BACKGROUND_REINDEX"):
+        return
+
+    def run() -> None:
+        if not _reindex_lock.acquire(blocking=False):
+            return
+        try:
+            reindex_missing_vectors()
+        except Exception as exc:
+            log.warning("rag.auto_reindex_failed", error=str(exc))
+        finally:
+            _reindex_lock.release()
+
+    threading.Thread(target=run, name="zenith-reindex", daemon=True).start()
 
 
 def _vectors_usable_for(model: str) -> bool:
@@ -164,6 +240,7 @@ def _insert_vector(cur: sqlite3.Cursor, chunk_id: int, vec: list[float], model: 
         return False
 
 
+@_locked
 def _delete_chunks(where: str, params: tuple) -> int:
     """Delete chunks matching `where` *and* their vectors (the old
     per-kind deletes left orphaned vec_chunks rows behind)."""
@@ -215,8 +292,6 @@ def index_document(uuid: str, text: str, conversation_id: str | None = None,
         return 0
     _ensure_table()
 
-    # Skip re-indexing if the source text hasn't changed (cheap content hash).
-    conn = _conn()
     chunks = _chunk_text(text)
     embed_model = _resolve_embed_model()
     vectors: list[list[float]] = []
@@ -224,19 +299,21 @@ def index_document(uuid: str, text: str, conversation_id: str | None = None,
         for chunk in chunks:
             vectors.append(_embed_sync(embed_model, chunk) or [])
 
-    # Wipe previous chunks for this source so re-uploads/re-scans stay consistent.
-    _delete_chunks("source_kind = ? AND source_id = ?", (source_kind, uuid))
-    cur = conn.cursor()
-    for i, chunk in enumerate(chunks):
-        cur.execute(
-            "INSERT INTO chunks (source_kind, source_id, conversation_id, chunk_index, text) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (source_kind, uuid, conversation_id, i, chunk),
-        )
-        cid = cur.lastrowid
-        if embed_model and cid is not None and i < len(vectors) and vectors[i]:
-            _insert_vector(cur, cid, vectors[i], embed_model)
-    conn.commit()
+    with _DB_LOCK:
+        # Wipe previous chunks for this source so re-uploads/re-scans stay consistent.
+        _delete_chunks("source_kind = ? AND source_id = ?", (source_kind, uuid))
+        conn = _conn()
+        cur = conn.cursor()
+        for i, chunk in enumerate(chunks):
+            cur.execute(
+                "INSERT INTO chunks (source_kind, source_id, conversation_id, chunk_index, text) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (source_kind, uuid, conversation_id, i, chunk),
+            )
+            cid = cur.lastrowid
+            if embed_model and cid is not None and i < len(vectors) and vectors[i]:
+                _insert_vector(cur, cid, vectors[i], embed_model)
+        conn.commit()
     return len(chunks)
 
 
@@ -510,6 +587,7 @@ class _Filters:
             self.params.append(exclude_conversation_id)
 
 
+@_locked
 def _retrieve_vec(qvec: list[float], filters: _Filters, top_k: int) -> list[dict]:
     if not qvec:
         return []
@@ -538,6 +616,7 @@ def _retrieve_vec(qvec: list[float], filters: _Filters, top_k: int) -> list[dict
         return []
 
 
+@_locked
 def _retrieve_fallback(query: str, filters: _Filters, top_k: int) -> list[dict]:
     """Cheap lexical fallback: rank chunks by how many query words they
     contain (recent first as tiebreak)."""
@@ -565,6 +644,7 @@ def _retrieve_fallback(query: str, filters: _Filters, top_k: int) -> list[dict]:
     ]
 
 
+@_locked
 def list_sources() -> list[dict[str, Any]]:
     """Group the chunks table by (source_id, source_kind) so the user can
     see, at a glance, everything currently contributing to RAG recall:
@@ -641,6 +721,7 @@ def list_sources() -> list[dict[str, Any]]:
     return out
 
 
+@_locked
 def delete_source(source_id: str, source_kind: str | None = None) -> int:
     """Delete all chunks for a source (and their vec_chunks rows), same
     cleanup pattern as delete_folder_chunks/delete_memory_chunks. Returns
@@ -660,26 +741,28 @@ def index_message(conversation_id: str, role: str, text: str) -> None:
     if not text or not text.strip():
         return
     _ensure_table()
-    conn = _conn()
-    cur = conn.cursor()
     # Use one chunk per message; the value of cross-conversation retrieval
     # is in the *existence* of the message, not in its chunking.
     chunk_text = f"[{role}] {text}"
-    cur.execute(
-        "INSERT INTO chunks (source_kind, source_id, conversation_id, chunk_index, text) "
-        "VALUES (?, ?, ?, ?, ?)",
-        ("message", f"{conversation_id}:{int(hashlib.sha1(text.encode()).hexdigest()[:8], 16)}",
-         conversation_id, 0, chunk_text),
-    )
-    cid = cur.lastrowid
     embed_model = _resolve_embed_model()
-    if embed_model and cid is not None:
-        vec = _embed_sync(embed_model, chunk_text[: int(settings.get("rag_chunk_chars", 1200))])
-        if vec:
+    vec = (_embed_sync(embed_model, chunk_text[: int(settings.get("rag_chunk_chars", 1200))])
+           if embed_model else None)
+    with _DB_LOCK:
+        conn = _conn()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO chunks (source_kind, source_id, conversation_id, chunk_index, text) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("message", f"{conversation_id}:{int(hashlib.sha1(text.encode()).hexdigest()[:8], 16)}",
+             conversation_id, 0, chunk_text),
+        )
+        cid = cur.lastrowid
+        if embed_model and vec and cid is not None:
             _insert_vector(cur, cid, vec, embed_model)
-    conn.commit()
+        conn.commit()
 
 
+@_locked
 def _chunks_missing_vectors(limit: int | None = None) -> list[tuple[int, str]]:
     sql = "SELECT id, text FROM chunks"
     if _vec_table_dim() is not None:
@@ -690,6 +773,7 @@ def _chunks_missing_vectors(limit: int | None = None) -> list[tuple[int, str]]:
     return _conn().execute(sql).fetchall()
 
 
+@_locked
 def status() -> dict[str, Any]:
     """What RAG is actually doing — surfaced in the RAG source manager and
     /api/health so "hybrid search" can't silently be lexical-only again."""
@@ -721,17 +805,15 @@ def reindex_missing_vectors(limit: int | None = None) -> dict[str, Any]:
         return {"embedded": 0, "failed": 0, "error": "No embedding model installed (e.g. `ollama pull nomic-embed-text`)."}
     if not _VEC_LOADED:
         return {"embedded": 0, "failed": 0, "error": "sqlite-vec isn't available, so vectors can't be stored."}
-    conn = _conn()
     embedded = failed = 0
     for chunk_id, text in _chunks_missing_vectors(limit):
-        vec = _embed_sync(model, text)
-        cur = conn.cursor()
-        if vec and _insert_vector(cur, chunk_id, vec, model):
-            embedded += 1
-        else:
-            failed += 1
-        if (embedded + failed) % 50 == 0:
+        _wait_for_idle()
+        vec = _embed_sync(model, text)  # outside the lock: requests keep flowing
+        with _DB_LOCK:
+            conn = _conn()
+            ok = bool(vec) and _insert_vector(conn.cursor(), chunk_id, vec or [], model)
             conn.commit()
-    conn.commit()
+        embedded += ok
+        failed += not ok
     log.info("rag.reindex_done", model=model, embedded=embedded, failed=failed)
     return {"embedded": embedded, "failed": failed, "error": None}

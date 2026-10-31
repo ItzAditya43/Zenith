@@ -35,9 +35,13 @@ function resolveBase(): string {
 
   if (location?.hostname && (location.protocol === "http:" || location.protocol === "https:")) {
     // Build with URL so IPv6 hosts, ports and schemes are serialized safely.
-    const url = new URL(location.origin);
-    url.port = port;
-    return url.origin;
+    try {
+      const url = new URL(location.origin || `${location.protocol}//${location.host || location.hostname}`);
+      url.port = port;
+      return url.origin;
+    } catch {
+      // Unusual location object: fall through to loopback.
+    }
   }
   return `http://127.0.0.1:${BACKEND_PORT}`;
 }
@@ -334,6 +338,7 @@ export const api = {
   runScheduleNow: (id: string) => request(`/api/schedules/${id}/run-now`, { method: "POST" }).then((r) => r.json()),
 
   listMcpServers: () => request("/api/mcp/servers").then((r) => r.json()),
+  searchMcpRegistry: (q: string) => request(`/api/mcp/registry?q=${encodeURIComponent(q)}`).then((r) => r.json()),
   addMcpServer: (name: string, command: string, args: string[] = [], env: Record<string, string> = {}) =>
     request("/api/mcp/servers", {
       method: "POST",
@@ -487,6 +492,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, workdir }),
     }).then((r) => r.json()),
+  updateProject: (id: string, fields: Record<string, string>) =>
+    request(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    }).then((r) => r.json()),
   deleteProject: (id: string) => request(`/api/projects/${id}`, { method: "DELETE" }),
   setConversationProject: (conversationId: string, projectId: string) =>
     request(`/api/conversations/${conversationId}/project`, {
@@ -594,7 +605,8 @@ export const api = {
   listSkills: () => request("/api/skills").then((r) => r.json()),
   deleteSkill: (id: string) => request(`/api/skills/${id}`, { method: "DELETE" }),
 
-  listMemories: () => request("/api/memories").then((r) => r.json()),
+  listMemories: (since: number | null = null) =>
+    request(`/api/memories${since ? `?since=${since}` : ""}`).then((r) => r.json()),
   addMemory: (content: string, category: string = "fact") =>
     request("/api/memories", {
       method: "POST",
@@ -613,7 +625,13 @@ export const api = {
   listMemoryConflicts: () => request("/api/memories/conflicts").then((r) => r.json()),
   resolveMemoryConflict: (id: string) => request(`/api/memories/conflicts/${id}/resolve`, { method: "POST" }),
 
-  approveToolCall: (id: string) => request(`/api/agent/tool-calls/${id}/approve`, { method: "POST" }),
+  approveToolCall: (id: string, rejectedHunks: number[] | null = null) =>
+    request(`/api/agent/tool-calls/${id}/approve`, {
+      method: "POST",
+      ...(rejectedHunks?.length
+        ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rejected_hunks: rejectedHunks }) }
+        : {}),
+    }),
   denyToolCall: (id: string) => request(`/api/agent/tool-calls/${id}/deny`, { method: "POST" }),
   revertToolCall: (id: string) =>
     request(`/api/agent/tool-calls/${id}/revert`, { method: "POST" }).then((r) => r.json()),
@@ -622,6 +640,7 @@ export const api = {
   revertRun: (runId: string) => request(`/api/agent/runs/${runId}/revert`, { method: "POST" }).then((r) => r.json()),
 
   listModels: () => request("/api/models").then((r) => r.json()),
+  getPairing: () => request("/api/pairing").then((r) => r.json()),
   // Settings change history — see settings_history_service.py.
   getSettingsHistory: (key: string | null = null, limit: number = 100) => {
     const params = new URLSearchParams({ limit: String(limit) });

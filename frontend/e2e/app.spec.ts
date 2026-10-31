@@ -32,6 +32,17 @@ test("sends a message and streams the reply", async ({ page }) => {
   await expect(page.getByText("Echo: Hello from the e2e suite")).toBeVisible();
 });
 
+test("slash command autocompletes and is stripped before sending", async ({ page }) => {
+  const box = page.locator("textarea").first();
+  await box.fill("/ch");
+  await expect(page.getByRole("listbox", { name: "Commands" })).toContainText("/chat");
+  await box.press("Tab");
+  await expect(box).toHaveValue("/chat ");
+  await box.pressSequentially("plain slash turn");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText("Echo: plain slash turn")).toBeVisible();
+});
+
 test("answers from an uploaded document via RAG", async ({ page }) => {
   const dir = mkdtempSync(join(tmpdir(), "zenith-e2e-"));
   const file = join(dir, "budget.txt");
@@ -89,8 +100,9 @@ test("agent mode denial leaves the filesystem untouched", async ({ page }) => {
 test("every settings section renders", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
-  await page.getByRole("button", { name: "Settings" }).first().click();
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   const nav = page.getByRole("navigation", { name: "Settings sections" });
+  await expect(nav).toBeVisible();
   const items = nav.getByRole("button");
   const count = await items.count();
   expect(count).toBeGreaterThanOrEqual(18);
@@ -142,4 +154,57 @@ test("boot splash shows health checks once per session", async ({ browser }) => 
   await expect(page.locator(".new-chat-btn")).toBeVisible();
   await expect(page.getByRole("status", { name: "Starting Zenith" })).toHaveCount(0);
   await ctx.close();
+});
+
+test("hands-free voice mode opens the orb and Esc closes it", async ({ page }) => {
+  await page.getByTitle(/Hands-free conversation/).click();
+  const orb = page.getByRole("dialog", { name: "Hands-free voice mode" });
+  await expect(orb).toBeVisible();
+  await expect(orb.locator(".voice-orb-label")).toHaveText(/listening|tap to talk/);
+  await page.keyboard.press("Escape");
+  await expect(orb).toBeHidden();
+});
+
+test("pair a phone shows a QR code and the remaining steps", async ({ page }) => {
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  const nav = page.getByRole("navigation", { name: "Settings sections" });
+  await expect(nav).toBeVisible();
+  await nav.getByRole("button", { name: /connection/i }).click();
+  await page.getByRole("button", { name: "Show QR" }).click();
+  await expect(page.locator(".pair-steps")).toContainText("Passcode set");
+  const qr = page.getByRole("img", { name: "QR code" });
+  if ((await page.locator(".pair-tabs button").count()) > 0) await expect(qr.locator("svg")).toBeVisible();
+});
+
+test("project settings save instructions for the workspace", async ({ page }) => {
+  const res = await page.request.post(`${API}/api/projects`, { data: { name: "E2E Workspace" } });
+  const proj = await res.json();
+  await page.reload();
+  await page.getByRole("button", { name: "Project settings for E2E Workspace" }).click();
+  const dlg = page.getByRole("dialog", { name: "Project settings" });
+  await dlg.getByLabel(/Instructions/).fill("Answer in haiku.");
+  await dlg.getByRole("button", { name: "Save" }).click();
+  await expect(dlg).toBeHidden();
+  const list = await (await page.request.get(`${API}/api/projects`)).json();
+  expect(list.find((p: { id: string }) => p.id === proj.id).instructions).toBe("Answer in haiku.");
+});
+
+test("MCP gallery searches the registry and hands keyed servers to the form", async ({ page }) => {
+  await page.route("**/api/mcp/registry**", (route) =>
+    route.fulfill({
+      json: [{ name: "weather", full_name: "io.x/weather", description: "Forecasts", command: "npx",
+        args: ["-y", "weather-mcp"], env: [{ name: "WEATHER_KEY", required: true, description: "" }] }],
+    })
+  );
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  const nav = page.getByRole("navigation", { name: "Settings sections" });
+  await nav.getByRole("button", { name: /^agent/i }).click();
+  await expect(page.locator(".mcp-card").first()).toContainText("curated");
+  await page.getByLabel("Search MCP servers").fill("weather");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  const card = page.locator(".mcp-card", { hasText: "weather" });
+  await expect(card).toContainText("community");
+  await card.getByRole("button", { name: "Set up" }).click();
+  await expect(page.getByLabel("MCP server name")).toHaveValue("weather");
+  await expect(page.getByRole("status")).toContainText("WEATHER_KEY");
 });

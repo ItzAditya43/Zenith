@@ -331,6 +331,16 @@ def _skills_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _project_workspace_columns(conn: sqlite3.Connection) -> None:
+    """Projects as workspaces: a default persona for new chats in the
+    project and standing instructions added to every turn in it."""
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(projects)").fetchall()]
+    if "persona_id" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN persona_id TEXT")
+    if "instructions" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN instructions TEXT")
+
+
 def _projects_table(conn: sqlite3.Connection) -> None:
     """Projects group conversations that share context: a default working
     directory (agent mode's bash cwd) and a memory scope (memories tagged to
@@ -798,6 +808,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (34, "settings_history_table", _settings_history_table),
     (35, "redact_secret_history", _redact_secret_history),
     (36, "turn_traces_table", _turn_traces_table),
+    (37, "project_workspace_columns", _project_workspace_columns),
 ]
 
 

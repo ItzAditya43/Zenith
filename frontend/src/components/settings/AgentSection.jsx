@@ -1,5 +1,5 @@
 import { api } from "../../lib/api";
-import { POPULAR_MCP_SERVERS } from "./constants.js";
+import McpGallery from "./McpGallery.jsx";
 import { useSettings } from "./SettingsContext.js";
 
 /** Settings → "agent" section. State lives in SettingsPanel (see SettingsContext). */
@@ -27,6 +27,8 @@ export default function AgentSection() {
     setAgentMode,
     saveCheckCommand,
     toggleAutoCheck,
+    toggleNativeTools,
+    refreshMcpServers,
   } = useSettings();
 
   return (
@@ -131,6 +133,26 @@ export default function AgentSection() {
         </button>
       </div>
 
+      <div className="setting-row" style={{ marginTop: "0.75rem" }}>
+        <div>
+          <strong>Native tool calling</strong>
+          <span className="setting-hint">
+            Use Ollama&apos;s built-in tool API on models that support it (fewer format slips on
+            small models). Other models keep the JSON protocol.
+          </span>
+        </div>
+        <button
+          className={`switch ${config?.agent_native_tools !== false ? "switch-on" : ""}`}
+          onClick={() => toggleNativeTools(config?.agent_native_tools === false)}
+          disabled={!config?.agent_enabled}
+          role="switch"
+          aria-checked={config?.agent_native_tools !== false}
+          aria-label="Native tool calling"
+        >
+          <span className="switch-thumb" />
+        </button>
+      </div>
+
       <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
         Sandbox
       </h3>
@@ -207,26 +229,15 @@ export default function AgentSection() {
         they're always classified risky).
       </p>
 
-      <p className="setting-hint" style={{ marginBottom: "0.4rem" }}>
-        Popular servers (keyless, run locally via npx — click to fill in the form below,
-        then adjust and add):
-      </p>
-      <div className="mcp-popular-list">
-        {POPULAR_MCP_SERVERS.map((s) => (
-          <button
-            key={s.name}
-            className="mcp-popular-chip"
-            onClick={() => {
-              setNewMcpName(s.name);
-              setNewMcpCommand(s.command);
-              setNewMcpArgs(s.args);
-            }}
-            title={s.description}
-          >
-            {s.name}
-          </button>
-        ))}
-      </div>
+      <McpGallery
+        installed={mcpServers}
+        onInstalled={refreshMcpServers}
+        onPrefill={(name, command, args) => {
+          setNewMcpName(name);
+          setNewMcpCommand(command);
+          setNewMcpArgs(args);
+        }}
+      />
 
       <div className="settings-row">
         <input

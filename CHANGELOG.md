@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.11.0] — 2026-10-31
+
+### Added
+- Hands-free voice mode: full-screen orb, stops recording when you stop talking, talk over a reply to interrupt.
+- Approve or skip each hunk of an agent file edit.
+- Native Ollama tool calling for models that support it (Settings → Agent tools).
+- MCP server gallery: curated servers plus search of the official MCP registry, one-click install.
+- Projects as workspaces: default persona and standing instructions per project.
+- Pair a phone: QR code for your Tailscale/LAN address with a checklist of what's missing.
+- Slash commands in the composer (`/search`, `/research`, `/agent`, `/council`, `/image`, `/chat`).
+- "Remembered: …" toast with Undo after a reply teaches Zenith something.
+- Agent eval scores per model in Settings → Models.
+- Capability-based routing (vision/embedding/thinking from Ollama), sticky-routing guard, background re-embed after an embedding-model switch.
+- OLED night dim (optional, 22:00–07:00).
+
+### Changed
+- 45% lighter startup: panels load on demand, smaller code highlighter, CSS 83 → 18.5 kB gzip.
+- Screenshot-driven UI pass: mobile header, message actions, tables, OLED replies.
+
+### Fixed
+- Whisper transcription and TTS no longer block every other request while they run.
+- Background re-embedding pauses during a live reply (no model swap mid-answer on small GPUs).
+- RAG database access is thread-safe (a background re-index could crash the process).
+- The backend test suite no longer leaves a temp dir per test in /tmp.
+
 ## [0.10.1] — 2026-10-30
 
 ### Fixed

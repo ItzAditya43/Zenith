@@ -156,6 +156,9 @@ async def _build_system_context(conversation_id: str, user_text: str) -> tuple[s
         from app.services import memory_service
         conv = await asyncio.to_thread(storage.get_conversation, conversation_id)
         project_id = conv.get("project_id") if conv else None
+        instructions = await asyncio.to_thread(storage.get_project_instructions, project_id)
+        if instructions:
+            parts.append(f"Instructions for this project:\n{instructions}")
         block = await asyncio.to_thread(memory_service.memory_block, project_id, user_text)
         if block:
             parts.append(block)
@@ -453,11 +456,9 @@ async def run_turn(
             attachments=ctx.attachment_summaries, parent_id=parent_for_user,
         )
         assistant_parent_id = new_user_msg["id"]
-        try:
-            from app.services import rag_service
-            await asyncio.to_thread(rag_service.index_message, conversation_id, "user", user_text)
-        except Exception as exc:
-            log.debug("orchestrator.index_user_failed", error=str(exc))
+        # The user message is embedded after the reply (chat._after_reply),
+        # not here: on small GPUs embedding before generation forced Ollama to
+        # swap models in and out right before the answer started.
 
     client = OllamaClient()
     stream = client.chat_stream(

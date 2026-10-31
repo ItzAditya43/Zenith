@@ -23,8 +23,14 @@ router = APIRouter(prefix="/api", tags=["memory"])
 
 
 @router.get("/memories")
-async def list_memories():
-    return memory_service.list_memories()
+async def list_memories(since: float | None = None):
+    """`since` (unix seconds) limits the list to memories created after it —
+    the chat UI uses it to announce what a reply just taught Zenith."""
+    rows = memory_service.list_memories()
+    if since is not None:
+        rows = [r for r in rows if (r.get("created_at") or 0) > since]
+    return rows
+
 
 
 @router.post("/memories")

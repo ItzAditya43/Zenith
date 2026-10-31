@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from app.core.logging import get_logger
 from app.services import agent_service
@@ -21,9 +22,13 @@ async def list_tool_calls(conversation_id: str):
     return agent_service.list_tool_calls(conversation_id)
 
 
+class ApproveBody(BaseModel):
+    rejected_hunks: list[int] | None = None
+
+
 @router.post("/tool-calls/{call_id}/approve")
-async def approve(call_id: str):
-    if not agent_service.approve_tool_call(call_id, True):
+async def approve(call_id: str, body: ApproveBody | None = None):
+    if not agent_service.approve_tool_call(call_id, True, body.rejected_hunks if body else None):
         raise HTTPException(404, "No pending tool call with that id (already resolved or timed out).")
     return {"ok": True}
 

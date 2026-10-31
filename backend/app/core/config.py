@@ -204,7 +204,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "agent_approval_timeout_seconds": 600,  # auto-deny if you don't respond
     "agent_subagent_max_iterations": 8,  # step budget for a spawn_subagent delegation
     "agent_check_command": "",       # e.g. "pytest -q" or "npm test" — run_checks default
-    "agent_auto_check": False,       # auto-run the check command after each file edit
+    "agent_auto_check": False,
+    "agent_native_tools": True,      # use Ollama's `tools` API on models that support it       # auto-run the check command after each file edit
     "agent_check_timeout_seconds": 180,  # tests/lint can be slower than a plain command
     # Optional container sandbox for bash/run_checks/shell_start — see
     # app/services/sandbox.py. "off" runs as your OS user (the default).

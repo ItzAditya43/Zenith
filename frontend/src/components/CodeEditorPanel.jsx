@@ -8,7 +8,7 @@ import Icon from "./Icon.jsx";
 // Same lazy-loaded Prism build + theme MarkdownRenderer.jsx uses for chat
 // code blocks — reused here for visual consistency, no new dependency.
 const SyntaxHighlighter = lazy(() =>
-  import("react-syntax-highlighter").then((m) => ({ default: m.Prism }))
+  import("../lib/highlighter.js")
 );
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 

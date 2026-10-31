@@ -1,6 +1,7 @@
 import { api } from "../../lib/api";
 import Icon from "../Icon.jsx";
 import { useState } from "react";
+import PairPhone from "./PairPhone.jsx";
 import { useSettings } from "./SettingsContext.js";
 
 /** Settings → "connection" section. State lives in SettingsPanel (see SettingsContext). */
@@ -109,6 +110,9 @@ export default function ConnectionSection() {
           <span className="switch-thumb" />
         </button>
       </div>
+      <PairPhone
+        onEnableLan={async () => setConfig(await api.patchConfig({ cors_allow_lan: true }))}
+      />
       <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
         Web search
       </h3>

@@ -77,6 +77,19 @@ async def create_project(body: dict):
     return storage.create_project(name, body.get("workdir"))
 
 
+@router.patch("/projects/{project_id}")
+async def update_project(project_id: str, body: dict):
+    """Edit a project's name, folder, default persona or instructions."""
+    if body.get("persona_id"):
+        from app.services import persona_service
+        if not persona_service.get_persona(body["persona_id"]):
+            raise HTTPException(404, "No such persona.")
+    project = storage.update_project(project_id, body)
+    if project is None:
+        raise HTTPException(404, "No such project.")
+    return project
+
+
 @router.delete("/projects/{project_id}")
 async def remove_project(project_id: str):
     storage.delete_project(project_id)
@@ -768,6 +781,7 @@ async def _after_reply(request: Request, user_text: str, key: str, full_text: st
     background after the stream has ended and the lock is free."""
     try:
         from app.services import rag_service
+        await asyncio.to_thread(rag_service.index_message, key, "user", user_text)
         await asyncio.to_thread(rag_service.index_message, key, "assistant", full_text)
     except Exception as exc:
         log.warning("chat.rag_index_failed", error=str(exc))
@@ -795,6 +809,18 @@ def _sse(payload: dict[str, Any]) -> str:
 
 
 async def _with_heartbeat(
+    stream: AsyncIterator[str], interval: float, max_idle_seconds: float | None = None,
+) -> AsyncIterator[str | None]:
+    """Live-reply bookkeeping around `_heartbeat_stream` (background
+    re-embedding pauses while any reply is streaming)."""
+    from app.services import rag_service
+
+    with rag_service.live_reply():
+        async for piece in _heartbeat_stream(stream, interval, max_idle_seconds):
+            yield piece
+
+
+async def _heartbeat_stream(
     stream: AsyncIterator[str], interval: float, max_idle_seconds: float | None = None,
 ) -> AsyncIterator[str | None]:
     """Re-yields `stream`, interleaving a `None` whenever `interval` seconds

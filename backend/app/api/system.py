@@ -267,6 +267,28 @@ async def activity():
     }
 
 
+@router.get("/pairing")
+async def pairing(request: Request):
+    """Settings → Connection → Pair a phone. Host-only: it lists this
+    machine's network addresses."""
+    from app.api import lock as lock_api
+    from app.core.security import is_local_client, shared_secret_active
+    from app.services import pairing_service
+
+    if not is_local_client(request.client.host if request.client else None):
+        raise HTTPException(403, "Pairing is only available on the host machine.")
+    port = request.url.port or 8420
+    addrs = await asyncio.to_thread(pairing_service.addresses)
+    for a in addrs:
+        a["backend_reachable"] = await asyncio.to_thread(pairing_service.listening_on, a["ip"], port)
+    return {
+        "addresses": addrs,
+        "api_port": port,
+        "cors_allow_lan": bool(settings.get("cors_allow_lan", False)),
+        "gate": lock_api.is_locked() or shared_secret_active(),
+    }
+
+
 @router.get("/models")
 async def models():
     """Lists installed Ollama models along with which capability role(s)
@@ -280,6 +302,9 @@ async def models():
 
     keywords = settings.get("capability_keywords", {})
     overrides = settings.get("model_overrides", {})
+    from app.services import eval_scores
+
+    scores = eval_scores.load()
     enriched = []
     for m in raw:
         name = m["name"]
@@ -288,7 +313,7 @@ async def models():
         roles += [role for role, override in overrides.items() if override == name and role not in roles]
         from app.services.router import is_cloud_model
 
-        enriched.append({**m, "roles": roles, "cloud": is_cloud_model(name)})
+        enriched.append({**m, "roles": roles, "cloud": is_cloud_model(name), "agent_eval": scores.get(name)})
     return JSONResponse(enriched, headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
 
 

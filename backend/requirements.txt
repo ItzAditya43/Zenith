@@ -10,7 +10,7 @@ httpx==0.28.1
 # is fine with anything <3.0.0, so this is a safe bump, not a downgrade risk).
 pydantic==2.13.4
 python-multipart==0.0.32
-pypdf==6.21.2
+pypdf==6.21.4
 python-docx==1.1.2
 # Single-conversation PDF export — pure-Python, no system deps (no Cairo/
 # Pango/headless browser), matching the stdlib-first philosophy.
