@@ -77,10 +77,12 @@ def create_conversation(title: str = "New chat", project_id: str | None = None) 
             (cid, title, now, now, project_id),
         )
         if project_id:
-            proj = conn.execute("SELECT workdir FROM projects WHERE id = ?", (project_id,)).fetchone()
+            proj = conn.execute("SELECT workdir, persona_id FROM projects WHERE id = ?", (project_id,)).fetchone()
             if proj and proj["workdir"]:
                 workdir = proj["workdir"]
                 conn.execute("UPDATE conversations SET workdir = ? WHERE id = ?", (workdir, cid))
+            if proj and proj["persona_id"]:
+                conn.execute("UPDATE conversations SET persona_id = ? WHERE id = ?", (proj["persona_id"], cid))
     return {
         "id": cid, "title": title, "created_at": now, "updated_at": now,
         "project_id": project_id, "workdir": workdir, "pinned": False,
@@ -325,6 +327,31 @@ def list_all_attachments() -> list[dict]:
             "WHERE conversation_id IS NOT NULL ORDER BY created_at DESC"
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+_PROJECT_FIELDS = ("name", "workdir", "persona_id", "instructions")
+
+
+def update_project(project_id: str, fields: dict) -> dict | None:
+    sets = {k: (v or None) for k, v in fields.items() if k in _PROJECT_FIELDS}
+    if sets.get("name") is None:
+        sets.pop("name", None)  # a project always keeps a name
+    with _conn() as conn:
+        if sets:
+            conn.execute(
+                f"UPDATE projects SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?",  # noqa: S608 — keys are whitelisted
+                (*sets.values(), project_id),
+            )
+        row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_project_instructions(project_id: str | None) -> str | None:
+    if not project_id:
+        return None
+    with _conn() as conn:
+        row = conn.execute("SELECT instructions FROM projects WHERE id = ?", (project_id,)).fetchone()
+    return (row["instructions"] or "").strip() or None if row else None
 
 
 def list_projects() -> list[dict]:

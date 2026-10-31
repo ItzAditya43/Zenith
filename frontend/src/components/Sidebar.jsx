@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import Icon from "./Icon.jsx";
 
 function groupByDate(conversations) {
@@ -100,6 +101,8 @@ export default function Sidebar({
   onCreate,
   onDelete,
   onOpenSettings,
+  modelCount = null,
+  ollamaOk = true,
   onOpenMemory,
   collapsed,
   onToggleCollapse,
@@ -132,6 +135,26 @@ export default function Sidebar({
   const pinned = unassigned.filter((c) => c.pinned);
   const unpinned = unassigned.filter((c) => !c.pinned);
   const groups = showSearchResults || collapsed ? null : groupByDate(unpinned);
+
+  // j / k move between chats when nothing editable has focus (terminal-style).
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.key !== "j" && e.key !== "k") || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      const list = conversations.filter((c) => !c.archived);
+      if (list.length === 0) return;
+      const i = list.findIndex((c) => c.id === activeId);
+      const next = list[Math.min(list.length - 1, Math.max(0, (i < 0 ? 0 : i) + (e.key === "j" ? 1 : -1)))];
+      if (next && next.id !== activeId) {
+        e.preventDefault();
+        onSelect(next.id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [conversations, activeId, onSelect]);
 
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -302,18 +325,10 @@ export default function Sidebar({
                         <button
                           className="conversation-group-add-btn"
                           onClick={() => onSetProjectAgentMode(p)}
-                          title={
-                            p.agent_mode
-                              ? `Agent autonomy pinned to "${p.agent_mode}" in this project — click to change`
-                              : "Set a per-project agent autonomy override (defaults to the global setting)"
-                          }
-                          aria-label={
-                            p.agent_mode
-                              ? `Agent autonomy pinned to "${p.agent_mode}" in this project — click to change`
-                              : "Set a per-project agent autonomy override (defaults to the global setting)"
-                          }
+                          title="Project settings — folder, persona, instructions, agent autonomy"
+                          aria-label={`Project settings for ${p.name}`}
                         >
-                          <Icon name="bot" size={10} />
+                          <Icon name="settings" size={10} />
                           {p.agent_mode && <span style={{ fontSize: "0.6em", marginLeft: 2 }}>{p.agent_mode}</span>}
                         </button>
                       )}
@@ -403,6 +418,13 @@ export default function Sidebar({
         )}
       </nav>
 
+      {!collapsed && modelCount != null && (
+        <p className="sidebar-status" aria-label="Ollama status">
+          <span className={ollamaOk ? "sidebar-status-ok" : "sidebar-status-bad"}>●</span>{" "}
+          {ollamaOk ? "ollama ok" : "ollama offline"}
+          <span className="sidebar-status-count">{modelCount} models</span>
+        </p>
+      )}
       <button className="settings-btn" onClick={onOpenSettings} aria-label="Settings">
         <Icon name="settings" size={16} />
         {!collapsed && <span>Settings</span>}

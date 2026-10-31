@@ -1,10 +1,18 @@
 import { lazy, Suspense } from "react";
 import Icon from "./Icon.jsx";
 
-// Heavy libs loaded lazily — split into separate chunks.
-const ReactMarkdown = lazy(() => import("react-markdown"));
+// Heavy libs loaded lazily — split into separate chunks, then fetched while
+// idle so the first reply renders as markdown instead of the plain fallback.
+const loadMarkdown = () => import("react-markdown");
+const ReactMarkdown = lazy(loadMarkdown);
+if (typeof window !== "undefined") {
+  (window.requestIdleCallback || ((cb) => setTimeout(cb, 1200)))(() => {
+    loadMarkdown().catch(() => {});
+    import("../lib/highlighter.js").catch(() => {});
+  });
+}
 const SyntaxHighlighter = lazy(() =>
-  import("react-syntax-highlighter").then((m) => ({ default: m.Prism }))
+  import("../lib/highlighter.js")
 );
 
 // Small-ish deps loaded eagerly (just plugin functions, not component trees).
@@ -46,8 +54,10 @@ export default function MarkdownRenderer({ content, onOpenEditor }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          code({ inline, className, children, ...props }) {
-            if (inline) {
+          // react-markdown v10 dropped the `inline` flag: a fenced block has a
+          // language class or spans lines; anything else is inline code.
+          code({ className, children, ...props }) {
+            if (!className && !String(children).includes("\n")) {
               return (
                 <code className="inline-code" {...props}>
                   {children}

@@ -776,6 +776,11 @@ export default function SettingsPanel({
     setConfig(updated);
   };
 
+  const toggleNativeTools = async (checked) => {
+    const updated = await api.patchConfig({ agent_native_tools: checked });
+    setConfig(updated);
+  };
+
   const addMemory = async () => {
     const text = newMemory.trim();
     if (!text) return;
@@ -1086,6 +1091,7 @@ export default function SettingsPanel({
     handleDisablePasscode,
     handleImport,
     toggleAutoCheck,
+    toggleNativeTools,
     addMemory,
     toggleMemory,
     deleteMemory,
@@ -1106,7 +1112,7 @@ export default function SettingsPanel({
       >
         <div className="settings-header">
           <div className="settings-title">
-            <span className="settings-title-mark" aria-hidden="true" />
+            <img className="settings-title-mark" src="/favicon.svg" alt="" aria-hidden="true" />
             <div>
               <h2>Settings</h2>
               <p className="settings-subtitle">Tune how Zenith runs on your machine</p>

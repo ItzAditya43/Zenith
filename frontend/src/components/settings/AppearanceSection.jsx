@@ -1,6 +1,15 @@
 import { ANIMATIONS, THEME_ANIMATIONS } from "../../lib/ambientAnimations";
 import { THEMES } from "./constants.js";
+import { useState } from "react";
 import { useSettings } from "./SettingsContext.js";
+
+function readNightDim() {
+  try {
+    return localStorage.getItem("zenith-night-dim") === "1";
+  } catch {
+    return false;
+  }
+}
 
 /** Settings → "appearance" section. State lives in SettingsPanel (see SettingsContext). */
 export default function AppearanceSection() {
@@ -21,6 +30,17 @@ export default function AppearanceSection() {
     toggleWakeWordEnabled,
     saveWakeWordPhrase,
   } = useSettings();
+  const [nightDim, setNightDim] = useState(readNightDim);
+  const toggleNightDim = () => {
+    const next = !nightDim;
+    setNightDim(next);
+    try {
+      localStorage.setItem("zenith-night-dim", next ? "1" : "0");
+    } catch {
+      /* storage blocked */
+    }
+    window.dispatchEvent(new Event("zenith:night-dim"));
+  };
 
   return (
     <section className="settings-section">
@@ -78,6 +98,24 @@ export default function AppearanceSection() {
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {theme === "oled-ember" && (
+        <div className="setting-row">
+          <div className="setting-meta">
+            <span className="setting-label">Night dim</span>
+            <span className="setting-hint">Softer text between 22:00 and 07:00.</span>
+          </div>
+          <button
+            className={`switch ${nightDim ? "switch-on" : ""}`}
+            onClick={toggleNightDim}
+            role="switch"
+            aria-checked={nightDim}
+            aria-label="Night dim"
+          >
+            <span className="switch-thumb" />
+          </button>
         </div>
       )}
 

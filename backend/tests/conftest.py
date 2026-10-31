@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -22,6 +23,17 @@ os.environ.setdefault("ZENITH_ALLOWED_HOSTS", "testserver")
 os.environ.pop("ZENITH_HOST_BIND", None)
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _session_tmp_root():
+    """Every tempfile.mkdtemp() in the suite lands under one root that is
+    removed at the end, so test runs never pile up dirs in /tmp."""
+    root = tempfile.mkdtemp(prefix="zenith-tests-")
+    prev, tempfile.tempdir = tempfile.tempdir, root
+    yield
+    tempfile.tempdir = prev
+    shutil.rmtree(root, ignore_errors=True)
+
+
 @pytest.fixture
 def temp_data_dir(monkeypatch):
     d = tempfile.mkdtemp(prefix="zenith-test-")
@@ -34,6 +46,7 @@ def temp_data_dir(monkeypatch):
     yield Path(d)
     cfg.refresh_paths()
     cfg.settings.reload()
+    shutil.rmtree(d, ignore_errors=True)
 
 
 @pytest.fixture
@@ -63,3 +76,4 @@ def fake_ollama(temp_data_dir, monkeypatch):
 async def collect(agen) -> list[dict]:
     """Drain an async generator of events into a list."""
     return [ev async for ev in agen]
+os.environ.setdefault("ZENITH_NO_BACKGROUND_REINDEX", "1")

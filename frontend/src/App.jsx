@@ -1,48 +1,68 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Composer from "./components/Composer";
 import MessageBubble from "./components/MessageBubble";
-import SettingsPanel from "./components/SettingsPanel";
 import CommandPalette from "./components/CommandPalette";
 import ToastStack from "./components/ToastStack";
 import Icon from "./components/Icon.jsx";
 import LockScreen from "./components/LockScreen.jsx";
 import AccessGate from "./components/AccessGate.jsx";
-import BranchTree from "./components/BranchTree.jsx";
-import DocumentEditor from "./components/DocumentEditor.jsx";
-import CalendarPanel from "./components/CalendarPanel.jsx";
-import NotesPanel from "./components/NotesPanel.jsx";
-import TodoPanel from "./components/TodoPanel.jsx";
-import ResearchDashboard from "./components/ResearchDashboard.jsx";
-import GroupChatPicker from "./components/GroupChatPicker.jsx";
 import AmbientCanvas from "./components/AmbientCanvas.jsx";
-import OnboardingTour from "./components/OnboardingTour.jsx";
-import WhatsNewPanel from "./components/WhatsNewPanel.jsx";
-import UsageDashboard from "./components/UsageDashboard.jsx";
-import HealthPanel from "./components/HealthPanel.jsx";
-import TracesPanel from "./components/TracesPanel";
 import BootSplash from "./components/BootSplash";
-import CodeEditorPanel from "./components/CodeEditorPanel.jsx";
-import SnippetsPanel from "./components/SnippetsPanel.jsx";
-import KnowledgeGraphPanel from "./components/KnowledgeGraphPanel.jsx";
-import DigestPanel from "./components/DigestPanel.jsx";
-import RagSourcesPanel from "./components/RagSourcesPanel.jsx";
-import SettingsHistoryPanel from "./components/SettingsHistoryPanel.jsx";
-import BatchJobPanel from "./components/BatchJobPanel.jsx";
 import WakeWordListener from "./components/WakeWordListener.jsx";
-import BackupPanel from "./components/BackupPanel.jsx";
-import ShortcutsOverlay from "./components/ShortcutsOverlay.jsx";
 import { THEME_ANIMATIONS } from "./lib/ambientAnimations";
 import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api, authHeaders, GATE_EVENT } from "./lib/api";
 import { buildCommands } from "./lib/commands.js";
 import ChatHeader from "./components/ChatHeader.jsx";
 
-const EMPTY_HORIZON = [
-  "          ░░░░▒▒▒▓▓▓█████████▓▓▓▒▒▒░░░░",
-  "     ░░░▒▒▒▓▓▓███████████████████▓▓▓▒▒▒░░░",
-  "  ░░▒▒▓▓▓█████████████████████████████▓▓▓▒▒░░",
+// Overlay panels load on first open instead of with the app: they were ~half
+// of the startup bundle and most sessions never open most of them. Each gets
+// its own Suspense boundary so loading one never blanks the rest of the UI.
+const EMPTY_DITHER = [
+  "              ░░░░░░▒▒▒▒▓▓▓▓████▓▓▓▓▒▒▒▒░░░░░░",
+  "        ░░░░▒▒▒▒▓▓▓▓████████████████▓▓▓▓▒▒▒▒░░░░",
+  "    ░░░░▒▒▒▓▓▓██████████████████████████▓▓▓▒▒▒░░░░",
+  " ░░░▒▒▒▓▓▓████████████████████████████████▓▓▓▒▒▒░░░",
 ].join("\n");
+
+function lazyPanel(loader) {
+  const Inner = lazy(loader);
+  function LazyPanel(props) {
+    return (
+      <Suspense fallback={null}>
+        <Inner {...props} />
+      </Suspense>
+    );
+  }
+  LazyPanel.preload = loader;
+  return LazyPanel;
+}
+const SettingsPanel = lazyPanel(() => import("./components/SettingsPanel"));
+const BranchTree = lazyPanel(() => import("./components/BranchTree.jsx"));
+const ProjectDialog = lazyPanel(() => import("./components/ProjectDialog.jsx"));
+const VoiceOrb = lazyPanel(() => import("./components/VoiceOrb.jsx"));
+const DocumentEditor = lazyPanel(() => import("./components/DocumentEditor.jsx"));
+const CalendarPanel = lazyPanel(() => import("./components/CalendarPanel.jsx"));
+const NotesPanel = lazyPanel(() => import("./components/NotesPanel.jsx"));
+const TodoPanel = lazyPanel(() => import("./components/TodoPanel.jsx"));
+const ResearchDashboard = lazyPanel(() => import("./components/ResearchDashboard.jsx"));
+const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
+const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
+const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
+const UsageDashboard = lazyPanel(() => import("./components/UsageDashboard.jsx"));
+const HealthPanel = lazyPanel(() => import("./components/HealthPanel.jsx"));
+const TracesPanel = lazyPanel(() => import("./components/TracesPanel"));
+const CodeEditorPanel = lazyPanel(() => import("./components/CodeEditorPanel.jsx"));
+const SnippetsPanel = lazyPanel(() => import("./components/SnippetsPanel.jsx"));
+const KnowledgeGraphPanel = lazyPanel(() => import("./components/KnowledgeGraphPanel.jsx"));
+const DigestPanel = lazyPanel(() => import("./components/DigestPanel.jsx"));
+const RagSourcesPanel = lazyPanel(() => import("./components/RagSourcesPanel.jsx"));
+const SettingsHistoryPanel = lazyPanel(() => import("./components/SettingsHistoryPanel.jsx"));
+const BatchJobPanel = lazyPanel(() => import("./components/BatchJobPanel.jsx"));
+const BackupPanel = lazyPanel(() => import("./components/BackupPanel.jsx"));
+const ShortcutsOverlay = lazyPanel(() => import("./components/ShortcutsOverlay.jsx"));
+
 
 export default function App() {
   const [locked, setLocked] = useState(false);
@@ -66,6 +86,8 @@ export default function App() {
   const [voiceReplyEnabled, setVoiceReplyEnabled] = useState(false);
   const [continuousVoice, setContinuousVoice] = useState(false);
   const [autoListenNonce, setAutoListenNonce] = useState(null);
+  const [voiceStopNonce, setVoiceStopNonce] = useState(null);
+  const [micPhase, setMicPhase] = useState(null);
   const [connectionError, setConnectionError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
@@ -113,6 +135,37 @@ export default function App() {
   const [healthOpen, setHealthOpen] = useState(false);
   const [tracesOpen, setTracesOpen] = useState(false);
   const [runFlags, setRunFlags] = useState({ agentMode: "manual", sandbox: false });
+  // Warm the panels people open most once the app is idle, so first open is
+  // instant without putting them back in the startup bundle.
+  useEffect(() => {
+    const warm = () => [SettingsPanel, HealthPanel, TracesPanel, DocumentEditor].forEach((p) => p.preload());
+    const id = window.requestIdleCallback ? window.requestIdleCallback(warm, { timeout: 4000 }) : setTimeout(warm, 2000);
+    return () => (window.cancelIdleCallback ? window.cancelIdleCallback(id) : clearTimeout(id));
+  }, []);
+
+  const announcedMemories = useRef(new Set());
+
+  // E3: OLED night dim — text eases off at night (22:00–07:00) when enabled.
+  useEffect(() => {
+    const apply = () => {
+      let on = false;
+      try {
+        on = localStorage.getItem("zenith-night-dim") === "1";
+      } catch {
+        /* storage blocked */
+      }
+      const h = new Date().getHours();
+      document.documentElement.toggleAttribute("data-night", on && (h >= 22 || h < 7));
+    };
+    apply();
+    const id = setInterval(apply, 5 * 60 * 1000);
+    window.addEventListener("zenith:night-dim", apply);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("zenith:night-dim", apply);
+    };
+  }, []);
+
   const [booting, setBooting] = useState(() => {
     try {
       return !sessionStorage.getItem("zenith-booted");
@@ -145,9 +198,31 @@ export default function App() {
   const [settingsInitialSection, setSettingsInitialSection] = useState("appearance");
   const [toasts, setToasts] = useState([]);
 
-  const showToast = (message, type = "info", duration) => {
+  const showToast = (message, type = "info", duration, action) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    setToasts((t) => [...t, { id, message, type, duration }]);
+    setToasts((t) => [...t, { id, message, type, duration, action }]);
+  };
+
+  // Memories are extracted in the background after a reply; look for new ones
+  // a little later and offer an Undo, so remembering is never silent.
+  const announceNewMemories = (sinceSeconds) => {
+    for (const delay of [5000, 15000]) {
+      setTimeout(async () => {
+        try {
+          const fresh = await api.listMemories(sinceSeconds);
+          for (const m of fresh) {
+            if (announcedMemories.current.has(m.id)) continue;
+            announcedMemories.current.add(m.id);
+            showToast(`Remembered: ${m.content}`, "success", 9000, {
+              label: "Undo",
+              onClick: () => api.deleteMemory(m.id).catch(() => {}),
+            });
+          }
+        } catch {
+          /* best-effort */
+        }
+      }, delay);
+    }
   };
   const dismissToast = (id) => setToasts((t) => t.filter((x) => x.id !== id));
 
@@ -333,25 +408,8 @@ export default function App() {
     }
   };
 
-  const handleSetProjectAgentMode = async (project) => {
-    const input = window.prompt(
-      "Agent autonomy for this project (manual/semi/full/plan) — leave blank to use the global default:",
-      project.agent_mode || ""
-    );
-    if (input === null) return;
-    const mode = input.trim() || null;
-    if (mode && !["manual", "semi", "full", "plan"].includes(mode)) {
-      showToast("Must be one of: manual, semi, full, plan.", "error");
-      return;
-    }
-    try {
-      await api.setProjectAgentMode(project.id, mode);
-      setProjects((ps) => ps.map((p) => (p.id === project.id ? { ...p, agent_mode: mode } : p)));
-      showToast(mode ? `Agent autonomy pinned to "${mode}" for ${project.name}.` : `Agent autonomy reset to global default for ${project.name}.`, "success");
-    } catch (err) {
-      showToast(err.message, "error");
-    }
-  };
+  const [editingProject, setEditingProject] = useState(null);
+  const handleSetProjectAgentMode = (project) => setEditingProject(project);
 
   const handleTogglePin = async (c) => {
     try {
@@ -608,6 +666,7 @@ export default function App() {
     setConversations((c) => [conv, ...c]);
     setActiveId(conv.id);
     setMessages([]);
+    if (window.innerWidth <= 720) setSidebarCollapsed(true); // phones: drawer closes after choosing
   };
 
   const handleDelete = async (id) => {
@@ -681,10 +740,10 @@ export default function App() {
     );
   };
 
-  const handleApproveTool = async (toolCallId) => {
+  const handleApproveTool = async (toolCallId, rejectedHunks = null) => {
     setToolCallStatus(toolCallId, "approving");
     try {
-      await api.approveToolCall(toolCallId);
+      await api.approveToolCall(toolCallId, rejectedHunks);
     } catch {
       setToolCallStatus(toolCallId, "pending");
     }
@@ -966,6 +1025,8 @@ export default function App() {
       maybeGenerateTitle(activeId, text);
     }
 
+    const turnStartedAt = Date.now() / 1000 - 1;
+    setIsNearBottom(true); // your own message always brings the view down
     let fullText = "";
     let thinkingText = "";
     let thinkingStartedAt = 0;
@@ -1037,6 +1098,11 @@ export default function App() {
             )
           );
         } else if (event.type === "tool_pending") {
+          // The card waiting on you must be on screen, wherever you scrolled.
+          setTimeout(
+            () => document.querySelector(".tool-call-pending")?.scrollIntoView({ block: "center", behavior: "smooth" }),
+            120
+          );
           setMessages((m) =>
             m.map((msg) =>
               msg.id === assistantMsg.id
@@ -1141,6 +1207,7 @@ export default function App() {
           }
           // Notify when the tab is backgrounded and the user opted in.
           notify("Zenith", "Your response is ready.", { onlyWhenHidden: true });
+          if (!agentMode && !deepResearch) announceNewMemories(turnStartedAt);
         } else if (event.type === "error") {
           setConnectionError(event.message);
           setStatus("idle");
@@ -1292,6 +1359,45 @@ export default function App() {
     <div className={`app-shell ${focusMode ? "app-shell-focus" : ""}`}>
       <a href="#chat-main-content" className="skip-link">Skip to chat</a>
       <AmbientCanvas animationId={ambientAnim} />
+      {editingProject && (
+        <Suspense fallback={null}>
+          <ProjectDialog
+            project={editingProject}
+            personas={personas}
+            onClose={() => setEditingProject(null)}
+            onSaved={(p) => {
+              setProjects((ps) => ps.map((x) => (x.id === p.id ? { ...x, ...p } : x)));
+              showToast(`Saved ${p.name}.`, "success");
+            }}
+          />
+        </Suspense>
+      )}
+      {continuousVoice && (
+        <Suspense fallback={null}>
+          <VoiceOrb
+            phase={micPhase || (status === "speaking" ? "speaking" : status === "thinking" ? "thinking" : "idle")}
+            userText={[...messages].reverse().find((m) => m.role === "user")?.content}
+            replyText={[...messages].reverse().find((m) => m.role === "assistant")?.content}
+            onTap={() => {
+              if (micPhase === "listening") setVoiceStopNonce(Date.now());
+              else if (status === "speaking") {
+                audioRef.current?.pause();
+                setStatus("idle");
+                setAutoListenNonce(Date.now());
+              } else if (!micPhase && status === "idle") setAutoListenNonce(Date.now());
+            }}
+            onBargeIn={() => {
+              audioRef.current?.pause();
+              setStatus("idle");
+              setAutoListenNonce(Date.now());
+            }}
+            onExit={() => {
+              if (micPhase === "listening") setVoiceStopNonce(Date.now());
+              setContinuousVoice(false);
+            }}
+          />
+        </Suspense>
+      )}
       <WakeWordListener
         enabled={wakeWordEnabled}
         phrase={wakeWordPhrase}
@@ -1299,6 +1405,8 @@ export default function App() {
       />
       {!focusMode && (
         <Sidebar
+          modelCount={installedModels.length || null}
+          ollamaOk={!connectionError}
           conversations={conversations}
           activeId={activeId}
           onSelect={selectConversation}
@@ -1342,7 +1450,10 @@ export default function App() {
           voiceReplyEnabled={voiceReplyEnabled}
           setVoiceReplyEnabled={setVoiceReplyEnabled}
           continuousVoice={continuousVoice}
-          setContinuousVoice={setContinuousVoice}
+          setContinuousVoice={(on) => {
+            setContinuousVoice(on);
+            if (on) setAutoListenNonce(Date.now()); // voice mode opens listening
+          }}
           focusMode={focusMode}
           setFocusMode={setFocusMode}
           agentAvailable={agentAvailable}
@@ -1495,12 +1606,9 @@ export default function App() {
           />
           {messages.length === 0 && (
             <div className="empty-state">
-              <pre className="empty-state-horizon" aria-hidden="true">{EMPTY_HORIZON}</pre>
-              <h2>Everything runs on your machine.</h2>
-              <p>
-                Type, drop an image, upload a document, or hold the mic — Zenith reads
-                what's installed on your Ollama and routes the turn automatically.
-              </p>
+              <pre className="empty-dither" aria-hidden="true">{EMPTY_DITHER}</pre>
+              <span className="empty-kicker">ZENITH · LOCAL · NOTHING LEAVES THIS MACHINE</span>
+              <h2>What are we making?</h2>
               <div className="empty-state-suggestions" role="group" aria-label="Suggestions">
                 {emptySuggestions.map((sug) => (
                   <button
@@ -1508,40 +1616,13 @@ export default function App() {
                     className="empty-state-suggestion"
                     onClick={() => setSeedText({ text: sug, nonce: Date.now() })}
                   >
-                    {sug}
+                    <span className="empty-suggestion-caret" aria-hidden="true">›</span> {sug}
                   </button>
                 ))}
               </div>
-              <div className="empty-state-features">
-                <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon"><Icon name="search" size={18} /></span>
-                  <div>
-                    <strong>Web search &amp; research</strong>
-                    <span>Pick a mode from the composer to search or investigate before answering.</span>
-                  </div>
-                </div>
-                <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon"><Icon name="paperclip" size={18} /></span>
-                  <div>
-                    <strong>Images, documents, video</strong>
-                    <span>Attach a file and Zenith routes to whatever model handles it best.</span>
-                  </div>
-                </div>
-                <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon"><Icon name="mic" size={18} /></span>
-                  <div>
-                    <strong>Voice in, voice out</strong>
-                    <span>Hold the mic to talk; turn on spoken replies from the header.</span>
-                  </div>
-                </div>
-                <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon"><Icon name="command" size={18} /></span>
-                  <div>
-                    <strong>⌘K for everything</strong>
-                    <span>Jump to a conversation, switch persona, or open any setting.</span>
-                  </div>
-                </div>
-              </div>
+              <p className="empty-hints">
+                <kbd className="keycap">/</kbd> commands <kbd className="keycap">⌘K</kbd> everything <kbd className="keycap">j</kbd><kbd className="keycap">k</kbd> move between chats
+              </p>
             </div>
           )}
           {messages.map((m) => (
@@ -1588,6 +1669,8 @@ export default function App() {
           installedModels={installedModels}
           continuousVoice={continuousVoice}
           autoListenNonce={autoListenNonce}
+          voiceStopNonce={voiceStopNonce}
+          onVoicePhase={setMicPhase}
           messages={messages}
           contextWindow={contextWindow}
           maxContextMessages={maxContextMessages}

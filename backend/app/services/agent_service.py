@@ -317,10 +317,16 @@ def classify_risk(tool: str, args: dict[str, Any], workdir: str | None = None) -
 _pending: dict[str, asyncio.Future] = {}
 
 
-def approve_tool_call(call_id: str, approved: bool) -> bool:
+# call_id -> hunk indices the user rejected while approving the rest
+_rejected_hunks: dict[str, set[int]] = {}
+
+
+def approve_tool_call(call_id: str, approved: bool, rejected_hunks: list[int] | None = None) -> bool:
     fut = _pending.get(call_id)
     if fut is None or fut.done():
         return False
+    if approved and rejected_hunks:
+        _rejected_hunks[call_id] = {int(h) for h in rejected_hunks}
     fut.set_result(approved)
     return True
 
@@ -478,22 +484,59 @@ def _preview_diff(tool: str, args: dict, workdir: str | None) -> tuple[str | Non
         except Exception:
             return None, None, None
 
+    new_content = _proposed_content(tool, args, previous_content)
+    if new_content is None:
+        return None, previous_content, had_previous_file
+    old_lines = (previous_content or "").splitlines(keepends=True)
+    new_lines = new_content.splitlines(keepends=True)
+    diff = "\n".join(
+        line.rstrip("\n") for line in difflib.unified_diff(old_lines, new_lines, fromfile=path, tofile=path, lineterm="")
+    )
+    return (diff or None), previous_content, had_previous_file
+
+
+def _proposed_content(tool: str, args: dict, previous_content: str | None) -> str | None:
+    """The file content an edit_file/write_file call would produce."""
     if tool == "edit_file":
         old_string = args.get("old_string")
-        new_string = args.get("new_string", "")
-        if not had_previous_file or old_string is None or previous_content is None or previous_content.count(old_string) != 1:
-            return None, previous_content, had_previous_file
-        new_content = previous_content.replace(old_string, new_string, 1)
-    else:  # write_file
-        if args.get("mode") == "append":
-            new_content = (previous_content or "") + args.get("content", "")
-        else:
-            new_content = args.get("content", "")
+        if old_string is None or previous_content is None or previous_content.count(old_string) != 1:
+            return None
+        return previous_content.replace(old_string, args.get("new_string", ""), 1)
+    if args.get("mode") == "append":
+        return (previous_content or "") + args.get("content", "")
+    return args.get("content", "")
 
-    old_lines = (previous_content or "").splitlines()
-    new_lines = new_content.splitlines()
-    diff = "\n".join(difflib.unified_diff(old_lines, new_lines, fromfile=path, tofile=path, lineterm=""))
-    return (diff or None), previous_content, had_previous_file
+
+def _apply_hunks(old: str, new: str, rejected: set[int]) -> str:
+    """`new`, minus the rejected hunks. Hunk i is the i-th "@@" section of
+    the preview diff — difflib's grouped opcodes with 3 lines of context."""
+    a, b = old.splitlines(keepends=True), new.splitlines(keepends=True)
+    sm = difflib.SequenceMatcher(None, a, b)
+    # Copy first: get_grouped_opcodes trims the ends of the cached opcode list.
+    opcodes = list(sm.get_opcodes())
+    hunk_of = {}
+    for i, group in enumerate(sm.get_grouped_opcodes(3)):
+        for op in group:
+            if op[0] != "equal":
+                hunk_of[op] = i
+    out: list[str] = []
+    for op in opcodes:
+        tag, i1, i2, j1, j2 = op
+        keep_new = tag == "equal" or hunk_of.get(op) not in rejected
+        out.extend(b[j1:j2] if keep_new else a[i1:i2])
+    return "".join(out)
+
+
+def _partial_args(tool: str, args: dict, previous_content: str | None, rejected: set[int]) -> dict | None:
+    """Rewrite an approved-with-rejections edit as a write_file of just the
+    accepted hunks. None when nothing is left to write."""
+    proposed = _proposed_content(tool, args, previous_content)
+    if proposed is None:
+        return None
+    content = _apply_hunks(previous_content or "", proposed, rejected)
+    if content == (previous_content or ""):
+        return None
+    return {"path": args.get("path"), "content": content}
 
 
 # --- Tool execution ---------------------------------------------------------
@@ -1129,6 +1172,71 @@ def _tool_step_schema(tool_names: list[str]) -> dict:
     }
 
 
+_ARG_RE = re.compile(r"(\w+) \(([^)]*)\)")
+_JSON_TYPES = {"string", "integer", "number", "boolean", "object", "array"}
+
+
+def _params_from_description(description: str) -> dict:
+    """Turn the "Args: path (string), cwd (string, optional)" tail of a
+    built-in tool description into a JSON Schema for native tool calling."""
+    props: dict[str, dict] = {}
+    required: list[str] = []
+    _, _, tail = description.partition("Args:")
+    for name, spec in _ARG_RE.findall(tail):
+        kind = spec.split(",")[0].strip()
+        props[name] = {"type": kind if kind in _JSON_TYPES else "string"}
+        if "optional" not in spec and "default" not in spec:
+            required.append(name)
+    return {"type": "object", "properties": props, "required": required}
+
+
+def _native_tool_specs(tool_names: list[str], mcp_by_name: dict[str, dict]) -> list[dict]:
+    specs = []
+    for name in tool_names:
+        if name in TOOLS:
+            desc = TOOLS[name]["description"]
+            params = _params_from_description(desc)
+        else:
+            desc = mcp_by_name[name].get("description", "")
+            params = mcp_by_name[name].get("input_schema") or {"type": "object", "properties": {}}
+        specs.append({"type": "function", "function": {"name": name, "description": desc, "parameters": params}})
+    return specs
+
+
+async def _next_step(
+    client: OllamaClient, model: str, messages: list[dict], tool_schema: dict,
+    native_tools: list[dict] | None,
+) -> tuple[dict | None, str]:
+    """Ask the model for its next step. Models that support Ollama's native
+    tool calling get `tools` (fewer protocol slips on small models); the rest
+    — and native replies without a tool call — use the JSON-in-text protocol."""
+    if native_tools:
+        msg = await client.chat_tools(model, messages, native_tools)
+        calls = msg.get("tool_calls") or []
+        if calls:
+            fn = calls[0].get("function") or {}
+            args = fn.get("arguments")
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {}
+            return {"tool": str(fn.get("name", "")), "args": args if isinstance(args, dict) else {}}, ""
+        raw = msg.get("content") or ""
+        step = _parse_step(raw)
+        return (step if step else ({"final": raw.strip()} if raw.strip() else None)), raw
+    raw = await client.chat(model, messages, format=tool_schema)
+    return _parse_step(raw), raw
+
+
+async def _native_tools_for(client: OllamaClient, model: str, tool_names: list[str], mcp_by_name: dict) -> list[dict] | None:
+    if not settings.get("agent_native_tools", True):
+        return None
+    if "tools" not in await client.capabilities(model):
+        return None
+    return _native_tool_specs(tool_names, mcp_by_name)
+
+
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
@@ -1177,15 +1285,15 @@ async def _run_subagent(
     client = OllamaClient()
     final_text: str | None = None
     tool_schema = _tool_step_schema(list(TOOLS) + list(mcp_by_name))
+    native_tools = await _native_tools_for(client, model, list(TOOLS) + list(mcp_by_name), mcp_by_name)
 
     for _ in range(max_iters):
         try:
-            raw = await client.chat(model, loop_messages, format=tool_schema)
+            step, raw = await _next_step(client, model, loop_messages, tool_schema, native_tools)
         except OllamaError as exc:
             final_text = f"Sub-agent error: {exc}"
             break
 
-        step = _parse_step(raw)
         if not step:
             final_text = raw.strip()
             break
@@ -1378,17 +1486,17 @@ async def run_agent_turn(
             effective_mode = "full"  # approved plan runs unattended
 
     tool_schema = _tool_step_schema(list(TOOLS) + list(mcp_by_name))
+    native_tools = await _native_tools_for(client, decision.model, list(TOOLS) + list(mcp_by_name), mcp_by_name)
 
     for _ in range(max_iters):
         if final_text is not None:
             break  # plan was rejected before the loop even started
         try:
-            raw = await client.chat(decision.model, loop_messages, format=tool_schema)
+            step, raw = await _next_step(client, decision.model, loop_messages, tool_schema, native_tools)
         except OllamaError as exc:
             yield {"type": "error", "message": str(exc)}
             return
 
-        step = _parse_step(raw)
         if not step:
             # Model didn't follow the protocol — treat its raw text as the
             # final answer rather than failing the whole turn.
@@ -1424,6 +1532,19 @@ async def run_agent_turn(
                 loop_messages.append({"role": "user", "content": "Tool call denied by the user. Try a different approach or give a final answer."})
                 continue
 
+        partial_note = ""
+        rejected = _rejected_hunks.pop(call_id, None)
+        if rejected and tool in ("edit_file", "write_file"):
+            partial = _partial_args(tool, args, previous_content, rejected)
+            if partial is None:
+                _resolve_call(call_id, "denied")
+                yield {"type": "tool_denied", "id": call_id}
+                loop_messages.append({"role": "assistant", "content": json.dumps(step)})
+                loop_messages.append({"role": "user", "content": "The user rejected every change in that edit. Try a different approach or give a final answer."})
+                continue
+            tool, args = "write_file", partial
+            partial_note = f"\n(The user applied only some of your changes and rejected hunk(s) {sorted(rejected)}; re-read the file before editing it again.)"
+
         if tool == "spawn_subagent":
             task_desc = str(args.get("task", "")).strip()
             if not task_desc:
@@ -1457,7 +1578,7 @@ async def run_agent_turn(
             last_failure = f"{tool}: {result[:200]}"
 
         loop_messages.append({"role": "assistant", "content": json.dumps(step)})
-        loop_messages.append({"role": "user", "content": f"Tool result for {tool}:\n{result}"})
+        loop_messages.append({"role": "user", "content": f"Tool result for {tool}:\n{result}{partial_note}"})
 
         # Auto-check feedback loop: after a file edit, optionally run the
         # configured test/lint command and feed the pass/fail back into the

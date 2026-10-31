@@ -197,6 +197,41 @@ class OllamaClient:
             out.append(piece)
         return "".join(out)
 
+    async def chat_tools(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """One non-streaming /api/chat turn with Ollama's native `tools`.
+        Returns the reply message: {"content": str, "tool_calls": [...]?}.
+        Only call this for models that report the "tools" capability."""
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "tools": tools,
+            "stream": False,
+            "options": options or {},
+        }
+        if "thinking" in await self.capabilities(model):
+            payload["think"] = False
+        timeout = httpx.Timeout(10.0, read=self.timeout, write=self.timeout, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
+                resp = await client.post(f"{self.host}/api/chat", json=payload)
+            except httpx.ConnectError as exc:
+                raise OllamaError(
+                    f"Can't reach Ollama at {self.host}. Is `ollama serve` running?"
+                ) from exc
+            except httpx.ReadTimeout as exc:
+                raise OllamaError(
+                    f"Ollama did not produce a response within {int(self.timeout)}s for model '{model}'."
+                ) from exc
+        if resp.status_code != 200:
+            raise OllamaError(f"Ollama returned {resp.status_code} for model '{model}': {resp.text[:300]}")
+        return resp.json().get("message") or {}
+
     async def preload(self, model: str) -> None:
         """Ask Ollama to load `model` into memory without generating
         anything (empty prompt on /api/generate is Ollama's documented
