@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "shell:default",
+    "dialog:default",
     {
       "identifier": "shell:allow-execute",
       "allow": [{ "name": "binaries/zenith-backend", "sidecar": true }]

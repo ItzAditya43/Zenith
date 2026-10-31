@@ -6,6 +6,15 @@ import { api } from "../lib/api";
 /** The chat header toolbar, extracted from App.jsx. App owns all state; this is presentational. */
 /** Secondary panels live behind one labelled "More" menu instead of a row of
  * fourteen unlabeled icons (which also overflowed the header on phones). */
+function HeaderMoreGroup({ label, children }) {
+  return (
+    <div className="header-more-group" role="presentation">
+      <p className="header-more-group-label">{label}</p>
+      {children}
+    </div>
+  );
+}
+
 function HeaderMore({ children }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -109,134 +118,152 @@ export default function ChatHeader({
       <StatusRail genStats={genStats} />
       <div className="header-actions">
         <HeaderMore>
-          {Object.values(branches).some((s) => s.length > 1) && (
-            <button
-              className={`icon-btn branch-tree-toggle ${branchTreeOpen ? "is-active" : ""}`}
-              onClick={() => setBranchTreeOpen((v) => !v)}
-              title="Branch tree — see and switch between alternate versions" data-label="Branch tree"
-            >
-              <Icon name="layers" size={16} />
-            </button>
+          <HeaderMoreGroup label="Workspace">
+            {Object.values(branches).some((s) => s.length > 1) && (
+              <button
+                className={`icon-btn branch-tree-toggle ${branchTreeOpen ? "is-active" : ""}`}
+                onClick={() => setBranchTreeOpen((v) => !v)}
+                title="Branch tree — see and switch between alternate versions"
+                aria-label="Branch tree"
+              >
+                <Icon name="layers" size={16} />
+                <span className="header-more-label">Branch tree</span>
+              </button>
+            )}
+            {!focusMode && (
+              <button
+                className={`icon-btn ${calendarOpen ? "is-active" : ""}`}
+                onClick={() => setCalendarOpen((v) => !v)}
+                title="Calendar"
+                aria-label="Calendar"
+              >
+                <Icon name="clock" size={16} />
+                <span className="header-more-label">Calendar</span>
+              </button>
+            )}
+            {!focusMode && (
+              <button
+                className={`icon-btn ${notesOpen ? "is-active" : ""}`}
+                onClick={() => setNotesOpen((v) => !v)}
+                title="Notes"
+                aria-label="Notes"
+              >
+                <Icon name="pencil" size={16} />
+                <span className="header-more-label">Notes</span>
+              </button>
+            )}
+            {!focusMode && (
+              <button
+                className={`icon-btn ${todosOpen ? "is-active" : ""}`}
+                onClick={() => setTodosOpen((v) => !v)}
+                title="To-do"
+                aria-label="To-do"
+              >
+                <Icon name="check" size={16} />
+                <span className="header-more-label">To-do</span>
+              </button>
+            )}
+          </HeaderMoreGroup>
+          {!focusMode && (
+            <HeaderMoreGroup label="Reports &amp; knowledge">
+              <button
+                className={`icon-btn ${researchOpen ? "is-active" : ""}`}
+                onClick={() => setResearchOpen((v) => !v)}
+                title="Research reports"
+                aria-label="Research reports"
+              >
+                <Icon name="flask" size={16} />
+                <span className="header-more-label">Research reports</span>
+              </button>
+              <button
+                className={`icon-btn ${snippetsOpen ? "is-active" : ""}`}
+                onClick={() => {
+                  setSnippetsOpen((v) => !v);
+                  api.listQuickActions().then(setQuickActions).catch(() => {});
+                }}
+                title="Prompt snippets"
+                aria-label="Prompt snippets"
+              >
+                <Icon name="copy" size={16} />
+                <span className="header-more-label">Prompt snippets</span>
+              </button>
+              <button
+                className={`icon-btn ${graphOpen ? "is-active" : ""}`}
+                onClick={() => setGraphOpen((v) => !v)}
+                title="Knowledge graph — how conversations, memories, and documents connect"
+                aria-label="Knowledge graph"
+              >
+                <Icon name="share" size={16} />
+                <span className="header-more-label">Knowledge graph</span>
+              </button>
+              <button
+                className={`icon-btn ${digestOpen ? "is-active" : ""}`}
+                onClick={() => setDigestOpen((v) => !v)}
+                title="Daily digest"
+                aria-label="Daily digest"
+              >
+                <Icon name="sun" size={16} />
+                <span className="header-more-label">Daily digest</span>
+              </button>
+              <button
+                className={`icon-btn ${ragSourcesOpen ? "is-active" : ""}`}
+                onClick={() => setRagSourcesOpen((v) => !v)}
+                title="RAG sources — what's indexed for retrieval"
+                aria-label="RAG sources"
+              >
+                <Icon name="layers" size={16} />
+                <span className="header-more-label">RAG sources</span>
+              </button>
+            </HeaderMoreGroup>
           )}
           {!focusMode && (
-            <button
-              className={`icon-btn ${calendarOpen ? "is-active" : ""}`}
-              onClick={() => setCalendarOpen((v) => !v)}
-              title="Calendar" data-label="Calendar"
-            >
-              <Icon name="clock" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${notesOpen ? "is-active" : ""}`}
-              onClick={() => setNotesOpen((v) => !v)}
-              title="Notes" data-label="Notes"
-            >
-              <Icon name="pencil" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${todosOpen ? "is-active" : ""}`}
-              onClick={() => setTodosOpen((v) => !v)}
-              title="To-do" data-label="To-do"
-            >
-              <Icon name="check" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${researchOpen ? "is-active" : ""}`}
-              onClick={() => setResearchOpen((v) => !v)}
-              title="Research reports" data-label="Research reports"
-            >
-              <Icon name="flask" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${snippetsOpen ? "is-active" : ""}`}
-              onClick={() => {
-                setSnippetsOpen((v) => !v);
-                api.listQuickActions().then(setQuickActions).catch(() => {});
-              }}
-              title="Prompt snippets" data-label="Prompt snippets"
-            >
-              <Icon name="copy" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${graphOpen ? "is-active" : ""}`}
-              onClick={() => setGraphOpen((v) => !v)}
-              title="Knowledge graph — how conversations, memories, and documents connect" data-label="Knowledge graph"
-            >
-              <Icon name="share" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${digestOpen ? "is-active" : ""}`}
-              onClick={() => setDigestOpen((v) => !v)}
-              title="Daily digest" data-label="Daily digest"
-            >
-              <Icon name="sun" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${usageOpen ? "is-active" : ""}`}
-              onClick={() => setUsageOpen((v) => !v)}
-              title="Usage & diagnostics" data-label="Usage"
-            >
-              <Icon name="grid" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${healthOpen ? "is-active" : ""}`}
-              onClick={() => setHealthOpen((v) => !v)}
-              title="System health" data-label="System health"
-            >
-              <Icon name="target" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${ragSourcesOpen ? "is-active" : ""}`}
-              onClick={() => setRagSourcesOpen((v) => !v)}
-              title="RAG sources — what's indexed for retrieval" data-label="RAG sources"
-            >
-              <Icon name="layers" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${settingsHistoryOpen ? "is-active" : ""}`}
-              onClick={() => setSettingsHistoryOpen((v) => !v)}
-              title="Settings history — see and revert changes" data-label="Settings history"
-            >
-              <Icon name="rotate-ccw" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${batchJobOpen ? "is-active" : ""}`}
-              onClick={() => setBatchJobOpen((v) => !v)}
-              title="Batch job — run a prompt against every file in a folder" data-label="Batch job"
-            >
-              <Icon name="hourglass" size={16} />
-            </button>
-          )}
-          {!focusMode && (
-            <button
-              className={`icon-btn ${backupOpen ? "is-active" : ""}`}
-              onClick={() => setBackupOpen((v) => !v)}
-              title="Backup & restore" data-label="Backup"
-            >
-              <Icon name="folder-open" size={16} />
-            </button>
+            <HeaderMoreGroup label="System">
+              <button
+                className={`icon-btn ${usageOpen ? "is-active" : ""}`}
+                onClick={() => setUsageOpen((v) => !v)}
+                title="Usage & diagnostics"
+                aria-label="Usage"
+              >
+                <Icon name="bar-chart" size={16} />
+                <span className="header-more-label">Usage</span>
+              </button>
+              <button
+                className={`icon-btn ${healthOpen ? "is-active" : ""}`}
+                onClick={() => setHealthOpen((v) => !v)}
+                title="System health"
+                aria-label="System health"
+              >
+                <Icon name="target" size={16} />
+                <span className="header-more-label">System health</span>
+              </button>
+              <button
+                className={`icon-btn ${settingsHistoryOpen ? "is-active" : ""}`}
+                onClick={() => setSettingsHistoryOpen((v) => !v)}
+                title="Settings history — see and revert changes"
+                aria-label="Settings history"
+              >
+                <Icon name="rotate-ccw" size={16} />
+                <span className="header-more-label">Settings history</span>
+              </button>
+              <button
+                className={`icon-btn ${batchJobOpen ? "is-active" : ""}`}
+                onClick={() => setBatchJobOpen((v) => !v)}
+                title="Batch job — run a prompt against every file in a folder"
+                aria-label="Batch job"
+              >
+                <Icon name="hourglass" size={16} />
+                <span className="header-more-label">Batch job</span>
+              </button>
+              <button
+                className={`icon-btn ${backupOpen ? "is-active" : ""}`}
+                onClick={() => setBackupOpen((v) => !v)}
+                title="Backup & restore"
+                aria-label="Backup"
+              >
+                <Icon name="folder-open" size={16} />
+                <span className="header-more-label">Backup</span>
+              </button>
+            </HeaderMoreGroup>
           )}
         </HeaderMore>
         {!focusMode && agentAvailable && (

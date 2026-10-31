@@ -18,3 +18,7 @@ __pycache__/
 .coverage
 .mypy_cache/
 .ruff_cache/
+
+# Runtime data dir created when the backend runs with ZENITH_DATA_DIR unset
+# and CWD at the repo root (its default is backend/data otherwise).
+/data/

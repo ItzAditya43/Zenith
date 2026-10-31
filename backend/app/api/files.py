@@ -291,3 +291,78 @@ async def search_local_files(path: str = Query(...), q: str = Query(..., min_len
             matches.append({"path": str(p), "match": "content", "snippet": snippet})
 
     return {"scanned": scanned, "truncated": scanned >= _ADHOC_MAX_FILES_SCANNED, "matches": matches}
+
+
+@router.get("/directories")
+async def list_directories(path: str = Query("")):
+    """List subdirectories of a given path for interactive directory picking.
+    If no path is specified, starts at the user's home directory.
+    Also returns common quick locations (Home, Desktop, Documents, Downloads, CWD).
+    """
+    target_str = path.strip()
+    if target_str:
+        p = Path(target_str).expanduser()
+    else:
+        p = Path.home()
+
+    if not p.exists():
+        curr = p
+        while not curr.exists() and curr != curr.parent:
+            curr = curr.parent
+        p = curr if curr.exists() and curr.is_dir() else Path.home()
+    elif not p.is_dir():
+        p = p.parent
+
+    try:
+        resolved = p.resolve()
+    except Exception:
+        resolved = Path.home()
+
+    subdirs: list[dict] = []
+    try:
+        for item in sorted(resolved.iterdir(), key=lambda x: x.name.lower()):
+            if item.name.startswith(".") and item.name not in {".config"}:
+                continue
+            if item.name in _SKIP_DIRS:
+                continue
+            try:
+                if item.is_dir() and not item.is_symlink():
+                    subdirs.append({
+                        "name": item.name,
+                        "path": str(item.resolve()),
+                    })
+            except (PermissionError, OSError):
+                continue
+    except (PermissionError, OSError):
+        pass
+
+    home = Path.home()
+    candidates = [
+        ("Home", home),
+        ("Desktop", home / "Desktop"),
+        ("Documents", home / "Documents"),
+        ("Downloads", home / "Downloads"),
+        ("Projects", home / "Projects"),
+        ("Workspace", Path.cwd()),
+    ]
+    quick_paths: list[dict] = []
+    seen: set[str] = set()
+    for name, cand in candidates:
+        try:
+            cand_res = cand.resolve()
+            cand_str = str(cand_res)
+            if cand.exists() and cand.is_dir() and cand_str not in seen:
+                seen.add(cand_str)
+                quick_paths.append({"name": name, "path": cand_str})
+        except Exception:
+            continue
+
+    return {
+        "current": str(resolved),
+        "name": resolved.name or str(resolved),
+        "parent": str(resolved.parent) if resolved.parent != resolved else None,
+        "is_root": resolved.parent == resolved,
+        "directories": subdirs[:150],
+        "quick_paths": quick_paths,
+    }
+

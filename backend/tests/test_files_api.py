@@ -136,3 +136,30 @@ def test_extract_project_avoids_filename_collisions(client):
     assert r.status_code == 200
     files = r.json()["files"]
     assert len(files) == len(set(files))  # no duplicate names
+
+
+def test_list_directories_default(client):
+    r = client.get("/api/directories")
+    assert r.status_code == 200
+    body = r.json()
+    assert "current" in body
+    assert "directories" in body
+    assert "quick_paths" in body
+    assert isinstance(body["directories"], list)
+    assert isinstance(body["quick_paths"], list)
+
+
+def test_list_directories_specific_path(client, tmp_path):
+    (tmp_path / "alpha").mkdir()
+    (tmp_path / "beta").mkdir()
+    (tmp_path / "file.txt").write_text("not a dir")
+
+    r = client.get(f"/api/directories?path={tmp_path}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["current"] == str(tmp_path)
+    names = [d["name"] for d in body["directories"]]
+    assert "alpha" in names
+    assert "beta" in names
+    assert "file.txt" not in names
+

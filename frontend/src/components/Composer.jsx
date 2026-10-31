@@ -95,9 +95,13 @@ function ModePicker({ mode, setMode, agentAvailable, councilAvailable, imageAvai
   );
 }
 
+const isCloudModel = (m) => /(^|-)cloud$/.test(m.split(":")[1] || "");
+
 function ModelPicker({ models, value, onChange }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const ref = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -113,11 +117,32 @@ function ModelPicker({ models, value, onChange }) {
     };
   }, [open]);
 
+  useEffect(() => {
+    // Autofocus without stealing the composer's own focus ring on open.
+    // Query reset happens in the toggle handler below, not here, so this
+    // effect only touches the DOM (focus), never component state.
+    if (open) requestAnimationFrame(() => searchRef.current?.focus());
+  }, [open]);
+
+  const q = query.trim().toLowerCase();
+  const filtered = q ? models.filter((m) => m.toLowerCase().includes(q)) : models;
+  const local = filtered.filter((m) => !isCloudModel(m));
+  const cloud = filtered.filter(isCloudModel);
+  const showAuto = !q || "auto".includes(q);
+
+  const pick = (m) => {
+    onChange(m);
+    setOpen(false);
+  };
+
   return (
     <div className="mode-picker" ref={ref}>
       <button
         className={`model-override-btn ${value ? "is-active" : ""}`}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          setQuery("");
+        }}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={value ? `Model: ${value}` : "Auto (model routing)"}
@@ -129,39 +154,77 @@ function ModelPicker({ models, value, onChange }) {
         </span>
       </button>
       {open && (
-        <ul className="mode-picker-menu model-override-menu" role="listbox">
-          <li>
-            <button
-              className={`mode-picker-option ${!value ? "is-selected" : ""}`}
-              role="option"
-              aria-selected={!value}
-              onClick={() => {
-                onChange("");
-                setOpen(false);
-              }}
-            >
-              <span className="mode-picker-option-label">Auto</span>
-            </button>
-          </li>
-          {models.map((m) => (
-            <li key={m}>
-              <button
-                className={`mode-picker-option ${m === value ? "is-selected" : ""}`}
-                role="option"
-                aria-selected={m === value}
-                onClick={() => {
-                  onChange(m);
-                  setOpen(false);
-                }}
-              >
-                <span className="mode-picker-option-label">{m}</span>
-                {/(^|-)cloud$/.test(m.split(":")[1] || "") && (
-                  <span className="mode-picker-option-hint">Ollama Cloud — leaves this machine</span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="mode-picker-menu model-override-menu" role="listbox" aria-label="Choose a model">
+          {models.length > 6 && (
+            <div className="model-override-search">
+              <Icon name="search" size={13} aria-hidden="true" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search models…"
+                aria-label="Search models"
+              />
+            </div>
+          )}
+          <ul className="model-override-list">
+            {showAuto && (
+              <li>
+                <button
+                  className={`mode-picker-option ${!value ? "is-selected" : ""}`}
+                  role="option"
+                  aria-selected={!value}
+                  onClick={() => pick("")}
+                >
+                  <span className="mode-picker-option-text">
+                    <span className="mode-picker-option-label">Auto</span>
+                    <span className="mode-picker-option-hint">Zenith routes by capability</span>
+                  </span>
+                </button>
+              </li>
+            )}
+            {local.length > 0 && (
+              <li className="model-override-group-label" role="presentation">
+                <Icon name="hard-drive" size={11} aria-hidden="true" /> Local — stays on this machine
+              </li>
+            )}
+            {local.map((m) => (
+              <li key={m}>
+                <button
+                  className={`mode-picker-option ${m === value ? "is-selected" : ""}`}
+                  role="option"
+                  aria-selected={m === value}
+                  title={m}
+                  onClick={() => pick(m)}
+                >
+                  <span className="mode-picker-option-label">{m}</span>
+                </button>
+              </li>
+            ))}
+            {cloud.length > 0 && (
+              <li className="model-override-group-label model-override-group-label-cloud" role="presentation">
+                <Icon name="cloud" size={11} aria-hidden="true" /> Ollama Cloud — leaves this machine
+              </li>
+            )}
+            {cloud.map((m) => (
+              <li key={m}>
+                <button
+                  className={`mode-picker-option ${m === value ? "is-selected" : ""}`}
+                  role="option"
+                  aria-selected={m === value}
+                  title={m}
+                  onClick={() => pick(m)}
+                >
+                  <span className="mode-picker-option-label">{m}</span>
+                </button>
+              </li>
+            ))}
+            {!showAuto && local.length === 0 && cloud.length === 0 && (
+              <li className="model-override-empty" role="presentation">No models match "{query}"</li>
+            )}
+          </ul>
+        </div>
       )}
     </div>
   );

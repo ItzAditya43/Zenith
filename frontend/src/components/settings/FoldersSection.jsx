@@ -1,4 +1,6 @@
 import { useSettings } from "./SettingsContext.js";
+import { pickNativeDirectory } from "../../lib/directoryPicker";
+import Icon from "../Icon.jsx";
 
 /** Settings → "folders" section. State lives in SettingsPanel (see SettingsContext). */
 export default function FoldersSection() {
@@ -34,6 +36,20 @@ export default function FoldersSection() {
           onChange={(e) => setNewFolderPath(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addFolder()}
         />
+        <button
+          type="button"
+          className="settings-btn workdir-browse-btn"
+          onClick={async () => {
+            const selected = await pickNativeDirectory({
+              defaultPath: newFolderPath || undefined,
+              title: "Select Folder to Watch",
+            });
+            if (selected) setNewFolderPath(selected);
+          }}
+          title="Browse folder"
+        >
+          <Icon name="folder-open" size={14} /> Browse…
+        </button>
         <button className="settings-btn-primary" onClick={addFolder}>
           Watch
         </button>

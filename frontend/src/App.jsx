@@ -62,7 +62,7 @@ const SettingsHistoryPanel = lazyPanel(() => import("./components/SettingsHistor
 const BatchJobPanel = lazyPanel(() => import("./components/BatchJobPanel.jsx"));
 const BackupPanel = lazyPanel(() => import("./components/BackupPanel.jsx"));
 const ShortcutsOverlay = lazyPanel(() => import("./components/ShortcutsOverlay.jsx"));
-
+const WorkdirModal = lazyPanel(() => import("./components/WorkdirModal.jsx"));
 
 export default function App() {
   const [locked, setLocked] = useState(false);
@@ -134,6 +134,7 @@ export default function App() {
   const [usageOpen, setUsageOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [tracesOpen, setTracesOpen] = useState(false);
+  const [workdirModalOpen, setWorkdirModalOpen] = useState(false);
   const [runFlags, setRunFlags] = useState({ agentMode: "manual", sandbox: false });
   // Warm the panels people open most once the app is idle, so first open is
   // instant without putting them back in the startup bundle.
@@ -351,25 +352,21 @@ export default function App() {
     }
   };
 
-  const handleSetWorkdir = async () => {
+  const handleSetWorkdir = () => {
     if (!activeId) return;
-    const current = activeConversation?.workdir || "";
-    const input = window.prompt(
-      "Working directory for this conversation — agent mode's bash cwd and relative " +
-        "file paths resolve against it. Leave blank to unbind.",
-      current
-    );
-    if (input === null) return; // cancelled
-    try {
-      const result = await api.setConversationWorkdir(activeId, input.trim() || null);
-      setConversations((cs) =>
-        cs.map((c) => (c.id === activeId ? { ...c, workdir: result.workdir } : c))
-      );
-      showToast(result.workdir ? `Working directory set: ${result.workdir}` : "Working directory cleared", "success");
-    } catch (err) {
-      showToast(err.message, "error");
-    }
+    setWorkdirModalOpen(true);
   };
+
+  const recentWorkdirs = useMemo(() => {
+    const set = new Set();
+    for (const c of conversations) {
+      if (c.workdir) set.add(c.workdir);
+    }
+    for (const p of projects) {
+      if (p.workdir) set.add(p.workdir);
+    }
+    return Array.from(set);
+  }, [conversations, projects]);
 
   const handleExtractProject = async () => {
     if (!activeId) return;
@@ -1545,6 +1542,25 @@ export default function App() {
         {batchJobOpen && <BatchJobPanel onClose={() => setBatchJobOpen(false)} />}
         {backupOpen && <BackupPanel onClose={() => setBackupOpen(false)} />}
         {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
+        {workdirModalOpen && (
+          <WorkdirModal
+            currentWorkdir={activeConversation?.workdir || ""}
+            recentWorkdirs={recentWorkdirs}
+            onClose={() => setWorkdirModalOpen(false)}
+            onSave={async (newWorkdir) => {
+              const result = await api.setConversationWorkdir(activeId, newWorkdir);
+              setConversations((cs) =>
+                cs.map((c) => (c.id === activeId ? { ...c, workdir: result.workdir } : c))
+              );
+              showToast(
+                result.workdir
+                  ? `Working directory set: ${result.workdir}`
+                  : "Working directory cleared",
+                "success"
+              );
+            }}
+          />
+        )}
         {groupPickerOpen && (
           <GroupChatPicker
             personas={personas}
