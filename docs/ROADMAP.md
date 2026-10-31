@@ -7,7 +7,6 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 
 | # | Feature | Why | Effort |
 |---|---|---|---|
-| C1 | **Hunk-level diff approvals** | Accept the fix, reject the noise: approve or reject each hunk of an agent edit, with word-level highlights. | L |
 | C8 | **Model-swap aware queueing** | On small GPUs, chat and embedding models evict each other; batch background embeddings and avoid swaps during a live reply. | M |
 
 ## Experience

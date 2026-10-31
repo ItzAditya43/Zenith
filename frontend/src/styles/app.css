@@ -4066,3 +4066,13 @@ img.settings-title-mark { background: none; object-fit: contain; }
 .toast-action:hover { background: var(--bg-panel-raised); }
 /* ===== E3 night dim (OLED) ===== */
 [data-theme="oled-ember"][data-night] { --text-primary: #d2d2d2; --text-secondary: #949494; }
+
+/* ===== Hunk-level approvals ===== */
+.diff-line-hunk { display: flex; align-items: center; gap: var(--space-2); }
+.diff-hunk-toggle {
+  margin-left: auto; padding: 0 var(--space-2); border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: var(--text-xs);
+  border: 1px solid var(--border-soft); color: var(--text-secondary);
+}
+.diff-hunk-toggle[aria-pressed="false"] { color: var(--text-tertiary); border-style: dashed; }
+.diff-line-skipped:not(.diff-line-hunk) { opacity: 0.38; text-decoration: line-through; }

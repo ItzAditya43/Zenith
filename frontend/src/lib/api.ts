@@ -618,7 +618,13 @@ export const api = {
   listMemoryConflicts: () => request("/api/memories/conflicts").then((r) => r.json()),
   resolveMemoryConflict: (id: string) => request(`/api/memories/conflicts/${id}/resolve`, { method: "POST" }),
 
-  approveToolCall: (id: string) => request(`/api/agent/tool-calls/${id}/approve`, { method: "POST" }),
+  approveToolCall: (id: string, rejectedHunks: number[] | null = null) =>
+    request(`/api/agent/tool-calls/${id}/approve`, {
+      method: "POST",
+      ...(rejectedHunks?.length
+        ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rejected_hunks: rejectedHunks }) }
+        : {}),
+    }),
   denyToolCall: (id: string) => request(`/api/agent/tool-calls/${id}/deny`, { method: "POST" }),
   revertToolCall: (id: string) =>
     request(`/api/agent/tool-calls/${id}/revert`, { method: "POST" }).then((r) => r.json()),
