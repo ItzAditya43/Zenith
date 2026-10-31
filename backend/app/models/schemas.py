@@ -102,6 +102,7 @@ class ConfigPatch(StrictModel):
     agent_subagent_max_iterations: int | None = Field(default=None, ge=1, le=50)
     agent_check_command: str | None = Field(default=None, max_length=500)
     agent_auto_check: bool | None = None
+    agent_native_tools: bool | None = None
     agent_check_timeout_seconds: int | None = Field(default=None, ge=5, le=1800)
     route_to_cloud_models: bool | None = None
     router_semantic_margin: float | None = Field(default=None, ge=0, le=0.5)

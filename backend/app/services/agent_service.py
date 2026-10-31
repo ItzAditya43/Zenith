@@ -1129,6 +1129,71 @@ def _tool_step_schema(tool_names: list[str]) -> dict:
     }
 
 
+_ARG_RE = re.compile(r"(\w+) \(([^)]*)\)")
+_JSON_TYPES = {"string", "integer", "number", "boolean", "object", "array"}
+
+
+def _params_from_description(description: str) -> dict:
+    """Turn the "Args: path (string), cwd (string, optional)" tail of a
+    built-in tool description into a JSON Schema for native tool calling."""
+    props: dict[str, dict] = {}
+    required: list[str] = []
+    _, _, tail = description.partition("Args:")
+    for name, spec in _ARG_RE.findall(tail):
+        kind = spec.split(",")[0].strip()
+        props[name] = {"type": kind if kind in _JSON_TYPES else "string"}
+        if "optional" not in spec and "default" not in spec:
+            required.append(name)
+    return {"type": "object", "properties": props, "required": required}
+
+
+def _native_tool_specs(tool_names: list[str], mcp_by_name: dict[str, dict]) -> list[dict]:
+    specs = []
+    for name in tool_names:
+        if name in TOOLS:
+            desc = TOOLS[name]["description"]
+            params = _params_from_description(desc)
+        else:
+            desc = mcp_by_name[name].get("description", "")
+            params = mcp_by_name[name].get("input_schema") or {"type": "object", "properties": {}}
+        specs.append({"type": "function", "function": {"name": name, "description": desc, "parameters": params}})
+    return specs
+
+
+async def _next_step(
+    client: OllamaClient, model: str, messages: list[dict], tool_schema: dict,
+    native_tools: list[dict] | None,
+) -> tuple[dict | None, str]:
+    """Ask the model for its next step. Models that support Ollama's native
+    tool calling get `tools` (fewer protocol slips on small models); the rest
+    — and native replies without a tool call — use the JSON-in-text protocol."""
+    if native_tools:
+        msg = await client.chat_tools(model, messages, native_tools)
+        calls = msg.get("tool_calls") or []
+        if calls:
+            fn = calls[0].get("function") or {}
+            args = fn.get("arguments")
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {}
+            return {"tool": str(fn.get("name", "")), "args": args if isinstance(args, dict) else {}}, ""
+        raw = msg.get("content") or ""
+        step = _parse_step(raw)
+        return (step if step else ({"final": raw.strip()} if raw.strip() else None)), raw
+    raw = await client.chat(model, messages, format=tool_schema)
+    return _parse_step(raw), raw
+
+
+async def _native_tools_for(client: OllamaClient, model: str, tool_names: list[str], mcp_by_name: dict) -> list[dict] | None:
+    if not settings.get("agent_native_tools", True):
+        return None
+    if "tools" not in await client.capabilities(model):
+        return None
+    return _native_tool_specs(tool_names, mcp_by_name)
+
+
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
@@ -1177,15 +1242,15 @@ async def _run_subagent(
     client = OllamaClient()
     final_text: str | None = None
     tool_schema = _tool_step_schema(list(TOOLS) + list(mcp_by_name))
+    native_tools = await _native_tools_for(client, model, list(TOOLS) + list(mcp_by_name), mcp_by_name)
 
     for _ in range(max_iters):
         try:
-            raw = await client.chat(model, loop_messages, format=tool_schema)
+            step, raw = await _next_step(client, model, loop_messages, tool_schema, native_tools)
         except OllamaError as exc:
             final_text = f"Sub-agent error: {exc}"
             break
 
-        step = _parse_step(raw)
         if not step:
             final_text = raw.strip()
             break
@@ -1378,17 +1443,17 @@ async def run_agent_turn(
             effective_mode = "full"  # approved plan runs unattended
 
     tool_schema = _tool_step_schema(list(TOOLS) + list(mcp_by_name))
+    native_tools = await _native_tools_for(client, decision.model, list(TOOLS) + list(mcp_by_name), mcp_by_name)
 
     for _ in range(max_iters):
         if final_text is not None:
             break  # plan was rejected before the loop even started
         try:
-            raw = await client.chat(decision.model, loop_messages, format=tool_schema)
+            step, raw = await _next_step(client, decision.model, loop_messages, tool_schema, native_tools)
         except OllamaError as exc:
             yield {"type": "error", "message": str(exc)}
             return
 
-        step = _parse_step(raw)
         if not step:
             # Model didn't follow the protocol — treat its raw text as the
             # final answer rather than failing the whole turn.
