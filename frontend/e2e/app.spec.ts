@@ -175,3 +175,16 @@ test("pair a phone shows a QR code and the remaining steps", async ({ page }) =>
   const qr = page.getByRole("img", { name: "QR code" });
   if ((await page.locator(".pair-tabs button").count()) > 0) await expect(qr.locator("svg")).toBeVisible();
 });
+
+test("project settings save instructions for the workspace", async ({ page }) => {
+  const res = await page.request.post(`${API}/api/projects`, { data: { name: "E2E Workspace" } });
+  const proj = await res.json();
+  await page.reload();
+  await page.getByRole("button", { name: "Project settings for E2E Workspace" }).click();
+  const dlg = page.getByRole("dialog", { name: "Project settings" });
+  await dlg.getByLabel(/Instructions/).fill("Answer in haiku.");
+  await dlg.getByRole("button", { name: "Save" }).click();
+  await expect(dlg).toBeHidden();
+  const list = await (await page.request.get(`${API}/api/projects`)).json();
+  expect(list.find((p: { id: string }) => p.id === proj.id).instructions).toBe("Answer in haiku.");
+});

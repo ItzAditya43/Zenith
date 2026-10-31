@@ -33,6 +33,7 @@ function lazyPanel(loader) {
 }
 const SettingsPanel = lazyPanel(() => import("./components/SettingsPanel"));
 const BranchTree = lazyPanel(() => import("./components/BranchTree.jsx"));
+const ProjectDialog = lazyPanel(() => import("./components/ProjectDialog.jsx"));
 const VoiceOrb = lazyPanel(() => import("./components/VoiceOrb.jsx"));
 const DocumentEditor = lazyPanel(() => import("./components/DocumentEditor.jsx"));
 const CalendarPanel = lazyPanel(() => import("./components/CalendarPanel.jsx"));
@@ -400,25 +401,8 @@ export default function App() {
     }
   };
 
-  const handleSetProjectAgentMode = async (project) => {
-    const input = window.prompt(
-      "Agent autonomy for this project (manual/semi/full/plan) — leave blank to use the global default:",
-      project.agent_mode || ""
-    );
-    if (input === null) return;
-    const mode = input.trim() || null;
-    if (mode && !["manual", "semi", "full", "plan"].includes(mode)) {
-      showToast("Must be one of: manual, semi, full, plan.", "error");
-      return;
-    }
-    try {
-      await api.setProjectAgentMode(project.id, mode);
-      setProjects((ps) => ps.map((p) => (p.id === project.id ? { ...p, agent_mode: mode } : p)));
-      showToast(mode ? `Agent autonomy pinned to "${mode}" for ${project.name}.` : `Agent autonomy reset to global default for ${project.name}.`, "success");
-    } catch (err) {
-      showToast(err.message, "error");
-    }
-  };
+  const [editingProject, setEditingProject] = useState(null);
+  const handleSetProjectAgentMode = (project) => setEditingProject(project);
 
   const handleTogglePin = async (c) => {
     try {
@@ -1362,6 +1346,19 @@ export default function App() {
     <div className={`app-shell ${focusMode ? "app-shell-focus" : ""}`}>
       <a href="#chat-main-content" className="skip-link">Skip to chat</a>
       <AmbientCanvas animationId={ambientAnim} />
+      {editingProject && (
+        <Suspense fallback={null}>
+          <ProjectDialog
+            project={editingProject}
+            personas={personas}
+            onClose={() => setEditingProject(null)}
+            onSaved={(p) => {
+              setProjects((ps) => ps.map((x) => (x.id === p.id ? { ...x, ...p } : x)));
+              showToast(`Saved ${p.name}.`, "success");
+            }}
+          />
+        </Suspense>
+      )}
       {continuousVoice && (
         <Suspense fallback={null}>
           <VoiceOrb

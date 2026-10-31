@@ -302,18 +302,10 @@ export default function Sidebar({
                         <button
                           className="conversation-group-add-btn"
                           onClick={() => onSetProjectAgentMode(p)}
-                          title={
-                            p.agent_mode
-                              ? `Agent autonomy pinned to "${p.agent_mode}" in this project — click to change`
-                              : "Set a per-project agent autonomy override (defaults to the global setting)"
-                          }
-                          aria-label={
-                            p.agent_mode
-                              ? `Agent autonomy pinned to "${p.agent_mode}" in this project — click to change`
-                              : "Set a per-project agent autonomy override (defaults to the global setting)"
-                          }
+                          title="Project settings — folder, persona, instructions, agent autonomy"
+                          aria-label={`Project settings for ${p.name}`}
                         >
-                          <Icon name="bot" size={10} />
+                          <Icon name="settings" size={10} />
                           {p.agent_mode && <span style={{ fontSize: "0.6em", marginLeft: 2 }}>{p.agent_mode}</span>}
                         </button>
                       )}

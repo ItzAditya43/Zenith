@@ -4122,3 +4122,10 @@ img.settings-title-mark { background: none; object-fit: contain; }
 .pair-steps .is-ok .pair-mark { color: var(--signal-general); }
 .pair-steps .is-todo { color: var(--text-secondary); }
 .pair-fix { margin-left: var(--space-2); padding: 0 var(--space-2); }
+
+/* ===== Project dialog ===== */
+.project-dialog { max-width: 520px; }
+.project-form { display: grid; gap: var(--space-3); padding: var(--space-4); }
+.project-form label { display: grid; gap: var(--space-1); font-size: var(--text-sm); color: var(--text-secondary); }
+.project-form .setting-hint { display: inline; margin-left: var(--space-1); }
+.project-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
