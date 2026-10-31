@@ -264,7 +264,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ persona_id: personaId }),
     }),
-  setConversationWorkdir: (conversationId: string, workdir: string) =>
+  setConversationWorkdir: (conversationId: string, workdir: string | null) =>
     request(`/api/conversations/${conversationId}/workdir`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -538,6 +538,10 @@ export const api = {
   getKnowledgeGraph: () => request("/api/graph").then((r) => r.json()),
   searchLocalFiles: (path: string, q: string) =>
     request(`/api/search/local-files?path=${encodeURIComponent(path)}&q=${encodeURIComponent(q)}`).then((r) => r.json()),
+  listDirectories: (path?: string) => {
+    const q = path ? `?path=${encodeURIComponent(path)}` : "";
+    return request(`/api/directories${q}`).then((r) => r.json());
+  },
   getAutomationEventTypes: () => request("/api/automation/event-types").then((r) => r.json()),
   listWebhooks: () => request("/api/webhooks").then((r) => r.json()),
   createWebhook: (url: string, eventTypes: string[]) =>

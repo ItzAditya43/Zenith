@@ -4253,6 +4253,255 @@ img.settings-title-mark { background: none; object-fit: contain; }
 .project-form .setting-hint { display: inline; margin-left: var(--space-1); }
 .project-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
 
+/* ===== Workdir modal & directory browser ===== */
+.workdir-modal {
+  width: min(640px, calc(100vw - 3rem));
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.workdir-body {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-y: auto;
+}
+.workdir-hint {
+  margin: 0;
+  line-height: 1.4;
+  font-size: var(--text-xs);
+}
+.workdir-current-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+}
+.workdir-current-bar.is-unbound {
+  opacity: 0.75;
+}
+.workdir-current-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.workdir-current-path {
+  flex: 1;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workdir-clear-btn {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  padding: 2px 6px;
+}
+.workdir-clear-btn:hover {
+  color: var(--status-error, #f87171);
+}
+.workdir-input-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.workdir-input-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.workdir-input-icon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+.workdir-input {
+  padding-left: calc(var(--space-3) + 18px) !important;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  width: 100%;
+}
+.workdir-browse-btn {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.workdir-shortcuts-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.workdir-section-label {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.workdir-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.workdir-chip {
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.workdir-chip:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+.workdir-chip.is-active {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.workdir-browser-card {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.workdir-browser-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface-raised, rgba(255, 255, 255, 0.03));
+  border-bottom: 1px solid var(--border-hairline);
+  gap: var(--space-2);
+  min-height: 36px;
+}
+.workdir-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.workdir-breadcrumb-btn {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+.workdir-breadcrumb-btn:hover {
+  color: var(--accent);
+  background: var(--bg-subtle, rgba(255, 255, 255, 0.05));
+}
+.workdir-breadcrumb-btn.is-current {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.workdir-breadcrumb-sep {
+  color: var(--text-tertiary);
+  margin: 0 1px;
+}
+.workdir-up-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.workdir-up-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+.workdir-folder-list {
+  max-height: 180px;
+  overflow-y: auto;
+  padding: var(--space-2);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 4px;
+}
+.workdir-folder-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+  overflow: hidden;
+  font-size: var(--text-xs);
+}
+.workdir-folder-row:hover {
+  background: var(--bg-subtle, rgba(255, 255, 255, 0.05));
+  border-color: var(--border-soft);
+  color: var(--text-primary);
+}
+.workdir-folder-row.is-selected {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.workdir-folder-row-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+  opacity: 0.8;
+}
+.workdir-folder-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workdir-browser-loading,
+.workdir-browser-empty,
+.workdir-browser-error {
+  padding: var(--space-4);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  grid-column: 1 / -1;
+}
+.workdir-browser-error {
+  color: var(--status-error);
+}
+.workdir-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-hairline);
+  background: var(--bg-panel);
+}
+
 /* ===== MCP gallery ===== */
 .mcp-gallery { margin-bottom: var(--space-4); }
 .mcp-gallery-list { list-style: none; padding: 0; margin: var(--space-3) 0 0; display: grid; gap: var(--space-2); grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }

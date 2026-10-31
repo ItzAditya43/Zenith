@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 import { useEscapeToClose } from "../hooks/useEscapeToClose";
+import { pickNativeDirectory } from "../lib/directoryPicker";
 import Icon from "./Icon.jsx";
 
 const MODES = ["", "manual", "semi", "full", "plan"];
@@ -44,7 +45,23 @@ export default function ProjectDialog({ project, personas, onClose, onSaved }) {
           <label>Name<input className="settings-input" value={form.name} onChange={set("name")} /></label>
           <label>
             Folder <span className="setting-hint">agent mode works here</span>
-            <input className="settings-input" value={form.workdir} onChange={set("workdir")} placeholder="/path/to/project" />
+            <div className="workdir-input-row">
+              <input className="settings-input" value={form.workdir} onChange={set("workdir")} placeholder="/path/to/project" />
+              <button
+                type="button"
+                className="settings-btn workdir-browse-btn"
+                onClick={async () => {
+                  const selected = await pickNativeDirectory({
+                    defaultPath: form.workdir || undefined,
+                    title: "Select Project Working Directory",
+                  });
+                  if (selected) setForm((f) => ({ ...f, workdir: selected }));
+                }}
+                title="Browse folder"
+              >
+                <Icon name="folder-open" size={14} /> Browse…
+              </button>
+            </div>
           </label>
           <label>
             Default persona <span className="setting-hint">for new chats in this project</span>
