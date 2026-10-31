@@ -164,3 +164,14 @@ test("hands-free voice mode opens the orb and Esc closes it", async ({ page }) =
   await page.keyboard.press("Escape");
   await expect(orb).toBeHidden();
 });
+
+test("pair a phone shows a QR code and the remaining steps", async ({ page }) => {
+  await page.getByRole("button", { name: "Settings" }).first().click();
+  const nav = page.getByRole("navigation", { name: "Settings sections" });
+  await expect(nav).toBeVisible();
+  await nav.getByRole("button", { name: /connection/i }).click();
+  await page.getByRole("button", { name: "Show QR" }).click();
+  await expect(page.locator(".pair-steps")).toContainText("Passcode set");
+  const qr = page.getByRole("img", { name: "QR code" });
+  if ((await page.locator(".pair-tabs button").count()) > 0) await expect(qr.locator("svg")).toBeVisible();
+});
