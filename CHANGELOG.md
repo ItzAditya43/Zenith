@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.11.0] — 2026-10-31
 
 ### Added
 - Hands-free voice mode: full-screen orb, stops recording when you stop talking, talk over a reply to interrupt.

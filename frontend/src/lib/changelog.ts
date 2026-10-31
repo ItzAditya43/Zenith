@@ -9,6 +9,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.11.0",
+    date: "2026-10-31",
+    title: "Terminal feel, voice orb, and smarter agent",
+    items: [
+      "Terminal look: dithered empty state, mono sidebar, route badges with a confidence meter, tool calls as a tree log.",
+      "Hands-free voice mode: full-screen orb, stops when you stop talking, talk over a reply to interrupt.",
+      "Approve or skip each change in an agent edit.",
+      "MCP gallery: search the official registry and install servers in one click.",
+      "Projects as workspaces with their own persona and instructions.",
+      "Pair a phone with a QR code. Slash commands, memory Undo, j/k to move between chats.",
+      "Faster startup and fixes: markdown renders immediately, voice no longer blocks other requests.",
+    ],
+  },
+  {
     version: "0.10.1",
     date: "2026-10-30",
     title: "Desktop startup reliability",
