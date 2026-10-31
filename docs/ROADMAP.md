@@ -13,7 +13,6 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 
 | # | Feature | Why | Effort |
 |---|---|---|---|
-| E1 | **Hands-free voice mode** | Full-screen orb, live transcript, barge-in; wake word already exists. | M |
 | E2 | **Projects as workspaces** | Each project with its own memory, documents, agent folder and default persona. | L |
 | E4 | **Mobile companion pairing** | Scan a QR to pair a phone over Tailscale, with passcode set in the same flow. | M |
 
