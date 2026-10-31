@@ -746,10 +746,10 @@ export default function App() {
     );
   };
 
-  const handleApproveTool = async (toolCallId) => {
+  const handleApproveTool = async (toolCallId, rejectedHunks = null) => {
     setToolCallStatus(toolCallId, "approving");
     try {
-      await api.approveToolCall(toolCallId);
+      await api.approveToolCall(toolCallId, rejectedHunks);
     } catch {
       setToolCallStatus(toolCallId, "pending");
     }

@@ -182,11 +182,20 @@ function DocumentChip({ attachment: a }) {
   );
 }
 
-function DiffView({ diff }) {
+// `rejected` / `onToggleHunk` (pending edits with 2+ hunks) let you keep or
+// skip each "@@" hunk; hunk i matches the backend's i-th diff group.
+function DiffView({ diff, rejected, onToggleHunk }) {
   const lines = diff.split("\n");
+  const hunkOf = [];
+  for (let i = 0, n = -1; i < lines.length; i++) {
+    if (lines[i].startsWith("@@")) n += 1;
+    hunkOf.push(n);
+  }
   return (
     <pre className="tool-call-diff">
       {lines.map((line, i) => {
+        const h = hunkOf[i];
+        const skipped = rejected?.has(h);
         const kind = line.startsWith("+") && !line.startsWith("+++")
           ? "add"
           : line.startsWith("-") && !line.startsWith("---")
@@ -195,8 +204,19 @@ function DiffView({ diff }) {
           ? "hunk"
           : "ctx";
         return (
-          <div key={i} className={`diff-line diff-line-${kind}`}>
+          <div key={i} className={`diff-line diff-line-${kind}${skipped ? " diff-line-skipped" : ""}`}>
             {line || " "}
+            {kind === "hunk" && onToggleHunk && (
+              <button
+                type="button"
+                className="diff-hunk-toggle"
+                onClick={() => onToggleHunk(h)}
+                aria-pressed={!skipped}
+                aria-label={`${skipped ? "Keep" : "Skip"} change ${h + 1}`}
+              >
+                {skipped ? "skipped" : "keep"}
+              </button>
+            )}
           </div>
         );
       })}
@@ -209,6 +229,16 @@ const REVERTABLE_TOOLS = new Set(["edit_file", "write_file"]);
 function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
   const [expanded, setExpanded] = useState(() => Boolean(call.diff));
   const [reverting, setReverting] = useState(false);
+  const [rejected, setRejected] = useState(() => new Set());
+  const hunkCount = call.diff ? call.diff.split("\n").filter((l) => l.startsWith("@@")).length : 0;
+  const choosable = call.status === "pending" && hunkCount > 1;
+  const toggleHunk = (h) =>
+    setRejected((prev) => {
+      const next = new Set(prev);
+      if (next.has(h)) next.delete(h);
+      else next.add(h);
+      return next;
+    });
   const argsSummary =
     call.args?.command || call.args?.path || call.args?.query || call.args?.url || call.args?.task ||
     call.args?.selector || (call.tool === "git" ? call.args?.op : "") ||
@@ -246,15 +276,17 @@ function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
 
       {expanded && (
         <div className="tool-call-body">
-          {call.diff ? <DiffView diff={call.diff} /> : <pre className="tool-call-args">{JSON.stringify(call.args, null, 2)}</pre>}
+          {call.diff ? (
+            <DiffView diff={call.diff} rejected={choosable ? rejected : null} onToggleHunk={choosable ? toggleHunk : null} />
+          ) : <pre className="tool-call-args">{JSON.stringify(call.args, null, 2)}</pre>}
           {call.result != null && <pre className="tool-call-result">{call.result}</pre>}
         </div>
       )}
 
       {call.status === "pending" && (
         <div className="tool-call-actions">
-          <button className="tool-call-approve-btn" onClick={() => onApprove?.(call.id)} aria-keyshortcuts="y">
-            <Icon name="check" size={13} /> Approve <kbd className="keycap" aria-hidden="true">y</kbd>
+          <button className="tool-call-approve-btn" onClick={() => onApprove?.(call.id, choosable ? [...rejected] : null)} aria-keyshortcuts="y">
+            <Icon name="check" size={13} /> {choosable && rejected.size > 0 ? `Apply ${hunkCount - rejected.size} of ${hunkCount}` : "Approve"} <kbd className="keycap" aria-hidden="true">y</kbd>
           </button>
           <button className="tool-call-deny-btn" onClick={() => onDeny?.(call.id)} aria-keyshortcuts="n">
             <Icon name="x" size={13} /> Deny <kbd className="keycap" aria-hidden="true">n</kbd>
