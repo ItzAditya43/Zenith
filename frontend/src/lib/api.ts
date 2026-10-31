@@ -491,6 +491,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, workdir }),
     }).then((r) => r.json()),
+  updateProject: (id: string, fields: Record<string, string>) =>
+    request(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    }).then((r) => r.json()),
   deleteProject: (id: string) => request(`/api/projects/${id}`, { method: "DELETE" }),
   setConversationProject: (conversationId: string, projectId: string) =>
     request(`/api/conversations/${conversationId}/project`, {

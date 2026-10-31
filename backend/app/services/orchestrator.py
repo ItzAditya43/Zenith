@@ -156,6 +156,9 @@ async def _build_system_context(conversation_id: str, user_text: str) -> tuple[s
         from app.services import memory_service
         conv = await asyncio.to_thread(storage.get_conversation, conversation_id)
         project_id = conv.get("project_id") if conv else None
+        instructions = await asyncio.to_thread(storage.get_project_instructions, project_id)
+        if instructions:
+            parts.append(f"Instructions for this project:\n{instructions}")
         block = await asyncio.to_thread(memory_service.memory_block, project_id, user_text)
         if block:
             parts.append(block)

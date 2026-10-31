@@ -13,7 +13,6 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 
 | # | Feature | Why | Effort |
 |---|---|---|---|
-| E2 | **Projects as workspaces** | Each project with its own memory, documents, agent folder and default persona. | L |
 
 ## Platform & distribution
 

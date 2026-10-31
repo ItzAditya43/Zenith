@@ -77,6 +77,19 @@ async def create_project(body: dict):
     return storage.create_project(name, body.get("workdir"))
 
 
+@router.patch("/projects/{project_id}")
+async def update_project(project_id: str, body: dict):
+    """Edit a project's name, folder, default persona or instructions."""
+    if body.get("persona_id"):
+        from app.services import persona_service
+        if not persona_service.get_persona(body["persona_id"]):
+            raise HTTPException(404, "No such persona.")
+    project = storage.update_project(project_id, body)
+    if project is None:
+        raise HTTPException(404, "No such project.")
+    return project
+
+
 @router.delete("/projects/{project_id}")
 async def remove_project(project_id: str):
     storage.delete_project(project_id)
