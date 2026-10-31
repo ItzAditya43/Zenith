@@ -19,6 +19,13 @@ import ChatHeader from "./components/ChatHeader.jsx";
 // Overlay panels load on first open instead of with the app: they were ~half
 // of the startup bundle and most sessions never open most of them. Each gets
 // its own Suspense boundary so loading one never blanks the rest of the UI.
+const EMPTY_DITHER = [
+  "              ░░░░░░▒▒▒▒▓▓▓▓████▓▓▓▓▒▒▒▒░░░░░░",
+  "        ░░░░▒▒▒▒▓▓▓▓████████████████▓▓▓▓▒▒▒▒░░░░",
+  "    ░░░░▒▒▒▓▓▓██████████████████████████▓▓▓▒▒▒░░░░",
+  " ░░░▒▒▒▓▓▓████████████████████████████████▓▓▓▒▒▒░░░",
+].join("\n");
+
 function lazyPanel(loader) {
   const Inner = lazy(loader);
   function LazyPanel(props) {
@@ -1019,6 +1026,7 @@ export default function App() {
     }
 
     const turnStartedAt = Date.now() / 1000 - 1;
+    setIsNearBottom(true); // your own message always brings the view down
     let fullText = "";
     let thinkingText = "";
     let thinkingStartedAt = 0;
@@ -1090,6 +1098,11 @@ export default function App() {
             )
           );
         } else if (event.type === "tool_pending") {
+          // The card waiting on you must be on screen, wherever you scrolled.
+          setTimeout(
+            () => document.querySelector(".tool-call-pending")?.scrollIntoView({ block: "center", behavior: "smooth" }),
+            120
+          );
           setMessages((m) =>
             m.map((msg) =>
               msg.id === assistantMsg.id
@@ -1392,6 +1405,8 @@ export default function App() {
       />
       {!focusMode && (
         <Sidebar
+          modelCount={installedModels.length || null}
+          ollamaOk={!connectionError}
           conversations={conversations}
           activeId={activeId}
           onSelect={selectConversation}
@@ -1591,12 +1606,9 @@ export default function App() {
           />
           {messages.length === 0 && (
             <div className="empty-state">
-              <img className="empty-state-logo" src="/favicon.svg" alt="" aria-hidden="true" />
-              <h2>Everything runs on your machine.</h2>
-              <p>
-                Type, drop an image, upload a document, or hold the mic — Zenith reads
-                what's installed on your Ollama and routes the turn automatically.
-              </p>
+              <pre className="empty-dither" aria-hidden="true">{EMPTY_DITHER}</pre>
+              <span className="empty-kicker">ZENITH · LOCAL · NOTHING LEAVES THIS MACHINE</span>
+              <h2>What are we making?</h2>
               <div className="empty-state-suggestions" role="group" aria-label="Suggestions">
                 {emptySuggestions.map((sug) => (
                   <button
@@ -1604,40 +1616,13 @@ export default function App() {
                     className="empty-state-suggestion"
                     onClick={() => setSeedText({ text: sug, nonce: Date.now() })}
                   >
-                    {sug}
+                    <span className="empty-suggestion-caret" aria-hidden="true">›</span> {sug}
                   </button>
                 ))}
               </div>
-              <div className="empty-state-features">
-                <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon"><Icon name="search" size={18} /></span>
-                  <div>
-                    <strong>Web search &amp; research</strong>
-                    <span>Pick a mode from the composer to search or investigate before answering.</span>
-                  </div>
-                </div>
-                <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon"><Icon name="paperclip" size={18} /></span>
-                  <div>
-                    <strong>Images, documents, video</strong>
-                    <span>Attach a file and Zenith routes to whatever model handles it best.</span>
-                  </div>
-                </div>
-                <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon"><Icon name="mic" size={18} /></span>
-                  <div>
-                    <strong>Voice in, voice out</strong>
-                    <span>Hold the mic to talk; turn on spoken replies from the header.</span>
-                  </div>
-                </div>
-                <div className="empty-state-feature">
-                  <span className="empty-state-feature-icon"><Icon name="command" size={18} /></span>
-                  <div>
-                    <strong>⌘K for everything</strong>
-                    <span>Jump to a conversation, switch persona, or open any setting.</span>
-                  </div>
-                </div>
-              </div>
+              <p className="empty-hints">
+                <kbd className="keycap">/</kbd> commands <kbd className="keycap">⌘K</kbd> everything <kbd className="keycap">j</kbd><kbd className="keycap">k</kbd> move between chats
+              </p>
             </div>
           )}
           {messages.map((m) => (

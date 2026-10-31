@@ -447,7 +447,7 @@ export default function MessageBubble({
           </div>
         )}
         {!isUser && message.model && !message.speaker_persona_id && (
-          <ModelBadge model={message.model} role={message.route_role} reason={message.route_reason} />
+          <ModelBadge model={message.model} role={message.route_role} reason={message.route_reason} confidence={message.confidence} />
         )}
 
         {message.attachments?.length > 0 && (
