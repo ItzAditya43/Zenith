@@ -34,7 +34,7 @@ dependencies = [
     "youtube-transcript-api==1.2.4",
     "sqlite-vec>=0.1.6",
     "requests>=2.31",
-    "websockets>=12.0,<14.0",
+    "websockets>=12.0,<18.0",
     "prometheus-client==0.21.1",
 ]
 
