@@ -3,7 +3,7 @@
 # advisories. CI's pip-audit step is blocking now, so keep these current.
 fastapi==0.159.1
 starlette>=1.3.1,<2.0
-uvicorn[standard]==0.52.4
+uvicorn[standard]==0.54.0
 mcp==2.3.0
 httpx==0.28.1
 # mcp requires pydantic>=2.11; bumped from 2.10.4 for that (fastapi 0.115.6
@@ -11,7 +11,7 @@ httpx==0.28.1
 pydantic==2.13.4
 python-multipart==0.0.32
 pypdf==6.21.4
-python-docx==1.1.2
+python-docx==1.2.0
 # Single-conversation PDF export — pure-Python, no system deps (no Cairo/
 # Pango/headless browser), matching the stdlib-first philosophy.
 fpdf2==2.8.8
@@ -19,7 +19,7 @@ Pillow==13.0.0
 faster-whisper==1.1.1
 piper-tts==1.7.0
 pyttsx3==2.99
-aiofiles==24.1.0
+aiofiles==25.1.0
 # Multi-device sync crypto (AES-GCM, scrypt, HKDF) — already pulled in
 # transitively before this pin; pinned explicitly now that sync_service
 # imports it directly.
@@ -33,7 +33,7 @@ requests>=2.31
 # Raw Chrome DevTools Protocol client for the browser_* agent tools — no
 # Playwright/Selenium install (~300MB+ of browser binaries each); we drive
 # the system chromium package directly over its own CDP websocket.
-websockets>=12.0,<14.0
+websockets>=12.0,<18.0
 # /metrics Prometheus/OpenMetrics scrape endpoint — lightweight, no
 # transitive dependency bloat.
 prometheus-client==0.21.1
