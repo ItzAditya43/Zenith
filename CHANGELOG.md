@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.0] — 2026-11-13
+
+First public release.
 
 ### Added
 - Agent `grep` and `glob` tools: search file contents and find files by pattern without going through `bash`. They skip `node_modules`, `.git`, build output and binaries, cap their output, and run without asking in semi-auto when the search stays inside the working directory.
