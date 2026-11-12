@@ -7,11 +7,18 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 
 | # | Feature | Why | Effort |
 |---|---|---|---|
+| C3 | **LSP diagnostics after edits** | Type errors and bad imports come back to the agent right after an edit instead of after a full test run. | M–L |
+| C4 | **Background tasks in git worktrees** | Queue a task, the agent works on an isolated branch, you review one diff. Builds on the task board and checkpoint/resume. | L |
+| C5 | **GitHub issue → PR flow** | "Fix issue #12" becomes a branch, commits and a PR via `gh`. | M |
 
 ## Experience
 
+Zenith stays chat-first: these make the code side panel pleasant, not an IDE.
+
 | # | Feature | Why | Effort |
 |---|---|---|---|
+| E1 | **CodeMirror editor + terminal in the code panel** | Replaces the textarea-over-highlighter; xterm.js attaches to the existing persistent shell sessions. | M |
+| E2 | **Inline edit** | Select code in the panel, ask, get a diff in place with the existing per-hunk accept/skip. Lighter than a full agent turn. | M |
 
 ## Platform & distribution
 

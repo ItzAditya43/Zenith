@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Agent `grep` and `glob` tools: search file contents and find files by pattern without going through `bash`. They skip `node_modules`, `.git`, build output and binaries, cap their output, and run without asking in semi-auto when the search stays inside the working directory.
+- Repo map: with a working directory bound, the agent starts each turn with an outline of the project's source files and the functions and classes in them, so small-context models can find code without exploring first. On by default; toggle in Settings → Agent tools.
+
 ## [0.11.1] — 2026-11-01
 
 ### Added

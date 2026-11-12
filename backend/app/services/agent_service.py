@@ -19,7 +19,7 @@ Design choices, and why:
   Settings, same idea as Cursor/Claude Code's confirm/auto-accept
   toggle):
     - "manual": every tool call pauses for your approval.
-    - "semi":   read-only calls (read_file/list_dir/web/most bash) run
+    - "semi":   read-only calls (read_file/list_dir/grep/glob/web/most bash) run
       immediately; anything that writes/deletes/executes ambiguously
       still pauses.
     - "full":   nothing pauses. Fast, and only as safe as your prompts.
@@ -71,6 +71,20 @@ TOOLS: dict[str, dict[str, str]] = {
                         "(string), new_string (string)."
     },
     "list_dir": {"description": "List a directory's contents. Args: path (string)."},
+    "grep": {
+        "description": "Search file contents for a regex and get back matching lines as "
+                        "path:line: text. Skips node_modules, .git and binary files. Prefer this "
+                        "over running grep through bash. Args: pattern (string), path (string, "
+                        "optional — file or directory to search, default the working directory), "
+                        "glob (string, optional — only search files matching it, e.g. '*.py'), "
+                        "ignore_case (boolean, optional)."
+    },
+    "glob": {
+        "description": "Find files by name pattern, e.g. '*.tsx' for every such file at any depth "
+                        "or 'src/**/*.py' for a path. Prefer this over running find through bash. "
+                        "Args: pattern (string), path (string, optional — directory to search, "
+                        "default the working directory)."
+    },
     "web_search": {"description": "Search the web. Args: query (string)."},
     "fetch_url": {"description": "Fetch and extract the readable text of a URL. Args: url (string)."},
     "shell_start": {
@@ -177,6 +191,28 @@ Rules:
 """
 
 
+async def _repo_map_block(workdir: str | None) -> str:
+    """The working directory's repo map as a system-prompt section — see
+    repo_map.py. Empty when off, when no directory is bound, or when the
+    directory has no source files."""
+    if not workdir or not settings.get("agent_repo_map", True):
+        return ""
+    from app.services import repo_map
+    try:
+        text = await asyncio.to_thread(
+            repo_map.build, workdir, int(settings.get("agent_repo_map_max_chars", 4000)),
+        )
+    except Exception:
+        return ""
+    if not text:
+        return ""
+    return (
+        "\n\nMap of the code in the working directory: each file, then the functions and "
+        "classes it defines. Use it to pick what to open; use grep, glob and read_file for "
+        "the details. It is an outline and may be incomplete.\n" + text
+    )
+
+
 def _build_system_prompt(mcp_tools: list[dict]) -> str:
     """Built per-turn rather than a module constant: MCP tools come from
     whatever servers are enabled right now, discovered fresh each turn
@@ -266,7 +302,7 @@ def _classify_bash_command(cmd: str, workdir: str | None = None) -> str:
     return "safe"
 
 
-_PATH_READ_TOOLS = ("read_file", "list_dir")
+_PATH_READ_TOOLS = ("read_file", "list_dir", "grep", "glob")
 
 
 def classify_risk(tool: str, args: dict[str, Any], workdir: str | None = None) -> str:
@@ -967,6 +1003,33 @@ def _run_list_dir(args: dict, max_chars: int, workdir: str | None = None) -> str
         return f"Error listing directory: {exc}"
 
 
+def _search_base(workdir: str | None):
+    from pathlib import Path
+
+    return Path(workdir) if workdir else None
+
+
+def _run_grep(args: dict, max_chars: int, workdir: str | None = None) -> str:
+    from app.services import code_search
+    try:
+        root = _resolve_path(str(args.get("path") or "."), workdir)
+        return code_search.grep_files(
+            root, str(args.get("pattern") or ""), glob=str(args.get("glob") or ""),
+            ignore_case=bool(args.get("ignore_case")), base=_search_base(workdir),
+        )[:max_chars]
+    except Exception as exc:
+        return f"Error searching: {exc}"
+
+
+def _run_glob(args: dict, max_chars: int, workdir: str | None = None) -> str:
+    from app.services import code_search
+    try:
+        root = _resolve_path(str(args.get("path") or "."), workdir)
+        return code_search.glob_files(root, str(args.get("pattern") or ""), base=_search_base(workdir))[:max_chars]
+    except Exception as exc:
+        return f"Error searching: {exc}"
+
+
 async def _run_web_search(args: dict, max_chars: int) -> str:
     from app.services import web_service
     query = args.get("query", "")
@@ -1109,6 +1172,10 @@ async def _execute_tool(
         return _run_edit_file(args, workdir)
     if tool == "list_dir":
         return _run_list_dir(args, max_chars, workdir)
+    if tool == "grep":
+        return await asyncio.to_thread(_run_grep, args, max_chars, workdir)
+    if tool == "glob":
+        return await asyncio.to_thread(_run_glob, args, max_chars, workdir)
     if tool == "web_search":
         return await _run_web_search(args, max_chars)
     if tool == "fetch_url":
@@ -1272,7 +1339,7 @@ async def _run_subagent(
         f"\n\nWorking directory: {workdir}\n"
         "Relative paths resolve against this directory automatically."
         if workdir else ""
-    ) + (
+    ) + await _repo_map_block(workdir) + (
         "\n\nYou are a sub-agent delegated a single focused task by another agent. "
         "Work autonomously — there's no user to ask for approval or clarification. "
         "When you're done, respond with a concise {\"final\": \"...\"} summary of what "
@@ -1400,10 +1467,10 @@ async def run_agent_turn(
         f"\n\nContext about this user:\n{system_text}" if system_text else ""
     ) + (
         f"\n\nWorking directory for this conversation: {workdir}\n"
-        "Relative paths (in bash, read_file, write_file, edit_file, list_dir) resolve "
+        "Relative paths (in bash, read_file, write_file, edit_file, list_dir, grep, glob) resolve "
         "against this directory automatically — you don't need to give full paths."
         if workdir else ""
-    ) + (
+    ) + await _repo_map_block(workdir) + (
         "\n\nShell commands run in an isolated container: the working directory is "
         f"mounted at {sandbox.CONTAINER_WORKSPACE}, nothing outside it exists, and "
         + ("there is no network access." if settings.get("agent_sandbox_network", "none") == "none"

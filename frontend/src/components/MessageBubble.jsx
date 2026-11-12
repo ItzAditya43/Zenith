@@ -9,6 +9,7 @@ import DocumentPreview from "./DocumentPreview.jsx";
 const KIND_ICON = { image: "image", video: "video", document: "file-text", audio: "headphones" };
 const TOOL_ICON = {
   bash: "terminal", read_file: "book-open", write_file: "file-pen", list_dir: "folder-open",
+  grep: "search", glob: "search",
   web_search: "search", fetch_url: "link",
   shell_start: "terminal", shell_output: "terminal", shell_write_stdin: "terminal",
   shell_kill: "square", shell_list: "layers", spawn_subagent: "bot",

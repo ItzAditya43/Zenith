@@ -28,6 +28,7 @@ export default function AgentSection() {
     saveCheckCommand,
     toggleAutoCheck,
     toggleNativeTools,
+    toggleRepoMap,
     refreshMcpServers,
   } = useSettings();
 
@@ -148,6 +149,26 @@ export default function AgentSection() {
           role="switch"
           aria-checked={config?.agent_native_tools !== false}
           aria-label="Native tool calling"
+        >
+          <span className="switch-thumb" />
+        </button>
+      </div>
+
+      <div className="setting-row" style={{ marginTop: "0.75rem" }}>
+        <div>
+          <strong>Repo map</strong>
+          <span className="setting-hint">
+            Give the agent an outline of the working directory (files and the functions and
+            classes in them) so it can find code without exploring first. Uses some context.
+          </span>
+        </div>
+        <button
+          className={`switch ${config?.agent_repo_map !== false ? "switch-on" : ""}`}
+          onClick={() => toggleRepoMap(config?.agent_repo_map === false)}
+          disabled={!config?.agent_enabled}
+          role="switch"
+          aria-checked={config?.agent_repo_map !== false}
+          aria-label="Repo map"
         >
           <span className="switch-thumb" />
         </button>

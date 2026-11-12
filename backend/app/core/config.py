@@ -206,6 +206,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "agent_check_command": "",       # e.g. "pytest -q" or "npm test" — run_checks default
     "agent_auto_check": False,
     "agent_native_tools": True,      # use Ollama's `tools` API on models that support it       # auto-run the check command after each file edit
+    "agent_repo_map": True,          # outline of the working directory in the agent's prompt
+    "agent_repo_map_max_chars": 4000,
     "agent_check_timeout_seconds": 180,  # tests/lint can be slower than a plain command
     # Optional container sandbox for bash/run_checks/shell_start — see
     # app/services/sandbox.py. "off" runs as your OS user (the default).

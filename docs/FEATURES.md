@@ -382,6 +382,7 @@ context alone:
 | `bash` | Run a one-shot shell command (cwd = the conversation's working dir) |
 | `shell_start` / `shell_output` / `shell_write_stdin` / `shell_kill` / `shell_list` | **Persistent shell sessions** — start a dev server / watch mode / REPL that stays alive across tool calls, poll its output, feed it stdin, kill it. `bash` blocks until a command exits; these don't |
 | `read_file` / `write_file` / `edit_file` / `list_dir` | File I/O. `edit_file` is a precise one-occurrence find-and-replace (same contract as Claude Code's Edit tool); fails loudly rather than guessing |
+| `grep` / `glob` | **Code search** — regex search over file contents (`path:line: text`) and find-files-by-pattern, without going through `bash`. Skips `node_modules`, `.git`, build output and binaries, caps results, and returns paths ready for `read_file`. Read-only, so inside the working directory they run without asking in semi-auto |
 | `git` | **First-class git** — structured `status`/`diff`/`log`/`commit`/`branch` with parsed output, not raw git through `bash` |
 | `run_checks` | Run the project's configured test/lint command and report pass/fail + output, so the agent verifies its own edits |
 | `web_search` / `fetch_url` | Search the web / read a page's readable text |
@@ -415,6 +416,17 @@ global `agent_mode` setting.
 `npm test`) in Settings; the agent can call `run_checks` any time, and with
 **auto-check** on it runs automatically after every file edit and the
 pass/fail is fed back into the loop so the model fixes breakage on its own.
+
+**Repo map.** When a working directory is bound, the agent's prompt includes
+an outline of it: each source file, then the functions and classes it
+defines (`repo_map.py`). A model with a small context window can see where
+things live without spending tool calls exploring. Python is parsed with
+`ast`; JS/TS, Go, Rust, Java/Kotlin/C#/Swift, C/C++, Ruby and PHP use
+declaration regexes, so there's no native parser to install and the outline
+can miss unusual declarations. It's fitted to a budget (4,000 characters by
+default, `agent_repo_map_max_chars`): every path first, then symbols for as
+many files as fit, application code before tests. Only changed files are
+re-parsed between turns. Turn it off in Settings → Agent tools.
 
 **Checkpoint / resume.** If a run hits its iteration cap without finishing,
 the full loop state is saved to the DB; your next message resumes from
