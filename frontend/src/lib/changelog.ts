@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.0.0",
+    date: "2026-11-13",
+    title: "First public release: the agent can search and map your code",
+    items: [
+      "Agent mode has grep and glob tools: it searches file contents and finds files by pattern without going through the shell.",
+      "Repo map: with a working folder bound, the agent starts with an outline of your project's files and the functions and classes in them. Toggle in Settings → Agent tools.",
+    ],
+  },
+  {
     version: "0.11.1",
     date: "2026-11-01",
     title: "A real folder picker, and the popovers people actually use",
