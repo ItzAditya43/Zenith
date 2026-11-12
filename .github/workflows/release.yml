@@ -51,7 +51,11 @@ jobs:
         with:
           node-version: "20"
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Pinned: the `screenshots` crate (via dbus) fails to compile on Linux
+      # with newer stable Rust (type-inference change, rust-lang/rust#148922).
+      # 1.99.1 is the toolchain the last good Linux build used. Unpin after
+      # moving off `screenshots`.
+      - uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Install Linux system deps
         if: runner.os == 'Linux'
