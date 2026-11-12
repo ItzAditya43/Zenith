@@ -506,3 +506,31 @@ async def test_git_tool_ops_and_guards(agent):
     assert "feature-x" in out
     log = await agent_service._run_git({"op": "log", "count": "bad"}, 10, 4000, work)
     assert isinstance(log, str)  # bad count falls back to the default instead of raising
+
+
+async def test_grep_and_glob_tools_run_against_the_workdir(agent):
+    from app.services import agent_service
+
+    agent["fake"].tool("glob", pattern="*.py").tool("grep", pattern="print").final("found it")
+    await _run(agent["conv"])
+    calls = agent_service.list_tool_calls(agent["conv"])
+    assert [c["tool"] for c in calls] == ["glob", "grep"]
+    prompts = "\n".join(agent["fake"].prompts())
+    assert "hello.py:1: print('hello')" in prompts
+
+
+async def test_repo_map_is_in_the_system_prompt_and_can_be_turned_off(agent):
+    from app.core.config import settings
+
+    def system_prompt():
+        return agent["fake"].calls[-1]["messages"][0]["content"]
+
+    agent["fake"].final("ok")
+    await _run(agent["conv"])
+    assert "Map of the code in the working directory" in system_prompt()
+    assert "hello.py" in system_prompt().split("Map of the code")[1]
+
+    settings.update({"agent_repo_map": False})
+    agent["fake"].final("ok")
+    await _run(agent["conv"])
+    assert "Map of the code" not in system_prompt()

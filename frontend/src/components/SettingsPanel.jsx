@@ -781,6 +781,11 @@ export default function SettingsPanel({
     setConfig(updated);
   };
 
+  const toggleRepoMap = async (checked) => {
+    const updated = await api.patchConfig({ agent_repo_map: checked });
+    setConfig(updated);
+  };
+
   const addMemory = async () => {
     const text = newMemory.trim();
     if (!text) return;
@@ -1092,6 +1097,7 @@ export default function SettingsPanel({
     handleImport,
     toggleAutoCheck,
     toggleNativeTools,
+    toggleRepoMap,
     addMemory,
     toggleMemory,
     deleteMemory,
