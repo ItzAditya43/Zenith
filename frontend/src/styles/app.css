@@ -1271,6 +1271,12 @@ button.msg-source-chip-recall:hover {
   border: 1px solid var(--border-soft);
   color: var(--text-secondary);
 }
+.tool-call-no-undo {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
 .tool-call-revert-btn {
   flex: 1;
   padding: var(--space-2);

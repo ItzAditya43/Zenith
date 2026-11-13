@@ -17,6 +17,8 @@ const TOOL_ICON = {
   browser_get_text: "globe", browser_close: "globe", git: "git-branch",
   run_checks: "check-circle",
 };
+// Tools whose effects the per-edit Revert / "Undo whole run" can't reverse.
+const NO_UNDO_TOOLS = new Set(["bash", "shell_start", "shell_write_stdin", "run_checks", "git"]);
 const EDITABLE_DOC_EXTS = [".txt", ".md", ".csv", ".json"];
 
 // Reasoning models (deepseek-r1, qwq, …) emit their scratch-work wrapped in
@@ -284,6 +286,9 @@ function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
         </div>
       )}
 
+      {call.status === "pending" && NO_UNDO_TOOLS.has(call.tool) && (
+        <p className="tool-call-no-undo">Commands can&apos;t be undone once they run. Undo only covers file edits.</p>
+      )}
       {call.status === "pending" && (
         <div className="tool-call-actions">
           <button className="tool-call-approve-btn" onClick={() => onApprove?.(call.id, choosable ? [...rejected] : null)} aria-keyshortcuts="y">

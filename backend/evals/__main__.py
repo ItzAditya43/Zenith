@@ -167,9 +167,11 @@ async def run_agent(args) -> SuiteResult:
     init_db()
     settings.update({"agent_enabled": True, "agent_mode": "full", "agent_max_iterations": int(args.max_steps),
                      "memory_enabled": False, "recall_enabled": False, "folder_recall_enabled": False,
-                     "notes_todos_context_enabled": False, "agent_sandbox": "docker" if args.sandbox else "off"})
+                     "notes_todos_context_enabled": False, "agent_sandbox": "docker" if args.sandbox else "off",
+                     "agent_native_tools": bool(args.native_tools)})
     model = args.model or await _default_model("code")
-    res = SuiteResult("agent", note=f"model={model}, repeat={args.repeat}, max_steps={args.max_steps}")
+    protocol = "native-if-supported" if args.native_tools else "json"
+    res = SuiteResult("agent", note=f"model={model}, repeat={args.repeat}, max_steps={args.max_steps}, tools={protocol}")
     for task in AGENT_TASKS:
         for attempt in range(int(args.repeat)):
             work = Path(tempfile.mkdtemp(prefix=f"zenith-eval-{task.name}-"))
@@ -226,6 +228,9 @@ async def main() -> int:
     ap.add_argument("--repeat", default=1, help="agent suite: attempts per task (small models are noisy)")
     ap.add_argument("--max-steps", default=15, help="agent suite: tool-call budget per task")
     ap.add_argument("--sandbox", action="store_true", help="agent suite: run commands in the docker sandbox")
+    ap.add_argument("--native-tools", action="store_true",
+                    help="agent suite: use Ollama's native tool calling where the model supports it "
+                         "(default: Zenith's JSON protocol)")
     ap.add_argument("-k", default=3, help="rag suite: top-k for recall@k")
     ap.add_argument("--json", help="write a JSON report here")
     ap.add_argument("-v", "--verbose", action="store_true", help="show passing cases too")

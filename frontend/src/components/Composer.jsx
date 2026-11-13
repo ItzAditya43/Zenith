@@ -651,7 +651,7 @@ export default function Composer({
             <span><span className="composer-status-mark" aria-hidden="true">◆</span> {statusModel}</span>
           )}
           {mode === "agent" && (
-            <span>
+            <span title="Undo reverts file edits, not commands.">
               {runFlags.agentMode === "semi" ? "semi-auto" : runFlags.agentMode === "plan" ? "plan-first" : runFlags.agentMode}
               {runFlags.sandbox ? " · sandbox ◉" : " · no sandbox"}
             </span>

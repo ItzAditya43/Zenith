@@ -15,6 +15,41 @@ phone over your LAN or Tailscale.
 
 ![Agent mode asking for approval before writing a file, with a diff preview](docs/assets/screenshot-agent-approval.png)
 
+## What the agent can do without asking
+
+Agent mode is off until you turn it on. Then the autonomy mode decides what
+runs on its own:
+
+| Mode | Runs without asking | Asks you first |
+|---|---|---|
+| **Manual** (default) | Nothing | Every tool call, including file reads |
+| **Semi-auto** | Reads inside the working folder (`read_file`, `list_dir`, `grep`, `glob`, read-only shell such as `ls`, `cat`, `git status`), web search and page fetches, notes and to-dos | File writes and edits, every other shell command (`rm`, `git push`, anything with a pipe or redirect), commits, reads outside the folder |
+| **Plan-first** | Every step of a plan, after you approve the plan once | The plan |
+| **Full-auto** | Everything | Nothing |
+
+File edits show a diff before they run, and you can accept or skip each hunk.
+
+**Undo reverts file edits, not commands.** "Revert this edit" and "Undo whole
+run" restore files. They can't take back a shell command that has already
+run, a `git push`, or anything else outside the working folder's files.
+
+### Models tried in agent mode
+
+Small models often can't drive tools. These are the ones actually run, on a
+laptop with an RTX 3050 (4 GB VRAM) and 16 GB RAM:
+
+| Model | Tool protocol | Result |
+|---|---|---|
+| `qwen3.5:4b` | JSON (default) | 8/10 on the agent eval (5 tasks, 2 attempts each); failed "count lines" both times |
+| `qwen3.5:4b` | Ollama native tool calling | 3/10 on the same eval |
+| `qwen2.5-coder:3b` | JSON | Failed one manual task: described a plan instead of calling tools |
+| `Tesleum/Claude-Agent` | Native | Failed one manual task with malformed tool calls; not re-run since Zenith started repairing that shape |
+
+That is why native tool calling is off by default. Larger models are not
+tested yet. Measure your own with
+`cd backend && python -m evals agent --model <model> --repeat 3 --sandbox`
+(add `--native-tools` to compare).
+
 ## Quick start
 
 You need [Ollama](https://ollama.com) running locally.
@@ -49,7 +84,7 @@ them when you confirm. You can re-run it any time from `backend/`.
 | | |
 |---|---|
 | **Chat** | Routes each message to the right installed model (code, reasoning, quick, vision) and shows why it picked it, with a confidence meter. Branching, edit-and-resend, per-message model override with search, slash commands (`/agent`, `/research`, `/image`…). |
-| **Agent mode** | Multi-step tool use: shell, file edits with diff preview and per-hunk accept/skip, git, test runs, browser automation, sub-agents, native Ollama tool calling on models that support it, and an MCP server gallery (search the official registry, install in one click). Manual, semi-auto, full or plan-first autonomy. Optional Docker sandbox. |
+| **Agent mode** | Multi-step tool use: shell, file edits with diff preview and per-hunk accept/skip, git, test runs, browser automation, sub-agents, optional native Ollama tool calling, and an MCP server gallery (search the official registry, install in one click). Manual, semi-auto, full or plan-first autonomy. Optional Docker sandbox. |
 | **Documents and memory** | Hybrid vector and keyword retrieval over uploads, watched folders and past conversations, with citations. Long-term memory with conflict review and an undoable "Remembered: …" toast. |
 | **Projects** | Group conversations into a workspace with its own folder, default persona and standing instructions, plus a per-project agent autonomy override. |
 | **Deep Research** | Multi-step search, read and report with inline citations. It can't touch your files or shell. |

@@ -1275,29 +1275,52 @@ async def _next_step(
     native_tools: list[dict] | None,
 ) -> tuple[dict | None, str]:
     """Ask the model for its next step. Models that support Ollama's native
-    tool calling get `tools` (fewer protocol slips on small models); the rest
-    — and native replies without a tool call — use the JSON-in-text protocol."""
+    tool calling get `tools`; the rest — and native replies without a tool
+    call — use the JSON-in-text protocol.
+
+    A native call that Ollama rejects falls back to the JSON protocol for
+    this step. Small models sometimes emit a malformed native tool call,
+    which Ollama's own parser turns into an HTTP 500 ("XML syntax error…");
+    the JSON protocol constrains the output shape and usually recovers."""
     if native_tools:
-        msg = await client.chat_tools(model, messages, native_tools)
-        calls = msg.get("tool_calls") or []
-        if calls:
-            fn = calls[0].get("function") or {}
-            args = fn.get("arguments")
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except json.JSONDecodeError:
-                    args = {}
-            return {"tool": str(fn.get("name", "")), "args": args if isinstance(args, dict) else {}}, ""
-        raw = msg.get("content") or ""
-        step = _parse_step(raw)
-        return (step if step else ({"final": raw.strip()} if raw.strip() else None)), raw
+        from app.services.ollama_client import OllamaError
+        try:
+            msg = await client.chat_tools(model, messages, native_tools)
+        except OllamaError as exc:
+            log.warning("agent.native_tool_call_failed", model=model, error=str(exc)[:200])
+            msg = None
+        if msg is not None:
+            calls = msg.get("tool_calls") or []
+            if calls:
+                fn = calls[0].get("function") or {}
+                args = fn.get("arguments")
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except json.JSONDecodeError:
+                        args = {}
+                return _unwrap_step({"tool": str(fn.get("name", "")), "args": args if isinstance(args, dict) else {}}), ""
+            raw = msg.get("content") or ""
+            step = _parse_step(raw)
+            return (step if step else ({"final": raw.strip()} if raw.strip() else None)), raw
     raw = await client.chat(model, messages, format=tool_schema)
     return _parse_step(raw), raw
 
 
+def _unwrap_step(step: dict) -> dict:
+    """Some models nest the whole call inside its own arguments:
+    {"tool": "edit_file", "args": {"tool": "edit_file", "args": {...}}}
+    (or "parameters" for the inner key). Use the inner arguments."""
+    args = step.get("args")
+    if isinstance(args, dict) and args.get("tool") == step.get("tool"):
+        inner = args.get("args", args.get("parameters"))
+        if isinstance(inner, dict) and set(args) <= {"tool", "args", "parameters"}:
+            return {**step, "args": inner}
+    return step
+
+
 async def _native_tools_for(client: OllamaClient, model: str, tool_names: list[str], mcp_by_name: dict) -> list[dict] | None:
-    if not settings.get("agent_native_tools", True):
+    if not settings.get("agent_native_tools", False):
         return None
     if "tools" not in await client.capabilities(model):
         return None
@@ -1315,7 +1338,7 @@ def _parse_step(raw: str) -> dict | None:
         obj = json.loads(m.group(0))
     except json.JSONDecodeError:
         return None
-    return obj if isinstance(obj, dict) else None
+    return _unwrap_step(obj) if isinstance(obj, dict) else None
 
 
 async def _run_subagent(

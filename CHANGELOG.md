@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Native Ollama tool calling is now off by default. On the agent eval, `qwen3.5:4b` scored 8/10 with Zenith's JSON protocol and 3/10 with native tool calling. Turn it back on in Settings → Agent tools.
+- README: what each autonomy mode runs without asking, and a table of models tried in agent mode.
+
+### Added
+- "Undo reverts file edits, not commands" next to the autonomy picker, and a reminder on approval cards for shell commands.
+- `python -m evals agent --native-tools` to compare the two tool protocols on a model.
+
+### Fixed
+- A native tool call that Ollama rejects (HTTP 500 "XML syntax error") no longer ends the agent turn; that step falls back to the JSON protocol.
+- Tool calls nested inside their own arguments (`{"tool": "x", "args": {"tool": "x", "args": {...}}}`) are unwrapped instead of failing.
+
 ## [1.0.0] — 2026-11-13
 
 First public release.

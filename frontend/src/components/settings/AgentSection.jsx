@@ -86,6 +86,10 @@ export default function AgentSection() {
             ? "Zenith drafts a step-by-step plan and waits for your approval; once approved, it executes the whole plan without pausing at each step."
             : "Every tool call — even a plain file read — shows up in chat for you to approve or deny."}
         </span>
+        <span className="setting-hint">
+          Undo reverts file edits, not commands. A shell command that has already run (rm, git
+          push) can&apos;t be taken back.
+        </span>
       </div>
 
       <p className="settings-hint-note">
@@ -138,16 +142,17 @@ export default function AgentSection() {
         <div>
           <strong>Native tool calling</strong>
           <span className="setting-hint">
-            Use Ollama&apos;s built-in tool API on models that support it (fewer format slips on
-            small models). Other models keep the JSON protocol.
+            Use Ollama&apos;s built-in tool API on models that support it instead of Zenith&apos;s
+            JSON protocol. Off by default: small models did worse with it in our tests. Worth
+            trying on larger models.
           </span>
         </div>
         <button
-          className={`switch ${config?.agent_native_tools !== false ? "switch-on" : ""}`}
-          onClick={() => toggleNativeTools(config?.agent_native_tools === false)}
+          className={`switch ${config?.agent_native_tools === true ? "switch-on" : ""}`}
+          onClick={() => toggleNativeTools(config?.agent_native_tools !== true)}
           disabled={!config?.agent_enabled}
           role="switch"
-          aria-checked={config?.agent_native_tools !== false}
+          aria-checked={config?.agent_native_tools === true}
           aria-label="Native tool calling"
         >
           <span className="switch-thumb" />

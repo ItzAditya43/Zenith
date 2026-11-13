@@ -205,7 +205,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "agent_subagent_max_iterations": 8,  # step budget for a spawn_subagent delegation
     "agent_check_command": "",       # e.g. "pytest -q" or "npm test" — run_checks default
     "agent_auto_check": False,
-    "agent_native_tools": True,      # use Ollama's `tools` API on models that support it       # auto-run the check command after each file edit
+    # Off by default: on the agent eval, qwen3.5:4b scored 8/10 with the JSON
+    # protocol and 3/10 with Ollama's native `tools` API (2026-11-13).
+    "agent_native_tools": False,     # use Ollama's `tools` API on models that support it       # auto-run the check command after each file edit
     "agent_repo_map": True,          # outline of the working directory in the agent's prompt
     "agent_repo_map_max_chars": 4000,
     "agent_check_timeout_seconds": 180,  # tests/lint can be slower than a plain command
