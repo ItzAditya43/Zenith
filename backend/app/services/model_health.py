@@ -62,3 +62,20 @@ def clear(model: str | None = None) -> None:
         _dead.clear()
     else:
         _dead.pop(model, None)
+
+
+async def probe(model: str) -> dict:
+    """Ask Ollama for a one-token reply from `model` to learn whether it
+    runs for this account right now. A refusal (402 needs credits, 410
+    retired, 404 missing) is remembered like any other; success clears
+    an earlier mark. Used for cloud models before they're relied on."""
+    from app.services.ollama_client import OllamaClient, OllamaError
+
+    try:
+        await OllamaClient().chat(model, [{"role": "user", "content": "hi"}], options={"num_predict": 1})
+    except OllamaError as exc:
+        note_error(model, str(exc))
+        entry = unavailable().get(model)
+        return {"model": model, "ok": False, "reason": entry["reason"] if entry else str(exc)[:200]}
+    clear(model)
+    return {"model": model, "ok": True, "reason": None}

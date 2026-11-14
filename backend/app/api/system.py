@@ -373,6 +373,63 @@ def _model_progress_sse(gen):
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
+@router.get("/models/library")
+async def model_library_search(q: str = "", category: str = ""):
+    """Models from the Ollama library (ollama.com/search), for browsing and
+    downloading from Settings. Reads the public page; nothing is sent."""
+    from app.services import model_library
+
+    try:
+        return {"models": await model_library.search(q, category)}
+    except model_library.LibraryError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
+@router.get("/models/library/{name}")
+async def model_library_tags(name: str):
+    """The downloadable sizes (tags) of one library model, with download size."""
+    from app.services import model_library
+
+    try:
+        return {"name": name, "tags": await model_library.tags(name)}
+    except model_library.LibraryError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
+@router.post("/models/check")
+async def model_check(body: dict):
+    """One-token test call: does this model run for this account right now?"""
+    from app.services import model_health
+
+    name = str(body.get("name", "")).strip()
+    if not name:
+        raise HTTPException(400, "A model name is required.")
+    return await model_health.probe(name)
+
+
+@router.get("/ollama/account")
+async def ollama_account():
+    """Who the local Ollama is signed in as, and on which plan. Cloud models
+    run under this account; the plan decides which of them are available."""
+    import httpx
+
+    host = str(settings.get("ollama_host", "http://localhost:11434")).rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.post(f"{host}/api/me")
+    except httpx.HTTPError:
+        return {"reachable": False, "signed_in": False}
+    data: dict = {}
+    try:
+        data = r.json()
+    except ValueError:
+        pass
+    if r.status_code == 200 and data.get("name"):
+        return {"reachable": True, "signed_in": True, "name": data.get("name"), "plan": data.get("plan") or "free"}
+    return {"reachable": True, "signed_in": False, "signin_url": data.get("signin_url"),
+            "supported": r.status_code != 404}
+
+
 @router.post("/models/pull")
 async def models_pull(body: dict):
     """Stream `ollama pull <name>` progress as SSE."""
@@ -435,11 +492,15 @@ async def patch_config(body: ConfigPatch):
     silently writing garbage into config.json."""
     patch = strip_redacted({k: v for k, v in body.model_dump().items() if v is not None})
     # Re-pinning a model is the user saying "try it again" (credits bought,
-    # model pulled): forget any earlier refusal for it.
+    # model pulled): forget any earlier refusal, then check a newly pinned
+    # cloud model right away so a paid-only one is caught before it's used.
     from app.services import model_health
+    from app.services.router import is_cloud_model
     for name in (patch.get("model_overrides") or {}).values():
         if name:
             model_health.clear(name)
+            if is_cloud_model(name):
+                asyncio.create_task(model_health.probe(name))
     updated = settings.update(patch)
     # Bust the model registry so role/override changes take effect on the
     # next /api/chat request instead of waiting for the TTL.

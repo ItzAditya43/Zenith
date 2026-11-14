@@ -206,6 +206,15 @@ async def lifespan(app: FastAPI):
     app.state.last_route_model = None
     # Phase 7 #4 — optionally pre-load the configured general model on
     # startup to cut first-turn latency. Off by default on low-VRAM setups.
+    # Check pinned cloud models once at startup: one that now needs credits
+    # (or was retired) is skipped from the first message, not after it fails.
+    async def _probe_pinned_cloud() -> None:
+        from app.services import model_health
+        from app.services.router import is_cloud_model
+        for name in set((settings.get("model_overrides") or {}).values()):
+            if name and is_cloud_model(name):
+                await model_health.probe(name)
+    asyncio.create_task(_probe_pinned_cloud())
     if bool(settings.get("prewarm_model_on_startup", False)):
         asyncio.create_task(_prewarm())
     try:
