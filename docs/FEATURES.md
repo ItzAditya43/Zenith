@@ -442,6 +442,15 @@ and symbols are added in rank order; in a big one, lower-ranked files are
 counted rather than listed. Only changed files are
 re-parsed between turns. Turn it off in Settings → Agent tools.
 
+**Problems after each edit** (on by default, `agent_diagnostics`). After
+the agent edits or writes a file, a quick checker runs on that file and any
+errors are appended to the edit's result, so the model sees a syntax error
+or an undefined name on its very next step: `ruff` (error rules only) or
+Python's compile check for `.py`, `node --check` for JavaScript, `gofmt -e`
+for Go, and a JSON parse for `.json`. A missing tool means no check, never
+a failure. This is not a language server: there are no type errors for
+TypeScript or Rust yet.
+
 **Commit each change** (off by default, Settings → Agent tools). In a git
 repository, every successful file edit becomes its own commit
 (`agent: edit <path>`, with the request in the body). On `main`, `master`,

@@ -558,3 +558,10 @@ async def test_git_commits_mode_commits_each_edit_on_a_work_branch(agent):
     st = subprocess.run(["git", "status", "--short"], cwd=work, capture_output=True, text=True).stdout
     assert "?? mine.txt" in st
     assert any(e["type"] == "tool_result" and e["tool"] == "git" for e in events)
+
+
+async def test_edit_that_breaks_syntax_reports_the_problem_to_the_model(agent):
+    agent["fake"].tool("edit_file", path="hello.py", old_string="print('hello')", new_string="print('hello'").final("done")
+    await _run(agent["conv"])
+    second_prompt = agent["fake"].prompts()[1]
+    assert "Problems found in the file after this edit" in second_prompt and "hello.py:" in second_prompt

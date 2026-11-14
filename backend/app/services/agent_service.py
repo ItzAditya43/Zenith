@@ -1659,6 +1659,15 @@ async def run_agent_turn(
             )
         else:
             result = await _execute_tool(tool, args, cmd_timeout, max_chars, workdir, conversation_id)
+            # Quick checks on the file the agent just changed: syntax errors
+            # and undefined names come back on the next step, not after a
+            # full test run (see diagnostics.py).
+            if (tool in ("edit_file", "write_file") and settings.get("agent_diagnostics", True)
+                    and isinstance(result, str) and not result.startswith("Error")):
+                from app.services import diagnostics
+                target = _resolve_path(str(args.get("path", "")), workdir)
+                problems = await diagnostics.check_file(target, str(args.get("path", "")))
+                result += diagnostics.format_for_model(problems)
         _resolve_call(call_id, "executed", result)
         yield {"type": "tool_result", "id": call_id, "tool": tool, "result": result}
         # Tool errors are "Error: ..." or "Error reading file: ..." etc. —
