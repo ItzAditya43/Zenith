@@ -81,7 +81,7 @@ function FileTreeNode({ conversationId, entry, depth, onOpen, activePath }) {
  */
 const TABS = ["files", "changes", "terminal"];
 
-export default function WorkspaceDrawer({ conversationId, workdir, onClose, openRequest, onAskAboutCode, onStartIssue }) {
+export default function WorkspaceDrawer({ conversationId, workdir, onClose, openRequest, onAskAboutCode, onStartIssue, onOpenConversation }) {
   const [tab, setTab] = useState(() => {
     const t = readStored(TAB_KEY, "files");
     return TABS.includes(t) ? t : "files";
@@ -421,7 +421,7 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
       {tab === "changes" && (
         <div className="ws-body ws-body-col">
           <Suspense fallback={<div className="ws-empty">Loading…</div>}>
-            <ChangesView conversationId={conversationId} active onOpenFile={openFile} onStartIssue={onStartIssue} />
+            <ChangesView conversationId={conversationId} active onOpenFile={openFile} onStartIssue={onStartIssue} onOpenConversation={onOpenConversation} />
           </Suspense>
         </div>
       )}

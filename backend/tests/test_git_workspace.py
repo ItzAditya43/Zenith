@@ -115,3 +115,32 @@ def test_github_without_gh(client, repo, monkeypatch):
     assert client.get(f"/api/conversations/{cid}/github").json() == {"installed": False, "logged_in": False}
     r = client.get(f"/api/conversations/{cid}/github/issues")
     assert r.status_code == 409 and "GitHub CLI" in r.json()["detail"]
+
+
+def test_separate_copy_gets_its_own_branch_folder_and_chat(client, repo):
+    from app.db import storage
+
+    cid, root = repo
+    r = client.post(f"/api/conversations/{cid}/git/worktrees", json={"name": "Try new pricing"})
+    assert r.status_code == 200, r.text
+    wt = r.json()
+    assert wt["branch"] == "zenith/try-new-pricing"
+    assert wt["path"].endswith("repo.zenith/try-new-pricing")
+    assert storage.get_conversation_workdir(wt["conversation_id"]) == wt["path"]
+    # Work in the copy doesn't touch the main checkout.
+    from pathlib import Path
+    (Path(wt["path"]) / "a.py").write_text("x = 100\n")
+    assert (root / "a.py").read_text() == "x = 1\n"
+    st = client.get(f"/api/conversations/{wt['conversation_id']}/git").json()
+    assert st["branch"] == "zenith/try-new-pricing" and st["unstaged"][0]["path"] == "a.py"
+
+    listed = client.get(f"/api/conversations/{cid}/git/worktrees").json()["worktrees"]
+    assert [w["branch"] for w in listed] == ["zenith/try-new-pricing"]
+    # Dirty copies aren't removed.
+    r = client.post(f"/api/conversations/{cid}/git/worktrees/remove", json={"path": wt["path"]})
+    assert r.status_code == 409 and "uncommitted" in r.json()["detail"]
+    _git(wt["path"], "checkout", "--", "a.py")
+    assert client.post(f"/api/conversations/{cid}/git/worktrees/remove", json={"path": wt["path"]}).status_code == 200
+    # Only this repo's copies can be removed.
+    r = client.post(f"/api/conversations/{cid}/git/worktrees/remove", json={"path": "/tmp"})
+    assert r.status_code == 409

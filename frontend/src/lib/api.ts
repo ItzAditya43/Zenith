@@ -291,6 +291,20 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     }).then((r) => r.json()),
+  gitWorktrees: (cid: string): Promise<{ worktrees: { path: string; branch?: string }[] }> =>
+    request(`/api/conversations/${cid}/git/worktrees`).then((r) => r.json()),
+  gitNewWorktree: (cid: string, name: string): Promise<{ path: string; branch: string; conversation_id: string }> =>
+    request(`/api/conversations/${cid}/git/worktrees`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }).then((r) => r.json()),
+  gitRemoveWorktree: (cid: string, path: string) =>
+    request(`/api/conversations/${cid}/git/worktrees/remove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    }).then((r) => r.json()),
   gitState: (cid: string) => request(`/api/conversations/${cid}/git`).then((r) => r.json()),
   gitFileDiff: (cid: string, path: string, staged = false) =>
     request(`/api/conversations/${cid}/git/file-diff?path=${encodeURIComponent(path)}&staged=${staged}`).then((r) => r.json()),

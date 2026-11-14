@@ -30,7 +30,7 @@ function FileRow({ file, staged, selected, onSelect, onToggle, busy }) {
  * Git for the working folder: what changed, stage, commit, branch, push,
  * and GitHub issues / pull requests through the `gh` CLI.
  */
-export default function ChangesView({ conversationId, active, onOpenFile, onStartIssue }) {
+export default function ChangesView({ conversationId, active, onOpenFile, onStartIssue, onOpenConversation }) {
   const [st, setSt] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -44,6 +44,7 @@ export default function ChangesView({ conversationId, active, onOpenFile, onStar
   const [ghTab, setGhTab] = useState("issues");
   const [ghItems, setGhItems] = useState(null);
   const [prForm, setPrForm] = useState(null); // { title, body, draft }
+  const [copies, setCopies] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -93,6 +94,41 @@ export default function ChangesView({ conversationId, active, onOpenFile, onStar
     load.then((items) => { if (!cancelled) setGhItems(items); }).catch((err) => { if (!cancelled) setGhItems({ error: err.message }); });
     return () => { cancelled = true; };
   }, [gh?.logged_in, ghTab, conversationId]);
+
+  useEffect(() => {
+    if (!st?.is_repo || !active) return undefined;
+    let cancelled = false;
+    api.gitWorktrees(conversationId).then((r) => { if (!cancelled) setCopies(r.worktrees); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [st?.is_repo, active, conversationId]);
+
+  const newCopy = async () => {
+    const name = window.prompt("What's the task? It becomes the branch and chat name.", "");
+    if (!name || !name.trim()) return;
+    setBusy(true);
+    try {
+      const r = await api.gitNewWorktree(conversationId, name.trim());
+      setNotice(`Created ${r.branch} in ${r.path}`);
+      onOpenConversation?.(r.conversation_id);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeCopy = async (path) => {
+    if (!window.confirm(`Remove the separate copy at ${path}? Its branch stays.`)) return;
+    setBusy(true);
+    try {
+      await api.gitRemoveWorktree(conversationId, path);
+      setCopies((c) => (c || []).filter((w) => w.path !== path));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const act = async (fn, after) => {
     setBusy(true);
@@ -292,6 +328,24 @@ export default function ChangesView({ conversationId, active, onOpenFile, onStar
             {diff ? <DiffView diff={diff} /> : <p className="ws-hint">No textual changes (binary or mode change).</p>}
           </section>
         )}
+
+        <section className="ws-change-group ws-copies">
+          <header>
+            <span>Separate copies {copies?.length ? <span className="ws-count">{copies.length}</span> : null}</span>
+            <button className="text-btn" onClick={newCopy} disabled={busy} title="A new branch in its own folder, with its own chat, so the agent can work without touching this checkout">
+              New task in a separate copy
+            </button>
+          </header>
+          {!copies?.length && (
+            <p className="ws-hint">Give the agent a task on its own branch and folder, then review it here and open a pull request.</p>
+          )}
+          {copies?.map((w) => (
+            <div className="ws-gh-item" key={w.path}>
+              <span className="ws-gh-title" title={w.path}><Icon name="git-branch" size={11} /> {w.branch || w.path}</span>
+              <button className="text-btn" onClick={() => removeCopy(w.path)} disabled={busy}>Remove</button>
+            </div>
+          ))}
+        </section>
 
         {st.github && (
           <section className="ws-change-group ws-github">

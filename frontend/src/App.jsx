@@ -1714,6 +1714,11 @@ export default function App() {
             openRequest={workspaceOpenRequest}
             onClose={() => setCodeEditorOpen(false)}
             onAskAboutCode={(text) => setSeedText({ text, nonce: Date.now() })}
+            onOpenConversation={async (id) => {
+              await refreshConversations();
+              await selectConversation(id);
+              setCodeEditorOpen(true);
+            }}
             onStartIssue={(issue, branch) => {
               const body = (issue.body || "").trim();
               const text = [

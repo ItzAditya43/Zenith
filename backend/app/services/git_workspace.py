@@ -327,3 +327,64 @@ async def agent_commit(root: Path, path: str, tool: str, request: str, run_id: s
     message = subject + (f"\n\nRequest: {first}" if first else "")
     await _git(root, "commit", "-q", "-m", message, "--", path)
     return {"branch": branch, "commit": (await _git(root, "log", "-1", "--format=%h")).strip(), "switched": switched}
+
+
+# --- worktrees: a separate checkout for a task ------------------------------
+
+async def _toplevel(root: Path) -> Path:
+    return Path((await _git(root, "rev-parse", "--show-toplevel")).strip())
+
+
+async def create_worktree(root: Path, name: str) -> dict:
+    """New branch `zenith/<name>` from the current commit, checked out in a
+    sibling folder `<repo>.zenith/<name>`, so work there never touches the
+    main checkout. Returns {"path", "branch"}."""
+    st = await status(root)
+    if not st.get("is_repo"):
+        raise GitError("This folder isn't a git repository.")
+    if (await _exec(["git", "rev-parse", "--verify", "-q", "HEAD"], root, 10)).code != 0:
+        raise GitError("Make a first commit before creating a separate copy.")
+    slug = _slug(name, 40)
+    top = await _toplevel(root)
+    base = top.parent / f"{top.name}.zenith"
+    path = base / slug
+    n = 2
+    while path.exists():
+        path = base / f"{slug}-{n}"
+        n += 1
+    branch = f"zenith/{path.name}"
+    if (await _exec(["git", "rev-parse", "--verify", "-q", f"refs/heads/{branch}"], root, 10)).code == 0:
+        raise GitError(f"A branch named {branch} already exists.")
+    base.mkdir(parents=True, exist_ok=True)
+    await _git(root, "worktree", "add", "-q", "-b", branch, str(path), timeout=60)
+    return {"path": str(path), "branch": branch}
+
+
+async def list_worktrees(root: Path) -> list[dict]:
+    out = await _git(root, "worktree", "list", "--porcelain")
+    items, cur = [], {}
+    for line in out.splitlines() + [""]:
+        if not line:
+            if cur:
+                items.append(cur)
+            cur = {}
+            continue
+        key, _, val = line.partition(" ")
+        if key == "worktree":
+            cur["path"] = val
+        elif key == "branch":
+            cur["branch"] = val.removeprefix("refs/heads/")
+    top = str(await _toplevel(root))
+    return [w for w in items if w.get("path") != top]
+
+
+async def remove_worktree(root: Path, path: str) -> None:
+    known = {w["path"] for w in await list_worktrees(root)}
+    if path not in known:
+        raise GitError("That isn't one of this repository's separate copies.")
+    r = await _exec(["git", "worktree", "remove", path], root, 60)
+    if r.code != 0:
+        msg = (r.err or r.out).strip()
+        if "modified or untracked" in msg or "is dirty" in msg:
+            msg = "That copy has uncommitted changes. Commit or discard them first."
+        raise GitError(msg or "Couldn't remove the copy.")

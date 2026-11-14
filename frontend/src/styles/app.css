@@ -5040,3 +5040,5 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .ws-inline-actions .ws-hint { margin-right: auto; }
 .ws-inline .tool-call-diff { margin: 0 var(--space-3); max-height: 260px; overflow: auto; }
 .ws-inline-error { margin: 0; padding: 0 var(--space-3) var(--space-2); font-size: var(--text-xs); color: var(--signal-danger); }
+.ws-copies { border-top: 1px solid var(--border-hairline); margin-top: var(--space-2); }
+.ws-copies .ws-hint { padding: 0 var(--space-3); }

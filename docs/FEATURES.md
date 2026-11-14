@@ -691,6 +691,13 @@ resize; the width is remembered. On narrow screens it covers the chat.
   branch, fix, run the checks and commit; "Open PR" pushes the branch if
   needed and creates the pull request. Zenith stores no GitHub token: it
   uses whatever `gh` is logged into.
+- **Separate copies** — "New task in a separate copy" creates a git
+  worktree: a new `zenith/<task>` branch checked out in a sibling folder
+  (`<repo>.zenith/<task>`), and opens a new chat bound to it. The agent
+  works there without touching your main checkout; review its commits in
+  that chat's Changes tab and open a pull request. Copies are listed in
+  the original folder's Changes tab and can be removed once they have no
+  uncommitted changes (the branch is kept).
 
 ### Document editing
 
