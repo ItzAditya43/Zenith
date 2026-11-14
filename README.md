@@ -41,6 +41,7 @@ laptop with an RTX 3050 (4 GB VRAM) and 16 GB RAM:
 | Model | Tool protocol | Result |
 |---|---|---|
 | `qwen3.5:4b` | JSON (default) | 8/10 on the agent eval (5 tasks, 2 attempts each); failed "count lines" both times |
+| `qwen3.5:4b` | JSON (default) | 7/12 on the larger 12-task eval (1 attempt each): passed file edits, the test-driven task, both git tasks and the JSON edit; failed a config edit, counting lines, a bug spread over three files, finding a function by search, and writing tests |
 | `qwen3.5:4b` | Ollama native tool calling | 3/10 on the same eval |
 | `qwen2.5-coder:3b` | JSON | Failed one manual task: described a plan instead of calling tools |
 | `Tesleum/Claude-Agent` | Native | Failed one manual task with malformed tool calls; not re-run since Zenith started repairing that shape |
