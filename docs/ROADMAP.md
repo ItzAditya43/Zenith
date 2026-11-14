@@ -16,7 +16,6 @@ Zenith stays chat-first: these make the code side panel pleasant, not an IDE.
 
 | # | Feature | Why | Effort |
 |---|---|---|---|
-| E2 | **Inline edit** | Select code in the panel, ask, get a diff in place with the existing per-hunk accept/skip. Lighter than a full agent turn. | M |
 
 ## Platform & distribution
 

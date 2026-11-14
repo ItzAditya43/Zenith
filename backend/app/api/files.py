@@ -366,3 +366,28 @@ async def list_directories(path: str = Query("")):
         "quick_paths": quick_paths,
     }
 
+
+
+# --- Inline edit (workspace editor) ----------------------------------------
+
+
+class InlineEditRequest(StrictModel):
+    path: str = Field(min_length=1, max_length=1000)
+    content: str = Field(max_length=2_000_000)  # the editor's current text, unsaved edits included
+    from_line: int = Field(ge=1)
+    to_line: int = Field(ge=1)
+    instruction: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/conversations/{conversation_id}/inline-edit")
+async def inline_edit(conversation_id: str, body: InlineEditRequest):
+    """Propose a rewrite of lines from_line..to_line. Writes nothing: the
+    editor shows the result as a diff for the user to apply."""
+    from app.services import inline_edit as svc
+
+    root = _workdir(conversation_id)
+    _safe_resolve(root, body.path)  # same folder boundary as the rest of this API
+    try:
+        return await svc.rewrite(body.path, body.content, body.from_line, body.to_line, body.instruction)
+    except svc.InlineEditError as exc:
+        raise HTTPException(409, str(exc)) from exc

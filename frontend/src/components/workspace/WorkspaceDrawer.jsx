@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import Icon from "../Icon.jsx";
+import DiffView from "../DiffView.jsx";
 
 // Heavy pieces load on first use, so opening a plain chat costs nothing.
 const CodeEditor = lazy(() => import("./CodeEditor.jsx"));
@@ -96,6 +97,8 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
   const [terminalMounted, setTerminalMounted] = useState(tab === "terminal");
   const drawer = useRef(null);
   const loading = useRef(new Set()); // paths being fetched
+  const editorApi = useRef(null);
+  const [inline, setInline] = useState(null); // { from, to, instruction, busy, result, error }
 
   // The parent keys this component by conversation + folder, so a new
   // folder is a fresh mount and there's no stale state to reset here.
@@ -213,6 +216,38 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
   const activeTab = tabs.find((t) => t.path === activePath);
   const folderName = workdir.split(/[\\/]/).filter(Boolean).pop() || workdir;
 
+  const startInlineEdit = () => {
+    if (!selection) return;
+    setInline({ from: selection.fromLine, to: selection.toLine, instruction: "", busy: false, result: null, error: null });
+  };
+
+  const runInlineEdit = async () => {
+    if (!activeTab || !inline?.instruction.trim()) return;
+    setInline((s) => ({ ...s, busy: true, error: null, result: null }));
+    try {
+      const content = editorApi.current?.text() ?? activeTab.content;
+      const result = await api.inlineEdit(conversationId, {
+        path: activeTab.path, content, from_line: inline.from, to_line: inline.to, instruction: inline.instruction.trim(),
+      });
+      setInline((s) => ({ ...s, busy: false, result }));
+    } catch (err) {
+      setInline((s) => ({ ...s, busy: false, error: err.message }));
+    }
+  };
+
+  const applyInlineEdit = () => {
+    if (!inline?.result) return;
+    const ok = editorApi.current?.replaceLines(inline.from, inline.to, inline.result.replacement);
+    if (ok) setInline(null);
+    else setInline((s) => ({ ...s, error: "The file changed since the edit was proposed. Select the lines again." }));
+  };
+
+  const inlineDiff = (r, from) => {
+    const a = r.original.split("\n");
+    const b = r.replacement.split("\n");
+    return [`@@ -${from},${a.length} +${from},${b.length} @@`, ...a.map((l) => `-${l}`), ...b.map((l) => `+${l}`)].join("\n");
+  };
+
   const askAboutSelection = () => {
     if (!activeTab || !selection) return;
     const ext = (activeTab.path.split(".").pop() || "").toLowerCase();
@@ -296,6 +331,7 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
               <Suspense fallback={<div className="ws-empty">Loading editor…</div>}>
                 <CodeEditor
                   key={activeTab.path}
+                  apiRef={editorApi}
                   path={activeTab.path}
                   value={activeTab.content}
                   onChange={(c) => editContent(activeTab.path, c)}
@@ -310,9 +346,47 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
             </div>
           )}
 
+          {inline && (
+            <div className="ws-inline" role="region" aria-label="Edit selection">
+              <form className="ws-inline-row" onSubmit={(e) => { e.preventDefault(); runInlineEdit(); }}>
+                <span className="ws-inline-range">L{inline.from}{inline.to !== inline.from ? `–${inline.to}` : ""}</span>
+                <input
+                  className="settings-input"
+                  autoFocus
+                  placeholder="How should these lines change?"
+                  value={inline.instruction}
+                  onChange={(e) => setInline((s) => ({ ...s, instruction: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Escape") setInline(null); }}
+                  disabled={inline.busy}
+                  aria-label="Edit instruction"
+                />
+                <button type="submit" className="ws-action ws-action-primary" disabled={inline.busy || !inline.instruction.trim()}>
+                  {inline.busy ? "Thinking…" : "Propose"}
+                </button>
+                <button type="button" className="icon-btn" onClick={() => setInline(null)} aria-label="Cancel edit"><Icon name="x" size={12} /></button>
+              </form>
+              {inline.error && <p className="ws-inline-error">{inline.error}</p>}
+              {inline.result && (
+                <>
+                  <DiffView diff={inlineDiff(inline.result, inline.from)} />
+                  <div className="ws-inline-row ws-inline-actions">
+                    <span className="ws-hint">{inline.result.model} · applies to the editor; save to write the file</span>
+                    <button className="ws-action" onClick={runInlineEdit} disabled={inline.busy}>Try again</button>
+                    <button className="ws-action ws-action-primary" onClick={applyInlineEdit}>Apply</button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           <footer className="ws-statusbar">
             {activeTab ? <span className="ws-path">{activeTab.path}</span> : <span className="ws-path">{workdir}</span>}
             <div className="ws-actions">
+              {selection && !inline && (
+                <button className="ws-action ws-action-accent" onClick={startInlineEdit} title="Describe a change to the selected lines">
+                  <Icon name="file-pen" size={12} /> Edit selection
+                </button>
+              )}
               {selection && onAskAboutCode && (
                 <button className="ws-action ws-action-accent" onClick={askAboutSelection} title="Put the selected lines in the message box">
                   <Icon name="message-square" size={12} /> Ask about selection

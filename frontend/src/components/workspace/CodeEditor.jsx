@@ -57,7 +57,7 @@ const highlight = HighlightStyle.define([
  * through onChange. Switching files remounts (keyed by path in the parent),
  * so each tab keeps clean undo history.
  */
-export default function CodeEditor({ path, value, onChange, onSave, onSelectionChange }) {
+export default function CodeEditor({ path, value, onChange, onSave, onSelectionChange, apiRef }) {
   const host = useRef(null);
   const view = useRef(null);
   const handlers = useRef({ onChange, onSave, onSelectionChange });
@@ -107,6 +107,21 @@ export default function CodeEditor({ path, value, onChange, onSave, onSelectionC
     });
     const v = new EditorView({ state, parent: host.current });
     view.current = v;
+    if (apiRef) {
+      apiRef.current = {
+        // Replace whole lines from..to (1-based, inclusive) as one undoable change.
+        replaceLines(from, to, text) {
+          const doc = v.state.doc;
+          if (from < 1 || to > doc.lines || from > to) return false;
+          const start = doc.line(from).from;
+          const end = doc.line(to).to;
+          v.dispatch({ changes: { from: start, to: end, insert: text }, selection: { anchor: start, head: start + text.length }, scrollIntoView: true });
+          v.focus();
+          return true;
+        },
+        text: () => v.state.doc.toString(),
+      };
+    }
 
     // Load the grammar for this file type on demand (each is its own chunk).
     let cancelled = false;
@@ -120,6 +135,7 @@ export default function CodeEditor({ path, value, onChange, onSave, onSelectionC
       cancelled = true;
       v.destroy();
       view.current = null;
+      if (apiRef) apiRef.current = null;
     };
     // Mount once per file; `value` only seeds the document.
     // eslint-disable-next-line react-hooks/exhaustive-deps

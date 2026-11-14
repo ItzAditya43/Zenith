@@ -648,6 +648,12 @@ resize; the width is remembered. On narrow screens it covers the chat.
   and symlinks out are refused), 2 MB per file.
 - **Ask about selection** — select lines and press it: the file, line
   range and code go into the message box.
+- **Edit selection** — select lines, say how they should change ("handle
+  an empty list", "convert to async"), and get the rewrite back as a diff.
+  Apply puts it in the editor as one undoable change; nothing is written
+  until you save. One model call with the code model and no tools
+  (`app/services/inline_edit.py`), with 60 lines of context on each side;
+  up to 400 selected lines.
 - **Open from the chat** — file steps in an agent run (`read_file`,
   `edit_file`, `write_file`) have an open button that shows that file in
   the workspace.

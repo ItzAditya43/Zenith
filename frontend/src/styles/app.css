@@ -5025,3 +5025,18 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .ws-pr-row { display: flex; align-items: center; gap: var(--space-2); }
 .ws-pr-row .ws-hint { margin-right: auto; }
 .ws-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--text-secondary); }
+
+/* ----- Workspace: inline edit ----- */
+.ws-inline {
+  border-top: 1px solid var(--border-hairline);
+  background: var(--bg-panel);
+  max-height: 50%;
+  overflow: auto;
+  flex-shrink: 0;
+}
+.ws-inline-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); }
+.ws-inline-row input { flex: 1; font-size: var(--text-sm); }
+.ws-inline-range { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--signal-general); flex-shrink: 0; }
+.ws-inline-actions .ws-hint { margin-right: auto; }
+.ws-inline .tool-call-diff { margin: 0 var(--space-3); max-height: 260px; overflow: auto; }
+.ws-inline-error { margin: 0; padding: 0 var(--space-3) var(--space-2); font-size: var(--text-xs); color: var(--signal-danger); }

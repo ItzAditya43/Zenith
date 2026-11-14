@@ -284,6 +284,13 @@ export const api = {
     return request("/api/backup/restore", { method: "POST", body: form }).then((r) => r.json());
   },
 
+  inlineEdit: (cid: string, req: { path: string; content: string; from_line: number; to_line: number; instruction: string }):
+    Promise<{ model: string; original: string; replacement: string }> =>
+    request(`/api/conversations/${cid}/inline-edit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }).then((r) => r.json()),
   gitState: (cid: string) => request(`/api/conversations/${cid}/git`).then((r) => r.json()),
   gitFileDiff: (cid: string, path: string, staged = false) =>
     request(`/api/conversations/${cid}/git/file-diff?path=${encodeURIComponent(path)}&staged=${staged}`).then((r) => r.json()),
