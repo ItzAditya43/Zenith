@@ -450,6 +450,16 @@ export const api = {
     }).then((r) => r.json()),
 
   hardwareReport: () => request("/api/hardware").then((r) => r.json()),
+  modelLibrary: (q = "", category = "") =>
+    request(`/api/models/library?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`).then((r) => r.json()),
+  modelLibraryTags: (name: string) => request(`/api/models/library/${encodeURIComponent(name)}`).then((r) => r.json()),
+  checkModel: (name: string) =>
+    request("/api/models/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }).then((r) => r.json()),
+  ollamaAccount: () => request("/api/ollama/account").then((r) => r.json()),
   listRagSources: () => request("/api/rag/sources").then((r) => r.json()),
   listTraces: (conversationId: string | null = null, limit: number = 50) =>
     request(`/api/traces?limit=${limit}${conversationId ? `&conversation_id=${encodeURIComponent(conversationId)}` : ""}`).then((r) => r.json()),

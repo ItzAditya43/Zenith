@@ -1,13 +1,13 @@
 import { api } from "../../lib/api";
 import Icon from "../Icon.jsx";
+import { useState } from "react";
 import { MODEL_TASK_FILTERS } from "./constants.js";
+import ModelLibrary, { OllamaAccount } from "./ModelLibrary.jsx";
 import { useSettings } from "./SettingsContext.js";
 
 /** Settings → "models" section. State lives in SettingsPanel (see SettingsContext). */
 export default function ModelsSection() {
   const {
-    config,
-    setConfig,
     models,
     modelsError,
     hardware,
@@ -25,14 +25,32 @@ export default function ModelsSection() {
     handlePull,
     handleCreate,
     handleDeleteModel,
+    unavailableModels = {},
+    refreshModels,
   } = useSettings();
+  const [checking, setChecking] = useState(null);
+  const [checked, setChecked] = useState({}); // name -> { ok, reason }
+  const check = async (name) => {
+    setChecking(name);
+    try {
+      const r = await api.checkModel(name);
+      setChecked((c) => ({ ...c, [name]: r }));
+      refreshModels?.();
+    } catch (err) {
+      setChecked((c) => ({ ...c, [name]: { ok: false, reason: err.message } }));
+    } finally {
+      setChecking(null);
+    }
+  };
 
   return (
     <section className="settings-section">
       <h3 className="settings-section-title">Installed models</h3>
       <p className="settings-section-desc">
-        Everything below is running locally on your Ollama. No data leaves your machine.
+        Models in your Ollama. Local ones run on this machine; cloud ones (marked) run on
+        Ollama's servers under your account.
       </p>
+      <OllamaAccount />
       {hardware && (
         <div className="hw-summary">
           <span>{hardware.hardware.cpu_cores} CPU cores</span>
@@ -49,8 +67,20 @@ export default function ModelsSection() {
           const hw = hardware?.installed.find((x) => x.name === m.name);
           return (
             <li key={m.name}>
-              <span className="model-name">{m.name}</span>
+              <span className="model-name">
+                {m.name}
+                {m.cloud && <span className="lib-chip lib-chip-cloud">cloud</span>}
+                {(unavailableModels[m.name] || checked[m.name]?.ok === false) && (
+                  <span className="model-dead">Not working: {unavailableModels[m.name]?.reason || checked[m.name]?.reason}</span>
+                )}
+                {checked[m.name]?.ok && !unavailableModels[m.name] && <span className="model-ok">Works with your account</span>}
+              </span>
               <span className="model-roles">
+                {m.cloud && (
+                  <button className="text-btn" onClick={() => check(m.name)} disabled={checking === m.name} title="Send a one-word test to see if this model works for your account">
+                    {checking === m.name ? "Checking…" : "Check"}
+                  </button>
+                )}
                 {m.roles?.map((r) => (
                   <span key={r} className="role-chip" data-role={r}>
                     {r}
@@ -148,113 +178,32 @@ export default function ModelsSection() {
       )}
 
       <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
-        Cloud model options
-      </h3>
-      <div className="setting-row">
-        <div className="setting-meta">
-          <span className="setting-label">Show cloud model options</span>
-          <span className="setting-hint">
-            Larger models than your hardware can run, hosted by Ollama, requires an
-            ollama.com account. Nothing else in Zenith calls out to the internet without
-            this being explicitly on.
-          </span>
-        </div>
-        <button
-          className={`switch ${config?.show_cloud_model_suggestions ? "switch-on" : ""}`}
-          onClick={async () =>
-            setConfig(
-              await api.patchConfig({
-                show_cloud_model_suggestions: !config?.show_cloud_model_suggestions,
-              })
-            )
-          }
-          role="switch"
-          aria-checked={!!config?.show_cloud_model_suggestions}
-        >
-          <span className="switch-thumb" />
-        </button>
-      </div>
-
-      {config?.show_cloud_model_suggestions && hardware?.cloud_recommended?.length > 0 && (
-        <div
-          style={{
-            marginTop: "8px",
-            padding: "12px",
-            border: "1px dashed color-mix(in srgb, #7c5cff 45%, transparent)",
-            borderRadius: "var(--radius-sm)",
-            background: "color-mix(in srgb, #7c5cff 6%, transparent)",
-          }}
-        >
-          <p className="settings-section-desc">
-            These do <strong>not</strong> run on this machine — they run on Ollama's own
-            servers. Pulling one requires signing into an ollama.com account outside of
-            Zenith; Zenith does not manage that sign-in, it only helps you pick a model.
-          </p>
-          <div
-            role="group"
-            aria-label="Filter cloud models by task"
-            style={{ display: "flex", flexWrap: "wrap", gap: "6px", margin: "8px 0 12px" }}
-          >
-            {MODEL_TASK_FILTERS.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setModelTaskFilter(f.key)}
-                aria-pressed={modelTaskFilter === f.key}
-                style={{
-                  fontSize: "0.75rem",
-                  padding: "4px 10px",
-                  borderRadius: "999px",
-                  border: "1px solid var(--bg-inset)",
-                  background: modelTaskFilter === f.key ? "var(--signal-general, #4a6cf7)" : "var(--bg-panel-raised, transparent)",
-                  color: modelTaskFilter === f.key ? "#fff" : "var(--text-secondary)",
-                  cursor: "pointer",
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <ul className="model-list">
-            {hardware.cloud_recommended
-              .filter((m) => modelTaskFilter === "all" || m.role === modelTaskFilter)
-              .map((m) => (
-              <li key={m.name}>
-                <span className="model-name" style={{ flex: 1 }}>
-                  {m.name}
-                  <span style={{ display: "block", fontSize: "0.75em", color: "var(--text-tertiary)" }}>
-                    {m.note}
-                  </span>
-                </span>
-                <span
-                  title="Runs on Ollama's servers, not this machine"
-                  style={{
-                    fontSize: "10px",
-                    padding: "2px 8px",
-                    borderRadius: "999px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.03em",
-                    whiteSpace: "nowrap",
-                    background: "color-mix(in srgb, #7c5cff 22%, transparent)",
-                    color: "#7c5cff",
-                    fontWeight: 600,
-                  }}
-                >
-                  Cloud
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
-        Pull a model
+        Get more models
       </h3>
       <p className="settings-section-desc">
-        Download a model from the Ollama registry — no CLI needed. Try{" "}
-        <code>llama3.2</code>, <code>qwen2.5-coder</code>, or <code>llava</code>.
+        Browse the Ollama library and download a size that fits your machine. Each size
+        shows its download size and how it would run here.
       </p>
+      {pullStatus && (
+        <div className="model-progress">
+          <span className="setting-hint">
+            {pullStatus}
+            {pullPct != null ? ` — ${pullPct}%` : ""}
+          </span>
+          {pullPct != null && (
+            <div className="model-progress-bar">
+              <div className="model-progress-fill" style={{ width: `${pullPct}%` }} />
+            </div>
+          )}
+        </div>
+      )}
+      <ModelLibrary
+        hardware={hardware}
+        installed={models.map((m) => m.name)}
+        pullBusy={pullBusy}
+        onPull={(name) => { setPullName(name); handlePull(name); }}
+      />
+      <p className="settings-section-desc" style={{ marginTop: "0.5rem" }}>Or pull by exact name:</p>
       <div className="settings-row">
         <input
           className="settings-input"
@@ -269,19 +218,6 @@ export default function ModelsSection() {
           {pullBusy ? "Pulling…" : "Pull"}
         </button>
       </div>
-      {pullStatus && (
-        <div className="model-progress">
-          <span className="setting-hint">
-            {pullStatus}
-            {pullPct != null ? ` — ${pullPct}%` : ""}
-          </span>
-          {pullPct != null && (
-            <div className="model-progress-bar">
-              <div className="model-progress-fill" style={{ width: `${pullPct}%` }} />
-            </div>
-          )}
-        </div>
-      )}
 
       <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
         Create a variant / apply an adapter
