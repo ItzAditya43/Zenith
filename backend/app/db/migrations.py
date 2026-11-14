@@ -331,6 +331,20 @@ def _skills_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _conversation_summaries_table(conn: sqlite3.Connection) -> None:
+    """Running summary of messages that fell out of the context window
+    (summary_service.py). covered_until = id of the last message folded in."""
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS conversation_summaries (
+            conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+            summary TEXT NOT NULL,
+            covered_until TEXT NOT NULL,
+            covered_count INTEGER NOT NULL,
+            updated_at REAL NOT NULL
+        )"""
+    )
+
+
 def _project_workspace_columns(conn: sqlite3.Connection) -> None:
     """Projects as workspaces: a default persona for new chats in the
     project and standing instructions added to every turn in it."""
@@ -809,6 +823,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (35, "redact_secret_history", _redact_secret_history),
     (36, "turn_traces_table", _turn_traces_table),
     (37, "project_workspace_columns", _project_workspace_columns),
+    (38, "conversation_summaries_table", _conversation_summaries_table),
 ]
 
 

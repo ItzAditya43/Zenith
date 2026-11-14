@@ -9,7 +9,6 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 |---|---|---|---|
 | C3 | **LSP diagnostics after edits** | Type errors and bad imports come back to the agent right after an edit instead of after a full test run. | M–L |
 | C4 | **Background tasks in git worktrees** | Queue a task, the agent works on an isolated branch, you review one diff. Builds on the task board and checkpoint/resume. | L |
-| C7 | **Summarise long sessions** | Today the agent keeps the last 24 messages and drops the rest. Fold older turns into a running summary instead. | M |
 | C8 | **Ranked repo map** | Rank files by relevance to the request (references, recently touched) instead of path order, so big repos get symbols for the files that matter. | M |
 | C9 | **Bigger agent eval** | Five tasks is too few to compare models. Add multi-file, test-driven and git tasks. | M |
 

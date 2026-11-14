@@ -75,6 +75,7 @@ class ConfigPatch(StrictModel):
     sse_heartbeat_seconds: int | None = Field(default=None, ge=0, le=120)
     upload_max_bytes: int | None = Field(default=None, ge=1_024, le=5 * 1024 * 1024 * 1024)
     max_context_messages: int | None = Field(default=None, ge=1, le=200)
+    summarize_long_chats: bool | None = None
     attachment_ttl_hours: int | None = Field(default=None, ge=1, le=24 * 30)
     voice_chunk_sentences: bool | None = None
     ui_experimental: bool | None = None

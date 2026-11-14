@@ -130,6 +130,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "upload_max_bytes": 200 * 1024 * 1024,
     # --- Router ---
     "max_context_messages": 24,
+    "summarize_long_chats": True,    # fold messages beyond the window into a running summary
     "default_context_window": 8192,
     "router_confidence_threshold": 0.55,
     "router_show_confidence": True,

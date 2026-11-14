@@ -818,6 +818,11 @@ async def _after_reply(request: Request, user_text: str, key: str, full_text: st
             log.info("chat.memories_saved", count=len(added))
     except Exception as exc:
         log.debug("chat.memory_extract_failed", error=str(exc))
+    try:
+        from app.services import summary_service
+        await summary_service.update(key)
+    except Exception as exc:
+        log.debug("chat.summary_update_failed", error=str(exc))
     if not getattr(request.app.state, "_titled_for", None):
         request.app.state._titled_for = set()
     if key not in request.app.state._titled_for:

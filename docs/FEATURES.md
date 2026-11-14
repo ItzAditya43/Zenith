@@ -328,6 +328,16 @@ badge with the model used and why.
 
 ### Memory & personalization
 
+**Long chats.** Only the last `max_context_messages` (24) messages are sent
+to the model each turn. Once older ones fall out of that window, a
+background step (`summary_service.py`) folds them into a running summary of
+under 250 words (goals, decisions, constraints, files and names in play,
+open questions), and the summary is added to the system context. It's
+updated in batches of six dropped messages, uses a local model, and is tied
+to the exact message it covers up to: edit a message or switch branches and
+the old summary is ignored and rebuilt. Turn off with
+`summarize_long_chats`.
+
 - **Long-term memory** (`memory_service.py`) — after each turn, a small
   model extracts durable personal facts ("uses fish shell", "lives in
   Berlin", "allergic to peanuts") from what you said and stores them,

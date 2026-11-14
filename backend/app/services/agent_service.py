@@ -1757,6 +1757,11 @@ async def run_agent_turn(
             except Exception as exc:
                 log.warning("agent.correction_recording_failed", error=str(exc))
 
+    try:
+        from app.services import summary_service
+        asyncio.get_running_loop().create_task(summary_service.update(conversation_id))
+    except Exception as exc:
+        log.debug("agent.summary_schedule_failed", error=str(exc))
     yield {"type": "done", "full_text": final_text, "model": decision.model,
            "role": decision.role, "reason": decision.reason,
            "parent_id": assistant_parent_id, "checkpointed": checkpointed,
