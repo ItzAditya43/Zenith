@@ -9,6 +9,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.1.0",
+    date: "2026-11-15",
+    title: "A workspace beside the chat, git built in, and a model library",
+    items: [
+      "Open your project's files, a terminal and git changes beside the chat. Select code to ask about it or have it rewritten as a diff.",
+      "Commit, branch, push and open pull requests from the Changes tab; hand a GitHub issue to the agent.",
+      "Paste images with Ctrl+V. Browse and download models from the Ollama library in Settings.",
+      "Your Ollama plan is shown, and cloud models it doesn't cover are skipped before you send anything.",
+      "Dialogs and dropdowns now match your theme everywhere; the collapsed sidebar is a clean icon rail.",
+    ],
+  },
+  {
     version: "1.0.1",
     date: "2026-11-14",
     title: "Pinned models that stop working no longer trap your chats",

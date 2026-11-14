@@ -1,6 +1,19 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.0] — 2026-11-15
+
+### Added
+- Paste images with Ctrl/Cmd+V; attachments show as thumbnails or file cards above the message box.
+- Browse and download models from the Ollama library in Settings → Installed models, with sizes, download size and how each size would run on your machine.
+- Your Ollama account and plan in Settings. Pinned cloud models are checked at startup and when pinned, so one your plan doesn't cover is skipped before the first message.
+
+### Changed
+- Every confirmation, prompt and dropdown is drawn by Zenith in your theme instead of by the operating system.
+- The collapsed sidebar is an icon rail with tooltips.
+- New Stop button; Settings is larger and no longer overflows; About shows the real version.
+
+### Fixed
+- Line breaks typed with Shift+Enter are kept in sent messages.
 
 ### Added
 - Workspace drawer: the bound folder's files and a terminal open beside the chat instead of over it. CodeMirror editor with highlighting and search, a real shell in the folder, "Ask about selection" to drop code into the message box, and an open button on file steps in agent runs. Replaces the old full-screen code editor.
