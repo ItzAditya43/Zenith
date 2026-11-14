@@ -284,6 +284,46 @@ export const api = {
     return request("/api/backup/restore", { method: "POST", body: form }).then((r) => r.json());
   },
 
+  gitState: (cid: string) => request(`/api/conversations/${cid}/git`).then((r) => r.json()),
+  gitFileDiff: (cid: string, path: string, staged = false) =>
+    request(`/api/conversations/${cid}/git/file-diff?path=${encodeURIComponent(path)}&staged=${staged}`).then((r) => r.json()),
+  gitLog: (cid: string, count = 20) => request(`/api/conversations/${cid}/git/log?count=${count}`).then((r) => r.json()),
+  gitBranches: (cid: string) => request(`/api/conversations/${cid}/git/branches`).then((r) => r.json()),
+  gitStage: (cid: string, paths: string[]) => request(`/api/conversations/${cid}/git/stage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
+    }).then((r) => r.json()),
+  gitUnstage: (cid: string, paths: string[]) => request(`/api/conversations/${cid}/git/unstage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
+    }).then((r) => r.json()),
+  gitCommit: (cid: string, message: string) => request(`/api/conversations/${cid}/git/commit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    }).then((r) => r.json()),
+  gitSwitch: (cid: string, name: string, create = false) => request(`/api/conversations/${cid}/git/switch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, create }),
+    }).then((r) => r.json()),
+  gitPush: (cid: string) => request(`/api/conversations/${cid}/git/push`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }).then((r) => r.json()),
+  githubState: (cid: string) => request(`/api/conversations/${cid}/github`).then((r) => r.json()),
+  githubIssues: (cid: string) => request(`/api/conversations/${cid}/github/issues`).then((r) => r.json()),
+  githubIssue: (cid: string, n: number) => request(`/api/conversations/${cid}/github/issues/${n}`).then((r) => r.json()),
+  githubPulls: (cid: string) => request(`/api/conversations/${cid}/github/pulls`).then((r) => r.json()),
+  githubCreatePull: (cid: string, pr: { title: string; body: string; base?: string; draft?: boolean }) =>
+    request(`/api/conversations/${cid}/github/pulls`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(pr),
+    }).then((r) => r.json()),
   terminalAvailable: (): Promise<{ available: boolean }> =>
     request("/api/terminal/available").then((r) => r.json()),
   terminalStart: (conversationId: string, cols: number, rows: number): Promise<{ session_id: string; cwd: string; alive: boolean }> =>

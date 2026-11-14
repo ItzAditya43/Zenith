@@ -5,6 +5,7 @@ import Icon from "../Icon.jsx";
 // Heavy pieces load on first use, so opening a plain chat costs nothing.
 const CodeEditor = lazy(() => import("./CodeEditor.jsx"));
 const TerminalView = lazy(() => import("./TerminalView.jsx"));
+const ChangesView = lazy(() => import("./ChangesView.jsx"));
 
 const WIDTH_KEY = "zenith-workspace-width";
 const TAB_KEY = "zenith-workspace-tab";
@@ -77,8 +78,13 @@ function FileTreeNode({ conversationId, entry, depth, onOpen, activePath }) {
  * chat rather than over it. Chat stays the main surface; this is a view onto
  * the same folder the agent works in.
  */
-export default function WorkspaceDrawer({ conversationId, workdir, onClose, openRequest, onAskAboutCode }) {
-  const [tab, setTab] = useState(() => (readStored(TAB_KEY, "files") === "terminal" ? "terminal" : "files"));
+const TABS = ["files", "changes", "terminal"];
+
+export default function WorkspaceDrawer({ conversationId, workdir, onClose, openRequest, onAskAboutCode, onStartIssue }) {
+  const [tab, setTab] = useState(() => {
+    const t = readStored(TAB_KEY, "files");
+    return TABS.includes(t) ? t : "files";
+  });
   const [width, setWidth] = useState(() => Math.max(MIN_WIDTH, Number(readStored(WIDTH_KEY, 620)) || 620));
   const [treeOpen, setTreeOpen] = useState(true);
   const [rootEntries, setRootEntries] = useState([]);
@@ -227,6 +233,9 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
           <button role="tab" aria-selected={tab === "files"} className={`ws-tab ${tab === "files" ? "is-active" : ""}`} onClick={() => switchTab("files")}>
             <Icon name="file-text" size={13} /> Files
           </button>
+          <button role="tab" aria-selected={tab === "changes"} className={`ws-tab ${tab === "changes" ? "is-active" : ""}`} onClick={() => switchTab("changes")}>
+            <Icon name="git-branch" size={13} /> Changes
+          </button>
           <button role="tab" aria-selected={tab === "terminal"} className={`ws-tab ${tab === "terminal" ? "is-active" : ""}`} onClick={() => switchTab("terminal")}>
             <Icon name="terminal" size={13} /> Terminal
           </button>
@@ -334,6 +343,14 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
           )}
         </section>
       </div>
+
+      {tab === "changes" && (
+        <div className="ws-body ws-body-col">
+          <Suspense fallback={<div className="ws-empty">Loading…</div>}>
+            <ChangesView conversationId={conversationId} active onOpenFile={openFile} onStartIssue={onStartIssue} />
+          </Suspense>
+        </div>
+      )}
 
       {terminalMounted && (
         <div className="ws-body ws-body-terminal" hidden={tab !== "terminal"}>

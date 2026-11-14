@@ -4878,3 +4878,150 @@ body.is-resizing { cursor: col-resize; user-select: none; }
   .ws-resize-handle { display: none; }
   .ws-tree { width: 150px; }
 }
+
+/* ----- Workspace: Changes tab ----- */
+.ws-body-col { flex-direction: column; }
+.ws-changes { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ws-git-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--border-hairline);
+  flex-shrink: 0;
+}
+.ws-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  border: 1px solid var(--border-soft);
+  max-width: 50%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ws-branch:hover { background: var(--bg-panel-raised); }
+.ws-sync { display: inline-flex; gap: 6px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-tertiary); }
+.ws-git-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-1); }
+.ws-branch-menu {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-panel);
+  max-height: 40%;
+  overflow: auto;
+  flex-shrink: 0;
+}
+.ws-branch-item {
+  text-align: left;
+  padding: 5px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.ws-branch-item:hover:not(:disabled) { background: var(--bg-panel-raised); color: var(--text-primary); }
+.ws-branch-item.is-current { color: var(--signal-general); }
+.ws-branch-new { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+.ws-branch-new input { flex: 1; font-family: var(--font-mono); font-size: var(--text-xs); }
+.ws-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--signal-general);
+  border-bottom: 1px solid var(--border-hairline);
+  word-break: break-all;
+}
+.ws-changes-scroll { flex: 1; min-height: 0; overflow: auto; padding-bottom: var(--space-4); }
+.ws-commit { display: flex; gap: var(--space-2); align-items: flex-end; padding: var(--space-3); }
+.ws-commit-msg { flex: 1; resize: vertical; min-height: 40px; font-size: var(--text-sm); }
+.ws-hint { font-size: var(--text-xs); color: var(--text-tertiary); }
+.ws-hint code, .ws-empty code { font-family: var(--font-mono); color: var(--text-secondary); }
+.ws-clean { padding: 0 var(--space-3); }
+.ws-change-group { padding: 0 0 var(--space-2); }
+.ws-change-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+.ws-change-group > header .text-btn { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.ws-count { font-family: var(--font-mono); color: var(--text-secondary); font-weight: 500; }
+.ws-change { display: flex; align-items: center; padding-right: var(--space-2); }
+.ws-change:hover, .ws-change.is-selected { background: var(--bg-panel-raised); }
+.ws-change.is-selected { box-shadow: inset 2px 0 0 var(--signal-general); }
+.ws-change-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-3);
+  text-align: left;
+  font-size: var(--text-xs);
+}
+.ws-change-letter { width: 12px; font-family: var(--font-mono); font-weight: 700; text-align: center; flex-shrink: 0; }
+.ws-st-modified, .ws-st-renamed, .ws-st-copied { color: var(--signal-voice); }
+.ws-st-added, .ws-st-untracked { color: var(--signal-general); }
+.ws-st-deleted, .ws-st-conflict { color: var(--signal-danger); }
+.ws-change-name { color: var(--text-primary); font-family: var(--font-mono); white-space: nowrap; }
+.ws-change-dir { color: var(--text-tertiary); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-change-toggle { opacity: 0; }
+.ws-change:hover .ws-change-toggle, .ws-change-toggle:focus-visible { opacity: 1; }
+.ws-diff { margin: var(--space-2) var(--space-3); border: 1px solid var(--border-hairline); border-radius: var(--radius-sm); overflow: hidden; }
+.ws-diff > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-hairline);
+}
+.ws-diff > header > div { display: flex; align-items: center; gap: var(--space-1); }
+.ws-diff .tool-call-diff { margin: 0; max-height: 420px; overflow: auto; border-radius: 0; }
+.ws-github { border-top: 1px solid var(--border-hairline); margin-top: var(--space-2); }
+.ws-github .ws-hint { padding: 0 var(--space-3); }
+.ws-gh-tabs { display: flex; gap: var(--space-3); }
+.ws-gh-tabs button { font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--text-tertiary); }
+.ws-gh-tabs button.is-active { color: var(--text-primary); }
+.ws-gh-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 5px var(--space-3);
+  font-size: var(--text-xs);
+}
+.ws-gh-item:hover { background: var(--bg-panel-raised); }
+.ws-gh-title { flex: 1; min-width: 0; color: var(--text-primary); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-gh-title:hover { color: var(--signal-general); }
+.ws-pr-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-panel);
+  flex-shrink: 0;
+}
+.ws-pr-form textarea { resize: vertical; font-size: var(--text-sm); }
+.ws-pr-row { display: flex; align-items: center; gap: var(--space-2); }
+.ws-pr-row .ws-hint { margin-right: auto; }
+.ws-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--text-secondary); }

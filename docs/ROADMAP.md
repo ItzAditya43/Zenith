@@ -9,7 +9,6 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 |---|---|---|---|
 | C3 | **LSP diagnostics after edits** | Type errors and bad imports come back to the agent right after an edit instead of after a full test run. | M–L |
 | C4 | **Background tasks in git worktrees** | Queue a task, the agent works on an isolated branch, you review one diff. Builds on the task board and checkpoint/resume. | L |
-| C5 | **GitHub issue → PR flow** | "Fix issue #12" becomes a branch, commits and a PR via `gh`. | M |
 | C6 | **Commit per agent change** | Optional: each approved edit becomes its own commit on a work branch, so git history is the undo log and a run is reviewable as one diff. | M |
 | C7 | **Summarise long sessions** | Today the agent keeps the last 24 messages and drops the rest. Fold older turns into a running summary instead. | M |
 | C8 | **Ranked repo map** | Rank files by relevance to the request (references, recently touched) instead of path order, so big repos get symbols for the files that matter. | M |
@@ -22,7 +21,6 @@ Zenith stays chat-first: these make the code side panel pleasant, not an IDE.
 | # | Feature | Why | Effort |
 |---|---|---|---|
 | E2 | **Inline edit** | Select code in the panel, ask, get a diff in place with the existing per-hunk accept/skip. Lighter than a full agent turn. | M |
-| E3 | **Git panel in the workspace** | Branch, changed files, per-file diff, stage, commit and push next to the editor; GitHub issues and PRs listed via `gh`. | M |
 
 ## Platform & distribution
 

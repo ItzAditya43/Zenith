@@ -1714,6 +1714,16 @@ export default function App() {
             openRequest={workspaceOpenRequest}
             onClose={() => setCodeEditorOpen(false)}
             onAskAboutCode={(text) => setSeedText({ text, nonce: Date.now() })}
+            onStartIssue={(issue, branch) => {
+              const body = (issue.body || "").trim();
+              const text = [
+                `/agent Work on GitHub issue #${issue.number}: ${issue.title}`,
+                issue.url ? `(${issue.url})` : "",
+                body ? `\n${body.length > 3000 ? body.slice(0, 3000) + "\n…" : body}` : "",
+                `\nCreate a branch called zenith/issue-${issue.number}${branch ? ` from ${branch}` : ""}, make the change, run the checks, and commit with a message that references #${issue.number}. Don't push; I'll open the pull request from the Changes tab.`,
+              ].filter(Boolean).join("\n");
+              setSeedText({ text, nonce: Date.now() });
+            }}
           />
         )}
         {openDoc && (

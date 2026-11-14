@@ -639,6 +639,20 @@ resize; the width is remembered. On narrow screens it covers the chat.
   API. Linux and macOS only for now.
 - **Diff / Run checks** — `git diff` for the open file and the configured
   check command, without a model turn.
+- **Changes** (`app/api/git.py`, `app/services/git_workspace.py`) — git for
+  the folder: current branch and how far ahead/behind its upstream it is,
+  staged and unstaged files with a per-file diff (the same diff view as
+  agent approvals), stage/unstage one or all, commit (⌘↵), switch or
+  create a branch, and push (sets the upstream the first time). It refreshes
+  every few seconds while open, so the agent's edits appear as it makes
+  them. Commit messages have `Co-Authored-By` lines stripped, as with the
+  agent's own commits.
+- **GitHub** — when the remote is on GitHub and the `gh` CLI is logged in,
+  the Changes tab lists open issues and pull requests. "Work on it" puts an
+  `/agent` message in the box with the issue's text and asks the agent to
+  branch, fix, run the checks and commit; "Open PR" pushes the branch if
+  needed and creates the pull request. Zenith stores no GitHub token: it
+  uses whatever `gh` is logged into.
 
 ### Document editing
 
