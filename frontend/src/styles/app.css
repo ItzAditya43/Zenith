@@ -1932,6 +1932,16 @@ button.msg-source-chip-recall:hover {
   cursor: pointer;
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
+.role-card-dead {
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--signal-danger);
+}
+.settings-notice-error {
+  background: var(--bg-inset);
+  color: var(--signal-danger);
+  border: 1px solid var(--signal-danger);
+}
 .role-card-recommend {
   align-self: flex-start;
   font-size: var(--text-xs);

@@ -11,6 +11,9 @@
 - `python -m evals agent --native-tools` to compare the two tool protocols on a model.
 
 ### Fixed
+- A pinned model Ollama refuses (retired, or needs paid credits) no longer traps every chat. Zenith remembers the refusal for 30 minutes, routes as if nothing were pinned, and Settings → Model routing marks the pin "Not working" with the reason. The fallback model is now always one that runs on this machine.
+- Saving a model pin or routing setting now shows an error if it fails, instead of silently doing nothing.
+- The desktop app no longer fails to write its embedding cache (it was written to a relative `data` folder, which is read-only in the packaged app).
 - A native tool call that Ollama rejects (HTTP 500 "XML syntax error") no longer ends the agent turn; that step falls back to the JSON protocol.
 - Tool calls nested inside their own arguments (`{"tool": "x", "args": {"tool": "x", "args": {...}}}`) are unwrapped instead of failing.
 

@@ -84,7 +84,12 @@ class EmbeddingRouter:
     embedding model is whatever's in the user's `embedding` capability
     bucket (auto-classified by `ModelRouter`)."""
 
-    CACHE_FILE = Path("data") / "embedding_seed_cache.json"
+    @property
+    def CACHE_FILE(self) -> Path:  # noqa: N802 — kept as the old attribute name
+        # In the data directory, not a path relative to the working
+        # directory: the desktop app runs with a read-only cwd.
+        from app.core.config import data_dir
+        return data_dir() / "embedding_seed_cache.json"
 
     def __init__(self, ollama: OllamaClient | None = None):
         self.ollama = ollama or OllamaClient()

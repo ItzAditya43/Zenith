@@ -654,6 +654,8 @@ export const api = {
   revertSettingsHistory: (id: string) =>
     request(`/api/settings/history/${id}/revert`, { method: "POST" }).then((r) => r.json()),
   getRoutingStatus: () => request("/api/routing/status").then((r) => r.json()),
+  getUnavailableModels: (): Promise<Record<string, { status: number; reason: string }>> =>
+    request("/api/models/unavailable").then((r) => r.json()),
   getRoutingOverrideSummary: (days: number = 30) =>
     request(`/api/routing/override-summary?days=${days}`).then((r) => r.json()),
   pullModel: (name: string, onEvent: StreamHandler) => streamSSE("/api/models/pull", { name }, onEvent),

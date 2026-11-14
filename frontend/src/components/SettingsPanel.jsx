@@ -64,6 +64,8 @@ export default function SettingsPanel({
   const [hardware, setHardware] = useState(null);
   const [modelTaskFilter, setModelTaskFilter] = useState("all");
   const [routingStatus, setRoutingStatus] = useState(null);
+  const [unavailableModels, setUnavailableModels] = useState({});
+  const [saveError, setSaveError] = useState(null);
   const [overrideSummary, setOverrideSummary] = useState([]);
   const [emailForm, setEmailForm] = useState({
     email_imap_host: "", email_imap_port: 993, email_smtp_host: "", email_smtp_port: 587,
@@ -195,6 +197,7 @@ export default function SettingsPanel({
       })
       .catch((err) => setModelsError(err.message));
     api.getRoutingStatus().then(setRoutingStatus).catch(() => {});
+    api.getUnavailableModels().then(setUnavailableModels).catch(() => {});
     api
       .getRoutingOverrideSummary()
       .then((r) => setOverrideSummary(r.overrides || []))
@@ -824,10 +827,15 @@ export default function SettingsPanel({
   };
 
   const setOverride = async (role, modelName) => {
-    const updated = await api.patchConfig({
-      model_overrides: { ...config.model_overrides, [role]: modelName || null },
-    });
-    setConfig(updated);
+    try {
+      const updated = await api.patchConfig({
+        model_overrides: { ...config.model_overrides, [role]: modelName || null },
+      });
+      setConfig(updated);
+      setSaveError(null);
+    } catch (err) {
+      setSaveError(`Couldn't save the model for this role: ${err.message}`);
+    }
     refreshModels();
   };
 
@@ -885,6 +893,9 @@ export default function SettingsPanel({
     modelTaskFilter,
     setModelTaskFilter,
     routingStatus,
+    unavailableModels,
+    saveError,
+    setSaveError,
     setRoutingStatus,
     overrideSummary,
     setOverrideSummary,

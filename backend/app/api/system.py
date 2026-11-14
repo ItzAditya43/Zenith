@@ -317,6 +317,15 @@ async def models():
     return JSONResponse(enriched, headers={"Cache-Control": f"public, max-age={_CACHE_MAX_AGE}"})
 
 
+@router.get("/models/unavailable")
+async def unavailable_models():
+    """Models Ollama refused recently (retired, needs credits, not
+    installed), so Settings can flag a pinned role that isn't working."""
+    from app.services import model_health
+
+    return model_health.unavailable()
+
+
 @router.get("/routing/status")
 async def routing_status():
     """Whether semantic (embedding-based) routing is actually active right
@@ -425,6 +434,12 @@ async def patch_config(body: ConfigPatch):
     unknown fields and validates enums/ranges, so we get a 422 instead of
     silently writing garbage into config.json."""
     patch = strip_redacted({k: v for k, v in body.model_dump().items() if v is not None})
+    # Re-pinning a model is the user saying "try it again" (credits bought,
+    # model pulled): forget any earlier refusal for it.
+    from app.services import model_health
+    for name in (patch.get("model_overrides") or {}).values():
+        if name:
+            model_health.clear(name)
     updated = settings.update(patch)
     # Bust the model registry so role/override changes take effect on the
     # next /api/chat request instead of waiting for the TTL.

@@ -154,10 +154,11 @@ class OllamaClient:
                 ) as resp:
                     if resp.status_code != 200:
                         body = await resp.aread()
-                        raise OllamaError(
-                            f"Ollama returned {resp.status_code} for model '{model}': "
-                            f"{body.decode(errors='ignore')[:300]}"
-                        )
+                        msg = (f"Ollama returned {resp.status_code} for model '{model}': "
+                               f"{body.decode(errors='ignore')[:300]}")
+                        from app.services import model_health
+                        model_health.note_error(model, msg)
+                        raise OllamaError(msg)
                     async for line in resp.aiter_lines():
                         if not line.strip():
                             continue
@@ -229,7 +230,10 @@ class OllamaClient:
                     f"Ollama did not produce a response within {int(self.timeout)}s for model '{model}'."
                 ) from exc
         if resp.status_code != 200:
-            raise OllamaError(f"Ollama returned {resp.status_code} for model '{model}': {resp.text[:300]}")
+            msg = f"Ollama returned {resp.status_code} for model '{model}': {resp.text[:300]}"
+            from app.services import model_health
+            model_health.note_error(model, msg)
+            raise OllamaError(msg)
         return resp.json().get("message") or {}
 
     async def preload(self, model: str) -> None:

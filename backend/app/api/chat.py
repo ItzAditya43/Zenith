@@ -748,9 +748,35 @@ async def _pick_fallback(request: Request, current_model: str) -> str | None:
     one-time retry. Resolution order: explicit `fallback_model` value
     (if it looks like a model name and is installed) > role-based
     resolution against the installed model set."""
+    from app.services import model_health
+    from app.services.router import is_cloud_model
+
     cfg = settings.get("fallback_model", "general")
     if not cfg:
         return None
+    pick = await _resolve_fallback(request, current_model, cfg)
+    # The fallback is the safety net, so it must be something that can run:
+    # never a model Ollama just refused, and never a cloud model unless the
+    # user allowed cloud routing.
+    if pick and not model_health.is_unavailable(pick) and (
+        not is_cloud_model(pick) or settings.get("route_to_cloud_models", False)
+    ):
+        return pick
+    try:
+        from app.services.router import ModelRegistry
+        installed = [n for n in await ModelRegistry().models()
+                     if n != current_model and not is_cloud_model(n) and not model_health.is_unavailable(n)]
+        router_ = ModelRouter(registry=ModelRegistry())
+        for role in ("general", "small_fast"):
+            m = router_._match_capability(role, installed)  # noqa: SLF001
+            if m and m != current_model and not is_cloud_model(m):
+                return m
+    except Exception as exc:
+        log.warning("chat.fallback_resolve_failed", error=str(exc))
+    return None
+
+
+async def _resolve_fallback(request: Request, current_model: str, cfg: str) -> str | None:
     # If the user pinned a specific model name, use it directly.
     if cfg and not cfg.endswith("Model"):
         registry = getattr(request.app.state, "model_registry", None)

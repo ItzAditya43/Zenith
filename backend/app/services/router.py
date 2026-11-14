@@ -240,11 +240,18 @@ class ModelRouter:
         return model
 
     def _match_capability(self, role: str, installed: list[str]) -> str | None:
+        from app.services import model_health
+
         override = settings.get("model_overrides", {}).get(role)
         # An explicitly pinned cloud model is the user's choice, so honour it
-        # even though cloud models are filtered out of `installed`.
+        # even though cloud models are filtered out of `installed` — unless
+        # Ollama has just refused it (retired, needs credits): then route as
+        # if nothing were pinned, and Settings shows the pin as unavailable.
         if override and (override in installed or is_cloud_model(override)):
-            return override
+            if not model_health.is_unavailable(override):
+                return override
+            log.warning("routing.pinned_model_unavailable", role=role, model=override)
+        installed = [n for n in installed if not model_health.is_unavailable(n)]
 
         keywords = settings.get("capability_keywords", {}).get(role, [])
         matches = [n for n in installed if any(kw in n.lower() for kw in keywords)]

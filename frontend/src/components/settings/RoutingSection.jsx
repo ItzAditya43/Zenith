@@ -9,12 +9,22 @@ export default function RoutingSection() {
     models,
     hardware,
     routingStatus,
+    unavailableModels = {},
+    saveError,
+    setSaveError,
     overrideSummary,
     refreshModels,
     setOverride,
     setConfig,
   } = useSettings();
-  const patch = async (fields) => setConfig(await api.patchConfig(fields));
+  const patch = async (fields) => {
+    try {
+      setConfig(await api.patchConfig(fields));
+      setSaveError?.(null);
+    } catch (err) {
+      setSaveError?.(`Couldn't save: ${err.message}`);
+    }
+  };
 
   return (
     <section className="settings-section">
@@ -29,6 +39,9 @@ export default function RoutingSection() {
           Refresh
         </button>
       </div>
+      {saveError && (
+        <p className="settings-notice settings-notice-error" role="alert">{saveError}</p>
+      )}
       {routingStatus && (
         <p className={`settings-notice ${routingStatus.active ? "settings-notice-ok" : "settings-notice-warn"}`}>
           {routingStatus.active
@@ -77,6 +90,7 @@ export default function RoutingSection() {
         {ROLES.map((role) => {
           const recommended = recommendedModelForRole(role, models, hardware);
           const current = config?.model_overrides?.[role] || "";
+          const dead = current ? unavailableModels[current] : null;
           return (
             <div className="role-card" data-role={role} key={role}>
               <span className="role-card-dot" aria-hidden="true" />
@@ -95,6 +109,12 @@ export default function RoutingSection() {
                   </option>
                 ))}
               </select>
+              {dead && (
+                <span className="role-card-dead" role="status">
+                  Not working: {current} {dead.reason}. Zenith is picking a model automatically for
+                  this role until you change it.
+                </span>
+              )}
               {recommended && recommended.name !== current && (
                 <button
                   className="text-btn role-card-recommend"
