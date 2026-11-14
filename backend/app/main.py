@@ -34,6 +34,7 @@ from app.api import (
     settings_history,
     sync,
     system,
+    terminal,
     traces,
     upload,
     usage_stats,
@@ -214,6 +215,8 @@ async def lifespan(app: FastAPI):
         schedule_runner.cancel()
         email_triage_runner.cancel()
         digest_runner.cancel()
+        from app.services import terminal_service
+        terminal_service.kill_all()
         for task in (sweeper, folder_scanner, schedule_runner, email_triage_runner, digest_runner):
             try:
                 await task
@@ -337,3 +340,4 @@ app.include_router(jobs.router)
 app.include_router(metrics.router)
 app.include_router(traces.router)
 app.include_router(backup.router)
+app.include_router(terminal.router)
