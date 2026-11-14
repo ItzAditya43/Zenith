@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import { confirmDialog } from "../lib/dialogs.js";
 
 const KIND_LABELS = {
   document: "Document",
@@ -95,9 +96,12 @@ export default function RagSourcesPanel({ onClose }) {
 
   const handleDelete = async (source) => {
     if (
-      !window.confirm(
-        `Remove "${source.label}" (${source.chunk_count} chunk${source.chunk_count === 1 ? "" : "s"}) from the RAG index? This can't be undone.`
-      )
+      !(await confirmDialog({
+        title: `Remove "${source.label}"?`,
+        message: `Its ${source.chunk_count} indexed chunk${source.chunk_count === 1 ? "" : "s"} will no longer be used to answer questions. This can't be undone.`,
+        confirmLabel: "Remove",
+        danger: true,
+      }))
     ) {
       return;
     }

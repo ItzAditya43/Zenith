@@ -15,6 +15,8 @@ import SelectionPopover from "./components/SelectionPopover.jsx";
 import { api, authHeaders, GATE_EVENT } from "./lib/api";
 import { buildCommands } from "./lib/commands.js";
 import ChatHeader from "./components/ChatHeader.jsx";
+import DialogHost from "./components/DialogHost.jsx";
+import { confirmDialog, promptDialog } from "./lib/dialogs.js";
 
 // Overlay panels load on first open instead of with the app: they were ~half
 // of the startup bundle and most sessions never open most of them. Each gets
@@ -419,7 +421,7 @@ export default function App() {
   };
 
   const handleEditTags = async (c) => {
-    const input = window.prompt("Tags (comma-separated):", (c.tags || []).join(", "));
+    const input = await promptDialog({ title: "Tags", message: "Separate tags with commas. Leave empty to remove all tags.", defaultValue: (c.tags || []).join(", "), placeholder: "work, ideas", confirmLabel: "Save", allowEmpty: true });
     if (input === null) return;
     const tags = input.split(",").map((t) => t.trim()).filter(Boolean);
     try {
@@ -444,7 +446,7 @@ export default function App() {
   };
 
   const handleCreateProject = async () => {
-    const name = window.prompt("Project name?");
+    const name = await promptDialog({ title: "New project", message: "Projects group chats that share a folder, persona and instructions.", placeholder: "Project name", confirmLabel: "Create" });
     if (!name || !name.trim()) return;
     try {
       await api.createProject(name.trim());
@@ -643,7 +645,7 @@ export default function App() {
   };
 
   const handleDeleteMessage = async (message) => {
-    if (!window.confirm("Delete this message and everything after it in this branch?")) return;
+    if (!(await confirmDialog({ title: "Delete this message?", message: "It and every message after it in this branch are deleted.", confirmLabel: "Delete", danger: true }))) return;
     // A not-yet-persisted (optimistic) message only exists in local state.
     if (!message.id || String(message.id).startsWith("local")) {
       setMessages((m) => m.filter((x) => x.id !== message.id));
@@ -669,7 +671,7 @@ export default function App() {
 
   const handleDelete = async (id) => {
     // Tier 6 #16 — confirm before destroying history.
-    if (!window.confirm("Delete this conversation? This can't be undone.")) return;
+    if (!(await confirmDialog({ title: "Delete this chat?", message: "The conversation and its messages are deleted. This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
     await api.deleteConversation(id);
     const remaining = conversations.filter((c) => c.id !== id);
     setConversations(remaining);
@@ -1783,6 +1785,7 @@ export default function App() {
         />
       )}
 
+      <DialogHost />
       {commandPaletteOpen && (
         <CommandPalette
           open={commandPaletteOpen}

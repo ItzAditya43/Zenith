@@ -1,4 +1,5 @@
 import { useSettings } from "./SettingsContext.js";
+import Select from "../Select.jsx";
 
 /** Settings → "schedules" section. State lives in SettingsPanel (see SettingsContext). */
 export default function SchedulesSection() {
@@ -43,7 +44,7 @@ export default function SchedulesSection() {
             value={newScheduleName}
             onChange={(e) => setNewScheduleName(e.target.value)}
           />
-          <select
+          <Select
             className="settings-select"
             style={{ flex: "0 0 140px" }}
             value={newScheduleMode}
@@ -52,7 +53,7 @@ export default function SchedulesSection() {
           >
             <option value="chat">Chat</option>
             <option value="research">Deep Research</option>
-          </select>
+          </Select>
         </div>
         <textarea
           className="settings-textarea"
@@ -66,7 +67,7 @@ export default function SchedulesSection() {
           <label className="setting-label" htmlFor="sched-interval" style={{ flexShrink: 0 }}>
             Every
           </label>
-          <select
+          <Select
             id="sched-interval"
             className="settings-select"
             value={newScheduleInterval}
@@ -76,7 +77,7 @@ export default function SchedulesSection() {
             <option value={360}>6 hours</option>
             <option value={1440}>day</option>
             <option value={10080}>week</option>
-          </select>
+          </Select>
           <button className="settings-btn-primary" onClick={addSchedule}>
             Add schedule
           </button>

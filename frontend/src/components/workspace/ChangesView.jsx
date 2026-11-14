@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import Icon from "../Icon.jsx";
 import DiffView from "../DiffView.jsx";
+import { confirmDialog, promptDialog } from "../../lib/dialogs.js";
 
 const LETTER = { modified: "M", added: "A", deleted: "D", renamed: "R", copied: "C", untracked: "U", conflict: "!" };
 
@@ -103,7 +104,7 @@ export default function ChangesView({ conversationId, active, onOpenFile, onStar
   }, [st?.is_repo, active, conversationId]);
 
   const newCopy = async () => {
-    const name = window.prompt("What's the task? It becomes the branch and chat name.", "");
+    const name = await promptDialog({ title: "New task in a separate copy", message: "The agent gets its own branch and folder, so your checkout isn't touched. The task name becomes the branch and the chat's name.", placeholder: "e.g. Add bulk discounts", confirmLabel: "Create copy" });
     if (!name || !name.trim()) return;
     setBusy(true);
     try {
@@ -118,7 +119,7 @@ export default function ChangesView({ conversationId, active, onOpenFile, onStar
   };
 
   const removeCopy = async (path) => {
-    if (!window.confirm(`Remove the separate copy at ${path}? Its branch stays.`)) return;
+    if (!(await confirmDialog({ title: "Remove this copy?", message: `The folder ${path} is deleted. Its branch and commits stay in the repository.`, confirmLabel: "Remove", danger: true }))) return;
     setBusy(true);
     try {
       await api.gitRemoveWorktree(conversationId, path);
@@ -158,8 +159,8 @@ export default function ChangesView({ conversationId, active, onOpenFile, onStar
       setNotice(`Committed ${r.commit}`);
     });
 
-  const push = () => {
-    if (!window.confirm(`Push ${st.branch} to ${st.upstream || "origin"}?`)) return;
+  const push = async () => {
+    if (!(await confirmDialog({ title: `Push ${st.branch}?`, message: `Your commits are sent to ${st.upstream || "origin"}.`, confirmLabel: "Push" }))) return;
     act(() => api.gitPush(conversationId), () => setNotice("Pushed."));
   };
 

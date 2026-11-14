@@ -1,4 +1,5 @@
 import { useSettings } from "./SettingsContext.js";
+import Select from "../Select.jsx";
 
 /** Settings → "automation" section. State lives in SettingsPanel (see SettingsContext). */
 export default function AutomationSection() {
@@ -105,9 +106,9 @@ export default function AutomationSection() {
             value={newRuleName}
             onChange={(e) => setNewRuleName(e.target.value)}
           />
-          <select className="settings-select" value={newRuleTrigger} onChange={(e) => setNewRuleTrigger(e.target.value)} aria-label="Rule trigger event">
+          <Select className="settings-select" value={newRuleTrigger} onChange={(e) => setNewRuleTrigger(e.target.value)} aria-label="Rule trigger event">
             {eventTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+          </Select>
         </div>
         {newRuleTrigger === "folder_file_added" && (
           <input
@@ -118,10 +119,10 @@ export default function AutomationSection() {
             onChange={(e) => setNewRuleFolderId(e.target.value)}
           />
         )}
-        <select className="settings-select" value={newRuleActionType} onChange={(e) => setNewRuleActionType(e.target.value)} aria-label="Rule action type">
+        <Select className="settings-select" value={newRuleActionType} onChange={(e) => setNewRuleActionType(e.target.value)} aria-label="Rule action type">
           <option value="prompt">Send a prompt</option>
           <option value="webhook">Call a webhook</option>
-        </select>
+        </Select>
         {newRuleActionType === "prompt" ? (
           <>
             <textarea
@@ -132,10 +133,10 @@ export default function AutomationSection() {
               value={newRulePrompt}
               onChange={(e) => setNewRulePrompt(e.target.value)}
             />
-            <select className="settings-select" value={newRuleMode} onChange={(e) => setNewRuleMode(e.target.value)} aria-label="Rule mode">
+            <Select className="settings-select" value={newRuleMode} onChange={(e) => setNewRuleMode(e.target.value)} aria-label="Rule mode">
               <option value="chat">Chat</option>
               <option value="research">Deep Research</option>
-            </select>
+            </Select>
           </>
         ) : (
           <input

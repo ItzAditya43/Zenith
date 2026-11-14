@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import { confirmDialog } from "../lib/dialogs.js";
 
 function formatValue(v) {
   if (v === null || v === undefined) return String(v);
@@ -72,7 +73,7 @@ export default function SettingsHistoryPanel({ onClose }) {
   }, []);
 
   const handleRevert = async (entry) => {
-    if (!window.confirm(`Revert "${entry.key}" back to ${formatValue(entry.old_value)}?`)) {
+    if (!(await confirmDialog({ title: `Revert ${entry.key}?`, message: `It goes back to ${formatValue(entry.old_value)}.`, confirmLabel: "Revert" }))) {
       return;
     }
     setReverting(entry.id);

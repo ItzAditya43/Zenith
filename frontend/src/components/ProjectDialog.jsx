@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { useEscapeToClose } from "../hooks/useEscapeToClose";
 import { pickNativeDirectory } from "../lib/directoryPicker";
 import Icon from "./Icon.jsx";
+import Select from "./Select.jsx";
 
 const MODES = ["", "manual", "semi", "full", "plan"];
 
@@ -65,10 +66,10 @@ export default function ProjectDialog({ project, personas, onClose, onSaved }) {
           </label>
           <label>
             Default persona <span className="setting-hint">for new chats in this project</span>
-            <select className="settings-input" value={form.persona_id} onChange={set("persona_id")}>
+            <Select className="settings-input" value={form.persona_id} onChange={set("persona_id")}>
               <option value="">None</option>
               {personas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            </Select>
           </label>
           <label>
             Instructions <span className="setting-hint">added to every reply in this project</span>
@@ -76,9 +77,9 @@ export default function ProjectDialog({ project, personas, onClose, onSaved }) {
           </label>
           <label>
             Agent autonomy
-            <select className="settings-input" value={form.agent_mode} onChange={set("agent_mode")}>
+            <Select className="settings-input" value={form.agent_mode} onChange={set("agent_mode")}>
               {MODES.map((m) => <option key={m} value={m}>{m || "Global default"}</option>)}
-            </select>
+            </Select>
           </label>
           {error && <p className="setting-hint" role="alert">{error}</p>}
           <div className="project-actions">

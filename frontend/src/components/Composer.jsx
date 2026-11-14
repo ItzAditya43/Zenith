@@ -328,21 +328,46 @@ export default function Composer({
 
   const handleFiles = async (files) => {
     for (const file of files) {
-      const localId = `local-${Date.now()}-${file.name}`;
-      setPending((p) => [...p, { id: localId, filename: file.name, kind: "other", uploading: true }]);
+      const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      // Images get a local preview straight away, before the upload finishes.
+      const preview = file.type?.startsWith("image/") ? URL.createObjectURL(file) : null;
+      setPending((p) => [...p, {
+        id: localId, filename: file.name, kind: preview ? "image" : "other", uploading: true, preview, size: file.size,
+      }]);
       try {
         const result = await api.upload(file, conversationId);
         setPending((p) =>
-          p.map((a) => (a.id === localId ? { ...result, uploading: false } : a))
+          p.map((a) => (a.id === localId ? { ...result, uploading: false, preview, size: file.size } : a))
         );
       } catch (err) {
+        if (preview) URL.revokeObjectURL(preview);
         setPending((p) => p.filter((a) => a.id !== localId));
         onError(`Upload failed: ${err.message}`);
       }
     }
   };
 
-  const removeAttachment = (id) => setPending((p) => p.filter((a) => a.id !== id));
+  // Ctrl/Cmd+V with an image (or files) on the clipboard attaches them,
+  // like pasting a screenshot into any chat app. Plain text pastes as usual.
+  const handlePaste = (e) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const files = items.filter((it) => it.kind === "file").map((it) => it.getAsFile()).filter(Boolean);
+    if (!files.length) return;
+    e.preventDefault();
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    handleFiles(files.map((f, i) => {
+      if (f.name && f.name !== "image.png") return f;
+      const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
+      return new File([f], `pasted-${stamp}${files.length > 1 ? `-${i + 1}` : ""}.${ext}`, { type: f.type });
+    }));
+  };
+
+  const removeAttachment = (id) =>
+    setPending((p) => {
+      const gone = p.find((a) => a.id === id);
+      if (gone?.preview) URL.revokeObjectURL(gone.preview);
+      return p.filter((a) => a.id !== id);
+    });
 
   const slashAvailable = SLASH.filter(
     (s) => !s.requires || { agentAvailable, councilAvailable, imageAvailable }[s.requires]
@@ -516,15 +541,34 @@ export default function Composer({
       )}
 
       {pending.length > 0 && (
-        <div className="composer-attachments">
-          {pending.map((a) => (
-            <span className="attachment-chip" key={a.id}>
-              <Icon name={a.uploading ? "hourglass" : KIND_ICON[a.kind] || "paperclip"} size={13} /> {a.filename}
-              <button onClick={() => removeAttachment(a.id)} title="Remove" aria-label={`Remove ${a.filename}`}>
-                <Icon name="x" size={12} />
-              </button>
-            </span>
-          ))}
+        <div className="composer-attachments" aria-label="Attachments">
+          {pending.map((a) =>
+            a.preview ? (
+              <div className={`attach-thumb ${a.uploading ? "is-uploading" : ""}`} key={a.id} title={a.filename}>
+                <img src={a.preview} alt={a.filename} />
+                {a.uploading && <span className="attach-spinner" aria-label="Uploading" />}
+                <button className="attach-remove" onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.filename}`}>
+                  <Icon name="x" size={11} />
+                </button>
+              </div>
+            ) : (
+              <div className={`attach-file ${a.uploading ? "is-uploading" : ""}`} key={a.id} title={a.filename}>
+                <span className="attach-file-icon">
+                  {a.uploading ? <span className="attach-spinner" aria-label="Uploading" /> : <Icon name={KIND_ICON[a.kind] || "paperclip"} size={15} />}
+                </span>
+                <span className="attach-file-meta">
+                  <span className="attach-file-name">{a.filename}</span>
+                  <span className="attach-file-sub">
+                    {(a.filename.split(".").pop() || "file").toUpperCase()}
+                    {a.size ? ` · ${a.size < 1024 * 1024 ? `${Math.max(1, Math.round(a.size / 1024))} KB` : `${(a.size / 1024 / 1024).toFixed(1)} MB`}` : ""}
+                  </span>
+                </span>
+                <button className="attach-remove" onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.filename}`}>
+                  <Icon name="x" size={11} />
+                </button>
+              </div>
+            )
+          )}
         </div>
       )}
 
@@ -614,6 +658,7 @@ export default function Composer({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           rows={1}
           disabled={transcribing}
         />
@@ -638,10 +683,10 @@ export default function Composer({
           className={`composer-send-btn ${isStreaming ? "is-stop" : ""}`}
           onClick={isStreaming ? onStop : handleSend}
           disabled={!isStreaming && (disabled || (!text.trim() && pending.length === 0))}
-          title={isStreaming ? "Stop generating" : "Send"}
+          title={isStreaming ? "Stop generating (Esc)" : "Send (Enter)"}
           aria-label={isStreaming ? "Stop generating" : "Send"}
         >
-          <Icon name={isStreaming ? "square" : "send"} size={isStreaming ? 14 : 16} />
+          {isStreaming ? <span className="stop-glyph" aria-hidden="true" /> : <Icon name="send" size={16} />}
         </button>
       </div>
       )}

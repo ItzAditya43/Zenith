@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import Select from "./Select.jsx";
 
 /**
  * Standalone batch-job overlay: point it at a folder, give it a prompt
@@ -145,7 +146,7 @@ export default function BatchJobPanel({ onClose }) {
             <div style={{ display: "flex", gap: "var(--space-2)" }}>
               <label style={{ flex: 1 }}>
                 Model
-                <select
+                <Select
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                   disabled={running || models.length === 0}
@@ -157,7 +158,7 @@ export default function BatchJobPanel({ onClose }) {
                       {m.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
 
               <label style={{ flex: 1 }}>

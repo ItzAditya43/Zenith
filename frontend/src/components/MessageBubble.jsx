@@ -6,6 +6,7 @@ import Icon from "./Icon.jsx";
 import DiffView from "./DiffView.jsx";
 import RegenerationDiff from "./RegenerationDiff.jsx";
 import DocumentPreview from "./DocumentPreview.jsx";
+import { confirmDialog, promptDialog } from "../lib/dialogs.js";
 
 const KIND_ICON = { image: "image", video: "video", document: "file-text", audio: "headphones" };
 const TOOL_ICON = {
@@ -119,7 +120,7 @@ function DocumentChip({ attachment: a }) {
   const editable = a.kind === "document" && EDITABLE_DOC_EXTS.some((ext) => a.name?.toLowerCase().endsWith(ext));
 
   const handleEdit = async () => {
-    const instruction = window.prompt(`Edit "${a.name}" — describe the change:`);
+    const instruction = await promptDialog({ title: `Edit ${a.name}`, message: "Describe the change you want.", placeholder: "e.g. fix the typos in the second paragraph", confirmLabel: "Edit", multiline: true });
     if (!instruction || !instruction.trim()) return;
     setBusy(true);
     setResult(null);
@@ -189,6 +190,20 @@ function DocumentChip({ attachment: a }) {
 // `rejected` / `onToggleHunk` (pending edits with 2+ hunks) let you keep or
 // skip each "@@" hunk; hunk i matches the backend's i-th diff group.
 const REVERTABLE_TOOLS = new Set(["edit_file", "write_file"]);
+
+/** Markdown joins single newlines into one line. People pressing
+ * Shift+Enter mean a line break, so in their own messages make each
+ * newline a hard break (outside code fences, which keep theirs). */
+function keepLineBreaks(text) {
+  let inFence = false;
+  return (text || "")
+    .split("\n")
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
+      return inFence || /^\s*(```|~~~)/.test(line) || line.trim() === "" ? line : `${line}  `;
+    })
+    .join("\n");
+}
 
 const FILE_TOOLS = new Set(["read_file", "write_file", "edit_file"]);
 
@@ -456,7 +471,7 @@ export default function MessageBubble({
                   className="build-log-undo-all-btn"
                   disabled={undoingRun}
                   onClick={async () => {
-                    if (!window.confirm("Undo every file edit from this run?")) return;
+                    if (!(await confirmDialog({ title: "Undo this whole run?", message: "Every file edit from this run is restored to how it was before. Shell commands that already ran can't be undone.", confirmLabel: "Undo run", danger: true }))) return;
                     setUndoingRun(true);
                     try {
                       await api.revertRun(message.parent_id);
@@ -515,7 +530,7 @@ export default function MessageBubble({
                   return (
                     <>
                       {trace && <ThinkingTrace trace={trace} thinking={thinking} />}
-                      <MarkdownRenderer content={rest} onOpenEditor={onOpenEditor} />
+                      <MarkdownRenderer content={isUser ? keepLineBreaks(rest) : rest} onOpenEditor={onOpenEditor} />
                     </>
                   );
                 })()}

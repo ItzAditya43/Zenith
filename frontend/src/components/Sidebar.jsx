@@ -20,6 +20,20 @@ function groupByDate(conversations) {
   return buckets.filter((b) => b.items.length > 0);
 }
 
+function RailBtn({ icon, label, onClick, accent = false }) {
+  return (
+    <button
+      className={`rail-btn ${accent ? "rail-btn-accent" : ""}`}
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      data-tip={label}
+    >
+      <Icon name={icon} size={17} />
+    </button>
+  );
+}
+
 function ConversationItem({ c, active, collapsed, showDelete, onSelect, onDelete, onTogglePin, onEditTags }) {
   return (
     <div
@@ -155,6 +169,39 @@ export default function Sidebar({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [conversations, activeId, onSelect]);
+
+  // Collapsed: a narrow rail of actions with tooltips. Chat titles don't
+  // fit in a rail, so the list stays hidden until the sidebar is expanded.
+  if (collapsed) {
+    const expandAndSearch = () => {
+      onToggleCollapse?.();
+      setTimeout(() => document.getElementById("sidebar-search")?.focus(), 60);
+    };
+    return (
+      <aside className="sidebar sidebar-collapsed sidebar-rail" aria-label="Sidebar (collapsed)">
+        <button className="rail-brand" onClick={onToggleCollapse} title="Expand sidebar" aria-label="Expand sidebar" data-tip="Expand sidebar">
+          <img className="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" />
+          <span className="rail-brand-expand"><Icon name="chevron-right" size={13} /></span>
+        </button>
+        <RailBtn icon="plus" label="New chat" onClick={() => onCreate()} accent />
+        <RailBtn icon="search" label="Search chats" onClick={expandAndSearch} />
+        <div className="rail-sep" aria-hidden="true" />
+        {onOpenNotes && <RailBtn icon="file-text" label="Notes" onClick={onOpenNotes} />}
+        {onOpenTodos && <RailBtn icon="check-circle" label="To-do" onClick={onOpenTodos} />}
+        {onOpenCalendar && <RailBtn icon="calendar" label="Calendar" onClick={onOpenCalendar} />}
+        <div className="rail-spacer" />
+        {modelCount != null && (
+          <span
+            className={`rail-status ${ollamaOk ? "is-ok" : "is-bad"}`}
+            title={ollamaOk ? `Ollama connected · ${modelCount} models` : "Ollama offline"}
+            aria-label={ollamaOk ? `Ollama connected, ${modelCount} models` : "Ollama offline"}
+            data-tip={ollamaOk ? `Ollama · ${modelCount} models` : "Ollama offline"}
+          />
+        )}
+        <RailBtn icon="settings" label="Settings" onClick={onOpenSettings} />
+      </aside>
+    );
+  }
 
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>

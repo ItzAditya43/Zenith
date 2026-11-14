@@ -3,6 +3,7 @@ import Icon from "../Icon.jsx";
 import { useState } from "react";
 import PairPhone from "./PairPhone.jsx";
 import { useSettings } from "./SettingsContext.js";
+import Select from "../Select.jsx";
 
 /** Settings → "connection" section. State lives in SettingsPanel (see SettingsContext). */
 export default function ConnectionSection() {
@@ -125,7 +126,7 @@ export default function ConnectionSection() {
         <div>
           <strong>Search backend</strong>
         </div>
-        <select
+        <Select
           className="settings-input"
           aria-label="Search backend"
           value={config?.web_search_backend || "duckduckgo"}
@@ -133,7 +134,7 @@ export default function ConnectionSection() {
         >
           <option value="duckduckgo">DuckDuckGo</option>
           <option value="searxng">SearXNG (self-hosted)</option>
-        </select>
+        </Select>
       </div>
       {config?.web_search_backend === "searxng" && (
         <div className="setting-row">

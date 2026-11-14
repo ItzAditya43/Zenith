@@ -21,6 +21,7 @@ import FoldersSection from "./settings/FoldersSection.jsx";
 import SchedulesSection from "./settings/SchedulesSection.jsx";
 import AutomationSection from "./settings/AutomationSection.jsx";
 import AboutSection from "./settings/AboutSection.jsx";
+import { confirmDialog } from "../lib/dialogs.js";
 
 
 export default function SettingsPanel({
@@ -705,7 +706,7 @@ export default function SettingsPanel({
   };
 
   const handleDeleteModel = async (name) => {
-    if (!window.confirm(`Delete model "${name}"? This removes it from Ollama.`)) return;
+    if (!(await confirmDialog({ title: `Delete ${name}?`, message: "This removes the model from Ollama and frees its disk space. You can download it again later.", confirmLabel: "Delete model", danger: true }))) return;
     try {
       await api.deleteModel(name);
       refreshModels();
@@ -817,7 +818,7 @@ export default function SettingsPanel({
   };
 
   const clearAllMemories = async () => {
-    if (!window.confirm("Forget everything Zenith has learned about you? This can't be undone."))
+    if (!(await confirmDialog({ title: "Forget everything?", message: "Every long-term memory Zenith has saved about you is deleted. This can't be undone.", confirmLabel: "Forget all", danger: true })))
       return;
     await api.clearMemories();
     refreshMemories();

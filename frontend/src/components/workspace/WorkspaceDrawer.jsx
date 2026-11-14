@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import Icon from "../Icon.jsx";
 import DiffView from "../DiffView.jsx";
+import { confirmDialog } from "../../lib/dialogs.js";
 
 // Heavy pieces load on first use, so opening a plain chat costs nothing.
 const CodeEditor = lazy(() => import("./CodeEditor.jsx"));
@@ -151,9 +152,9 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
     }
   }, [tabs, conversationId]);
 
-  const closeTab = (path) => {
+  const closeTab = async (path) => {
     const t = tabs.find((x) => x.path === path);
-    if (t?.dirty && !window.confirm(`Discard unsaved changes to ${path.split("/").pop()}?`)) return;
+    if (t?.dirty && !(await confirmDialog({ title: `Discard changes to ${path.split("/").pop()}?`, message: "Your unsaved edits to this file are lost.", confirmLabel: "Discard", danger: true }))) return;
     const remaining = tabs.filter((x) => x.path !== path);
     setTabs(remaining);
     if (activePath === path) setActivePath(remaining.length ? remaining[remaining.length - 1].path : null);
@@ -186,9 +187,9 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
     }
   };
 
-  const tryClose = () => {
+  const tryClose = async () => {
     const dirty = tabs.filter((t) => t.dirty);
-    if (dirty.length && !window.confirm(`You have ${dirty.length} unsaved file${dirty.length > 1 ? "s" : ""}. Close anyway?`)) return;
+    if (dirty.length && !(await confirmDialog({ title: "Close with unsaved changes?", message: `${dirty.length} file${dirty.length > 1 ? "s have" : " has"} unsaved edits that will be lost.`, confirmLabel: "Close anyway", danger: true }))) return;
     onClose();
   };
 

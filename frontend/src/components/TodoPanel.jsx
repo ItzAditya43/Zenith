@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
 import { useEscapeToClose } from "../hooks/useEscapeToClose";
+import Select from "./Select.jsx";
 
 const COLUMNS = [
   { status: "todo", label: "To do" },
@@ -37,7 +38,7 @@ function BoardView({ todos, onMove, onRemove }) {
                   onDragStart={() => setDragId(t.id)}
                 >
                   <span>{t.text}</span>
-                  <select
+                  <Select
                     className="kanban-card-move"
                     value={col.status}
                     aria-label={`Move "${t.text}" to a different column`}
@@ -47,7 +48,7 @@ function BoardView({ todos, onMove, onRemove }) {
                     {COLUMNS.map((c) => (
                       <option key={c.status} value={c.status}>{c.label}</option>
                     ))}
-                  </select>
+                  </Select>
                   <button className="icon-btn" onClick={() => onRemove(t.id)} title="Delete" aria-label={`Delete "${t.text}"`}>
                     <Icon name="x" size={12} />
                   </button>

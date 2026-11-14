@@ -1,6 +1,7 @@
 import { api } from "../../lib/api";
 import McpGallery from "./McpGallery.jsx";
 import { useSettings } from "./SettingsContext.js";
+import Select from "../Select.jsx";
 
 /** Settings → "agent" section. State lives in SettingsPanel (see SettingsContext). */
 export default function AgentSection() {
@@ -66,7 +67,7 @@ export default function AgentSection() {
         <label className="setting-label" htmlFor="agent-mode">
           Autonomy
         </label>
-        <select
+        <Select
           id="agent-mode"
           className="settings-select"
           value={config?.agent_mode || "manual"}
@@ -77,7 +78,7 @@ export default function AgentSection() {
           <option value="semi">Semi-auto — auto-run reads, confirm writes</option>
           <option value="full">Full-auto — no confirmation</option>
           <option value="plan">Plan-first — approve a plan, then it runs unattended</option>
-        </select>
+        </Select>
         <span className="setting-hint">
           {config?.agent_mode === "full"
             ? "Nothing pauses for approval. Only as safe as your prompts."

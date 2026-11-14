@@ -1,6 +1,7 @@
 import { recommendedModelForRole, ROLES, ROLE_LABEL } from "./constants.js";
 import { api } from "../../lib/api";
 import { useSettings } from "./SettingsContext.js";
+import Select from "../Select.jsx";
 
 /** Settings → "routing" section. State lives in SettingsPanel (see SettingsContext). */
 export default function RoutingSection() {
@@ -57,7 +58,7 @@ export default function RoutingSection() {
             so everyday replies start instantly. The reasoning streams live and can be expanded.
           </span>
         </div>
-        <select
+        <Select
           className="settings-input"
           aria-label="Thinking models"
           value={config?.thinking_mode || "auto"}
@@ -66,7 +67,7 @@ export default function RoutingSection() {
           <option value="auto">Auto</option>
           <option value="on">Always think</option>
           <option value="off">Never think</option>
-        </select>
+        </Select>
       </div>
       <div className="setting-row">
         <div>
@@ -95,7 +96,7 @@ export default function RoutingSection() {
             <div className="role-card" data-role={role} key={role}>
               <span className="role-card-dot" aria-hidden="true" />
               <span className="role-card-label">{ROLE_LABEL[role]}</span>
-              <select
+              <Select
                 className="role-card-select"
                 value={current}
                 onChange={(e) => setOverride(role, e.target.value)}
@@ -108,7 +109,7 @@ export default function RoutingSection() {
                     {m.name} {m.roles?.length ? `(${m.roles.join(", ")})` : ""}
                   </option>
                 ))}
-              </select>
+              </Select>
               {dead && (
                 <span className="role-card-dead" role="status">
                   Not working: {current} {dead.reason}. Zenith is picking a model automatically for

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import StatusRail from "./StatusRail.jsx";
 import { api } from "../lib/api";
+import Select from "./Select.jsx";
 
 /** The chat header toolbar, extracted from App.jsx. App owns all state; this is presentational. */
 /** Secondary panels live behind one labelled "More" menu instead of a row of
@@ -137,7 +138,7 @@ export default function ChatHeader({
                 title="Calendar"
                 aria-label="Calendar"
               >
-                <Icon name="clock" size={16} />
+                <Icon name="calendar" size={16} />
                 <span className="header-more-label">Calendar</span>
               </button>
             )}
@@ -318,7 +319,7 @@ export default function ChatHeader({
           </a>
         )}
         {!focusMode && personas.length > 0 && groupPersonaIds.length < 2 && (
-          <select
+          <Select
             className="persona-picker"
             value={activeConversation?.persona_id || ""}
             onChange={(e) => handlePersonaChange(e.target.value || null)}
@@ -331,7 +332,7 @@ export default function ChatHeader({
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         {!focusMode && personas.length >= 2 && (
           <button

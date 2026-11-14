@@ -2,6 +2,7 @@ import { ANIMATIONS, THEME_ANIMATIONS } from "../../lib/ambientAnimations";
 import { THEMES } from "./constants.js";
 import { useState } from "react";
 import { useSettings } from "./SettingsContext.js";
+import Select from "../Select.jsx";
 
 function readNightDim() {
   try {
@@ -85,7 +86,7 @@ export default function AppearanceSection() {
               for animations that fit this theme.
             </span>
           </div>
-          <select
+          <Select
             className="settings-input"
             value={ambientAnim}
             onChange={(e) => onAmbientChange(e.target.value)}
@@ -97,7 +98,7 @@ export default function AppearanceSection() {
                 {a.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
 

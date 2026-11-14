@@ -1,5 +1,6 @@
 import { api } from "../../lib/api";
 import { useSettings } from "./SettingsContext.js";
+import Select from "../Select.jsx";
 
 /** Settings → "voice" section. State lives in SettingsPanel (see SettingsContext). */
 export default function VoiceSection() {
@@ -20,7 +21,7 @@ export default function VoiceSection() {
         <label className="setting-label" htmlFor="whisper-size">
           Whisper model size
         </label>
-        <select
+        <Select
           id="whisper-size"
           className="settings-select"
           value={config?.whisper_model_size}
@@ -34,14 +35,14 @@ export default function VoiceSection() {
               {s}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="setting-row setting-row-stack">
         <label className="setting-label" htmlFor="tts-engine">
           TTS engine
         </label>
-        <select
+        <Select
           id="tts-engine"
           className="settings-select"
           value={config?.tts_engine}
@@ -52,7 +53,7 @@ export default function VoiceSection() {
         >
           <option value="piper">Piper (offline, neural)</option>
           <option value="pyttsx3">System voice (fallback)</option>
-        </select>
+        </Select>
       </div>
     </section>
   );
