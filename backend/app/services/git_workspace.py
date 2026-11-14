@@ -287,3 +287,43 @@ async def create_pr(root: Path, title: str, body: str = "", base: str = "", draf
     out = await _gh(root, *args, timeout=60)
     urls = re.findall(r"https://github\.com/\S+/pull/\d+", out)
     return urls[-1] if urls else out.strip()
+
+
+# --- agent commits (optional: one commit per approved edit) ---------------
+
+_PROTECTED = {"main", "master", "trunk", "develop"}
+
+
+def _slug(text: str, limit: int = 32) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+    return (s[:limit].rstrip("-") or "change")
+
+
+async def agent_commit(root: Path, path: str, tool: str, request: str, run_id: str) -> dict:
+    """Commit one file the agent just changed, on a work branch.
+
+    On a main-like branch, first switches to `zenith/<request-slug>-<id>`
+    (uncommitted work comes along, nothing is lost). Only `path` is
+    committed (`git commit -- path`), so other files you have changed or
+    staged stay out of the agent's commits. Returns {"branch", "commit",
+    "switched"}; raises GitError if the folder isn't a repo or git fails."""
+    st = await status(root)
+    if not st.get("is_repo"):
+        raise GitError("not a git repository")
+    if st.get("detached"):
+        raise GitError("detached HEAD; not committing")
+    [path] = _check_paths(root, [path])
+    switched = False
+    branch = st["branch"]
+    if branch in _PROTECTED:
+        branch = f"zenith/{_slug(request)}-{run_id[:6]}"
+        await _git(root, "switch", "-c", branch)
+        switched = True
+    await _git(root, "add", "-A", "--", path)
+    if not (await _git(root, "diff", "--cached", "--name-only", "--", path)).strip():
+        return {"branch": branch, "commit": None, "switched": switched}
+    first = (request or "").strip().splitlines()[0][:72] if (request or "").strip() else ""
+    subject = f"agent: {'create' if tool == 'write_file' else 'edit'} {path}"
+    message = subject + (f"\n\nRequest: {first}" if first else "")
+    await _git(root, "commit", "-q", "-m", message, "--", path)
+    return {"branch": branch, "commit": (await _git(root, "log", "-1", "--format=%h")).strip(), "switched": switched}

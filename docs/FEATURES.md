@@ -428,6 +428,15 @@ default, `agent_repo_map_max_chars`): every path first, then symbols for as
 many files as fit, application code before tests. Only changed files are
 re-parsed between turns. Turn it off in Settings → Agent tools.
 
+**Commit each change** (off by default, Settings → Agent tools). In a git
+repository, every successful file edit becomes its own commit
+(`agent: edit <path>`, with the request in the body). On `main`, `master`,
+`trunk` or `develop` the agent first switches to a new
+`zenith/<request>-<id>` branch, taking your uncommitted work along. Only
+the edited file is committed (`git commit -- <path>`), so your own changes
+stay out. "Undo" still restores files; the commits stay in the branch's
+history until you reset or delete the branch.
+
 **Checkpoint / resume.** If a run hits its iteration cap without finishing,
 the full loop state is saved to the DB; your next message resumes from
 exactly where it stopped instead of starting cold. Survives a backend

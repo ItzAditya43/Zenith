@@ -29,6 +29,7 @@ export default function AgentSection() {
     toggleAutoCheck,
     toggleNativeTools,
     toggleRepoMap,
+    toggleGitCommits,
     refreshMcpServers,
   } = useSettings();
 
@@ -174,6 +175,27 @@ export default function AgentSection() {
           role="switch"
           aria-checked={config?.agent_repo_map !== false}
           aria-label="Repo map"
+        >
+          <span className="switch-thumb" />
+        </button>
+      </div>
+
+      <div className="setting-row" style={{ marginTop: "0.75rem" }}>
+        <div>
+          <strong>Commit each change</strong>
+          <span className="setting-hint">
+            In a git repository, every file edit the agent makes becomes its own commit. On main or
+            master it first moves to a new zenith/… branch, so your main branch is never touched.
+            Only the edited file goes into each commit; your own changes stay uncommitted.
+          </span>
+        </div>
+        <button
+          className={`switch ${config?.agent_git_commits ? "switch-on" : ""}`}
+          onClick={() => toggleGitCommits(!config?.agent_git_commits)}
+          disabled={!config?.agent_enabled}
+          role="switch"
+          aria-checked={!!config?.agent_git_commits}
+          aria-label="Commit each change"
         >
           <span className="switch-thumb" />
         </button>

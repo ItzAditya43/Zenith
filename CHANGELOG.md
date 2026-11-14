@@ -5,6 +5,7 @@
 ### Added
 - Workspace drawer: the bound folder's files and a terminal open beside the chat instead of over it. CodeMirror editor with highlighting and search, a real shell in the folder, "Ask about selection" to drop code into the message box, and an open button on file steps in agent runs. Replaces the old full-screen code editor.
 - Changes tab in the workspace: branch, staged and unstaged files with diffs, stage, commit, switch or create branches, push. With a GitHub remote and the `gh` CLI, open issues and pull requests are listed; "Work on it" hands an issue to the agent, and "Open PR" creates the pull request.
+- Optional "Commit each change" for agent mode: every file edit becomes its own commit on a `zenith/…` work branch, never on main.
 
 ## [1.0.1] — 2026-11-14
 

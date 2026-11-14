@@ -1670,6 +1670,28 @@ async def run_agent_turn(
         loop_messages.append({"role": "assistant", "content": json.dumps(step)})
         loop_messages.append({"role": "user", "content": f"Tool result for {tool}:\n{result}{partial_note}"})
 
+        # Optional: each successful file edit becomes its own commit on a work
+        # branch, so the run is reviewable (and revertable) in git history.
+        if (tool in ("edit_file", "write_file") and workdir
+                and settings.get("agent_git_commits", False)
+                and not str(result).startswith("Error")):
+            from pathlib import Path as _P
+
+            from app.services import git_workspace
+            try:
+                info = await git_workspace.agent_commit(
+                    _P(workdir), str(args.get("path", "")), tool, user_text, assistant_parent_id,
+                )
+                if info.get("commit"):
+                    note = (f"Switched to branch {info['branch']} and committed {info['commit']}."
+                            if info["switched"] else f"Committed {info['commit']} on {info['branch']}.")
+                    git_id = _log_call(conversation_id, "git", {"op": "commit", "path": args.get("path")}, "safe")
+                    yield {"type": "tool_call", "id": git_id, "tool": "git", "args": {"op": "commit", "path": args.get("path")}, "risk": "safe", "diff": None}
+                    _resolve_call(git_id, "executed", note)
+                    yield {"type": "tool_result", "id": git_id, "tool": "git", "result": note}
+            except git_workspace.GitError as exc:
+                log.info("agent.git_commit_skipped", reason=str(exc))
+
         # Auto-check feedback loop: after a file edit, optionally run the
         # configured test/lint command and feed the pass/fail back into the
         # loop as its own audited tool call, so the model reacts to a broken

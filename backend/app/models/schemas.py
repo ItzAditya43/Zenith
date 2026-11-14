@@ -105,6 +105,7 @@ class ConfigPatch(StrictModel):
     agent_native_tools: bool | None = None
     agent_repo_map: bool | None = None
     terminal_allow_remote: bool | None = None
+    agent_git_commits: bool | None = None
     agent_repo_map_max_chars: int | None = Field(default=None, ge=500, le=40_000)
     agent_check_timeout_seconds: int | None = Field(default=None, ge=5, le=1800)
     route_to_cloud_models: bool | None = None

@@ -208,7 +208,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # Off by default: on the agent eval, qwen3.5:4b scored 8/10 with the JSON
     # protocol and 3/10 with Ollama's native `tools` API (2026-11-13).
     "agent_native_tools": False,     # use Ollama's `tools` API on models that support it       # auto-run the check command after each file edit
-    "terminal_allow_remote": False,  # workspace terminal from other devices (LAN/Tailscale)
+    "terminal_allow_remote": False,
+    "agent_git_commits": False,      # commit each agent file edit on a zenith/* work branch  # workspace terminal from other devices (LAN/Tailscale)
     "agent_repo_map": True,          # outline of the working directory in the agent's prompt
     "agent_repo_map_max_chars": 4000,
     "agent_check_timeout_seconds": 180,  # tests/lint can be slower than a plain command

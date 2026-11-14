@@ -784,6 +784,11 @@ export default function SettingsPanel({
     setConfig(updated);
   };
 
+  const toggleGitCommits = async (checked) => {
+    const updated = await api.patchConfig({ agent_git_commits: checked });
+    setConfig(updated);
+  };
+
   const toggleRepoMap = async (checked) => {
     const updated = await api.patchConfig({ agent_repo_map: checked });
     setConfig(updated);
@@ -1109,6 +1114,7 @@ export default function SettingsPanel({
     toggleAutoCheck,
     toggleNativeTools,
     toggleRepoMap,
+    toggleGitCommits,
     addMemory,
     toggleMemory,
     deleteMemory,

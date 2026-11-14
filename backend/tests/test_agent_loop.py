@@ -534,3 +534,27 @@ async def test_repo_map_is_in_the_system_prompt_and_can_be_turned_off(agent):
     agent["fake"].final("ok")
     await _run(agent["conv"])
     assert "Map of the code" not in system_prompt()
+
+
+async def test_git_commits_mode_commits_each_edit_on_a_work_branch(agent):
+    from app.core.config import settings
+
+    work = agent["work"]
+    for args in (["init", "-q", "-b", "main"], ["config", "user.email", "t@e"], ["config", "user.name", "T"],
+                 ["add", "-A"], ["commit", "-qm", "init"]):
+        subprocess.run(["git", *args], cwd=work, check=True)
+    (work / "mine.txt").write_text("my own uncommitted work\n")
+    settings.update({"agent_git_commits": True})
+    try:
+        agent["fake"].tool("edit_file", path="hello.py", old_string="hello", new_string="hi").final("done")
+        events = await _run(agent["conv"], text="Say hi instead")
+    finally:
+        settings.update({"agent_git_commits": False})
+    branch = subprocess.run(["git", "branch", "--show-current"], cwd=work, capture_output=True, text=True).stdout.strip()
+    assert branch.startswith("zenith/say-hi-instead-")
+    log = subprocess.run(["git", "log", "--format=%s", "-2"], cwd=work, capture_output=True, text=True).stdout.splitlines()
+    assert log == ["agent: edit hello.py", "init"]
+    # The user's own file was carried over to the branch but not committed.
+    st = subprocess.run(["git", "status", "--short"], cwd=work, capture_output=True, text=True).stdout
+    assert "?? mine.txt" in st
+    assert any(e["type"] == "tool_result" and e["tool"] == "git" for e in events)
