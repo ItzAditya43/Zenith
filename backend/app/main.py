@@ -21,6 +21,7 @@ from app.api import (
     export,
     files,
     folders,
+    git,
     graph,
     images,
     jobs,
@@ -341,3 +342,4 @@ app.include_router(metrics.router)
 app.include_router(traces.router)
 app.include_router(backup.router)
 app.include_router(terminal.router)
+app.include_router(git.router)
