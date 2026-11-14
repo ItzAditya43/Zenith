@@ -434,8 +434,12 @@ things live without spending tool calls exploring. Python is parsed with
 `ast`; JS/TS, Go, Rust, Java/Kotlin/C#/Swift, C/C++, Ruby and PHP use
 declaration regexes, so there's no native parser to install and the outline
 can miss unusual declarations. It's fitted to a budget (4,000 characters by
-default, `agent_repo_map_max_chars`): every path first, then symbols for as
-many files as fit, application code before tests. Only changed files are
+default, `agent_repo_map_max_chars`). Files are ranked by how well their
+path and the names they define match your request, with a boost for files
+edited in the last day and application code above tests; the best-ranked
+files get their outline first. In a small project every path is listed
+and symbols are added in rank order; in a big one, lower-ranked files are
+counted rather than listed. Only changed files are
 re-parsed between turns. Turn it off in Settings → Agent tools.
 
 **Commit each change** (off by default, Settings → Agent tools). In a git

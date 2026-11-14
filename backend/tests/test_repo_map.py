@@ -106,3 +106,43 @@ def test_edits_are_picked_up(repo):
 def test_empty_or_missing_directory_gives_nothing(tmp_path):
     assert repo_map.build(str(tmp_path), 1000) == ""
     assert repo_map.build(str(tmp_path / "nope"), 1000) == ""
+
+
+def test_files_matching_the_request_get_detail_first(tmp_path):
+    import os
+
+    repo_map._cache.clear()
+    old = 1_000_000_000
+    for i in range(60):
+        p = tmp_path / "pkg" / f"module_{i:02d}.py"
+        p.parent.mkdir(exist_ok=True)
+        p.write_text(f"def helper_{i}(x):\n    return x\n\ndef other_{i}(y):\n    return y\n")
+        os.utime(p, (old, old))
+    target = tmp_path / "pkg" / "deep" / "billing_invoice.py"
+    target.parent.mkdir()
+    target.write_text("class InvoiceBuilder:\n    def total(self):\n        pass\n\ndef send_invoice(to):\n    pass\n")
+    os.utime(target, (old, old))
+    budget = 900
+    plain = repo_map.build(str(tmp_path), budget)
+    ranked = repo_map.build(str(tmp_path), budget, query="Fix the invoice total in billing")
+    assert len(ranked) <= budget
+    assert "class InvoiceBuilder" not in plain
+    assert "pkg/deep/billing_invoice.py\n  class InvoiceBuilder\n  def send_invoice(to)" in ranked
+
+
+def test_recently_edited_files_rank_higher(tmp_path):
+    import os
+
+    repo_map._cache.clear()
+    old = 1_000_000_000
+    for i in range(60):
+        p = tmp_path / f"m_{i:02d}.py"
+        p.write_text(f"def f_{i}():\n    pass\n\ndef g_{i}():\n    pass\n")
+        os.utime(p, (old, old))
+    (tmp_path / "zz_recent.py").write_text("def just_edited():\n    pass\n")
+    out = repo_map.build(str(tmp_path), 500)
+    assert "def just_edited()" in out
+
+
+def test_words_split_identifiers():
+    assert repo_map._words("loadConfig load_config LOAD-CONFIG the") == {"load", "config"}

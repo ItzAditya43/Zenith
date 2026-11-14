@@ -159,50 +159,117 @@ def _block(rel: str, symbols: list[Symbol], detail: int) -> str:
     return "\n".join(lines)
 
 
-def build(workdir: str, max_chars: int = 4000) -> str:
+_WORD = re.compile(r"[A-Za-z][a-z0-9]*|[A-Z]+(?![a-z])|[0-9]+")
+_DECL_NAME = re.compile(
+    r"\b(?:def|class|function|fn|func|interface|type|struct|enum|const|let|var|trait|impl|module|object)\s+\*?\s*([A-Za-z_]\w*)"
+)
+_STOP = {
+    "the", "and", "for", "with", "this", "that", "from", "into", "file", "files", "code", "make",
+    "add", "fix", "use", "get", "set", "new", "can", "you", "please", "should", "would", "what",
+    "how", "why", "where", "when", "does", "not", "but", "all", "are", "was", "has", "have",
+    "def", "class", "function", "test", "tests", "src", "app", "lib", "index", "main", "init",
+}
+
+
+def _words(text: str) -> set[str]:
+    """Lower-cased identifier parts: `loadConfig`, `load_config` and
+    `load-config` all give {"load", "config"}."""
+    out = set()
+    for raw in re.split(r"[^A-Za-z0-9]+", text or ""):
+        for w in _WORD.findall(raw):
+            w = w.lower()
+            if len(w) >= 3 and w not in _STOP:
+                out.add(w)
+    return out
+
+
+def _score(rel: str, symbols: list[Symbol], mtime: float, query: set[str], now: float) -> float:
+    """Higher = more worth showing. Without a query this reproduces the old
+    order (application code before tests, shallow before deep)."""
+    score = -0.5 * rel.count("/") - (3.0 if _TEST_HINT.search(rel) else 0.0)
+    if query:
+        path_hits = len(query & _words(rel))
+        names = {n for _, text in symbols for n in _DECL_NAME.findall(text)}
+        name_hits = len(query & _words(" ".join(names)))
+        score += 4.0 * path_hits + 2.0 * min(name_hits, 5)
+    age = now - mtime
+    if age < 3600:
+        score += 3.0
+    elif age < 86400:
+        score += 1.5
+    return score
+
+
+def build(workdir: str, max_chars: int = 4000, query: str = "") -> str:
     """Outline of the source files under `workdir`, at most `max_chars`
-    long. Empty string when there's nothing to map."""
+    long. Empty string when there's nothing to map.
+
+    Files are ranked by how well their path and the names they define
+    match `query` (the user's request), plus a boost for recently edited
+    files; application code ranks above tests. The budget is spent in rank
+    order: the best files get their functions and classes listed, then
+    lesser ones get just their path, and the rest are counted. The result
+    is listed in path order so it reads like a tree."""
+    import time
+
     root = Path(workdir)
     if not root.is_dir():
         return ""
-    files: list[tuple[str, list[Symbol]]] = []
+    found: list[tuple[str, list[Symbol], float]] = []
     skipped = 0
     for path, rel in code_search._walk(root):
         if path.suffix.lower() not in SOURCE_EXTS:
             continue
-        if len(files) >= MAX_MAP_FILES:
+        if len(found) >= MAX_MAP_FILES:
             skipped += 1
             continue
-        files.append((rel, _symbols(path)))
-    if not files:
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        found.append((rel, _symbols(path), mtime))
+    if not found:
         return ""
-    # Priority order: application code before tests, shallow before deep.
-    # Entry points and top-level modules say the most about a project, and
-    # this is the order in which files get detail (or survive truncation).
-    files.sort(key=lambda f: (bool(_TEST_HINT.search(f[0])), f[0].count("/"), f[0]))
+    q = _words(query)
+    now = time.time()
+    ranked = sorted(found, key=lambda f: (-_score(f[0], f[1], f[2], q, now), f[0]))
 
     more = "\n… {n} more source files not listed; use glob to find them."
-    budget = max_chars - (len(more) + 6 if skipped else 0)
-    blocks = [rel for rel, _ in files]
-    used = sum(len(b) + 1 for b in blocks)
-    if used > budget:
-        # Even bare paths don't fit: list as many as do.
-        kept: list[str] = []
-        used = 0
-        for rel in blocks:
-            if used + len(rel) + 1 > max_chars - len(more) - 6:
-                break
-            kept.append(rel)
-            used += len(rel) + 1
-        return "\n".join(kept) + more.format(n=len(files) - len(kept) + skipped)
-    # Spend what's left on symbols, in priority order: top-level symbols for
-    # as many files as fit, then nested ones (methods).
-    for detail in (1, 0):
-        for i, (rel, symbols) in enumerate(files):
-            better = _block(rel, symbols, detail)
-            extra = len(better) - len(blocks[i])
+    budget = max_chars - (len(more) + 6)
+    chosen: dict[str, str] = {}
+    used = 0
+    paths_cost = sum(len(rel) + 1 for rel, _, _ in found)
+    if paths_cost <= 0.6 * budget:
+        # Small project: list every file, then add symbols in rank order.
+        for rel, _, _ in found:
+            chosen[rel] = rel
+        used = paths_cost
+        for rel, symbols, _ in ranked:
+            better = _block(rel, symbols, 1)
+            extra = len(better) - len(rel)
             if extra > 0 and used + extra <= budget:
-                blocks[i] = better
+                chosen[rel] = better
                 used += extra
-    text = "\n".join(blocks)
-    return text + more.format(n=skipped) if skipped else text
+    else:
+        # Big project: in rank order, a file with its top-level symbols if
+        # that fits, else just its path, until the budget runs out.
+        for rel, symbols, _ in ranked:
+            full = _block(rel, symbols, 1)
+            if used + len(full) + 1 <= budget:
+                chosen[rel] = full
+                used += len(full) + 1
+            elif used + len(rel) + 1 <= budget:
+                chosen[rel] = rel
+                used += len(rel) + 1
+    # Pass 2: methods too, for the best files, while there's room.
+    for rel, symbols, _ in ranked:
+        if rel not in chosen:
+            continue
+        better = _block(rel, symbols, 0)
+        extra = len(better) - len(chosen[rel])
+        if extra > 0 and used + extra <= budget:
+            chosen[rel] = better
+            used += extra
+    text = "\n".join(chosen[rel] for rel in sorted(chosen, key=lambda r: (r.count("/"), r)))
+    left = len(found) - len(chosen) + skipped
+    return text + more.format(n=left) if left else text

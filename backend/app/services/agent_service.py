@@ -191,7 +191,7 @@ Rules:
 """
 
 
-async def _repo_map_block(workdir: str | None) -> str:
+async def _repo_map_block(workdir: str | None, query: str = "") -> str:
     """The working directory's repo map as a system-prompt section — see
     repo_map.py. Empty when off, when no directory is bound, or when the
     directory has no source files."""
@@ -200,7 +200,7 @@ async def _repo_map_block(workdir: str | None) -> str:
     from app.services import repo_map
     try:
         text = await asyncio.to_thread(
-            repo_map.build, workdir, int(settings.get("agent_repo_map_max_chars", 4000)),
+            repo_map.build, workdir, int(settings.get("agent_repo_map_max_chars", 4000)), query,
         )
     except Exception:
         return ""
@@ -1362,7 +1362,7 @@ async def _run_subagent(
         f"\n\nWorking directory: {workdir}\n"
         "Relative paths resolve against this directory automatically."
         if workdir else ""
-    ) + await _repo_map_block(workdir) + (
+    ) + await _repo_map_block(workdir, task) + (
         "\n\nYou are a sub-agent delegated a single focused task by another agent. "
         "Work autonomously — there's no user to ask for approval or clarification. "
         "When you're done, respond with a concise {\"final\": \"...\"} summary of what "
@@ -1493,7 +1493,7 @@ async def run_agent_turn(
         "Relative paths (in bash, read_file, write_file, edit_file, list_dir, grep, glob) resolve "
         "against this directory automatically — you don't need to give full paths."
         if workdir else ""
-    ) + await _repo_map_block(workdir) + (
+    ) + await _repo_map_block(workdir, user_text) + (
         "\n\nShell commands run in an isolated container: the working directory is "
         f"mounted at {sandbox.CONTAINER_WORKSPACE}, nothing outside it exists, and "
         + ("there is no network access." if settings.get("agent_sandbox_network", "none") == "none"
