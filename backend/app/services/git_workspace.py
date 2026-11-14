@@ -362,7 +362,8 @@ async def create_worktree(root: Path, name: str) -> dict:
 
 async def list_worktrees(root: Path) -> list[dict]:
     out = await _git(root, "worktree", "list", "--porcelain")
-    items, cur = [], {}
+    items: list[dict[str, str]] = []
+    cur: dict[str, str] = {}
     for line in out.splitlines() + [""]:
         if not line:
             if cur:
