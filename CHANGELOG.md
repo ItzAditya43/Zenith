@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.1] — 2026-11-14
 
 ### Changed
 - Native Ollama tool calling is now off by default. On the agent eval, `qwen3.5:4b` scored 8/10 with Zenith's JSON protocol and 3/10 with native tool calling. Turn it back on in Settings → Agent tools.

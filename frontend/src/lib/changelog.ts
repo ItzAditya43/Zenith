@@ -9,6 +9,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.0.1",
+    date: "2026-11-14",
+    title: "Pinned models that stop working no longer trap your chats",
+    items: [
+      "If Ollama refuses a pinned model (retired, or it needs paid credits), Zenith now picks a working model automatically and Settings → Model routing marks the pin as not working, with the reason.",
+      "Saving a model choice shows an error if it fails instead of silently doing nothing.",
+      "Agent mode uses Zenith's JSON tool protocol by default; a small model scored 8/10 with it versus 3/10 with Ollama's native tool calling.",
+      "The README and the autonomy picker now say plainly what runs without asking, and that undo covers file edits, not commands.",
+    ],
+  },
+  {
     version: "1.0.0",
     date: "2026-11-13",
     title: "First public release: the agent can search and map your code",
