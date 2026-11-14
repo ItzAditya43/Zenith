@@ -8,6 +8,7 @@
 - Optional "Commit each change" for agent mode: every file edit becomes its own commit on a `zenith/…` work branch, never on main.
 - Long chats no longer forget their beginning: messages that fall outside the context window (24 by default) are folded into a short running summary that the model sees on later turns. Editing or switching branches rebuilds it. On by default (`summarize_long_chats`).
 - The repo map is ranked by your request: files whose paths and function names match what you asked, and files edited recently, get their outline first. On large projects it used to fill up with bare file names.
+- The agent eval has 12 tasks instead of 5: implementing a function from its tests, a bug spread across files, finding code by search, git commits and branches, structured JSON edits, and writing tests.
 
 ## [1.0.1] — 2026-11-14
 

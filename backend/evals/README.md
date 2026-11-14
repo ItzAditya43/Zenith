@@ -14,7 +14,7 @@ python -m evals --json report.json -v
 |---|---|---|
 | `routing` | Does the router pick the intended role (code / reasoning / quick / general)? Falling back to `general` counts as correct when no model for that role is installed. | Only `ollama list`; no generation |
 | `rag` | recall@k: does retrieval return the right document for 8 questions over a 5-document corpus? The header shows whether it ran `hybrid` (vectors) or `lexical`. | An embedding model for hybrid mode (`ollama pull nomic-embed-text`) |
-| `agent` | Task success on 5 real tasks in a scratch folder (create/edit files, fix a failing test, count lines, rename a function across files), checked by inspecting the result, not the model's claims. | A tool-capable model. Small (<4B) models usually score low. `--sandbox` runs commands in the docker sandbox. |
+| `agent` | Task success on 12 real tasks in a scratch folder: create and edit files, fix a failing test, count lines, rename across files, implement a function from its tests, a bug spread over several files, find a function by searching, commit and branch with git, edit JSON without breaking it, and write tests, checked by inspecting the result, not the model's claims. | A tool-capable model. Small (<4B) models usually score low. `--sandbox` runs commands in the docker sandbox. |
 
 Small models are noisy, so use `--repeat 3` or more before comparing models. Add cases to
 `evals/data/*.json*` or `AGENT_TASKS` in `__main__.py`. `tests/test_evals_harness.py`

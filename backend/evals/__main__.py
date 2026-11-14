@@ -137,6 +137,38 @@ def _pytest_passes(d: Path) -> bool:
                           cwd=d, capture_output=True, env=env).returncode == 0
 
 
+def _git_repo(files: dict[str, str], after: dict[str, str]) -> Callable[[Path], None]:
+    """A repo with `files` committed, then `after` written on top (uncommitted)."""
+    def setup(d: Path) -> None:
+        _write(files)(d)
+        env = {**os.environ, "GIT_AUTHOR_NAME": "Eval", "GIT_AUTHOR_EMAIL": "eval@example.com",
+               "GIT_COMMITTER_NAME": "Eval", "GIT_COMMITTER_EMAIL": "eval@example.com"}
+        for args in (["init", "-q", "-b", "main"], ["config", "user.name", "Eval"],
+                     ["config", "user.email", "eval@example.com"], ["add", "-A"], ["commit", "-qm", "Initial"]):
+            subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=env)
+        _write(after)(d)
+    return setup
+
+
+def _git_out(d: Path, *args: str) -> str:
+    return subprocess.run(["git", *args], cwd=d, capture_output=True, text=True).stdout
+
+
+def _test_count(d: Path) -> int:
+    out = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "--collect-only", "-p", "no:cacheprovider", str(d)],
+                         cwd=d, capture_output=True, text=True).stdout
+    return sum(1 for line in out.splitlines() if "::test_" in line)
+
+
+def _json_has_lint(d: Path) -> bool:
+    try:
+        data = json.loads((d / "package.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return data.get("scripts", {}).get("lint") == "eslint ." and data.get("scripts", {}).get("build") == "vite build" \
+        and data.get("name") == "shop"
+
+
 AGENT_TASKS = [
     AgentTask("create-file", "Create a file named hello.txt containing exactly the text: hello world",
               _write({}), lambda d: (d / "hello.txt").exists() and (d / "hello.txt").read_text().strip() == "hello world"),
@@ -155,6 +187,44 @@ AGENT_TASKS = [
                       "main.py": "from utils import compute\n\nprint(compute([1, 2, 3]))\n"}),
               lambda d: subprocess.run([sys.executable, "-B", "main.py"], cwd=d, capture_output=True, text=True).stdout.strip() == "6"
               and "compute_total" in (d / "utils.py").read_text() and "def compute(" not in (d / "utils.py").read_text()),
+    # --- harder: test-driven, multi-file, search, git, structured edits ---------
+    AgentTask("tdd-slugify", "Implement slugify() in text.py so the tests in test_text.py pass. Run the tests to check.",
+              _write({"text.py": "def slugify(s):\n    raise NotImplementedError\n",
+                      "test_text.py": "from text import slugify\n\n\ndef test_basic():\n    assert slugify('Hello World') == 'hello-world'\n\n\n"
+                                      "def test_punctuation():\n    assert slugify('  Rock & Roll!  ') == 'rock-roll'\n\n\n"
+                                      "def test_numbers():\n    assert slugify('Top 10 Tips') == 'top-10-tips'\n"}),
+              _pytest_passes),
+    AgentTask("multi-file-bug", "test_checkout.py fails. Find the cause (it may not be in the first file you look at) and fix it. Don't change the tests.",
+              _write({"shop/__init__.py": "",
+                      "shop/models.py": "class Item:\n    def __init__(self, price, qty):\n        self.price = price\n        self.qty = qty\n\n    def subtotal(self):\n        return self.price * self.qty\n",
+                      "shop/pricing.py": "def apply_discount(total, percent):\n    return total - total * percent\n",
+                      "shop/checkout.py": "from shop.pricing import apply_discount\n\n\ndef checkout(items, discount_percent=0):\n    total = sum(i.subtotal() for i in items)\n    return round(apply_discount(total, discount_percent), 2)\n",
+                      "test_checkout.py": "from shop.checkout import checkout\nfrom shop.models import Item\n\n\ndef test_discount():\n    assert checkout([Item(10.0, 2), Item(5.0, 1)], discount_percent=20) == 20.0\n\n\n"
+                                          "def test_no_discount():\n    assert checkout([Item(3.0, 3)]) == 9.0\n"}),
+              lambda d: _pytest_passes(d) and "percent" in (d / "test_checkout.py").read_text()
+              and "discount_percent=20) == 20.0" in (d / "test_checkout.py").read_text()),
+    AgentTask("find-raiser", "Somewhere under src/ one function raises ValueError. Write just that function's name to answer.txt.",
+              _write({"src/a/io.py": "def read_config(p):\n    return open(p).read()\n",
+                      "src/b/parse.py": "def parse_port(text):\n    n = int(text)\n    if not 0 < n < 65536:\n        raise ValueError('bad port')\n    return n\n",
+                      "src/b/fmt.py": "def fmt(x):\n    return str(x)\n"}),
+              lambda d: (d / "answer.txt").exists() and (d / "answer.txt").read_text().strip().strip("`'\"()") == "parse_port"),
+    AgentTask("git-commit", "Commit the change already made to notes.md with the commit message: Update notes",
+              _git_repo({"notes.md": "# Notes\n"}, {"notes.md": "# Notes\n\n- ship it\n"}),
+              lambda d: _git_out(d, "log", "-1", "--format=%s").strip() == "Update notes"
+              and _git_out(d, "status", "--porcelain").strip() == ""),
+    AgentTask("git-branch", "Create a new git branch called feature/readme, switch to it, and commit the new README.md there with the message: Add readme",
+              _git_repo({"app.py": "print('hi')\n"}, {"README.md": "# App\n"}),
+              lambda d: _git_out(d, "branch", "--show-current").strip() == "feature/readme"
+              and _git_out(d, "log", "-1", "--format=%s").strip() == "Add readme"
+              and "README.md" not in _git_out(d, "ls-tree", "--name-only", "main")),
+    AgentTask("json-script", "Add a script named \"lint\" that runs \"eslint .\" to package.json. Keep everything else and keep it valid JSON.",
+              _write({"package.json": '{\n  "name": "shop",\n  "scripts": {\n    "build": "vite build"\n  }\n}\n'}),
+              _json_has_lint),
+    AgentTask("write-tests", "Write a pytest file test_stack.py with at least three tests for the Stack class in stack.py (push, pop, and popping an empty stack). Run them; they must pass.",
+              _write({"stack.py": "class Stack:\n    def __init__(self):\n        self._items = []\n\n    def push(self, x):\n        self._items.append(x)\n\n"
+                                  "    def pop(self):\n        if not self._items:\n            raise IndexError('empty')\n        return self._items.pop()\n\n"
+                                  "    def __len__(self):\n        return len(self._items)\n"}),
+              lambda d: (d / "test_stack.py").exists() and _test_count(d) >= 3 and _pytest_passes(d)),
 ]
 
 

@@ -9,7 +9,6 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 |---|---|---|---|
 | C3 | **LSP diagnostics after edits** | Type errors and bad imports come back to the agent right after an edit instead of after a full test run. | M–L |
 | C4 | **Background tasks in git worktrees** | Queue a task, the agent works on an isolated branch, you review one diff. Builds on the task board and checkpoint/resume. | L |
-| C9 | **Bigger agent eval** | Five tasks is too few to compare models. Add multi-file, test-driven and git tasks. | M |
 
 ## Experience
 
