@@ -136,6 +136,8 @@ def test_separate_copy_gets_its_own_branch_folder_and_chat(client, repo):
 
     listed = client.get(f"/api/conversations/{cid}/git/worktrees").json()["worktrees"]
     assert [w["branch"] for w in listed] == ["zenith/try-new-pricing"]
+    # Seen from inside the copy, the main checkout isn't listed as a copy.
+    assert client.get(f"/api/conversations/{wt['conversation_id']}/git/worktrees").json()["worktrees"] == []
     # Dirty copies aren't removed.
     r = client.post(f"/api/conversations/{cid}/git/worktrees/remove", json={"path": wt["path"]})
     assert r.status_code == 409 and "uncommitted" in r.json()["detail"]

@@ -375,8 +375,9 @@ async def list_worktrees(root: Path) -> list[dict]:
             cur["path"] = val
         elif key == "branch":
             cur["branch"] = val.removeprefix("refs/heads/")
+    # The first entry is always the main checkout: never offered as a "copy".
     top = str(await _toplevel(root))
-    return [w for w in items if w.get("path") != top]
+    return [w for w in items[1:] if w.get("path") != top]
 
 
 async def remove_worktree(root: Path, path: str) -> None:
