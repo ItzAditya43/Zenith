@@ -53,7 +53,7 @@ const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
 const UsageDashboard = lazyPanel(() => import("./components/UsageDashboard.jsx"));
 const HealthPanel = lazyPanel(() => import("./components/HealthPanel.jsx"));
 const TracesPanel = lazyPanel(() => import("./components/TracesPanel"));
-const CodeEditorPanel = lazyPanel(() => import("./components/CodeEditorPanel.jsx"));
+const WorkspaceDrawer = lazyPanel(() => import("./components/workspace/WorkspaceDrawer.jsx"));
 const SnippetsPanel = lazyPanel(() => import("./components/SnippetsPanel.jsx"));
 const KnowledgeGraphPanel = lazyPanel(() => import("./components/KnowledgeGraphPanel.jsx"));
 const DigestPanel = lazyPanel(() => import("./components/DigestPanel.jsx"));
@@ -121,6 +121,7 @@ export default function App() {
   const [todosOpen, setTodosOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
+  const [workspaceOpenRequest, setWorkspaceOpenRequest] = useState(null);
   const [snippetsOpen, setSnippetsOpen] = useState(false);
   const [graphOpen, setGraphOpen] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
@@ -1437,7 +1438,10 @@ export default function App() {
         />
       )}
 
-      <main className={`chat-main ${openDoc ? "chat-main-split" : ""}`} id="chat-main-content">
+      <main
+        className={`chat-main ${openDoc || (codeEditorOpen && activeConversation?.workdir) ? "chat-main-split" : ""}`}
+        id="chat-main-content"
+      >
         <div className="chat-column">
         <ChatHeader
           activeId={activeId}
@@ -1527,13 +1531,6 @@ export default function App() {
           />
         )}
         {digestOpen && <DigestPanel onClose={() => setDigestOpen(false)} />}
-        {codeEditorOpen && activeConversation?.workdir && (
-          <CodeEditorPanel
-            conversationId={activeId}
-            workdir={activeConversation.workdir}
-            onClose={() => setCodeEditorOpen(false)}
-          />
-        )}
         {usageOpen && <UsageDashboard onClose={() => setUsageOpen(false)} />}
         {healthOpen && <HealthPanel onClose={() => setHealthOpen(false)} />}
         {tracesOpen && <TracesPanel conversationId={activeConversation?.id} onClose={() => setTracesOpen(false)} />}
@@ -1651,6 +1648,19 @@ export default function App() {
               onApproveTool={handleApproveTool}
               onDenyTool={handleDenyTool}
               onRevertTool={handleRevertTool}
+              onOpenInWorkspace={activeConversation?.workdir ? (path) => {
+                const wd = activeConversation.workdir.replace(/[\\/]+$/, "");
+                let rel = path;
+                if (/^([a-zA-Z]:)?[\\/]/.test(path)) {
+                  if (!path.startsWith(wd + "/") && !path.startsWith(wd + "\\")) {
+                    showToast("That file is outside this chat's working folder.", "info");
+                    return;
+                  }
+                  rel = path.slice(wd.length + 1);
+                }
+                setCodeEditorOpen(true);
+                setWorkspaceOpenRequest({ path: rel.replace(/^\.\//, ""), nonce: Date.now() });
+              } : undefined}
               onPlanDecision={handlePlanDecision}
               siblings={branches[m.parent_id || "root"]}
               onSwitchBranch={handleSwitchBranch}
@@ -1696,6 +1706,16 @@ export default function App() {
         />
         </div>
 
+        {codeEditorOpen && activeConversation?.workdir && !openDoc && (
+          <WorkspaceDrawer
+            key={`${activeId}:${activeConversation.workdir}`}
+            conversationId={activeId}
+            workdir={activeConversation.workdir}
+            openRequest={workspaceOpenRequest}
+            onClose={() => setCodeEditorOpen(false)}
+            onAskAboutCode={(text) => setSeedText({ text, nonce: Date.now() })}
+          />
+        )}
         {openDoc && (
           <DocumentEditor
             doc={openDoc}

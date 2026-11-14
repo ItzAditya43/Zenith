@@ -284,6 +284,29 @@ export const api = {
     return request("/api/backup/restore", { method: "POST", body: form }).then((r) => r.json());
   },
 
+  terminalAvailable: (): Promise<{ available: boolean }> =>
+    request("/api/terminal/available").then((r) => r.json()),
+  terminalStart: (conversationId: string, cols: number, rows: number): Promise<{ session_id: string; cwd: string; alive: boolean }> =>
+    request(`/api/conversations/${conversationId}/terminal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cols, rows }),
+    }).then((r) => r.json()),
+  terminalOutput: (sid: string, since: number, wait = 20, signal?: AbortSignal): Promise<{ data: string; next: number; alive: boolean; exit_code: number | null }> =>
+    request(`/api/terminal/${sid}/output?since=${since}&wait=${wait}`, { signal }).then((r) => r.json()),
+  terminalInput: (sid: string, data: string) =>
+    request(`/api/terminal/${sid}/input`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data }),
+    }).then((r) => r.json()),
+  terminalResize: (sid: string, cols: number, rows: number) =>
+    request(`/api/terminal/${sid}/resize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cols, rows }),
+    }).then((r) => r.json()),
+  terminalClose: (sid: string) => request(`/api/terminal/${sid}`, { method: "DELETE" }).then((r) => r.json()),
   listWorkspaceFiles: (conversationId: string, path: string = "") =>
     request(`/api/conversations/${conversationId}/files?path=${encodeURIComponent(path)}`).then((r) => r.json()),
   readWorkspaceFile: (conversationId: string, path: string) =>

@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Workspace drawer: the bound folder's files and a terminal open beside the chat instead of over it. CodeMirror editor with highlighting and search, a real shell in the folder, "Ask about selection" to drop code into the message box, and an open button on file steps in agent runs. Replaces the old full-screen code editor.
+
 ## [1.0.1] — 2026-11-14
 
 ### Changed

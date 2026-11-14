@@ -21,7 +21,6 @@ Zenith stays chat-first: these make the code side panel pleasant, not an IDE.
 
 | # | Feature | Why | Effort |
 |---|---|---|---|
-| E1 | **CodeMirror editor + terminal in the code panel** | Replaces the textarea-over-highlighter; xterm.js attaches to the existing persistent shell sessions. | M |
 | E2 | **Inline edit** | Select code in the panel, ask, get a diff in place with the existing per-hunk accept/skip. Lighter than a full agent turn. | M |
 | E3 | **Git panel in the workspace** | Branch, changed files, per-file diff, stage, commit and push next to the editor; GitHub issues and PRs listed via `gh`. | M |
 

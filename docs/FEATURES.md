@@ -610,31 +610,35 @@ editing/copying/downloading/sending-back; now also renders it live:
   Without those local assets, the Run tab explains exactly that instead of
   silently falling back to a public CDN.
 
-### Code editor panel
+### Workspace drawer
 
-`app/api/files.py`. A file tree + multi-tab text editor for the
-conversation's bound working directory (the same folder set via the
-header's folder button for agent mode) — for quick edits that don't need
-a full agent turn. Opens from the terminal icon in the header once a
-working directory is bound.
+`frontend/src/components/workspace/`, `app/api/files.py`, `app/api/terminal.py`.
+When a conversation has a working folder bound, the terminal icon in the
+header opens the workspace beside the chat (not over it), so you can watch
+and talk to the agent while looking at the code. Drag its left edge to
+resize; the width is remembered. On narrow screens it covers the chat.
 
-- Strictly scoped to that directory: every path is resolved and rejected
-  if it would escape it (`../`, absolute paths) — unlike agent mode's
-  file tools, which intentionally allow the full filesystem, this is a
-  direct, un-gated UI action, so it gets its own tighter boundary.
-- Plain text only, 2MB cap per file — this is a lightweight editor for
-  config/code/notes, not a full IDE (no language server). **Syntax
-  highlighting** (reusing the same `react-syntax-highlighter`/`atomDark`
-  theme as chat code blocks) renders under a transparent, still-fully-
-  editable textarea, scroll-synced to it — skipped above 200KB per file to
-  avoid highlighter jank well before the 2MB cap.
-- **Git status/diff + run** — toolbar buttons show `git status`/`git
-  diff` for the bound directory (reusing agent mode's own git runner)
-  and execute the configured check command (Settings → Agent tools),
-  streaming output into a pane below the editor — no model turn, no
-  approval gate, just the same "run a command and see the result" loop
-  a terminal gives you.
-- ⌘S / Ctrl+S saves the active tab.
+- **Files** — a file tree and a CodeMirror 6 editor: syntax highlighting
+  for most languages (grammars load on demand), search (⌘F), multiple
+  tabs with unsaved markers, ⌘S to save. Colours come from the active
+  theme. Paths are confined to the working folder (`../`, absolute paths
+  and symlinks out are refused), 2 MB per file.
+- **Ask about selection** — select lines and press it: the file, line
+  range and code go into the message box.
+- **Open from the chat** — file steps in an agent run (`read_file`,
+  `edit_file`, `write_file`) have an open button that shows that file in
+  the workspace.
+- **Terminal** — a real shell on a pseudo-terminal in the working folder
+  (xterm.js). The session belongs to the conversation, so closing the
+  drawer doesn't stop a dev server; reopening reattaches and replays
+  recent output. It runs as your user, not in the agent sandbox, and isn't
+  approval-gated: it's you typing. Only from this machine unless
+  `terminal_allow_remote` is on; requests from other websites' origins are
+  refused. It uses HTTP rather than a WebSocket so every request goes
+  through the same network, secret and passcode checks as the rest of the
+  API. Linux and macOS only for now.
+- **Diff / Run checks** — `git diff` for the open file and the configured
+  check command, without a model turn.
 
 ### Document editing
 

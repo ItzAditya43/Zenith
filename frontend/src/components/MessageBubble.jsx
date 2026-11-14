@@ -229,7 +229,9 @@ function DiffView({ diff, rejected, onToggleHunk }) {
 
 const REVERTABLE_TOOLS = new Set(["edit_file", "write_file"]);
 
-function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
+const FILE_TOOLS = new Set(["read_file", "write_file", "edit_file"]);
+
+function ToolCallCard({ call, onApprove, onDeny, onRevert, onOpenFile }) {
   const [expanded, setExpanded] = useState(() => Boolean(call.diff));
   const [reverting, setReverting] = useState(false);
   const [rejected, setRejected] = useState(() => new Set());
@@ -261,6 +263,7 @@ function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
 
   return (
     <div className={`tool-call-card tool-call-${call.status}`}>
+      <div className="tool-call-head">
       <button className="tool-call-header" onClick={() => setExpanded((v) => !v)}>
         <span className="tool-call-icon"><Icon name={TOOL_ICON[call.tool] || "wrench"} size={14} /></span>
         <span className="tool-call-name">{call.tool}</span>
@@ -276,6 +279,17 @@ function ToolCallCard({ call, onApprove, onDeny, onRevert }) {
           }[call.status] || call.status}
         </span>
       </button>
+      {onOpenFile && FILE_TOOLS.has(call.tool) && call.args?.path && call.status !== "pending" && (
+        <button
+          className="tool-call-open-btn"
+          onClick={() => onOpenFile(call.args.path)}
+          title={`Open ${call.args.path} in the workspace`}
+          aria-label={`Open ${call.args.path} in the workspace`}
+        >
+          <Icon name="panel-left" size={12} />
+        </button>
+      )}
+      </div>
 
       {expanded && (
         <div className="tool-call-body">
@@ -383,6 +397,7 @@ export default function MessageBubble({
   onApproveTool,
   onDenyTool,
   onRevertTool,
+  onOpenInWorkspace,
   onPlanDecision,
   onDeleteMessage,
   siblings,
@@ -496,7 +511,7 @@ export default function MessageBubble({
             </div>
             <div className="tool-calls">
               {message.toolCalls.map((call) => (
-                <ToolCallCard key={call.id} call={call} onApprove={onApproveTool} onDeny={onDenyTool} onRevert={onRevertTool} />
+                <ToolCallCard key={call.id} call={call} onApprove={onApproveTool} onDeny={onDenyTool} onRevert={onRevertTool} onOpenFile={onOpenInWorkspace} />
               ))}
             </div>
           </div>
