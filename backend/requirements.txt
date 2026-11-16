@@ -16,7 +16,7 @@ python-docx==1.2.0
 # Pango/headless browser), matching the stdlib-first philosophy.
 fpdf2==2.8.8
 Pillow==13.0.0
-faster-whisper==1.1.1
+faster-whisper==1.2.1
 piper-tts==1.8.0
 pyttsx3==2.99
 aiofiles==25.1.0
