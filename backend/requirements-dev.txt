@@ -2,7 +2,7 @@
 
 # --- dev / test ---
 pytest==9.2.0
-pytest-asyncio==1.4.1
+pytest-asyncio==1.5.0
 
 # --- tooling added this pass ---
 pytest-cov
