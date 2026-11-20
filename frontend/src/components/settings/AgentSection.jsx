@@ -209,29 +209,51 @@ export default function AgentSection() {
         Sandbox
       </h3>
       <p className="settings-section-desc">
-        Run the agent's shell commands (bash, checks, background shells) in a throwaway
-        Docker container that sees only this conversation's working directory, with no
-        network by default. File tools are confined to the same folder. Needs Docker on this
-        machine; not available inside the Docker deployment, which is already isolated.
+        Run the agent's shell commands (bash, checks, background shells) somewhere that sees only
+        this conversation's working folder, with no network by default. File tools are confined to
+        the same folder. Not needed inside the Docker deployment, which is already isolated.
       </p>
       <div className="setting-row">
         <div>
-          <strong>Run commands in a container</strong>
+          <strong>Sandbox</strong>
           <span className="setting-hint">
-            Off: commands run as your user with full access to your files.
+            {config?.agent_sandbox === "bwrap"
+              ? "Bubblewrap: Linux namespaces, starts instantly, no Docker needed. System folders are read-only and the rest of your home is invisible."
+              : config?.agent_sandbox === "docker"
+              ? "Docker: a throwaway container from the image below. Slower to start; works on any OS with Docker."
+              : "Off: commands run as your user with full access to your files."}
           </span>
         </div>
-        <button
-          className={`switch ${config?.agent_sandbox === "docker" ? "switch-on" : ""}`}
-          onClick={async () =>
-            setConfig(await api.patchConfig({ agent_sandbox: config?.agent_sandbox === "docker" ? "off" : "docker" }))
-          }
-          role="switch"
-          aria-checked={config?.agent_sandbox === "docker"}
+        <Select
+          className="settings-input"
+          value={config?.agent_sandbox || "off"}
+          onChange={async (e) => setConfig(await api.patchConfig({ agent_sandbox: e.target.value }))}
+          aria-label="Sandbox"
         >
-          <span className="switch-thumb" />
-        </button>
+          <option value="off">Off</option>
+          <option value="bwrap">Bubblewrap (Linux, fast)</option>
+          <option value="docker">Docker container</option>
+        </Select>
       </div>
+      {config?.agent_sandbox === "bwrap" && (
+        <div className="setting-row">
+          <div>
+            <strong>Network access</strong>
+            <span className="setting-hint">Needed for <code>pip install</code> / <code>npm install</code> inside the sandbox.</span>
+          </div>
+          <button
+            className={`switch ${config?.agent_sandbox_network === "bridge" ? "switch-on" : ""}`}
+            onClick={async () =>
+              setConfig(await api.patchConfig({ agent_sandbox_network: config?.agent_sandbox_network === "bridge" ? "none" : "bridge" }))
+            }
+            role="switch"
+            aria-checked={config?.agent_sandbox_network === "bridge"}
+            aria-label="Sandbox network access"
+          >
+            <span className="switch-thumb" />
+          </button>
+        </div>
+      )}
       {config?.agent_sandbox === "docker" && (
         <>
           <div className="setting-row">

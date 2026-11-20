@@ -16,11 +16,19 @@ not in the container, so sandbox mode also confines them to the same
 workspace — otherwise "sandboxed" bash could be sidestepped with read_file
 on ~/.ssh.
 
-bwrap/firejail were investigated and shelved (docs/NOT_BUILT.md) because
-they need nested user namespaces Docker's default seccomp blocks. This
-uses Docker as the *outer* layer instead, so it suits the native/desktop
-install; inside the Docker deployment the backend container already is
-the boundary and has no docker CLI.
+Two modes:
+
+- `docker`: a throwaway container as above. Works anywhere Docker does.
+- `bwrap` (Linux): bubblewrap namespaces, no daemon and no image. The system
+  directories (/usr, /etc, ...) are mounted read-only, the working
+  directory read-write at /workspace, a private /tmp, and nothing else of
+  your home. Network is cut unless `agent_sandbox_network` is "bridge".
+  Same contract as docker for the agent; much faster to start.
+
+bwrap can't run inside the Docker deployment (Docker's seccomp blocks the
+nested user namespaces it needs; see docs/NOT_BUILT.md), but that
+deployment's container already is the boundary. On native and desktop
+installs it works unprivileged.
 """
 from __future__ import annotations
 
@@ -39,8 +47,17 @@ class SandboxError(RuntimeError):
     pass
 
 
+def mode() -> str:
+    m = str(settings.get("agent_sandbox", "off"))
+    return m if m in ("docker", "bwrap") else "off"
+
+
 def enabled() -> bool:
-    return str(settings.get("agent_sandbox", "off")) == "docker"
+    return mode() != "off"
+
+
+def bwrap_path() -> str | None:
+    return shutil.which("bwrap")
 
 
 def docker_path() -> str | None:
@@ -48,12 +65,13 @@ def docker_path() -> str | None:
 
 
 def status() -> dict:
-    on = enabled()
-    available = docker_path() is not None
+    m = mode()
+    available = {"docker": docker_path() is not None, "bwrap": bwrap_path() is not None, "off": True}[m]
     return {
-        "ok": (not on) or available,
-        "mode": "docker" if on else "off",
-        "docker_available": available,
+        "ok": available,
+        "mode": m,
+        "docker_available": docker_path() is not None,
+        "bwrap_available": bwrap_path() is not None,
         "image": settings.get("agent_sandbox_image"),
         "network": settings.get("agent_sandbox_network"),
     }
@@ -91,7 +109,41 @@ def new_container_name() -> str:
     return f"zenith-sbx-{uuid.uuid4().hex[:12]}"
 
 
+_BWRAP_RO = ("/usr", "/etc", "/bin", "/sbin", "/lib", "/lib64", "/lib32", "/opt", "/nix", "/run/current-system")
+
+
+def _bwrap_argv(command: str, root: Path, cwd: str | None) -> list[str]:
+    bwrap = bwrap_path()
+    if not bwrap:
+        raise SandboxError(
+            "Agent sandbox is set to bubblewrap but `bwrap` isn't installed. Install bubblewrap "
+            "or pick another sandbox in Settings → Agent tools."
+        )
+    argv = [bwrap, "--die-with-parent", "--new-session", "--unshare-all"]
+    if str(settings.get("agent_sandbox_network", "none")) != "none":
+        argv.append("--share-net")
+        for f in ("/etc/resolv.conf", "/etc/hosts"):
+            argv += ["--ro-bind-try", f, f]
+    for d in _BWRAP_RO:
+        argv += ["--ro-bind-try", d, d]
+    argv += [
+        "--proc", "/proc", "--dev", "/dev",
+        "--tmpfs", "/tmp",
+        "--bind", str(root), CONTAINER_WORKSPACE,
+        "--chdir", container_cwd(cwd, root),
+        "--clearenv",
+        "--setenv", "HOME", "/tmp",
+        "--setenv", "PATH", "/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin",
+        "--setenv", "LANG", os.environ.get("LANG", "C.UTF-8"),
+        "--setenv", "TERM", "xterm-256color",
+        "sh", "-c", command,
+    ]
+    return argv
+
+
 def build_argv(command: str, root: Path, cwd: str | None, name: str, interactive: bool = False) -> list[str]:
+    if mode() == "bwrap":
+        return _bwrap_argv(command, root, cwd)
     docker = docker_path()
     if not docker:
         raise SandboxError(
@@ -121,7 +173,10 @@ def build_argv(command: str, root: Path, cwd: str | None, name: str, interactive
 
 async def kill(name: str) -> None:
     """`docker run --rm` doesn't stop the container when its client is
-    killed, so timeouts/shell_kill must stop it by name too."""
+    killed, so timeouts/shell_kill must stop it by name too. (bwrap
+    sandboxes die with their parent, so there's nothing to do.)"""
+    if mode() != "docker":
+        return
     docker = docker_path()
     if not docker:
         return

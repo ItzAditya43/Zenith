@@ -116,8 +116,9 @@ down by default:
 - **Agent mode is off by default.** In semi-auto, only genuinely read-only steps
   inside the working folder run without asking. The agent can't fetch your LAN
   or `localhost`, so a prompt-injected page can't pull local data out.
-- **The Docker sandbox is optional** (Settings → Agent tools). With it on, commands
-  run in a throwaway container that sees only the working folder and has no network.
+- **The sandbox is optional** (Settings → Agent tools): bubblewrap on Linux or a
+  throwaway Docker container. Either way commands see only the working folder and
+  have no network.
 - **Secrets are encrypted at rest** and never returned by the API. The passcode lock
   uses salted PBKDF2 and backs off after repeated wrong guesses.
 

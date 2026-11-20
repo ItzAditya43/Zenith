@@ -220,7 +220,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "agent_check_timeout_seconds": 180,  # tests/lint can be slower than a plain command
     # Optional container sandbox for bash/run_checks/shell_start — see
     # app/services/sandbox.py. "off" runs as your OS user (the default).
-    "agent_sandbox": "off",          # "off" | "docker"
+    "agent_sandbox": "off",          # "off" | "docker" | "bwrap"
     "agent_sandbox_image": "python:3.12-slim",
     "agent_sandbox_network": "none",  # "none" | "bridge"
     "agent_sandbox_memory": "2g",

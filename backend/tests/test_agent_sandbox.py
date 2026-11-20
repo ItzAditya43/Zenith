@@ -244,3 +244,49 @@ def test_real_container_timeout_kills_container(sandbox_on, workdir):
     assert code is None
     left = subprocess.run(["docker", "ps", "-q", "--filter", "name=zenith-sbx-"], capture_output=True, text=True)
     assert left.stdout.strip() == ""
+
+
+# --- bubblewrap mode -----------------------------------------------------------
+
+import shutil as _shutil  # noqa: E402
+
+
+@pytest.fixture
+def bwrap_on(temp_data_dir):
+    from app.core.config import settings
+
+    settings.update({"agent_sandbox": "bwrap", "agent_sandbox_network": "none"})
+    yield
+    settings.update({"agent_sandbox": "off"})
+
+
+def test_bwrap_argv_shape(bwrap_on, tmp_path, monkeypatch):
+    from app.services import sandbox
+
+    monkeypatch.setattr(sandbox, "bwrap_path", lambda: "/usr/bin/bwrap")
+    (tmp_path / "src").mkdir()
+    argv = sandbox.build_argv("ls", tmp_path, "src", "unused")
+    assert argv[0] == "/usr/bin/bwrap" and "--unshare-all" in argv and "--share-net" not in argv
+    i = argv.index("--bind")
+    assert argv[i + 1] == str(tmp_path) and argv[i + 2] == "/workspace"
+    assert argv[argv.index("--chdir") + 1] == "/workspace/src"
+    assert argv[-3:] == ["sh", "-c", "ls"]
+    with pytest.raises(sandbox.SandboxError):
+        sandbox.build_argv("ls", tmp_path, "../outside", "x")
+
+
+@pytest.mark.skipif(_shutil.which("bwrap") is None, reason="bubblewrap not installed")
+async def test_bwrap_really_isolates(bwrap_on, tmp_path):
+    from app.services import sandbox
+
+    (tmp_path / "mine.txt").write_text("visible")
+    code, out, _ = await sandbox.run("cat mine.txt && ls / >/dev/null && echo pwd=$(pwd)", tmp_path, None, 20)
+    if code != 0 and "Operation not permitted" in out + _:
+        pytest.skip("unprivileged user namespaces are disabled here")
+    assert code == 0 and "visible" in out and "pwd=/workspace" in out
+    code, out, err = await sandbox.run(f"ls {__import__('os').path.expanduser('~')}/.ssh", tmp_path, None, 20)
+    assert code != 0  # the rest of your home doesn't exist inside
+    code, out, err = await sandbox.run("touch /usr/x", tmp_path, None, 20)
+    assert code != 0  # system dirs are read-only
+    code, _, _ = await sandbox.run("touch made.txt", tmp_path, None, 20)
+    assert code == 0 and (tmp_path / "made.txt").exists()

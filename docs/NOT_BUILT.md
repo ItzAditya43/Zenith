@@ -16,25 +16,18 @@ commands, keyboard, accessibility tree, OCR targets, then vision). Linux
 with Hyprland first; Windows (UI Automation) and macOS (Accessibility API)
 would need their own backends. See [FEATURES.md](FEATURES.md#desktop-control).
 
-## Sandboxed agent execution (firejail / bubblewrap / gVisor)
+## Sandboxed agent execution (bubblewrap) — built for native installs
 
-**Investigated, shelved.** `bwrap`/`firejail` need nested unprivileged user
-namespaces, which Docker's default seccomp profile blocks
-(`clone`/`unshare` with `CLONE_NEWUSER` → "No permissions to create new
-namespace"). Enabling them means running the backend container with
-`--privileged` or `seccomp=unconfined`, which *weakens the container's own
-isolation to add a nested one* — a bad tradeoff as a default. The container
-boundary itself is already the sandbox for the common deployment; a real
-in-container syscall sandbox would need a different runtime (e.g. gVisor as the
-Docker runtime), which is an infrastructure choice for the operator, not
-something Zenith can ship on by default.
+bubblewrap can't run *inside* the Docker deployment: Docker's default
+seccomp profile blocks the nested user namespaces it needs, and weakening
+the container to allow them would trade away the outer boundary. That
+deployment's container already is the sandbox.
 
-**What was built instead:** for native and desktop installs, where the
-backend is *not* already in a container, `agent_sandbox: "docker"` uses
-Docker as the outer layer. Each command runs in a throwaway container with
-only the workspace mounted, no network, all capabilities dropped and your
-uid. See `backend/app/services/sandbox.py`. The nested-namespace problem
-above still rules out the same option *inside* the Docker deployment.
+On native and desktop installs bubblewrap works unprivileged, so it's now
+a sandbox mode (`agent_sandbox: "bwrap"`, Settings → Agent tools): the
+working folder read-write at /workspace, system folders read-only, a
+private /tmp, nothing else of your home, and no network unless enabled.
+Docker remains the option on other systems. See `app/services/sandbox.py`.
 
 ## Auto-update (install step) — now built
 
