@@ -170,7 +170,35 @@ TOOLS: dict[str, dict[str, str]] = {
                         "due_ts (number, optional)."
     },
     "todo_delete": {"description": "Delete a to-do item. Args: todo_id (string)."},
+    # Desktop control (desktop_control.py) — only offered when enabled in Settings.
+    "desktop_windows": {"description": "List the open windows on the user's desktop (app class, title, "
+                        "workspace, which is focused). Args: (none)."},
+    "desktop_focus": {"description": "Bring a window to the front. Args: window (string, app class or part of the title)."},
+    "desktop_open": {"description": "Start an app by name (e.g. 'firefox', 'files'), or open a URL or file with its "
+                     "default app. Prefer this over clicking through menus. Args: target (string)."},
+    "desktop_workspace": {"description": "Switch to a workspace. Args: workspace (string, e.g. '2')."},
+    "desktop_move_window": {"description": "Move a window to another workspace. Args: window (string), workspace (string)."},
+    "desktop_type": {"description": "Type text into whatever has keyboard focus. Args: text (string)."},
+    "desktop_keys": {"description": "Press a key or shortcut, e.g. 'enter', 'ctrl+t', 'ctrl+l', 'super+2'. Prefer "
+                     "keyboard shortcuts over clicking. Args: keys (string)."},
+    "desktop_screen": {"description": "Take a screenshot of the focused monitor and get a description of it from "
+                       "the vision model. Args: question (string, optional — what you want to know)."},
+    "desktop_find": {"description": "Find buttons, fields, links or text on screen whose name contains the query; "
+                     "returns numbered targets for desktop_click. Args: query (string, optional — empty lists "
+                     "everything clickable in the focused window)."},
+    "desktop_click": {"description": "Click a numbered target from the last desktop_find. Args: target (integer), "
+                      "double (boolean, optional)."},
 }
+
+_DESKTOP_TOOLS = {n for n in TOOLS if n.startswith("desktop_")}
+
+
+def _active_tools() -> dict[str, dict[str, str]]:
+    """The tool set offered this turn: desktop control only when enabled."""
+    from app.services import desktop_control
+    if desktop_control.enabled():
+        return TOOLS
+    return {k: v for k, v in TOOLS.items() if k not in _DESKTOP_TOOLS}
 
 _SYSTEM_PROMPT_HEADER = """You are Zenith operating in agent mode: you can use tools across multiple
 steps to satisfy the user's request, instead of answering from memory alone.
@@ -217,7 +245,7 @@ def _build_system_prompt(mcp_tools: list[dict]) -> str:
     """Built per-turn rather than a module constant: MCP tools come from
     whatever servers are enabled right now, discovered fresh each turn
     since they can be added/removed from Settings between conversations."""
-    lines = [f"- {name}: {spec['description']}" for name, spec in TOOLS.items()]
+    lines = [f"- {name}: {spec['description']}" for name, spec in _active_tools().items()]
     lines += [f"- {t['agent_tool_name']}: {t['description']}" for t in mcp_tools]
     return _SYSTEM_PROMPT_HEADER + "\n".join(lines) + _SYSTEM_PROMPT_FOOTER
 
@@ -330,6 +358,10 @@ def classify_risk(tool: str, args: dict[str, Any], workdir: str | None = None) -
         # Starting a background process is at least as consequential as
         # running the same command with `bash` — same classification.
         return _classify_bash_command(str(args.get("command", "")), workdir)
+    if tool in ("desktop_windows", "desktop_screen", "desktop_find"):
+        return "safe"  # looking only
+    if tool.startswith("desktop_"):
+        return "risky"  # acts on the real desktop: always asks outside full-auto
     if tool == "spawn_subagent":
         # Always risky: it's one approval that authorizes a whole
         # unattended sub-loop, not a single action — the sub-agent's own
@@ -1157,6 +1189,40 @@ def _run_todo_delete(args: dict) -> str:
     return f"Deleted to-do {todo_id}."
 
 
+async def _run_desktop(tool: str, args: dict, conversation_id: str, max_chars: int) -> str:
+    from app.services import desktop_control as dc
+    if not dc.enabled():
+        return "Error: desktop control is off. Turn it on in Settings → Agent tools."
+    try:
+        if tool == "desktop_windows":
+            wins = await dc.windows()
+            lines = [f"{'* ' if w['focused'] else '  '}{w['class']} — {w['title'][:70]} (workspace {w['workspace']})" for w in wins]
+            return ("Open windows (* = focused):\n" + "\n".join(lines))[:max_chars] if lines else "No windows open."
+        if tool == "desktop_focus":
+            return await dc.focus(str(args.get("window", "")))
+        if tool == "desktop_open":
+            return await dc.open_thing(str(args.get("target", "")))
+        if tool == "desktop_workspace":
+            return await dc.workspace(str(args.get("workspace", "")))
+        if tool == "desktop_move_window":
+            return await dc.move_window(str(args.get("window", "")), str(args.get("workspace", "")))
+        if tool == "desktop_type":
+            return await dc.type_text(str(args.get("text", "")))
+        if tool == "desktop_keys":
+            return await dc.press_keys(str(args.get("keys", "")))
+        if tool == "desktop_screen":
+            return (await dc.describe_screen(str(args.get("question", ""))))[:max_chars]
+        if tool == "desktop_find":
+            return (await dc.find(conversation_id, str(args.get("query", ""))))[:max_chars]
+        if tool == "desktop_click":
+            return await dc.click(conversation_id, int(args.get("target", 0)), bool(args.get("double")))
+    except dc.DesktopError as exc:
+        return f"Error: {exc}"
+    except (TypeError, ValueError) as exc:
+        return f"Error: bad arguments ({exc})."
+    return f"Error: unknown tool '{tool}'."
+
+
 async def _execute_tool(
     tool: str, args: dict, timeout: float, max_chars: int, workdir: str | None = None,
     conversation_id: str | None = None,
@@ -1204,6 +1270,8 @@ async def _execute_tool(
         return await _run_browser_get_text(args, conversation_id, max_chars)
     if tool == "browser_close":
         return await _run_browser_close(conversation_id)
+    if tool.startswith("desktop_"):
+        return await _run_desktop(tool, args, conversation_id, max_chars)
     if tool == "note_add":
         return _run_note_add(args)
     if tool == "note_update":
@@ -1374,8 +1442,8 @@ async def _run_subagent(
     ]
     client = OllamaClient()
     final_text: str | None = None
-    tool_schema = _tool_step_schema(list(TOOLS) + list(mcp_by_name))
-    native_tools = await _native_tools_for(client, model, list(TOOLS) + list(mcp_by_name), mcp_by_name)
+    tool_schema = _tool_step_schema(list(_active_tools()) + list(mcp_by_name))
+    native_tools = await _native_tools_for(client, model, list(_active_tools()) + list(mcp_by_name), mcp_by_name)
 
     for _ in range(max_iters):
         try:
@@ -1397,9 +1465,9 @@ async def _run_subagent(
             loop_messages.append({"role": "assistant", "content": json.dumps(step)})
             loop_messages.append({"role": "user", "content": "Error: sub-agents can't spawn further sub-agents. Do this task directly."})
             continue
-        if tool not in TOOLS and tool not in mcp_by_name:
+        if tool not in _active_tools() and tool not in mcp_by_name:
             loop_messages.append({"role": "assistant", "content": json.dumps(step)})
-            allowed = ", ".join(n for n in TOOLS if n != "spawn_subagent")
+            allowed = ", ".join(n for n in _active_tools() if n != "spawn_subagent")
             loop_messages.append({"role": "user", "content": f"Error: unknown tool '{tool}'. Choose one of: {allowed}."})
             continue
 
@@ -1575,8 +1643,8 @@ async def run_agent_turn(
             })
             effective_mode = "full"  # approved plan runs unattended
 
-    tool_schema = _tool_step_schema(list(TOOLS) + list(mcp_by_name))
-    native_tools = await _native_tools_for(client, decision.model, list(TOOLS) + list(mcp_by_name), mcp_by_name)
+    tool_schema = _tool_step_schema(list(_active_tools()) + list(mcp_by_name))
+    native_tools = await _native_tools_for(client, decision.model, list(_active_tools()) + list(mcp_by_name), mcp_by_name)
 
     for _ in range(max_iters):
         if final_text is not None:
@@ -1599,9 +1667,9 @@ async def run_agent_turn(
 
         tool = str(step.get("tool", ""))
         args = step.get("args", {}) if isinstance(step.get("args"), dict) else {}
-        if tool not in TOOLS and tool not in mcp_by_name:
+        if tool not in _active_tools() and tool not in mcp_by_name:
             loop_messages.append({"role": "assistant", "content": json.dumps(step)})
-            allowed = ", ".join(list(TOOLS) + list(mcp_by_name))
+            allowed = ", ".join(list(_active_tools()) + list(mcp_by_name))
             loop_messages.append({"role": "user", "content": f"Error: unknown tool '{tool}'. Choose one of: {allowed}."})
             continue
 

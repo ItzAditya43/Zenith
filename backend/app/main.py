@@ -16,6 +16,7 @@ from app.api import (
     backup,
     batch,
     chat,
+    desktop,
     digest,
     documents,
     export,
@@ -354,3 +355,4 @@ app.include_router(backup.router)
 app.include_router(terminal.router)
 app.include_router(git.router)
 app.include_router(providers.router)
+app.include_router(desktop.router)

@@ -210,6 +210,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # protocol and 3/10 with Ollama's native `tools` API (2026-11-13).
     "agent_native_tools": False,     # use Ollama's `tools` API on models that support it       # auto-run the check command after each file edit
     "terminal_allow_remote": False,
+    "desktop_control_enabled": False,  # agent may act on the real desktop (desktop_control.py)
     "providers": [],                 # API model providers (providers.py); keys encrypted
     "provider_context_window": 128000,
     "agent_git_commits": False,
