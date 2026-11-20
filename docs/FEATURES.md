@@ -1333,9 +1333,7 @@ A batch of smaller features closing gaps found during a full feature audit:
   but the Windows/macOS artifacts haven't actually been run on real
   hardware yet, only produced by the CI matrix. macOS additionally needs
   an Apple Developer ID cert + notarization to pass Gatekeeper for
-  distribution (see `DESKTOP.md`). Auto-update itself is wired end-to-end
-  (signing keypair, release pipeline, in-app "Check for Updates") — see
-  `DESKTOP.md`.
+  distribution (see `DESKTOP.md`). Updates install from inside the app after you confirm (signature-verified).
 - **Reddit's JSON API can be IP-blocked** by some hosting providers
   (observed from at least one cloud sandbox during development); falls
   back to generic HTML extraction automatically when that happens.

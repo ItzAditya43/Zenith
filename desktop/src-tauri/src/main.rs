@@ -12,16 +12,10 @@
 //   5. A global hotkey (Ctrl/Cmd+Shift+Z) that toggles the main window's
 //      visibility from anywhere on the OS — "summon Zenith" without
 //      alt-tabbing to find it.
-//   6. Auto-update: a "Check for Updates" tray menu item that checks
-//      GitHub Releases (see .github/workflows/release.yml for how builds
-//      get published there, signed with the keypair in DESKTOP.md) and
-//      shows a native dialog either way — found or already current.
-//      Deliberately does NOT auto-download-and-install: that's a bigger
-//      trust step (silently replacing the running binary) than this
-//      scaffold has been able to verify end-to-end without a real
-//      published release to test against. Checking + telling you is the
-//      verified-safe subset; wiring the actual install step is a
-//      follow-up once a release has actually shipped once.
+//   6. Auto-update: checks GitHub Releases quietly at startup and from the
+//      tray's "Check for Updates…". When there's a new version it asks;
+//      on yes it downloads, verifies the signature, installs and restarts.
+//   7. The desktop popout (Quickbar) — see create_quickbar().
 //
 // This is a reference scaffold — it has NOT been compiled in the environment
 // it was written in (no Rust toolchain there). Build per DESKTOP.md.
@@ -31,7 +25,7 @@
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::process::CommandChild;
@@ -128,35 +122,65 @@ fn toggle_quickbar(app: &tauri::AppHandle) {
     }
 }
 
-fn check_for_updates(app: tauri::AppHandle) {
+// Updates come from GitHub Releases (latest.json, signed with the key in
+// DESKTOP.md). `interactive` = the tray item: say "up to date" or show the
+// error. The quiet startup check only speaks up when there's an update.
+// Installing asks first, then downloads, verifies the signature, replaces
+// the app (the AppImage, MSI/NSIS installer or .app) and restarts.
+fn check_for_updates(app: tauri::AppHandle, interactive: bool) {
     tauri::async_runtime::spawn(async move {
         let updater = match app.updater() {
             Ok(u) => u,
             Err(e) => {
-                app.dialog().message(format!("Couldn't check for updates: {e}")).show(|_| {});
+                if interactive {
+                    app.dialog().message(format!("Couldn't check for updates: {e}")).show(|_| {});
+                }
                 return;
             }
         };
         match updater.check().await {
             Ok(Some(update)) => {
                 let version = update.version.clone();
+                let notes = update.body.clone().unwrap_or_default();
+                let summary: String = notes.lines().take(8).collect::<Vec<_>>().join("\n");
+                let handle = app.clone();
                 app.dialog()
                     .message(format!(
-                        "A new version is available: {version}\n\nDownload it from the Releases page \
-                         (in-app auto-install isn't wired up yet)."
+                        "Zenith {version} is available.\n\n{summary}\n\nInstall it now? Zenith restarts when it's done."
                     ))
                     .title("Update available")
-                    .show(|_| {});
-                let _ = app.opener().open_url(
-                    "https://github.com/ItzAditya43/Zenith/releases/latest",
-                    None::<&str>,
-                );
+                    .buttons(MessageDialogButtons::OkCancelCustom("Install and restart".into(), "Later".into()))
+                    .show(move |install| {
+                        if !install {
+                            return;
+                        }
+                        tauri::async_runtime::spawn(async move {
+                            match update.download_and_install(|_, _| {}, || {}).await {
+                                Ok(()) => handle.restart(),
+                                Err(e) => {
+                                    handle
+                                        .dialog()
+                                        .message(format!("The update couldn't be installed: {e}\n\nYou can download it from the Releases page instead."))
+                                        .title("Update failed")
+                                        .show(|_| {});
+                                    let _ = handle.opener().open_url(
+                                        "https://github.com/ItzAditya43/Zenith/releases/latest",
+                                        None::<&str>,
+                                    );
+                                }
+                            }
+                        });
+                    });
             }
             Ok(None) => {
-                app.dialog().message("You're on the latest version.").title("Up to date").show(|_| {});
+                if interactive {
+                    app.dialog().message("You're on the latest version.").title("Up to date").show(|_| {});
+                }
             }
             Err(e) => {
-                app.dialog().message(format!("Couldn't check for updates: {e}")).show(|_| {});
+                if interactive {
+                    app.dialog().message(format!("Couldn't check for updates: {e}")).show(|_| {});
+                }
             }
         }
     });
@@ -204,11 +228,18 @@ fn main() {
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => toggle_main_window(app),
-                    "check_update" => check_for_updates(app.clone()),
+                    "check_update" => check_for_updates(app.clone(), true),
                     "quit" => app.exit(0),
                     _ => {}
                 })
                 .build(app)?;
+
+            // --- Quiet update check shortly after start ---
+            let upd_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(20));
+                check_for_updates(upd_handle, false);
+            });
 
             // --- Desktop popout ---
             create_quickbar(app.handle())?;

@@ -36,17 +36,14 @@ only the workspace mounted, no network, all capabilities dropped and your
 uid. See `backend/app/services/sandbox.py`. The nested-namespace problem
 above still rules out the same option *inside* the Docker deployment.
 
-## Auto-update (install step)
+## Auto-update (install step) — now built
 
-**Check-and-notify is wired end-to-end** (signing keypair, `release.yml`
-publishing pipeline, in-app tray "Check for Updates…") — see `DESKTOP.md`.
-What's still not built is the **auto-download-and-install** step: clicking
-"Check for Updates…" finds and reports a new version but does not silently
-replace the running binary. That's a bigger trust step than could be
-verified end-to-end without a real published release to test against, so it
-was deliberately left as a manual download for now. Wiring it up is a
-reasonable follow-up once a release has actually shipped once; exact steps
-are in `DESKTOP.md`.
+Releases exist and are signed, so the install step is wired: the desktop
+app checks GitHub Releases quietly 20 seconds after start and from the
+tray's "Check for Updates…". When there's a new version it shows the
+notes and asks; on "Install and restart" it downloads the update,
+verifies its signature against the public key in `tauri.conf.json`,
+replaces the app and restarts. Nothing installs without that click.
 
 ## Multi-master sync
 

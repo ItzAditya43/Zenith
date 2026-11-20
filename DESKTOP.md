@@ -94,14 +94,33 @@ Output installers land in `desktop/src-tauri/target/release/bundle/`.
 
 ## Auto-update
 
-**Status: wired up.** `tauri-plugin-updater` is registered in `main.rs`, with
-a system-tray **"Check for Updates…"** item that checks GitHub Releases and
-shows a native dialog either way (update found, or already current). Clicking
-it does **not** auto-download-and-install — that's a bigger trust step
-(silently replacing the running binary) than could be verified end-to-end
-without a real published release to test against; the checked-and-tell-you
-half is the verified-safe subset. Wiring the in-app install step is a
-reasonable follow-up once a release has actually shipped once.
+**Status: installs in-app.** `tauri-plugin-updater` checks GitHub Releases
+quietly 20 seconds after start and from the tray's **"Check for Updates…"**.
+When a newer version exists it shows the release notes and asks; on
+**Install and restart** it downloads the update, verifies its signature
+against the `pubkey` in `tauri.conf.json`, installs it (replacing the
+AppImage, running the MSI/NSIS installer, or swapping the .app) and restarts.
+Nothing installs without that click; the quiet check stays silent when you're
+up to date.
+
+## Desktop popout (Quickbar)
+
+A second, frameless window (`#/quickbar` in the frontend) for desktop
+control. On **Hyprland** it's created at startup and parked on the
+`special:zenith` workspace by a window rule, so a keybind toggles it
+instantly. Add to your config (Lua config shown; the `.conf` equivalents are
+`bind = SUPER, SPACE, togglespecialworkspace, zenith` and
+`windowrule = workspace special:zenith silent, title:^(Zenith Quickbar)$`):
+
+```lua
+hl.bind("SUPER + Space", hl.dsp.exec_cmd("pgrep -f Zenith.AppImage >/dev/null || ~/.local/bin/Zenith.AppImage"))
+hl.bind("SUPER + Space", hl.dsp.workspace.toggle_special("zenith"))
+hl.window_rule({match = {title = "^(Zenith Quickbar)$"}, workspace = "special:zenith silent", float = true, center = true})
+```
+
+On other desktops the window starts hidden and **Ctrl+Alt+Space** (a global
+shortcut registered by the app) toggles it. Desktop control itself is off
+until enabled in Settings → Agent tools; see docs/FEATURES.md.
 
 **The release pipeline** (`.github/workflows/release.yml`) builds and
 publishes signed Windows + Linux + macOS installers whenever a `v*` tag is
