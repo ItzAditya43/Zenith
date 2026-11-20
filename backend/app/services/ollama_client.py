@@ -56,6 +56,8 @@ class OllamaClient:
         integer — callers can use it as an upper bound, not a contract."""
         if not model_name:
             return int(settings.get("default_context_window", 8192))
+        if "::" in model_name:  # API provider model (providers.py): large windows are the norm
+            return int(settings.get("provider_context_window", 128000))
         if model_name in _CONTEXT_WINDOW_CACHE:
             return _CONTEXT_WINDOW_CACHE[model_name]
 
@@ -75,7 +77,21 @@ class OllamaClient:
         return guess
 
     async def list_models(self) -> list[dict[str, Any]]:
-        """Returns raw model entries from `GET /api/tags` (name, size, etc.)."""
+        """Ollama's models (`GET /api/tags`) plus every configured API
+        provider's models (named `<provider>::<model>`, see providers.py).
+        With providers configured, Ollama being down isn't fatal."""
+        from app.services import providers
+
+        try:
+            local = await self._ollama_models()
+        except OllamaError:
+            extra = await providers.all_models()
+            if extra:
+                return extra
+            raise
+        return local + await providers.all_models()
+
+    async def _ollama_models(self) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(timeout=10) as client:
             try:
                 resp = await client.get(f"{self.host}/api/tags")
@@ -91,6 +107,9 @@ class OllamaClient:
             return resp.json().get("models", [])
 
     async def capabilities(self, model: str) -> frozenset[str]:
+        if "::" in model:
+            from app.services import providers
+            return providers.guess_capabilities(model.split("::", 1)[1])
         if model not in _CAPABILITIES_CACHE:
             try:
                 caps = (await self.show_model(model)).get("capabilities") or []
@@ -121,6 +140,17 @@ class OllamaClient:
         every existing caller and for any Ollama version too old to
         recognize the field (it's just an extra ignored JSON key to those).
         """
+        if "::" in model:
+            from app.services import model_health, providers
+            try:
+                async for piece in providers.stream(model, messages, images_b64, options, format,
+                                                    emit_thinking, self.timeout):
+                    yield piece
+            except providers.ProviderError as exc:
+                model_health.note_error(model, str(exc))
+                raise OllamaError(str(exc)) from exc
+            return
+
         payload_messages = [dict(m) for m in messages]
         if images_b64:
             for m in reversed(payload_messages):
@@ -208,6 +238,13 @@ class OllamaClient:
         """One non-streaming /api/chat turn with Ollama's native `tools`.
         Returns the reply message: {"content": str, "tool_calls": [...]?}.
         Only call this for models that report the "tools" capability."""
+        if "::" in model:
+            from app.services import model_health, providers
+            try:
+                return await providers.tools_call(model, messages, tools, self.timeout)
+            except providers.ProviderError as exc:
+                model_health.note_error(model, str(exc))
+                raise OllamaError(str(exc)) from exc
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
@@ -240,6 +277,8 @@ class OllamaClient:
         """Ask Ollama to load `model` into memory without generating
         anything (empty prompt on /api/generate is Ollama's documented
         load-only call). Used by the startup prewarm."""
+        if "::" in model:
+            return  # API models have nothing to load
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 resp = await client.post(
@@ -260,6 +299,12 @@ class OllamaClient:
         # out to load the embedding model, and an embedding queued behind a
         # generation can wait well past 30s. The old fixed 30s silently left
         # documents indexed without vectors.
+        if "::" in model:
+            from app.services import providers
+            try:
+                return await providers.embed(model, text)
+            except providers.ProviderError as exc:
+                raise OllamaError(str(exc)) from exc
         timeout = httpx.Timeout(10.0, read=float(settings.get("embedding_timeout_seconds", 120)))
         async with httpx.AsyncClient(timeout=timeout) as client:
             try:
@@ -328,6 +373,8 @@ class OllamaClient:
             yield ev
 
     async def delete_model(self, name: str) -> None:
+        if "::" in name:
+            raise OllamaError("API provider models can't be deleted here; remove the provider in Settings → Providers.")
         async with httpx.AsyncClient(timeout=30) as client:
             try:
                 resp = await client.request(
@@ -344,6 +391,9 @@ class OllamaClient:
                 ) from exc
 
     async def show_model(self, name: str) -> dict:
+        if "::" in name:
+            from app.services import providers
+            return {"capabilities": sorted(providers.guess_capabilities(name.split("::", 1)[1])), "provider": True}
         async with httpx.AsyncClient(timeout=30) as client:
             try:
                 resp = await client.post(f"{self.host}/api/show", json={"name": name})

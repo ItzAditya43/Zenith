@@ -37,3 +37,4 @@ websockets>=12.0,<18.0
 # /metrics Prometheus/OpenMetrics scrape endpoint — lightweight, no
 # transitive dependency bloat.
 prometheus-client==0.21.1
+anthropic==2.11.0

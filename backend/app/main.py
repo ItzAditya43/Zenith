@@ -29,6 +29,7 @@ from app.api import (
     mcp,
     memory,
     metrics,
+    providers,
     rag_sources,
     routing,
     schedules,
@@ -352,3 +353,4 @@ app.include_router(traces.router)
 app.include_router(backup.router)
 app.include_router(terminal.router)
 app.include_router(git.router)
+app.include_router(providers.router)

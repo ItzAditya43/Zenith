@@ -74,7 +74,12 @@ class RouteDecision:
 
 def is_cloud_model(name: str) -> bool:
     """Ollama Cloud models run on Ollama's servers, not this machine. Their
-    tags end in `cloud` (`gpt-oss:120b-cloud`, `glm-5.3:cloud`)."""
+    tags end in `cloud` (`gpt-oss:120b-cloud`, `glm-5.3:cloud`). API
+    provider models (`openai::gpt-4.1`) count too unless the provider runs
+    on this machine or network (LM Studio, llama.cpp, vLLM)."""
+    if "::" in (name or ""):
+        from app.services import providers
+        return providers.is_remote_model(name)
     tag = name.lower().rsplit(":", 1)[-1] if ":" in name else ""
     return tag == "cloud" or tag.endswith("-cloud")
 

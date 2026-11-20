@@ -19,11 +19,12 @@ TTL_SECONDS = 30 * 60
 
 # status -> short reason shown in Settings
 _REASONS = {
+    401: "the API key was rejected",
     402: "needs Ollama credits or a subscription",
     404: "not installed in Ollama",
     410: "retired by Ollama",
 }
-_STATUS_RE = re.compile(r"Ollama returned (\d{3}) for model")
+_STATUS_RE = re.compile(r"returned (\d{3})\b")
 
 _dead: dict[str, tuple[float, int, str]] = {}  # model -> (since, status, reason)
 

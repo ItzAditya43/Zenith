@@ -16,6 +16,8 @@ from PyInstaller.utils.hooks import collect_submodules, collect_dynamic_libs, co
 hiddenimports = (
     collect_submodules("uvicorn")
     + collect_submodules("app")
+    # Claude provider (app/services/providers.py) imports it lazily.
+    + collect_submodules("anthropic")
     + [
         "uvicorn.logging", "uvicorn.loops.auto", "uvicorn.protocols.http.auto",
         "uvicorn.protocols.websockets.auto", "uvicorn.lifespan.on",
