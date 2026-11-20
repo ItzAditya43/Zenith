@@ -4,8 +4,9 @@
 
 A self-hosted AI workspace that runs on your own hardware with your own
 [Ollama](https://ollama.com) models. It covers chat, a coding agent that asks
-before it acts, document Q&A, deep research, long-term memory, voice and
-image generation. Nothing leaves your machine unless you turn on a feature
+before it acts, desktop control, document Q&A, deep research, long-term
+memory, voice and image generation, and it can use API models (OpenAI,
+Claude, Gemini and more) alongside local ones. Nothing leaves your machine unless you turn on a feature
 that needs the web.
 
 Run it with Docker, install it as a desktop app (Tauri), or open it from your
@@ -87,6 +88,8 @@ them when you confirm. You can re-run it any time from `backend/`.
 | **Chat** | Routes each message to the right installed model (code, reasoning, quick, vision) and shows why it picked it, with a confidence meter. Branching, edit-and-resend, per-message model override with search, slash commands (`/agent`, `/research`, `/image`…). |
 | **Agent mode** | Multi-step tool use: shell, file edits with diff preview and per-hunk accept/skip, git, test runs, browser automation, sub-agents, optional native Ollama tool calling, and an MCP server gallery (search the official registry, install in one click). Manual, semi-auto, full or plan-first autonomy. Optional Docker sandbox. |
 | **Workspace** | Bind a folder and open it beside the chat: a CodeMirror editor, a real terminal, and a Changes tab for git (diffs, stage, commit, branches, push). Select code to ask about it or to have it rewritten as a diff. With the `gh` CLI: open issues and PRs, hand an issue to the agent, open a pull request. "Separate copy" gives the agent its own branch and folder (git worktree). |
+| **Providers** | Use API models next to Ollama: OpenAI, Claude, Gemini, OpenRouter, Groq, DeepSeek, Mistral, xAI, Together, or local LM Studio / llama.cpp / vLLM. Keys encrypted locally; API models are never picked automatically unless you allow it. |
+| **Desktop control** | Opt-in: press Super+Space anywhere and tell Zenith what to do. It opens apps, switches windows, types, presses shortcuts and clicks buttons by name (accessibility tree, then on-screen text), asking before every action and never touching password managers. Linux/Hyprland first. |
 | **Documents and memory** | Hybrid vector and keyword retrieval over uploads, watched folders and past conversations, with citations. Long-term memory with conflict review and an undoable "Remembered: …" toast. |
 | **Projects** | Group conversations into a workspace with its own folder, default persona and standing instructions, plus a per-project agent autonomy override. |
 | **Deep Research** | Multi-step search, read and report with inline citations. It can't touch your files or shell. |

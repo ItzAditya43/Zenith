@@ -49,3 +49,21 @@ async def set_accessibility(body: AccessibilityBody, request: Request):
     if code != 0:
         raise HTTPException(409, err.strip() or "Couldn't change the setting.")
     return {"accessibility_on": await _a11y_setting()}
+
+
+@router.post("/quickbar/hide")
+async def hide_quickbar(request: Request):
+    """Close the Super+Space popout on Hyprland, where it lives on the
+    `special:zenith` workspace (toggling that workspace hides it)."""
+    if not is_local_client(request.client.host if request.client else None):
+        raise HTTPException(403, "Only from this machine.")
+    if not dc.status()["hyprland"]:
+        raise HTTPException(409, "Not running under Hyprland.")
+    try:
+        mons = await dc._hypr_json("monitors") or []
+    except dc.DesktopError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    shown = any((m.get("specialWorkspace") or {}).get("name") == "special:zenith" for m in mons)
+    if shown:
+        await dc._hypr("dispatch", "togglespecialworkspace", "zenith")
+    return {"hidden": True}

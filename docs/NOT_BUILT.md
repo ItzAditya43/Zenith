@@ -5,28 +5,16 @@ because building them well isn't possible in this project's current shape or
 would do more harm than good. Documenting the reasoning so it isn't re-litigated
 blindly later.
 
-## True OS-level computer-use (screen capture + click/type of any desktop app)
+## True OS-level computer-use — now built (opt-in)
 
-**Not built.** Zenith already has real *browser* automation (headless Chromium
-over CDP — see `browser_service.py`), which covers "drive a web UI." Full
-desktop computer-use — controlling arbitrary native apps by screenshotting the
-screen and synthesizing mouse/keyboard — was not built because:
-
-- **The backend is headless.** It runs in a container (or, when packaged, as a
-  background sidecar) with no display server attached. Screen capture / input
-  synthesis need a live desktop session the backend can't see.
-- **It's platform-specific and fragile.** It would require X11 + `xdotool`
-  (Linux/X11 only — not Wayland), or the macOS Accessibility/CGEvent APIs, or
-  the Windows UIAutomation/SendInput APIs — three separate implementations, each
-  needing OS-level permissions the user must grant.
-- **The security surface is severe.** A local model driving the real mouse and
-  keyboard across every app (banking, email, password managers) is a
-  qualitatively larger risk than the sandboxed browser or the approval-gated
-  shell tools. It shouldn't be a casual default.
-
-If pursued later, the right shape is a separate, explicitly-opted-in native
-helper per OS that the packaged desktop app talks to — not something the
-containerized backend does.
+Originally left out for the security surface and per-OS work. Built in
+2026-11 as **Desktop control** (`app/services/desktop_control.py`), with
+the safeguards that made it acceptable: off by default, every action
+approval-gated outside full-auto, input refused while a password manager
+has focus, and a method ladder that avoids pixel guessing (compositor
+commands, keyboard, accessibility tree, OCR targets, then vision). Linux
+with Hyprland first; Windows (UI Automation) and macOS (Accessibility API)
+would need their own backends. See [FEATURES.md](FEATURES.md#desktop-control).
 
 ## Sandboxed agent execution (firejail / bubblewrap / gVisor)
 

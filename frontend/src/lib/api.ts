@@ -460,6 +460,14 @@ export const api = {
       body: JSON.stringify({ name }),
     }).then((r) => r.json()),
   ollamaAccount: () => request("/api/ollama/account").then((r) => r.json()),
+  desktopStatus: () => request("/api/desktop/status").then((r) => r.json()),
+  setDesktopAccessibility: (enabled: boolean) =>
+    request("/api/desktop/accessibility", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }).then((r) => r.json()),
+  hideQuickbar: () => request("/api/desktop/quickbar/hide", { method: "POST" }).then((r) => r.json()),
   listProviders: () => request("/api/providers").then((r) => r.json()),
   providerPresets: () => request("/api/providers/presets").then((r) => r.json()),
   saveProvider: (p: Record<string, unknown>) =>

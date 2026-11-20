@@ -25,6 +25,7 @@ import "./styles/global.css";
 import "./styles/app.css";
 import App from "./App.jsx";
 import SharedConversationView from "./components/SharedConversationView.jsx";
+import Quickbar from "./components/Quickbar.jsx";
 
 // No router dependency for one route: a share link is just a hash the
 // backend never sees (#/share/<token>), so a plain string check is all
@@ -33,7 +34,13 @@ const shareMatch = window.location.hash.match(/^#\/share\/(.+)$/);
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    {shareMatch ? <SharedConversationView token={shareMatch[1]} /> : <App />}
+    {shareMatch ? (
+      <SharedConversationView token={shareMatch[1]} />
+    ) : window.location.hash === "#/quickbar" ? (
+      <Quickbar />
+    ) : (
+      <App />
+    )}
   </StrictMode>
 );
 

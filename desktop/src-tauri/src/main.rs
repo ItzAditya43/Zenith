@@ -30,7 +30,7 @@
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::Manager;
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
@@ -83,6 +83,47 @@ fn toggle_main_window(app: &tauri::AppHandle) {
         } else {
             let _ = window.show();
             let _ = window.set_focus();
+        }
+    }
+}
+
+// The desktop popout (frontend route #/quickbar). On Hyprland it's created
+// visible and a window rule parks it on the `special:zenith` workspace, so
+// Super+Space (togglespecialworkspace zenith) shows and hides it instantly
+// with no process spawn. Elsewhere it starts hidden and Ctrl+Alt+Space
+// toggles it.
+fn on_hyprland() -> bool {
+    std::env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok()
+}
+
+fn create_quickbar(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if app.get_webview_window("quickbar").is_some() {
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(app, "quickbar", WebviewUrl::App("index.html#/quickbar".into()))
+        .title("Zenith Quickbar")
+        .inner_size(760.0, 460.0)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .center()
+        .visible(on_hyprland())
+        .build()?;
+    Ok(())
+}
+
+fn toggle_quickbar(app: &tauri::AppHandle) {
+    if create_quickbar(app).is_err() {
+        return;
+    }
+    if let Some(w) = app.get_webview_window("quickbar") {
+        if w.is_visible().unwrap_or(false) {
+            let _ = w.hide();
+        } else {
+            let _ = w.show();
+            let _ = w.set_focus();
         }
     }
 }
@@ -168,6 +209,18 @@ fn main() {
                     _ => {}
                 })
                 .build(app)?;
+
+            // --- Desktop popout ---
+            create_quickbar(app.handle())?;
+            if !on_hyprland() {
+                let qb_shortcut: Shortcut = "CmdOrCtrl+Alt+Space".parse().expect("invalid shortcut spec");
+                let qb_handle = app.handle().clone();
+                app.global_shortcut().on_shortcut(qb_shortcut, move |_app, _shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        toggle_quickbar(&qb_handle);
+                    }
+                })?;
+            }
 
             // --- Global hotkey: Ctrl/Cmd+Shift+Z toggles the window ---
             let shortcut: Shortcut = "CmdOrCtrl+Shift+Z".parse().expect("invalid shortcut spec");

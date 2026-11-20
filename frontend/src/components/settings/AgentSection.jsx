@@ -2,6 +2,7 @@ import { api } from "../../lib/api";
 import McpGallery from "./McpGallery.jsx";
 import { useSettings } from "./SettingsContext.js";
 import Select from "../Select.jsx";
+import DesktopControl from "./DesktopControl.jsx";
 
 /** Settings → "agent" section. State lives in SettingsPanel (see SettingsContext). */
 export default function AgentSection() {
@@ -201,6 +202,8 @@ export default function AgentSection() {
           <span className="switch-thumb" />
         </button>
       </div>
+
+      <DesktopControl config={config} setConfig={setConfig} />
 
       <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
         Sandbox

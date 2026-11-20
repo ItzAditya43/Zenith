@@ -521,6 +521,45 @@ Other properties:
 - **Iteration cap**: 40 tool-call rounds by default (up to 200), after which
   the run checkpoints instead of just giving up.
 
+### Desktop control
+
+`app/services/desktop_control.py`, `frontend/src/components/Quickbar.jsx`.
+Off by default (Settings → Agent tools → Desktop control). When on, the
+agent gets `desktop_*` tools to act on your real desktop, and a popout opens
+from anywhere: **Super+Space** on Hyprland (the window lives on the
+`special:zenith` workspace, so toggling is instant), **Ctrl+Alt+Space**
+elsewhere. Type what you want; each step shows in the popout with Approve
+(`y`) / Deny (`n`); Esc stops a run or closes the popout.
+
+How it acts, most reliable first, so small models rarely guess pixels:
+
+1. **Compositor and system commands:** list, focus and move windows,
+   switch workspaces (`hyprctl`); open apps by name (installed `.desktop`
+   entries), URLs and files (`xdg-open`).
+2. **Keyboard:** type text and press shortcuts (`wtype`, `ydotool` fallback).
+3. **Find and click by name:** `desktop_find` lists numbered targets from
+   the accessibility tree (AT-SPI: buttons, fields, links, menu items) and,
+   for apps without one, OCR word boxes (`tesseract`); `desktop_click`
+   presses a target through its accessibility action when it has one, else
+   moves the pointer to the centre of its box (`hyprctl dispatch
+   movecursor`) and clicks (`ydotool`). The accessibility tree is read with
+   the system Python (PyGObject), so it works from the packaged app.
+4. **Seeing the screen:** a screenshot of the focused monitor (`grim`)
+   described by your vision model.
+
+Safety: looking (windows, screen, find) runs without asking in semi-auto;
+every action asks outside full-auto. Typing, keys and clicks are refused
+while a password manager (KeePassXC, Bitwarden, 1Password, …) has focus.
+Every call is in the audit log like any agent tool. Settings shows which
+methods work on this machine and has an **App accessibility** switch (the
+`toolkit-accessibility` setting screen readers use) so apps expose their
+buttons; Chrome/Electron apps may also need `--force-renderer-accessibility`.
+
+Requirements: Linux with Hyprland, plus `grim`, `wtype` or `ydotool`
+(with `ydotoold` running for clicks), `tesseract` for OCR, PyGObject for
+the accessibility tree, and a vision model for screen reading. Other
+desktops get keyboard, OCR and screen reading but not window control yet.
+
 ### Deep Research
 
 `research_service.py`. A dedicated **Research** mode in the composer:
