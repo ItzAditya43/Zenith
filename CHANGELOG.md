@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- API providers next to Ollama (Settings → Providers): OpenAI, Anthropic (Claude), Google Gemini, OpenRouter, Groq, DeepSeek, Mistral, xAI, Together, and local LM Studio / llama.cpp / vLLM servers, or any OpenAI-compatible URL. Their models appear in every model picker as `provider::model` and work in chat, agent mode, research and the rest. Keys are encrypted on this machine and never shown again. API models are never chosen automatically unless you allow cloud models in Model routing.
+
 ## [1.1.0] — 2026-11-15
 
 ### Added

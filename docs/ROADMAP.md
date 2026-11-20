@@ -24,8 +24,6 @@ Zenith stays chat-first: these make the code side panel pleasant, not an IDE.
 | P1 | **Notarized macOS builds** | Needs an Apple Developer ID; removes the right-click → Open step. | S (+ account) |
 | P2 | **Windows code signing** | SmartScreen warns on unsigned installers. | S (+ certificate) |
 | P3 | **Encrypted sync between your machines** | Multi-master sync with conflict resolution; today devices share one backend. | L |
-| P5 | **In-app accounts with permissions** | Today: separate profiles per person (`ZENITH_PROFILE`). Real roles inside one instance is a large change to every table. | L |
-| P6 | **Any OpenAI-compatible local server** | llama.cpp, LM Studio and vLLM users can't use Zenith today; it only talks to Ollama. Biggest adoption gap. Parked 2026-11-13: do not start unprompted. | M–L |
 | P7 | **Prebuilt Docker image** | Publish to GHCR from the release workflow so install is one `docker run`, not a build from source. Parked 2026-11-13. | S |
 | P8 | **Shareable extensions beyond MCP** | Other front ends have community functions and pipelines. Smallest version: importable packs of quick actions, personas and automation rules. Parked 2026-11-13. | M |
 | P9 | **Tested on more setups** | Hand-verified on one Linux laptop. A support matrix (OS, GPU, Ollama version) filled in from real reports, plus the Windows/macOS smoke runs. Parked 2026-11-13. | ongoing |

@@ -15,6 +15,7 @@ import AgentSection from "./settings/AgentSection.jsx";
 import CouncilSection from "./settings/CouncilSection.jsx";
 import RoutingSection from "./settings/RoutingSection.jsx";
 import ModelsSection from "./settings/ModelsSection.jsx";
+import ProvidersSection from "./settings/ProvidersSection.jsx";
 import VoiceSection from "./settings/VoiceSection.jsx";
 import DataSection from "./settings/DataSection.jsx";
 import FoldersSection from "./settings/FoldersSection.jsx";
@@ -191,7 +192,7 @@ export default function SettingsPanel({
 
   const refreshModels = () => {
     api
-      .listModels()
+      .listModels(true)
       .then((m) => {
         setModels(m);
         setModelsError(null);
@@ -1187,6 +1188,7 @@ export default function SettingsPanel({
             {activeSection === "routing" && <RoutingSection />}
 
             {activeSection === "models" && <ModelsSection />}
+            {activeSection === "providers" && <ProvidersSection />}
 
             {activeSection === "voice" && <VoiceSection />}
 

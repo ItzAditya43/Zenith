@@ -95,6 +95,7 @@ export const SECTIONS = [
   { id: "council", label: "Council", icon: "users" },
   { id: "routing", label: "Model routing", icon: "target" },
   { id: "models", label: "Installed models", icon: "grid" },
+  { id: "providers", label: "Providers", icon: "cloud" },
   { id: "voice", label: "Voice & audio", icon: "mic" },
   { id: "data", label: "Data", icon: "download" },
   { id: "folders", label: "Folders", icon: "folder" },

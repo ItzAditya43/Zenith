@@ -460,6 +460,17 @@ export const api = {
       body: JSON.stringify({ name }),
     }).then((r) => r.json()),
   ollamaAccount: () => request("/api/ollama/account").then((r) => r.json()),
+  listProviders: () => request("/api/providers").then((r) => r.json()),
+  providerPresets: () => request("/api/providers/presets").then((r) => r.json()),
+  saveProvider: (p: Record<string, unknown>) =>
+    request("/api/providers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(p),
+    }).then((r) => r.json()),
+  deleteProvider: (id: string) => request(`/api/providers/${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => r.json()),
+  testProvider: (id: string) =>
+    request(`/api/providers/${encodeURIComponent(id)}/test`, { method: "POST" }).then((r) => r.json()),
   listRagSources: () => request("/api/rag/sources").then((r) => r.json()),
   listTraces: (conversationId: string | null = null, limit: number = 50) =>
     request(`/api/traces?limit=${limit}${conversationId ? `&conversation_id=${encodeURIComponent(conversationId)}` : ""}`).then((r) => r.json()),
@@ -737,7 +748,8 @@ export const api = {
     request(`/api/agent/tool-calls?conversation_id=${encodeURIComponent(conversationId)}`).then((r) => r.json()),
   revertRun: (runId: string) => request(`/api/agent/runs/${runId}/revert`, { method: "POST" }).then((r) => r.json()),
 
-  listModels: () => request("/api/models").then((r) => r.json()),
+  // fresh=true skips the browser's short cache (after adding a provider or pulling a model).
+  listModels: (fresh = false) => request("/api/models", fresh ? { cache: "no-store" } : {}).then((r) => r.json()),
   getPairing: () => request("/api/pairing").then((r) => r.json()),
   // Settings change history — see settings_history_service.py.
   getSettingsHistory: (key: string | null = null, limit: number = 100) => {

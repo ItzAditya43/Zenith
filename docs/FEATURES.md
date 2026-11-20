@@ -258,6 +258,38 @@ is a real decision, not a formality.
 - **Auto-titling** — a small/fast model names new conversations after the
   first exchange.
 
+### API providers
+
+`app/services/providers.py`, Settings → Providers. Models from APIs work
+next to Ollama's. A model named `<provider>::<model>` (`openai::gpt-4.1`,
+`anthropic::claude-opus-5-5`, `lmstudio::qwen2.5-7b`) is sent to that
+provider by the same client every feature uses, so chat, agent mode
+(including native tool calling), Deep Research, RAG embeddings, memory
+extraction and titles all work with API models unchanged.
+
+- **OpenAI-compatible** (plain HTTP): OpenAI, Google Gemini, OpenRouter,
+  Groq, DeepSeek, Mistral, xAI, Together, and local servers (LM Studio,
+  llama.cpp, vLLM) or any URL that speaks Chat Completions. Streaming,
+  images, tools, JSON mode, embeddings, and reasoning text where the server
+  sends it.
+- **Anthropic (Claude)** through the official `anthropic` SDK: streaming
+  with readable thinking summaries, tools and images. On the models that
+  support it, server-side refusal fallbacks are on (`fallbacks: "default"`),
+  so a declined request is retried on a fallback model in the same call.
+  Anthropic has no embedding models; use a local one.
+- **Keys** are encrypted at rest with the machine key, never returned by
+  any API (the config API hides providers entirely; the providers API says
+  only `has_key`). Remote providers must use `https://`.
+- **Privacy and cost:** a provider not on this machine or private network
+  counts as cloud, exactly like Ollama cloud models: automatic routing never
+  picks it unless cloud routing is on; it's used when you pin it to a role
+  or choose it for a message. A local server counts as local.
+- **Errors** (bad key, no credits, unknown model) show the provider's own
+  message, and the model is marked "Not working" like a refused Ollama
+  model.
+- Optional per-provider model list, so a provider with hundreds of models
+  (OpenRouter) shows only the ones you use.
+
 ### Model routing
 
 `app/services/router.py`, config keys `capability_keywords` /

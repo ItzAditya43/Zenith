@@ -1758,6 +1758,8 @@ export default function App() {
               setWakeWordPhrase(c.wake_word_phrase || "hey zenith");
             }).catch(() => {});
             api.listPersonas().then(setPersonas).catch(() => {});
+            // New providers, pulled or deleted models: refresh every model picker.
+            api.listModels(true).then((ms) => setInstalledModels(ms.map((m) => m.name))).catch(() => {});
           }}
           theme={theme}
           onThemeChange={setTheme}
