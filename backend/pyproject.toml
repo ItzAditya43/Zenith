@@ -44,7 +44,7 @@ dependencies = [
 # this list is kept only for tools that resolve dev deps via pyproject.
 dev = [
     "pytest==9.1.1",
-    "pytest-asyncio==1.4.1",
+    "pytest-asyncio==1.5.0",
     "pytest-cov",
     "ruff",
     "mypy",
