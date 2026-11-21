@@ -5638,3 +5638,9 @@ html[data-reduce-motion] .hero-orb, html[data-reduce-motion] .chat-column .compo
 .chat-column.is-empty { justify-content: flex-start; }
 .chat-column.is-empty .chat-scroll { margin-top: auto; }
 .chat-column.is-empty .hero-cards { margin-bottom: auto; }
+/* With the workspace open beside an empty chat, keep the chat side compact. */
+.chat-main-split .hero-cards,
+.chat-main-split .empty-state-suggestions { display: none; }
+.chat-main-split .empty-state h2 { font-size: 22px; }
+.chat-main-split .hero-orb { width: 48px; height: 48px; }
+.chat-main-split .composer-controls { flex-wrap: wrap; }

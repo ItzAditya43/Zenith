@@ -122,6 +122,8 @@ export default function App() {
   const [researchOpen, setResearchOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [workspaceOpenRequest, setWorkspaceOpenRequest] = useState(null);
+  const [workspaceWide, setWorkspaceWide] = useState(false);
+  const [codeAfterFolder, setCodeAfterFolder] = useState(false);
   const [snippetsOpen, setSnippetsOpen] = useState(false);
   const [graphOpen, setGraphOpen] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
