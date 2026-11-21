@@ -1524,7 +1524,9 @@ export default function App() {
           openSettingsAt={openSettingsAt}
         />
 
-        {onboardingOpen && <OnboardingTour onClose={dismissOnboarding} />}
+        {onboardingOpen && (
+          <OnboardingTour onClose={dismissOnboarding} onOpenSettings={openSettingsAt} onOpenCode={handleOpenCode} />
+        )}
         {whatsNewOpen && <WhatsNewPanel onClose={() => setWhatsNewOpen(false)} />}
         {calendarOpen && <CalendarPanel onClose={() => setCalendarOpen(false)} />}
         {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}

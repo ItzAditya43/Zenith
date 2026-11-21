@@ -1,183 +1,188 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
 
-const PROFILES = [
+/**
+ * First-run onboarding: a short guided tour of everything Zenith does, with
+ * buttons that take you straight to each feature. Shown once (localStorage
+ * "zenith-onboarded"); replay from the command palette ("Show onboarding").
+ */
+
+function Welcome({ go }) {
+  return (
+    <div className="ob-hero">
+      <div className="hero-orb" aria-hidden="true"><span /></div>
+      <span className="empty-kicker">Welcome to</span>
+      <h2>Zenith</h2>
+      <p>
+        A private AI workspace on your own computer: chat, code, research, documents, memory,
+        voice and desktop control — with your local models, and API models when you want them.
+      </p>
+      <button className="ob-primary" onClick={go}>Take the tour <Icon name="chevron-right" size={14} /></button>
+    </div>
+  );
+}
+
+function Models({ openSettings }) {
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    Promise.all([api.listModels(true).catch(() => []), api.ollamaAccount().catch(() => null)])
+      .then(([models, acct]) => setState({ count: models.length, local: models.filter((m) => !m.cloud).length, acct }));
+  }, []);
+  return (
+    <>
+      <p className="ob-lead">Zenith runs on models. Start with what's on this machine; add more any time.</p>
+      <div className="ob-status">
+        {state == null ? (
+          <span>Checking Ollama…</span>
+        ) : state.count > 0 ? (
+          <span><span className="dc-dot is-ok" /> Ollama is connected · {state.local} local model{state.local === 1 ? "" : "s"}{state.count > state.local ? ` · ${state.count - state.local} cloud` : ""}</span>
+        ) : (
+          <span><span className="dc-dot" /> No models found. Install Ollama from ollama.com, then download a model below.</span>
+        )}
+        {state?.acct?.signed_in && <span className="ob-sub">Signed in to Ollama as {state.acct.name} ({state.acct.plan} plan)</span>}
+      </div>
+      <div className="ob-actions">
+        <button className="ob-card-btn" onClick={() => openSettings("models")}>
+          <Icon name="download" size={15} /><strong>Browse the model library</strong><span>Download a size that fits your GPU, with one click.</span>
+        </button>
+        <button className="ob-card-btn" onClick={() => openSettings("providers")}>
+          <Icon name="cloud" size={15} /><strong>Add an API provider</strong><span>OpenAI, Claude, Gemini, OpenRouter, Groq… or LM Studio.</span>
+        </button>
+        <button className="ob-card-btn" onClick={() => openSettings("routing")}>
+          <Icon name="target" size={15} /><strong>Model routing</strong><span>Zenith picks a model per message; pin your favourites per role.</span>
+        </button>
+      </div>
+    </>
+  );
+}
+
+const STEPS = [
+  { id: "welcome", title: "", render: (p) => <Welcome go={p.next} /> },
+  { id: "models", icon: "grid", title: "Your models", render: (p) => <Models openSettings={p.openSettings} /> },
   {
-    id: "private-chat",
-    label: "Private ChatGPT replacement",
-    picks: [
-      "Chat & multimodal — works the moment you install, no setup",
-      "Voice in & out — talk instead of type, hear replies back",
-      "Long-term memory — it remembers who you are between chats",
-      "Image generation — pictures, without a separate app",
+    id: "chat", icon: "message-circle", title: "Chat that does more",
+    points: [
+      ["Modes", "The pill next to + switches between Just chat, Web search, Deep Research, Agent, Council (several models at once) and Compare."],
+      ["Paste anything", "Ctrl+V an image or screenshot, drop files, or attach documents — Zenith reads PDFs, images and code."],
+      ["Slash commands", "Type / for shortcuts: /research, /agent, /search, /image, /council."],
+      ["Voice", "Hold the mic to talk; the headphones in the header start hands-free voice mode."],
+      ["Branches", "Edit or regenerate any message and switch between versions without losing either."],
     ],
   },
   {
-    id: "developer",
-    label: "Developer",
-    picks: [
-      "Agent mode — shell + file edits + git, with an approval gate",
-      "Workspace — files, editor and a terminal beside the chat, scoped to your working folder",
-      "MCP tool servers — bring in tools Zenith doesn't ship natively",
-      "Deep research — cited answers for API/library lookups",
+    id: "code", icon: "terminal", title: "Code with an editor beside the chat",
+    points: [
+      ["Code", "Pick Code in the sidebar, choose a project folder, and you get files, an editor and a terminal next to the chat."],
+      ["Agent mode", "The agent reads, edits and runs your project. Every change shows as a diff and waits for your approval; undo is one click."],
+      ["Git built in", "The Changes tab stages, commits, branches and pushes. With the GitHub CLI: issues, pull requests, and 'work on this issue'."],
+      ["Edit a selection", "Select code and describe a change — the rewrite comes back as a diff to apply."],
+      ["Separate copies", "Let the agent try something on its own branch and folder without touching your checkout."],
     ],
+    action: ["Open Code", (p) => p.openCode()],
   },
   {
-    id: "writer-researcher",
-    label: "Writer / researcher / student",
-    picks: [
-      "Deep research — a cited, reopenable report",
-      "Document RAG — upload PDFs/papers and ask questions grounded in them",
-      "Long-term memory — keeps facts about an ongoing project straight",
-      "Conversation branching — explore an alternate draft safely",
+    id: "desktop", icon: "bot", title: "Control your desktop",
+    points: [
+      ["Super+Space", "A popout appears anywhere. Tell Zenith what to do: open an app, switch windows, type, press shortcuts, click a button by name."],
+      ["You stay in charge", "It looks freely but asks before every action. It never types into a password manager."],
+      ["Off by default", "Turn it on in Settings → Agent tools → Desktop control, along with App accessibility for clicking by name."],
     ],
+    action: ["Desktop control settings", (p) => p.openSettings("agent")],
   },
   {
-    id: "privacy-first",
-    label: "Privacy-conscious first",
-    picks: [
-      "Passcode lock & encryption — API-level lock, AES-256-GCM at rest",
-      "Single-user, no telemetry — no account, no analytics",
-      "Know the exceptions — web search, URL reading, and optional Ollama Cloud are the only opt-in features that leave your machine",
+    id: "knowledge", icon: "flask", title: "Research, documents and memory",
+    points: [
+      ["Deep Research", "Multi-step searching and reading, written up as a report with sources you can reopen."],
+      ["Your documents", "Upload files or watch folders; answers cite the passages they used."],
+      ["Memory", "Zenith remembers durable facts about you between chats — you can review or forget any of them."],
+      ["Personal tools", "Notes, to-dos, a calendar, email, schedules and automations — all local."],
     ],
+    action: ["Memory & persona settings", (p) => p.openSettings("memory")],
   },
   {
-    id: "tinkerer",
-    label: "Tinkerer / self-hoster",
-    picks: [
-      "Automation & webhooks — trigger → action rules on real events",
-      "MCP tool servers — connect anything speaking Model Context Protocol",
-      "Folder watching & scheduled turns — react to files, run recurring prompts",
-      "Desktop app + multi-device sync — tray on one machine, paired access elsewhere",
+    id: "privacy", icon: "settings", title: "Private by default, yours to shape",
+    points: [
+      ["Local first", "Everything runs on this machine. Web search, API providers and cloud models are the only things that leave it, and only when you use them."],
+      ["Lock and sandbox", "Set a passcode in Settings → Data; run agent commands in a sandbox (Bubblewrap or Docker)."],
+      ["Make it yours", "Nine themes, accessibility options, personas and per-project instructions."],
+      ["Find anything", "⌘K opens the command palette; j / k move between chats; ? shows every shortcut."],
     ],
   },
 ];
 
-const HIGHLIGHTS = [
-  { icon: "bot", title: "Agent mode", desc: "Let the model run shell commands, edit files, and use git — turn it on in Settings → Agent tools. Notes and to-dos are already answerable in plain chat, no setup needed." },
-  { icon: "clock", title: "Calendar, notes, to-dos", desc: "Header icons next to the theme picker — a local Keep/Calendar/To-do suite (with a drag-and-drop board view), no account needed." },
-  { icon: "flask", title: "Deep research", desc: "Ask for a research-style answer and it saves as a reopenable report you can ask follow-ups against." },
-  { icon: "terminal", title: "Workspace", desc: "Bind a working folder (folder icon in the header) to open files, an editor and a terminal beside the chat, git diff, and one-click extraction of a conversation's code into real files." },
-  { icon: "share", title: "Knowledge graph + automation", desc: "See how your conversations, memories, and documents connect — and set up rules that react automatically (a new file, an urgent email, a daily digest)." },
-  { icon: "grid", title: "Model routing", desc: "Zenith auto-picks a model per message. Settings → Model routing shows which of your installed models actually fit your GPU comfortably." },
-  { icon: "at-sign", title: "Email", desc: "Connect your own IMAP/SMTP account in Settings → Email for local summarize and draft-reply." },
-  { icon: "sun", title: "8 themes", desc: "Settings → Appearance — full re-skins, not just light/dark, plus optional ambient backgrounds." },
-  { icon: "share", title: "Multi-device sync", desc: "Settings → Sync — pair a second device with a one-time code, then export/import encrypted snapshots." },
-];
+export default function OnboardingTour({ onClose, onOpenSettings, onOpenCode }) {
+  const [i, setI] = useState(0);
+  const step = STEPS[i];
+  const last = i === STEPS.length - 1;
+  const next = () => (last ? onClose() : setI(i + 1));
+  const back = () => setI(Math.max(0, i - 1));
+  const finishThen = (fn) => () => {
+    onClose();
+    setTimeout(fn, 50);
+  };
+  const props = {
+    next,
+    openSettings: (section) => finishThen(() => onOpenSettings?.(section))(),
+    openCode: () => finishThen(() => onOpenCode?.())(),
+  };
 
-/** Shown once on first launch (tracked via localStorage). Not a guided
- * click-through tour — just a compact map of what exists, since there's
- * now enough surface area that discoverability is the real risk. */
-export default function OnboardingTour({ onClose }) {
-  // step 0: "who are you" profile pick, step 1: profile-tailored summary,
-  // step 2: the original feature map. Skipping/dismissing at any step
-  // still just calls onClose, unchanged from before.
-  const [step, setStep] = useState(0);
-  const [profile, setProfile] = useState(null);
-  // Read back a profile picked in a previous visit (e.g. replaying this
-  // tour via the command palette) so it isn't dead data — pre-highlights
-  // the earlier pick rather than making the user choose again from scratch.
-  const [previousProfileId] = useState(() => {
-    try {
-      return localStorage.getItem("zenith-profile");
-    } catch {
-      return null; // storage unavailable — fine, just no pre-highlight
-    }
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowRight") next();
+      else if (e.key === "ArrowLeft") back();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   });
 
-  function pickProfile(p) {
-    setProfile(p);
-    try {
-      localStorage.setItem("zenith-profile", p.id);
-    } catch {
-      // storage unavailable — picking a profile is still fine, just not remembered
-    }
-    setStep(1);
-  }
-
   return (
-    <div className="calendar-overlay" onClick={onClose}>
-      <div
-        className="calendar-modal"
-        style={{ width: "min(620px, calc(100vw - 3rem))" }}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="onboarding-tour-title"
-      >
-        <div className="calendar-header">
-          <span id="onboarding-tour-title">Welcome to Zenith</span>
-          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
-            <Icon name="x" size={14} />
-          </button>
-        </div>
-        {step === 0 && (
-          <div style={{ padding: "var(--space-2) var(--space-4) var(--space-4)" }}>
-            <p className="settings-section-desc" style={{ marginTop: 0 }}>
-              Everything here runs on your own machine — no cloud, no accounts. What are you
-              mainly here for? We'll point out the handful of features that matter for that.
-            </p>
-            <div style={{ display: "grid", gap: "var(--space-2)" }}>
-              {PROFILES.map((p) => (
-                <button
-                  key={p.id}
-                  className="settings-btn-secondary"
-                  style={{
-                    textAlign: "left",
-                    ...(p.id === previousProfileId
-                      ? { borderColor: "var(--signal-general)", color: "var(--signal-general)" }
-                      : {}),
-                  }}
-                  onClick={() => pickProfile(p)}
-                >
-                  {p.label}
-                  {p.id === previousProfileId && " — picked last time"}
+    <div className="ob-overlay" role="dialog" aria-modal="true" aria-label="Welcome to Zenith">
+      <div className={`ob-panel ${i === 0 ? "is-welcome" : ""}`}>
+        <button className="ob-skip" onClick={onClose}>Skip</button>
+        <div className="ob-body" key={step.id}>
+          {step.render ? (
+            <>
+              {step.title && (
+                <header className="ob-head">
+                  <span className="ob-icon"><Icon name={step.icon} size={18} /></span>
+                  <h2>{step.title}</h2>
+                </header>
+              )}
+              {step.render(props)}
+            </>
+          ) : (
+            <>
+              <header className="ob-head">
+                <span className="ob-icon"><Icon name={step.icon} size={18} /></span>
+                <h2>{step.title}</h2>
+              </header>
+              <ul className="ob-points">
+                {step.points.map(([t, d]) => (
+                  <li key={t}><strong>{t}</strong><span>{d}</span></li>
+                ))}
+              </ul>
+              {step.action && (
+                <button className="ob-secondary" onClick={() => step.action[1](props)}>
+                  {step.action[0]} <Icon name="chevron-right" size={13} />
                 </button>
+              )}
+            </>
+          )}
+        </div>
+        {i > 0 && (
+          <footer className="ob-foot">
+            <div className="ob-dots" aria-label={`Step ${i} of ${STEPS.length - 1}`}>
+              {STEPS.slice(1).map((s, k) => (
+                <button key={s.id} className={`ob-dot ${k + 1 === i ? "is-on" : ""}`} onClick={() => setI(k + 1)} aria-label={`Go to ${s.title}`} />
               ))}
             </div>
-            <button
-              className="settings-btn-secondary"
-              style={{ marginTop: "var(--space-4)" }}
-              onClick={() => setStep(2)}
-            >
-              Skip — just show me everything
-            </button>
-          </div>
-        )}
-        {step === 1 && profile && (
-          <div style={{ padding: "var(--space-2) var(--space-4) var(--space-4)" }}>
-            <p className="settings-section-desc" style={{ marginTop: 0 }}>
-              Since you picked <strong>{profile.label}</strong>, here's what to try first:
-            </p>
-            <ul style={{ margin: 0, paddingLeft: "1.2rem", display: "grid", gap: "8px" }}>
-              {profile.picks.map((text) => (
-                <li key={text}>{text}</li>
-              ))}
-            </ul>
-            <button className="settings-btn-primary" style={{ marginTop: "var(--space-4)" }} onClick={() => setStep(2)}>
-              Continue
-            </button>
-          </div>
-        )}
-        {step === 2 && (
-          <div style={{ padding: "var(--space-2) var(--space-4) var(--space-4)" }}>
-            <p className="settings-section-desc" style={{ marginTop: 0 }}>
-              A few more things worth knowing exist:
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "var(--space-3)" }}>
-              {HIGHLIGHTS.map((h) => (
-                <div key={h.title} className="hw-summary" style={{ flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    <Icon name={h.icon} size={14} /> {h.title}
-                  </span>
-                  <span>{h.desc}</span>
-                </div>
-              ))}
+            <div className="ob-nav">
+              <button className="ob-ghost" onClick={back}>Back</button>
+              <button className="ob-primary" onClick={next}>{last ? "Start using Zenith" : "Next"}</button>
             </div>
-            <button className="settings-btn-primary" style={{ marginTop: "var(--space-4)" }} onClick={onClose}>
-              Got it
-            </button>
-          </div>
+          </footer>
         )}
       </div>
     </div>
