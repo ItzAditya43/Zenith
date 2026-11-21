@@ -5900,3 +5900,12 @@ html[data-reduce-motion] .hero-mark *, html[data-reduce-motion] .hero-mark { ani
 .research-detail-empty strong { font-family: var(--font-display); font-size: 18px; color: var(--text-primary); }
 .research-detail-empty span { max-width: 340px; line-height: 1.6; }
 .hero-mark { width: 84px; height: 84px; }
+
+/* Thin, quiet scrollbars that only show while you hover the area. */
+* { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+*:hover { scrollbar-color: color-mix(in srgb, var(--text-tertiary) 45%, transparent) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+*:hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--text-tertiary) 40%, transparent); }
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--text-secondary) 60%, transparent) !important; }
