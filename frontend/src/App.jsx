@@ -21,12 +21,10 @@ import { confirmDialog, promptDialog } from "./lib/dialogs.js";
 // Overlay panels load on first open instead of with the app: they were ~half
 // of the startup bundle and most sessions never open most of them. Each gets
 // its own Suspense boundary so loading one never blanks the rest of the UI.
-const EMPTY_DITHER = [
-  "              ░░░░░░▒▒▒▒▓▓▓▓████▓▓▓▓▒▒▒▒░░░░░░",
-  "        ░░░░▒▒▒▒▓▓▓▓████████████████▓▓▓▓▒▒▒▒░░░░",
-  "    ░░░░▒▒▒▓▓▓██████████████████████████▓▓▓▒▒▒░░░░",
-  " ░░░▒▒▒▓▓▓████████████████████████████████▓▓▓▒▒▒░░░",
-].join("\n");
+function greeting() {
+  const h = new Date().getHours();
+  return h < 5 ? "Working late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+}
 
 function lazyPanel(loader) {
   const Inner = lazy(loader);
@@ -667,6 +665,26 @@ export default function App() {
     setActiveId(conv.id);
     setMessages([]);
     if (window.innerWidth <= 720) setSidebarCollapsed(true); // phones: drawer closes after choosing
+  };
+
+  // "Code": the editor-first view. Uses this chat's folder, or asks for one
+  // (in a fresh chat if this one already has messages), then opens the
+  // workspace wide with the file tree and editor.
+  const handleOpenCode = async () => {
+    const conv = conversations.find((c) => c.id === activeId);
+    if (conv?.workdir) {
+      setWorkspaceWide(true);
+      setCodeEditorOpen(true);
+      return;
+    }
+    if (!activeId || messages.length > 0) {
+      const created = await api.createConversation("Code");
+      setConversations((c) => [created, ...c]);
+      setActiveId(created.id);
+      setMessages([]);
+    }
+    setCodeAfterFolder(true);
+    setWorkdirModalOpen(true);
   };
 
   const handleDelete = async (id) => {
@@ -1413,6 +1431,7 @@ export default function App() {
           onCreate={handleCreate}
           onDelete={handleDelete}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenCode={handleOpenCode}
           onOpenMemory={() => openSettingsAt("memory")}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
@@ -1444,7 +1463,7 @@ export default function App() {
         className={`chat-main ${openDoc || (codeEditorOpen && activeConversation?.workdir) ? "chat-main-split" : ""}`}
         id="chat-main-content"
       >
-        <div className="chat-column">
+        <div className={`chat-column ${messages.length === 0 ? "is-empty" : ""}`}>
         <ChatHeader
           activeId={activeId}
           messages={messages}
@@ -1545,7 +1564,10 @@ export default function App() {
           <WorkdirModal
             currentWorkdir={activeConversation?.workdir || ""}
             recentWorkdirs={recentWorkdirs}
-            onClose={() => setWorkdirModalOpen(false)}
+            onClose={() => {
+              setWorkdirModalOpen(false);
+              setCodeAfterFolder(false);
+            }}
             onSave={async (newWorkdir) => {
               const result = await api.setConversationWorkdir(activeId, newWorkdir);
               setConversations((cs) =>
@@ -1557,6 +1579,11 @@ export default function App() {
                   : "Working directory cleared",
                 "success"
               );
+              if (codeAfterFolder && result.workdir) {
+                setWorkspaceWide(true);
+                setCodeEditorOpen(true);
+              }
+              setCodeAfterFolder(false);
             }}
           />
         )}
@@ -1621,9 +1648,9 @@ export default function App() {
           />
           {messages.length === 0 && (
             <div className="empty-state">
-              <pre className="empty-dither" aria-hidden="true">{EMPTY_DITHER}</pre>
-              <span className="empty-kicker">ZENITH · LOCAL · NOTHING LEAVES THIS MACHINE</span>
-              <h2>What are we making?</h2>
+              <div className="hero-orb" aria-hidden="true"><span /></div>
+              <span className="empty-kicker">{greeting()}</span>
+              <h2>What should we make today?</h2>
               <div className="empty-state-suggestions" role="group" aria-label="Suggestions">
                 {emptySuggestions.map((sug) => (
                   <button
@@ -1631,13 +1658,10 @@ export default function App() {
                     className="empty-state-suggestion"
                     onClick={() => setSeedText({ text: sug, nonce: Date.now() })}
                   >
-                    <span className="empty-suggestion-caret" aria-hidden="true">›</span> {sug}
+                    {sug}
                   </button>
                 ))}
               </div>
-              <p className="empty-hints">
-                <kbd className="keycap">/</kbd> commands <kbd className="keycap">⌘K</kbd> everything <kbd className="keycap">j</kbd><kbd className="keycap">k</kbd> move between chats
-              </p>
             </div>
           )}
           {messages.map((m) => (
@@ -1706,15 +1730,42 @@ export default function App() {
           tokPerSec={genStats?.tokPerSec}
           runFlags={runFlags}
         />
+        {messages.length === 0 && (
+          <div className="hero-cards" role="group" aria-label="Start with">
+            <button className="hero-card" onClick={handleOpenCode}>
+              <span className="hero-card-icon"><Icon name="terminal" size={16} /></span>
+              <span className="hero-card-arrow" aria-hidden="true"><Icon name="chevron-right" size={14} /></span>
+              <strong>Code</strong>
+              <span>Open a project folder with an editor, terminal and git, and let the agent work in it.</span>
+            </button>
+            <button className="hero-card" onClick={() => setSeedText({ text: "/research ", nonce: Date.now() })}>
+              <span className="hero-card-icon"><Icon name="flask" size={16} /></span>
+              <span className="hero-card-arrow" aria-hidden="true"><Icon name="chevron-right" size={14} /></span>
+              <strong>Deep research</strong>
+              <span>Search, read and get a report with sources you can reopen and ask about.</span>
+            </button>
+            <button className="hero-card" onClick={() => openSettingsAt("agent")}>
+              <span className="hero-card-icon"><Icon name="bot" size={16} /></span>
+              <span className="hero-card-arrow" aria-hidden="true"><Icon name="chevron-right" size={14} /></span>
+              <strong>Desktop control</strong>
+              <span>Press Super+Space anywhere and tell Zenith what to do on your computer.</span>
+            </button>
+          </div>
+        )}
         </div>
 
         {codeEditorOpen && activeConversation?.workdir && !openDoc && (
           <WorkspaceDrawer
             key={`${activeId}:${activeConversation.workdir}`}
+            wide={workspaceWide}
+            onToggleWide={() => setWorkspaceWide((w) => !w)}
             conversationId={activeId}
             workdir={activeConversation.workdir}
             openRequest={workspaceOpenRequest}
-            onClose={() => setCodeEditorOpen(false)}
+            onClose={() => {
+              setCodeEditorOpen(false);
+              setWorkspaceWide(false);
+            }}
             onAskAboutCode={(text) => setSeedText({ text, nonce: Date.now() })}
             onOpenConversation={async (id) => {
               await refreshConversations();

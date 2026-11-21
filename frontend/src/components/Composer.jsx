@@ -149,6 +149,7 @@ function ModelPicker({ models, value, onChange }) {
         aria-label={value ? `Model: ${value}` : "Auto (model routing)"}
       >
         <Icon name="bolt" size={15} />
+        <span className="model-override-label">{value ? (value.includes("::") ? value.split("::")[1] : value.split(":")[0]) : "Auto"}</span>
         <span className="mode-picker-caret" aria-hidden="true">
           <Icon name={open ? "chevron-up" : "chevron-down"} size={13} />
         </span>
@@ -581,55 +582,6 @@ export default function Composer({
         />
       ) : (
       <div className="composer-row">
-        <button
-          className="composer-icon-btn"
-          onClick={() => fileInputRef.current?.click()}
-          title="Attach image, document, or video"
-          aria-label="Attach image, document, or video"
-        >
-          <Icon name="paperclip" size={17} />
-        </button>
-        <ScreenshotButton
-          onCapture={async (dataUrl) => {
-            try {
-              const res = await fetch(dataUrl);
-              const blob = await res.blob();
-              const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
-              await handleFiles([file]);
-            } catch (err) {
-              onError(`Screenshot capture failed: ${err.message}`);
-            }
-          }}
-        />
-        <ModePicker
-          mode={mode}
-          setMode={setMode}
-          agentAvailable={agentAvailable}
-          councilAvailable={councilAvailable}
-          imageAvailable={imageAvailable}
-          compareAvailable={installedModels.length >= 2}
-        />
-        {mode === "compare" && installedModels.length >= 2 && (
-          <>
-            <ModelPicker models={installedModels} value={compareA} onChange={setCompareA} />
-            <span className="compare-vs">vs</span>
-            <ModelPicker models={installedModels} value={compareB} onChange={setCompareB} />
-          </>
-        )}
-        {mode !== "compare" && installedModels.length > 0 && (
-          <ModelPicker models={installedModels} value={modelOverride} onChange={setModelOverride} />
-        )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          hidden
-          onChange={(e) => {
-            handleFiles(Array.from(e.target.files));
-            e.target.value = "";
-          }}
-        />
-
         {slashMatches.length > 0 && (
           <ul className="slash-menu" role="listbox" aria-label="Commands">
             {slashMatches.map((s) => (
@@ -642,6 +594,16 @@ export default function Composer({
             <li className="slash-tip" aria-hidden="true">tab to complete</li>
           </ul>
         )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            handleFiles(Array.from(e.target.files));
+            e.target.value = "";
+          }}
+        />
         <textarea
           ref={textareaRef}
           className="composer-input"
@@ -652,7 +614,7 @@ export default function Composer({
               ? "Transcribing…"
               : typeof window !== "undefined" && window.innerWidth < 560
               ? "Message Zenith"
-              : "Message Zenith — attach files, or hold the mic to talk"
+              : "Ask anything, or paste an image…"
           }
           aria-label="Message"
           value={text}
@@ -662,32 +624,76 @@ export default function Composer({
           rows={1}
           disabled={transcribing}
         />
+        <div className="composer-controls">
+          <div className="composer-controls-left">
+            <button
+              className="composer-icon-btn"
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach image, document, or video"
+              aria-label="Attach image, document, or video"
+            >
+              <Icon name="paperclip" size={17} />
+            </button>
+            <ScreenshotButton
+              onCapture={async (dataUrl) => {
+                try {
+                  const res = await fetch(dataUrl);
+                  const blob = await res.blob();
+                  const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+                  await handleFiles([file]);
+                } catch (err) {
+                  onError(`Screenshot capture failed: ${err.message}`);
+                }
+              }}
+            />
+            <ModePicker
+              mode={mode}
+              setMode={setMode}
+              agentAvailable={agentAvailable}
+              councilAvailable={councilAvailable}
+              imageAvailable={imageAvailable}
+              compareAvailable={installedModels.length >= 2}
+            />
+            {mode === "compare" && installedModels.length >= 2 && (
+              <>
+                <ModelPicker models={installedModels} value={compareA} onChange={setCompareA} />
+                <span className="compare-vs">vs</span>
+                <ModelPicker models={installedModels} value={compareB} onChange={setCompareB} />
+              </>
+            )}
+            {mode !== "compare" && installedModels.length > 0 && (
+              <ModelPicker models={installedModels} value={modelOverride} onChange={setModelOverride} />
+            )}
+          </div>
+          <div className="composer-controls-right">
 
-        {!isStreaming && (
-          <button
-            className={`composer-icon-btn mic-btn ${recording ? "mic-btn-active" : ""}`}
-            onMouseDown={handleMicDown}
-            onMouseUp={handleMicUp}
-            onMouseLeave={() => recording && handleMicUp({ preventDefault() {} })}
-            onClick={handleMicClick}
-            disabled={!supported}
-            title={micTitle}
-            aria-label={micTitle}
-          >
-            <Icon name={recording ? "square" : "mic"} size={16} />
-          </button>
-        )}
+            {!isStreaming && (
+              <button
+                className={`composer-icon-btn mic-btn ${recording ? "mic-btn-active" : ""}`}
+                onMouseDown={handleMicDown}
+                onMouseUp={handleMicUp}
+                onMouseLeave={() => recording && handleMicUp({ preventDefault() {} })}
+                onClick={handleMicClick}
+                disabled={!supported}
+                title={micTitle}
+                aria-label={micTitle}
+              >
+                <Icon name={recording ? "square" : "mic"} size={16} />
+              </button>
+            )}
 
-        {/* One slot: send morphs into stop while a reply streams. */}
-        <button
-          className={`composer-send-btn ${isStreaming ? "is-stop" : ""}`}
-          onClick={isStreaming ? onStop : handleSend}
-          disabled={!isStreaming && (disabled || (!text.trim() && pending.length === 0))}
-          title={isStreaming ? "Stop generating (Esc)" : "Send (Enter)"}
-          aria-label={isStreaming ? "Stop generating" : "Send"}
-        >
-          {isStreaming ? <span className="stop-glyph" aria-hidden="true" /> : <Icon name="send" size={16} />}
-        </button>
+            {/* One slot: send morphs into stop while a reply streams. */}
+            <button
+              className={`composer-send-btn ${isStreaming ? "is-stop" : ""}`}
+              onClick={isStreaming ? onStop : handleSend}
+              disabled={!isStreaming && (disabled || (!text.trim() && pending.length === 0))}
+              title={isStreaming ? "Stop generating (Esc)" : "Send (Enter)"}
+              aria-label={isStreaming ? "Stop generating" : "Send"}
+            >
+              {isStreaming ? <span className="stop-glyph" aria-hidden="true" /> : <Icon name="send" size={16} />}
+            </button>
+          </div>
+        </div>
       </div>
       )}
       {!recording && !transcribing && (

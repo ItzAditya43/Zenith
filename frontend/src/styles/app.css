@@ -5491,3 +5491,150 @@ html.quickbar-root, html.quickbar-root body { background: transparent !important
 .dc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-tertiary); }
 .dc-method.is-on .dc-dot { background: #4fe3c8; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* =====================================================================
+   Premium layer (2026-11): soft top glow, orb greeting, card composer
+   with pill controls, feature cards. Built on the theme tokens so every
+   theme gets it; later rules here intentionally override earlier ones.
+   ===================================================================== */
+.chat-main {
+  background:
+    radial-gradient(ellipse 70% 45% at 50% -8%, color-mix(in srgb, var(--signal-general) 13%, transparent), transparent 70%),
+    radial-gradient(ellipse 40% 30% at 85% 0%, color-mix(in srgb, var(--signal-vision) 7%, transparent), transparent 70%);
+}
+
+/* Empty chat: greeting, composer and cards sit together in the middle. */
+.chat-column.is-empty { justify-content: center; }
+.chat-column.is-empty .chat-scroll { flex: 0 1 auto; overflow: visible; padding-bottom: 0; }
+.chat-column:not(.is-empty) .composer { animation: composer-dock 320ms var(--ease-out, ease-out); }
+@keyframes composer-dock { from { transform: translateY(-24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+
+.empty-state { max-width: 720px; padding-top: 0; }
+.hero-orb {
+  width: 68px; height: 68px; margin: 0 auto 22px; border-radius: 50%; position: relative;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95) 0 6%, transparent 24%),
+    radial-gradient(circle at 60% 70%, color-mix(in srgb, var(--signal-vision) 85%, transparent), transparent 62%),
+    radial-gradient(circle at 40% 45%, var(--signal-general), color-mix(in srgb, var(--signal-general) 40%, #000) 75%);
+  box-shadow:
+    0 0 40px 6px color-mix(in srgb, var(--signal-general) 35%, transparent),
+    inset -8px -10px 22px rgba(0, 0, 0, 0.45),
+    inset 6px 8px 16px rgba(255, 255, 255, 0.18);
+  animation: orb-float 6s ease-in-out infinite;
+}
+.hero-orb span {
+  position: absolute; inset: -14px; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--signal-general) 22%, transparent), transparent 70%);
+  filter: blur(6px); z-index: -1;
+}
+@keyframes orb-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-5px) scale(1.03); } }
+html[data-reduce-motion] .hero-orb, html[data-reduce-motion] .chat-column .composer { animation: none; }
+.empty-kicker {
+  display: block; font-family: var(--font-display); font-size: 12px; font-weight: 500;
+  letter-spacing: 0.32em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 10px;
+}
+.empty-state h2 { font-size: clamp(26px, 3.2vw, 34px); font-weight: 500; letter-spacing: -0.02em; margin-bottom: 22px; }
+.empty-state-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 auto; }
+.empty-state-suggestion {
+  display: inline-flex; align-items: center; padding: 7px 14px; border-radius: var(--radius-full);
+  border: 1px solid var(--border-soft); background: color-mix(in srgb, var(--bg-panel) 70%, transparent);
+  font-size: var(--text-xs); color: var(--text-secondary); text-align: left;
+  transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
+}
+.empty-state-suggestion:hover { color: var(--text-primary); border-color: color-mix(in srgb, var(--signal-general) 45%, var(--border-soft)); }
+
+/* Composer: a card with the text on top and pill controls below. */
+.composer { max-width: 800px; }
+.composer-row {
+  flex-direction: column; align-items: stretch; gap: 6px; position: relative;
+  padding: 14px 14px 10px; border-radius: 22px;
+  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 18px 48px -20px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.composer-row:focus-within {
+  border-color: color-mix(in srgb, var(--signal-general) 55%, var(--border-soft));
+  box-shadow: 0 18px 48px -20px rgba(0, 0, 0, 0.65), 0 0 0 4px color-mix(in srgb, var(--signal-general) 12%, transparent);
+}
+.composer-input { min-height: 48px; padding: 2px 4px 6px !important; font-size: 15px; line-height: 1.55; }
+.composer-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.composer-controls-left, .composer-controls-right { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.composer-controls-left { flex-wrap: wrap; }
+.composer-controls .composer-icon-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid var(--border-soft); background: transparent; color: var(--text-secondary);
+}
+.composer-controls .composer-icon-btn:hover { color: var(--text-primary); background: var(--bg-panel-raised); }
+.composer-controls .mode-picker-btn, .composer-controls .model-override-btn {
+  height: 34px; padding: 0 12px; border-radius: var(--radius-full);
+  border: 1px solid var(--border-soft); background: transparent; font-size: var(--text-xs);
+}
+.composer-controls .mode-picker-btn.is-active { border-color: color-mix(in srgb, var(--signal-general) 55%, var(--border-soft)); color: var(--text-primary); background: var(--signal-general-dim); }
+.composer-controls .composer-send-btn { width: 36px; height: 36px; }
+.composer-centered .composer-row { box-shadow: 0 24px 70px -24px rgba(0, 0, 0, 0.75); }
+.composer-status-line { padding: 6px 8px 0; }
+
+/* Feature cards under the composer on an empty chat. */
+.hero-cards {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
+  max-width: 800px; width: 100%; margin: 4px auto 28px; padding: 0 var(--space-6);
+  box-sizing: border-box;
+}
+.hero-card {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 16px; border-radius: 18px; text-align: left;
+  border: 1px solid var(--border-soft); background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.5;
+  transition: transform var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast);
+}
+.hero-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--signal-general) 45%, var(--border-soft)); background: var(--bg-panel-raised); }
+.hero-card strong { font-family: var(--font-display); font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-top: 6px; }
+.hero-card-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; background: var(--signal-general-dim); color: var(--signal-general); }
+.hero-card-arrow { position: absolute; top: 16px; right: 14px; color: var(--text-tertiary); transform: rotate(-45deg); transition: color var(--dur-fast); }
+.hero-card:hover .hero-card-arrow { color: var(--signal-general); }
+@media (max-width: 720px) {
+  .hero-cards { grid-template-columns: 1fr; padding: 0 var(--space-4); }
+  .hero-card-arrow { display: none; }
+}
+
+/* Sidebar: softer new-chat, a features nav, quieter chat list. */
+.new-chat-btn {
+  background: var(--bg-panel-raised); color: var(--text-primary);
+  border: 1px solid var(--border-soft); box-shadow: none; justify-content: flex-start; padding: 10px 14px; border-radius: 12px;
+}
+.new-chat-btn:hover { filter: none; transform: none; box-shadow: none; border-color: color-mix(in srgb, var(--signal-general) 45%, var(--border-soft)); }
+.new-chat-plus { color: var(--signal-general); }
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--space-4); }
+.sidebar-nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px;
+  font-size: var(--text-sm); color: var(--text-secondary); text-align: left;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.sidebar-nav-item:hover { background: var(--bg-panel-raised); color: var(--text-primary); }
+.sidebar-nav-item svg { color: var(--text-tertiary); }
+.sidebar-nav-item:hover svg { color: var(--signal-general); }
+
+/* Workspace: wide mode gives the editor most of the screen. */
+.workspace-drawer.is-wide { width: min(68%, calc(100% - 340px)); }
+/* Premium layer fixes: beat the older theme-specific rules. */
+[data-theme] .new-chat-btn {
+  background: var(--bg-panel-raised); color: var(--text-primary);
+  border: 1px solid var(--border-soft); box-shadow: none;
+}
+[data-theme] .new-chat-btn:hover { background: var(--bg-panel-raised); border-color: color-mix(in srgb, var(--signal-general) 45%, var(--border-soft)); }
+.empty-state .empty-state-suggestions { flex-direction: row; align-items: center; max-width: none; }
+.composer-controls .mode-picker-btn .mode-picker-label,
+.composer-controls .mode-picker-btn .mode-picker-caret,
+.composer-controls .model-override-btn .mode-picker-caret { display: inline-flex; }
+.composer-controls .mode-picker-btn, .composer-controls .model-override-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+.model-override-label { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11.5px; }
+.chat-column.is-empty .composer-status-line .composer-status-ctx,
+.chat-column.is-empty .composer-status-line .composer-status-keys { display: none; }
+.composer-controls .mode-picker-btn,
+.composer-controls .model-override-btn { width: auto; min-width: 0; padding: 0 12px; flex-shrink: 0; }
+.composer-controls .mode-picker { position: relative; }
+/* Empty chat: header stays on top; greeting + composer + cards are centred
+   between it and the bottom (auto margins instead of centring the column). */
+.chat-column.is-empty { justify-content: flex-start; }
+.chat-column.is-empty .chat-scroll { margin-top: auto; }
+.chat-column.is-empty .hero-cards { margin-bottom: auto; }

@@ -115,6 +115,7 @@ export default function Sidebar({
   onCreate,
   onDelete,
   onOpenSettings,
+  onOpenCode,
   modelCount = null,
   ollamaOk = true,
   onOpenMemory,
@@ -185,6 +186,7 @@ export default function Sidebar({
         </button>
         <RailBtn icon="plus" label="New chat" onClick={() => onCreate()} accent />
         <RailBtn icon="search" label="Search chats" onClick={expandAndSearch} />
+        {onOpenCode && <RailBtn icon="terminal" label="Code" onClick={onOpenCode} />}
         <div className="rail-sep" aria-hidden="true" />
         {onOpenNotes && <RailBtn icon="file-text" label="Notes" onClick={onOpenNotes} />}
         {onOpenTodos && <RailBtn icon="check-circle" label="To-do" onClick={onOpenTodos} />}
@@ -219,6 +221,36 @@ export default function Sidebar({
         <span className="new-chat-plus"><Icon name="plus" size={15} /></span>
         {!collapsed && <span>New chat</span>}
       </button>
+
+      {!collapsed && (
+        <nav className="sidebar-nav" aria-label="Features">
+          {onOpenCode && (
+            <button className="sidebar-nav-item" onClick={onOpenCode}>
+              <Icon name="terminal" size={15} /> <span>Code</span>
+            </button>
+          )}
+          {onOpenResearch && (
+            <button className="sidebar-nav-item" onClick={onOpenResearch}>
+              <Icon name="flask" size={15} /> <span>Research</span>
+            </button>
+          )}
+          {onOpenNotes && (
+            <button className="sidebar-nav-item" onClick={onOpenNotes}>
+              <Icon name="file-text" size={15} /> <span>Notes</span>
+            </button>
+          )}
+          {onOpenTodos && (
+            <button className="sidebar-nav-item" onClick={onOpenTodos}>
+              <Icon name="check-circle" size={15} /> <span>To-do</span>
+            </button>
+          )}
+          {onOpenCalendar && (
+            <button className="sidebar-nav-item" onClick={onOpenCalendar}>
+              <Icon name="calendar" size={15} /> <span>Calendar</span>
+            </button>
+          )}
+        </nav>
+      )}
 
       {!collapsed && (
         <div className="sidebar-search-wrap">

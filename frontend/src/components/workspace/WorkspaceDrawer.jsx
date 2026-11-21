@@ -82,7 +82,7 @@ function FileTreeNode({ conversationId, entry, depth, onOpen, activePath }) {
  */
 const TABS = ["files", "changes", "terminal"];
 
-export default function WorkspaceDrawer({ conversationId, workdir, onClose, openRequest, onAskAboutCode, onStartIssue, onOpenConversation }) {
+export default function WorkspaceDrawer({ conversationId, workdir, onClose, openRequest, onAskAboutCode, onStartIssue, onOpenConversation, wide = false, onToggleWide }) {
   const [tab, setTab] = useState(() => {
     const t = readStored(TAB_KEY, "files");
     return TABS.includes(t) ? t : "files";
@@ -258,7 +258,7 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
 
   return (
     <aside
-      className="workspace-drawer"
+      className={`workspace-drawer ${wide ? "is-wide" : ""}`}
       ref={drawer}
       style={{ "--ws-width": `${width}px` }}
       aria-label={`Workspace: ${workdir}`}
@@ -279,6 +279,11 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
         <span className="ws-folder" title={workdir}>
           <Icon name="folder" size={12} /> {folderName}
         </span>
+        {onToggleWide && (
+          <button className="icon-btn" onClick={onToggleWide} title={wide ? "Give the chat more room" : "Give the editor more room"} aria-label={wide ? "Narrow workspace" : "Widen workspace"} aria-pressed={wide}>
+            <Icon name="panel-left" size={14} />
+          </button>
+        )}
         <button className="icon-btn" onClick={tryClose} title="Close workspace" aria-label="Close workspace">
           <Icon name="x" size={14} />
         </button>
