@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
-import { SECTIONS } from "./settings/constants.js";
+import { SECTIONS, SECTION_GROUPS } from "./settings/constants.js";
 import { SettingsContext } from "./settings/SettingsContext.js";
 import AppearanceSection from "./settings/AppearanceSection.jsx";
 import AccessibilitySection from "./settings/AccessibilitySection.jsx";
@@ -57,6 +57,7 @@ export default function SettingsPanel({
   const [host, setHost] = useState("");
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState(initialSection);
+  const [navQuery, setNavQuery] = useState("");
   const [memories, setMemories] = useState([]);
   const [memoriesError, setMemoriesError] = useState(null);
   const [memoryConflicts, setMemoryConflicts] = useState([]);
@@ -1150,18 +1151,37 @@ export default function SettingsPanel({
 
         <div className="settings-body">
           <nav className="settings-nav" aria-label="Settings sections">
-            {SECTIONS.map((s) => (
-              <button
-                key={s.id}
-                className={`settings-nav-item ${activeSection === s.id ? "is-active" : ""}`}
-                onClick={() => setActiveSection(s.id)}
-              >
-                <span className="settings-nav-icon" aria-hidden="true">
-                  <Icon name={s.icon} size={15} />
-                </span>
-                {s.label}
-              </button>
-            ))}
+            <input
+              className="settings-nav-search"
+              type="search"
+              placeholder="Find a setting…"
+              value={navQuery}
+              onChange={(e) => setNavQuery(e.target.value)}
+              aria-label="Find a settings section"
+            />
+            {SECTION_GROUPS.map((g) => {
+              const items = SECTIONS.filter(
+                (s) => s.group === g && (!navQuery || s.label.toLowerCase().includes(navQuery.toLowerCase())),
+              );
+              if (!items.length) return null;
+              return (
+                <div className="settings-nav-group" key={g}>
+                  <div className="settings-nav-heading">{g}</div>
+                  {items.map((s) => (
+                    <button
+                      key={s.id}
+                      className={`settings-nav-item ${activeSection === s.id ? "is-active" : ""}`}
+                      onClick={() => setActiveSection(s.id)}
+                    >
+                      <span className="settings-nav-icon" aria-hidden="true">
+                        <Icon name={s.icon} size={15} />
+                      </span>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
           </nav>
 
           <div className="settings-content">
