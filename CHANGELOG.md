@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-11-21
+
+### Changed
+- Settings is grouped (General, Models, Agent, You, Data & privacy) with a search box, restyled to match the home screen.
+- Smoother motion: background animations run at the same speed on any refresh rate, render sharply on HiDPI, follow the theme colour and pause when the window is hidden; the home screen eases in.
+
+### Fixed
+- The microphone works in the Linux desktop app (it failed with "Invalid constraint").
+
 ## [1.2.0] — 2026-11-21
 
 ### Added

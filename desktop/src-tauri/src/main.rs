@@ -196,6 +196,23 @@ fn main() {
         .manage(Backend(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![capture_screenshot])
         .setup(|app| {
+            #[cfg(target_os = "linux")]
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.with_webview(|wv| {
+                    use webkit2gtk::{PermissionRequestExt, SettingsExt, WebViewExt};
+                    let view = wv.inner();
+                    if let Some(settings) = view.settings() {
+                        settings.set_enable_media_stream(true);
+                        settings.set_enable_mediasource(true);
+                    }
+                    // Only the app's own pages load here, so grant mic requests;
+                    // the OS still decides whether a device is available.
+                    view.connect_permission_request(|_, req| {
+                        req.allow();
+                        true
+                    });
+                });
+            }
             // App-data dir: ~/Library/Application Support/dev.zenith.desktop (macOS),
             // %APPDATA%/dev.zenith.desktop (Windows), ~/.local/share/dev.zenith.desktop (Linux).
             let data_dir = app

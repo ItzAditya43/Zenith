@@ -1,6 +1,6 @@
 [package]
 name = "zenith"
-version = "1.2.0"
+version = "1.2.1"
 description = "Zenith — self-hosted local AI chat for Ollama"
 license = "AGPL-3.0-or-later"
 edition = "2021"
@@ -23,6 +23,11 @@ serde_json = "1"
 # click, no synthetic input — see docs/NOT_BUILT.md for why that's excluded.
 screenshots = "0.8"
 base64 = "0.22"
+
+# Linux webview: allow the microphone (voice input) — WebKitGTK denies
+# getUserMedia unless media streams are enabled and the request is granted.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = "2.0"
 
 [features]
 # Bundling the frozen backend as a sidecar is on by default.

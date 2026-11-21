@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.2.1",
+    date: "2026-11-21",
+    title: "Smoother motion, a tidier Settings, and a working mic on Linux",
+    items: [
+      "Settings is grouped into General, Models, Agent, You, and Data & privacy, with a search box.",
+      "Background animations are smooth on any screen, sharp on HiDPI, and match your theme colour.",
+      "The microphone works in the Linux app again.",
+    ],
+  },
+  {
     version: "1.2.0",
     date: "2026-11-21",
     title: "Desktop control, API providers and a Code view",

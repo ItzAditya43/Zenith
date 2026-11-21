@@ -5764,3 +5764,32 @@ html[data-reduce-motion] .ob-body, html[data-reduce-motion] .ob-overlay { animat
 .settings-content .settings-input { border-radius: 10px; }
 .settings-content .settings-btn-primary { border-radius: var(--radius-full); }
 .settings-nav input.settings-nav-search { flex-shrink: 0; min-height: 36px; padding: 0 12px; box-sizing: border-box; }
+
+/* Ambient background fades in instead of popping on. */
+.ambient-canvas { opacity: 0; transition: opacity 900ms ease; }
+.ambient-canvas.is-on { opacity: 1; }
+
+/* ===== Motion polish =====
+   One easing curve everywhere, transform/opacity only (cheap on WebKitGTK),
+   and no layout-shifting entrances. */
+:root { --ease-out: cubic-bezier(0.22, 1, 0.36, 1); }
+.hero-orb { animation: orb-float 7s var(--ease-out) infinite; will-change: transform; }
+@keyframes orb-float { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, -4px, 0); } }
+.chat-column.is-empty .empty-state > * { animation: home-rise 600ms var(--ease-out) both; }
+.chat-column.is-empty .empty-state > *:nth-child(2) { animation-delay: 60ms; }
+.chat-column.is-empty .empty-state > *:nth-child(3) { animation-delay: 120ms; }
+.chat-column.is-empty .empty-state > *:nth-child(4) { animation-delay: 180ms; }
+.chat-column.is-empty .hero-cards { animation: home-rise 600ms 240ms var(--ease-out) both; }
+@keyframes home-rise { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
+.hero-card, .empty-state-suggestion, .ob-card-btn {
+  transition: transform 260ms var(--ease-out), border-color 200ms ease, background-color 200ms ease, box-shadow 260ms var(--ease-out);
+}
+.settings-panel { animation: app-dialog-in 320ms var(--ease-out); }
+.settings-content > * { animation: home-rise 280ms var(--ease-out); }
+html[data-reduce-motion] .chat-column.is-empty .empty-state > *,
+html[data-reduce-motion] .chat-column.is-empty .hero-cards,
+html[data-reduce-motion] .settings-panel,
+html[data-reduce-motion] .settings-content > * { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .hero-orb, .chat-column.is-empty .empty-state > *, .chat-column.is-empty .hero-cards, .settings-panel, .settings-content > * { animation: none !important; }
+}
