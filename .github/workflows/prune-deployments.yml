@@ -1,0 +1,26 @@
+# Keeps the repo's "Deployments" list to a single entry: after every Pages
+# deploy, delete all older github-pages deployments.
+name: Prune old Pages deployments
+
+on:
+  workflow_run:
+    workflows: ["pages build and deployment"]
+    types: [completed]
+
+permissions:
+  deployments: write
+  contents: read
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete every deployment except the newest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          for id in $(gh api "repos/$REPO/deployments?environment=github-pages&per_page=100" --paginate -q '.[].id' | tail -n +2); do
+            gh api -X POST "repos/$REPO/deployments/$id/statuses" -f state=inactive >/dev/null || true
+            gh api -X DELETE "repos/$REPO/deployments/$id" >/dev/null || true
+          done
