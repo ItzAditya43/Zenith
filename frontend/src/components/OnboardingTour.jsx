@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ZenithMark from "./ZenithMark.jsx";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
 
@@ -11,7 +12,7 @@ import Icon from "./Icon.jsx";
 function Welcome({ go }) {
   return (
     <div className="ob-hero">
-      <div className="hero-orb" aria-hidden="true"><span /></div>
+      <ZenithMark className="hero-mark" size={84} />
       <span className="empty-kicker">Welcome to</span>
       <h2>Zenith</h2>
       <p>

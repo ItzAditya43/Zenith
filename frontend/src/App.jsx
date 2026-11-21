@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ZenithMark from "./components/ZenithMark.jsx";
 import Sidebar from "./components/Sidebar";
 import Composer from "./components/Composer";
 import MessageBubble from "./components/MessageBubble";
@@ -1652,7 +1653,7 @@ export default function App() {
           />
           {messages.length === 0 && (
             <div className="empty-state">
-              <div className="hero-orb" aria-hidden="true"><span /></div>
+              <ZenithMark className="hero-mark" size={84} />
               <span className="empty-kicker">{greeting()}</span>
               <h2>What should we make today?</h2>
               <div className="empty-state-suggestions" role="group" aria-label="Suggestions">

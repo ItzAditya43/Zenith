@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.2.2] — 2026-11-22
+
+### Changed
+- The home screen shows the Zenith mark, animated: the ring draws, the horizon extends and the sun rises, then glows while you type.
+- Notes, To-do, Calendar, Research, Usage, Health, Backups, What's new, Shortcuts, the folder and project dialogs and the command palette now share the look of Settings and the home screen.
+
 ## [1.2.1] — 2026-11-21
 
 ### Changed

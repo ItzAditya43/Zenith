@@ -112,6 +112,17 @@ export default function ResearchDashboard({ onClose }) {
             {answer && <p className="setting-hint" style={{ marginTop: "0.5rem" }}>{answer}</p>}
           </div>
         )}
+        {!detail && (
+          <div className="research-detail-pane research-detail-empty">
+            <Icon name="flask" size={22} />
+            <strong>{reports.length ? "Pick a report" : "Your research shows up here"}</strong>
+            <span>
+              {reports.length
+                ? "Open a report to read it, check its sources and ask follow-ups."
+                : "Choose Deep Research in the mode menu under the message box, ask a question, and the report is saved here."}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
