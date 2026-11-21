@@ -9,6 +9,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.2.0",
+    date: "2026-11-21",
+    title: "Desktop control, API providers and a Code view",
+    items: [
+      "Press Super+Space (Ctrl+Alt+Space elsewhere) and tell Zenith what to do on your desktop. It asks before every action; turn it on in Settings → Agent tools.",
+      "Use OpenAI, Claude, Gemini, OpenRouter, Groq and more next to Ollama, from Settings → Providers.",
+      "Code in the sidebar opens your project with files, an editor and a terminal beside the chat.",
+      "A new home screen and message box, and a guided tour on first launch.",
+      "Updates install from inside the app after you confirm; agent commands can run in a Bubblewrap sandbox.",
+    ],
+  },
+  {
     version: "1.1.0",
     date: "2026-11-15",
     title: "A workspace beside the chat, git built in, and a model library",
