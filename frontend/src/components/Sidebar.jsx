@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Icon from "./Icon.jsx";
+import ZenithMark from "./ZenithMark.jsx";
 
 function groupByDate(conversations) {
   const now = new Date();
@@ -135,6 +136,7 @@ export default function Sidebar({
   onEditTags = null,
   onSetProjectAgentMode = null,
 }) {
+  const [brandPlays, setBrandPlays] = useState(0);
   const showSearchResults = searchResults !== null;
   const convResults = showSearchResults ? searchResults.conversations || [] : conversations;
   const docResults = showSearchResults ? searchResults.documents || [] : [];
@@ -208,10 +210,18 @@ export default function Sidebar({
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
       <div className="sidebar-header">
-        <div className="brand">
-          <img className="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" />
+        <button
+          className="brand brand-home"
+          onClick={() => {
+            setBrandPlays((n) => n + 1);
+            onCreate();
+          }}
+          title="Home — start a new chat"
+          aria-label="Home: start a new chat"
+        >
+          <ZenithMark key={brandPlays} size={24} className={brandPlays ? "brand-anim" : ""} />
           {!collapsed && <span className="brand-name">Zenith</span>}
-        </div>
+        </button>
         <button className="icon-btn" onClick={onToggleCollapse} title="Toggle sidebar" aria-label="Toggle sidebar">
           <Icon name={collapsed ? "chevron-right" : "chevron-left"} size={15} />
         </button>

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.2.3] — 2026-11-22
+
+### Changed
+- The Zenith logo at the top of the sidebar is a Home button: the sun rises and a new chat opens.
+- Scrollbars are thin and only appear while you hover.
+
 ## [1.2.2] — 2026-11-22
 
 ### Changed

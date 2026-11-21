@@ -9,10 +9,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "1.2.2",
+    version: "1.2.3",
     date: "2026-11-22",
     title: "One look everywhere",
     items: [
+      "Click the Zenith logo in the sidebar to go home: the sun rises and a new chat opens.",
+      "Scrollbars are thin and only appear while you hover.",
       "The home screen shows the Zenith mark: the sun rises to its zenith, and glows while you type.",
       "Notes, To-do, Calendar, Research, the command palette and every other panel now match Settings and the home screen.",
     ],
