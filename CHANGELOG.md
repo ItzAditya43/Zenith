@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.2.4] — 2026-11-24
+
+### Added
+- Workflows (sidebar → Workflows): a visual canvas where you drag Input, Agent, Memory, Web search, Human review and Output nodes onto a grid and wire them together. Run it and each step lights up as it works, with a live trace, per-node output, and a pause for your approval at review nodes. Independent branches run at the same time; a failed step skips only what depends on it. Workflows and their run history are saved locally.
+
 ## [1.2.3] — 2026-11-22
 
 ### Changed

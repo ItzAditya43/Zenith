@@ -17,6 +17,7 @@ from app.api import (
     batch,
     chat,
     desktop,
+    workflows,
     digest,
     documents,
     export,
@@ -238,7 +239,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Zenith",
-    version="1.1.0",
+    version="1.2.4",
     lifespan=lifespan,
     description="Local-first AI chat with a small router over local Ollama models.",
 )
@@ -356,3 +357,4 @@ app.include_router(terminal.router)
 app.include_router(git.router)
 app.include_router(providers.router)
 app.include_router(desktop.router)
+app.include_router(workflows.router)

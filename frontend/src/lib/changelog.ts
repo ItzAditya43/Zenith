@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.2.4",
+    date: "2026-11-24",
+    title: "Workflows: build with agents on a canvas",
+    items: [
+      "Open Workflows in the sidebar and drag Agent, Memory, Web search, Human review and Output nodes onto a grid, then connect them.",
+      "Run it and watch each step light up, with a live trace and each node's output. Review nodes pause until you approve.",
+      "Branches run at the same time, and a failed step only skips what depends on it. Workflows and run history are saved on your machine.",
+    ],
+  },
+  {
     version: "1.2.3",
     date: "2026-11-22",
     title: "One look everywhere",

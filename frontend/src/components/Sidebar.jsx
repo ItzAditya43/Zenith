@@ -132,6 +132,7 @@ export default function Sidebar({
   onOpenTodos,
   onOpenCalendar,
   onOpenResearch,
+  onOpenWorkflows,
   onTogglePin = null,
   onEditTags = null,
   onSetProjectAgentMode = null,
@@ -242,6 +243,11 @@ export default function Sidebar({
           {onOpenResearch && (
             <button className="sidebar-nav-item" onClick={onOpenResearch}>
               <Icon name="flask" size={15} /> <span>Research</span>
+            </button>
+          )}
+          {onOpenWorkflows && (
+            <button className="sidebar-nav-item" onClick={onOpenWorkflows}>
+              <Icon name="git-branch" size={15} /> <span>Workflows</span>
             </button>
           )}
           {onOpenNotes && (

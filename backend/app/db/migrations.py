@@ -259,6 +259,32 @@ def _schedules_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _workflows_tables(conn: sqlite3.Connection) -> None:
+    """Visual workflows: a saved node graph plus a trace of each run."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS workflows (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            graph TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS workflow_runs (
+            id TEXT PRIMARY KEY,
+            workflow_id TEXT NOT NULL,
+            started_at REAL NOT NULL,
+            finished_at REAL,
+            status TEXT NOT NULL DEFAULT 'running',
+            input TEXT,
+            output TEXT,
+            trace TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_workflow_runs_wf ON workflow_runs(workflow_id, started_at);
+        """
+    )
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -824,6 +850,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (36, "turn_traces_table", _turn_traces_table),
     (37, "project_workspace_columns", _project_workspace_columns),
     (38, "conversation_summaries_table", _conversation_summaries_table),
+    (39, "workflows_tables", _workflows_tables),
 ]
 
 

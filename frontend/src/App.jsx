@@ -48,6 +48,7 @@ const CalendarPanel = lazyPanel(() => import("./components/CalendarPanel.jsx"));
 const NotesPanel = lazyPanel(() => import("./components/NotesPanel.jsx"));
 const TodoPanel = lazyPanel(() => import("./components/TodoPanel.jsx"));
 const ResearchDashboard = lazyPanel(() => import("./components/ResearchDashboard.jsx"));
+const WorkflowCanvas = lazyPanel(() => import("./components/WorkflowCanvas.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
 const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
@@ -121,6 +122,7 @@ export default function App() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
+  const [workflowsOpen, setWorkflowsOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [workspaceOpenRequest, setWorkspaceOpenRequest] = useState(null);
   const [workspaceWide, setWorkspaceWide] = useState(false);
@@ -1448,6 +1450,7 @@ export default function App() {
           onOpenTodos={() => setTodosOpen(true)}
           onOpenCalendar={() => setCalendarOpen(true)}
           onOpenResearch={() => setResearchOpen(true)}
+          onOpenWorkflows={() => setWorkflowsOpen(true)}
           onTogglePin={handleTogglePin}
           onEditTags={handleEditTags}
           onSetProjectAgentMode={handleSetProjectAgentMode}
@@ -1533,6 +1536,7 @@ export default function App() {
         {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}
         {todosOpen && <TodoPanel onClose={() => setTodosOpen(false)} />}
         {researchOpen && <ResearchDashboard onClose={() => setResearchOpen(false)} />}
+        {workflowsOpen && <WorkflowCanvas onClose={() => setWorkflowsOpen(false)} />}
         {snippetsOpen && (
           <SnippetsPanel
             onClose={() => setSnippetsOpen(false)}

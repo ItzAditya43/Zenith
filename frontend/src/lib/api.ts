@@ -218,6 +218,23 @@ export interface ChatTurn {
 export const api = {
   base: BASE,
 
+  listWorkflows: () => request("/api/workflows").then((r) => r.json()),
+  saveWorkflow: (body: { id?: string | null; name: string; graph: unknown }) =>
+    request("/api/workflows", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json()),
+  deleteWorkflow: (id: string) => request(`/api/workflows/${id}`, { method: "DELETE" }),
+  workflowRuns: (id: string) => request(`/api/workflows/${id}/runs`).then((r) => r.json()),
+  runWorkflow: (
+    body: { graph: unknown; input: string; workflow_id?: string | null },
+    onEvent: StreamHandler,
+    signal?: AbortSignal,
+  ) => streamSSE("/api/workflows/run", body, onEvent, signal),
+  reviewWorkflow: (runId: string, nodeId: string, approve: boolean) =>
+    request(`/api/workflows/runs/${runId}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ node_id: nodeId, approve }),
+    }),
+
   listConversations: () => request("/api/conversations").then((r) => r.json()),
   createConversation: (title: string = "New chat", projectId: string | null = null) =>
     request("/api/conversations", {

@@ -1,6 +1,6 @@
 [package]
 name = "zenith"
-version = "1.2.3"
+version = "1.2.4"
 description = "Zenith — self-hosted local AI chat for Ollama"
 license = "AGPL-3.0-or-later"
 edition = "2021"
