@@ -69,10 +69,10 @@ and **XL** ≈ a multi-week design and implementation effort.
 7. **Reusable prompt workflows** — Turn quick actions into parameterized
    templates (for example, “review this diff”), with validation and import /
    export. **M**.
-8. **Answer and routing feedback** — Let users rate answers and flag poor model
+8. ~~**Answer and routing feedback**~~ — **Done (1.2.6):** thumbs and a "wrong model" flag on replies; Settings → Model routing shows per-model totals and recent wrong-model picks; nothing is applied automatically. Original note: Let users rate answers and flag poor model
    choices; show the feedback in model comparisons and routing diagnostics.
    Any automatic learning should be inspectable and reversible. **M**.
-9. **Model comparison runs** — Send the same prompt to selected models, show
+9. ~~**Model comparison runs**~~ — **Done (1.2.6):** Compare models (palette or Model routing) runs one prompt on 2–4 models at once with time to first word, total time and speed, saves each comparison and lets you pick a winner. Original note: Send the same prompt to selected models, show
    latency, speed, and side-by-side output, and save comparisons. **M**.
 10. **Safe conversation sharing** — Add a previewable export/share flow with
     explicit redaction of sensitive text and attachments. Keep it opt-in and

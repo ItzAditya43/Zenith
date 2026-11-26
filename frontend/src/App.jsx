@@ -53,6 +53,7 @@ const MemoryBrowser = lazyPanel(() => import("./components/MemoryBrowser.jsx"));
 const TasksPanel = lazyPanel(() => import("./components/TasksPanel.jsx"));
 const RunReview = lazyPanel(() => import("./components/RunReview.jsx"));
 const ChatManager = lazyPanel(() => import("./components/ChatManager.jsx"));
+const ModelCompare = lazyPanel(() => import("./components/ModelCompare.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
 const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
@@ -138,6 +139,12 @@ export default function App() {
   const [tasksPanel, setTasksPanel] = useState(null); // null = closed, else { focusId }
   const [reviewRunId, setReviewRunId] = useState(null);
   const [chatManager, setChatManager] = useState(null); // null = closed, else { show }
+  const [compareOpen, setCompareOpen] = useState(false);
+  useEffect(() => {
+    const onCompare = () => { setSettingsOpen(false); setCompareOpen(true); };
+    window.addEventListener("zenith:open-compare", onCompare);
+    return () => window.removeEventListener("zenith:open-compare", onCompare);
+  }, []);
   useEffect(() => {
     const onChats = (e) => { setSettingsOpen(false); setChatManager({ show: e.detail?.show || "active" }); };
     window.addEventListener("zenith:open-chats", onChats);
@@ -670,8 +677,8 @@ export default function App() {
     setActiveId(id);
     setSearchResults(null);
     if (window.innerWidth <= 720) setSidebarCollapsed(true); // close off-canvas sidebar on mobile
-    const msgs = await api.getMessages(id);
-    setMessages(msgs);
+    const [msgs, fbMap] = await Promise.all([api.getMessages(id), api.conversationFeedback(id).catch(() => ({}))]);
+    setMessages(msgs.map((m) => (fbMap[m.id] ? { ...m, feedback: fbMap[m.id] } : m)));
     refreshBranches(id);
     api.getGroupPersonas(id).then((r) => setGroupPersonaIds(r.persona_ids || [])).catch(() => setGroupPersonaIds([]));
   };
@@ -1588,6 +1595,7 @@ export default function App() {
             onOpenConversation={(cid) => { setTasksPanel(null); selectConversation(cid); }}
           />
         )}
+        {compareOpen && <ModelCompare onClose={() => setCompareOpen(false)} />}
         {chatManager && (
           <ChatManager
             initialShow={chatManager.show}

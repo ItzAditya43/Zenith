@@ -218,6 +218,25 @@ export interface ChatTurn {
 export const api = {
   base: BASE,
 
+  setFeedback: (messageId: string, body: { rating?: number; wrong_model?: boolean; note?: string }) =>
+    request(`/api/messages/${messageId}/feedback`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => r.json()),
+  conversationFeedback: (conversationId: string) =>
+    request(`/api/conversations/${conversationId}/feedback`).then((r) => r.json()),
+  feedbackSummary: () => request("/api/feedback/summary").then((r) => r.json()),
+  runCompare: (body: { prompt: string; models: string[]; system?: string | null }, onEvent: StreamHandler, signal?: AbortSignal) =>
+    streamSSE("/api/compare", body, onEvent, signal),
+  listCompares: () => request("/api/compare").then((r) => r.json()),
+  setCompareWinner: (id: string, model: string | null) =>
+    request(`/api/compare/${id}/winner`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    }),
+  deleteCompare: (id: string) => request(`/api/compare/${id}`, { method: "DELETE" }),
   bulkConversations: (ids: string[], action: string, tag: string | null = null) =>
     request("/api/conversations/bulk", {
       method: "POST",

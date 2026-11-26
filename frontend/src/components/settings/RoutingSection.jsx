@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { openModelCompare } from "../../lib/uiEvents.js";
 import { recommendedModelForRole, ROLES, ROLE_LABEL } from "./constants.js";
 import { api } from "../../lib/api";
 import { useSettings } from "./SettingsContext.js";
@@ -164,6 +166,47 @@ export default function RoutingSection() {
           </ul>
         </div>
       )}
+      <FeedbackTable />
     </section>
+  );
+}
+
+
+/** Thumbs and "wrong model" flags from your replies, per model. Read-only
+ * on purpose: it informs your pins above, it never changes routing. */
+function FeedbackTable() {
+  const [data, setData] = useState(null);
+  useEffect(() => { api.feedbackSummary().then(setData).catch(() => setData({ models: [], wrong_model_recent: [] })); }, []);
+  if (!data) return null;
+  return (
+    <div style={{ marginTop: "1.5rem" }}>
+      <h3 className="settings-section-title">Your feedback</h3>
+      <p className="settings-section-desc">
+        From the thumbs and “Wrong model?” buttons under replies. Zenith doesn't change routing from this on its own;
+        use it to decide what to pin above. <button className="text-btn" onClick={() => openModelCompare()}>Compare models side by side</button>
+      </p>
+      {data.models.length === 0 ? <p className="setting-hint">No feedback yet.</p> : (
+        <table className="fb-table">
+          <thead><tr><th>Model</th><th>👍</th><th>👎</th><th>Liked</th><th>Wrong model</th><th>Used as</th></tr></thead>
+          <tbody>
+            {data.models.map((m) => (
+              <tr key={m.model}>
+                <td><code>{m.model}</code></td><td>{m.up}</td><td>{m.down}</td>
+                <td>{m.approval == null ? "—" : `${Math.round(m.approval * 100)}%`}</td>
+                <td className={m.wrong_model ? "warn" : ""}>{m.wrong_model}</td>
+                <td>{m.roles.join(", ") || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {data.wrong_model_recent.length > 0 && (
+        <ul className="fb-recent">
+          {data.wrong_model_recent.slice(0, 6).map((r) => (
+            <li key={r.message_id}><code>{r.model}</code> picked as {r.route_role || "?"} in “{r.title || "a chat"}”{r.note ? ` — ${r.note}` : ""}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

@@ -366,6 +366,30 @@ function PlanCard({ plan, onDecision }) {
   );
 }
 
+/** Thumbs up/down and "wrong model" for one reply. Shown per model under
+ * Settings → Model routing; never changes routing by itself. */
+function FeedbackButtons({ message }) {
+  const [fb, setFb] = useState(message.feedback || null);
+  const send = async (patch) => {
+    try { setFb(await api.setFeedback(message.id, patch)); } catch { /* not saved — leave as is */ }
+  };
+  const rating = fb?.rating || 0;
+  return (
+    <>
+      <button className={rating > 0 ? "is-on" : ""} onClick={() => send({ rating: rating > 0 ? 0 : 1 })} title="Good answer" aria-pressed={rating > 0}>
+        <Icon name="thumbs-up" size={13} />
+      </button>
+      <button className={rating < 0 ? "is-on" : ""} onClick={() => send({ rating: rating < 0 ? 0 : -1 })} title="Bad answer" aria-pressed={rating < 0}>
+        <Icon name="thumbs-down" size={13} />
+      </button>
+      <button className={fb?.wrong_model ? "is-on" : ""} onClick={() => send({ wrong_model: !fb?.wrong_model })}
+        title={`Flag ${message.model} as the wrong model for this`} aria-pressed={!!fb?.wrong_model}>
+        <Icon name="target" size={13} /> {fb?.wrong_model ? "Wrong model" : "Wrong model?"}
+      </button>
+    </>
+  );
+}
+
 export default function MessageBubble({
   message,
   onRetry,
@@ -635,6 +659,9 @@ export default function MessageBubble({
                 <button onClick={() => onRegenerate(message)} title="Regenerate response">
                   <Icon name="rotate-ccw" size={13} /> Regenerate
                 </button>
+              )}
+              {!isUser && message.id && message.model && (
+                <FeedbackButtons message={message} />
               )}
               {message.content && (
                 <button onClick={share} title="Share (or copy)">

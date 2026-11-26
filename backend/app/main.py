@@ -18,6 +18,7 @@ from app.api import (
     chat,
     desktop,
     workflows,
+    feedback,
     digest,
     documents,
     export,
@@ -366,3 +367,4 @@ app.include_router(git.router)
 app.include_router(providers.router)
 app.include_router(desktop.router)
 app.include_router(workflows.router)
+app.include_router(feedback.router)

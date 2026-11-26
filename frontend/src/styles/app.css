@@ -6140,3 +6140,39 @@ html[data-reduce-motion] .brand-anim * { animation: none !important; }
 .sidebar-list-tools .sidebar-new-project-btn { flex: 1; }
 .sidebar-manage-btn { padding: 0 10px; border-radius: 8px; border: 1px dashed var(--border-soft); font-size: 11.5px; color: var(--text-tertiary); white-space: nowrap; }
 .sidebar-manage-btn:hover { color: var(--text-primary); border-style: solid; }
+
+/* ===== Feedback + model comparison ===== */
+.msg-actions button.is-on { color: var(--signal-general); }
+.fb-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); margin-top: 8px; }
+.fb-table th, .fb-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-hairline); color: var(--text-secondary); }
+.fb-table th { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); font-weight: 500; }
+.fb-table td code { color: var(--text-primary); }
+.fb-table td.warn { color: var(--signal-voice); }
+.fb-recent { margin: 10px 0 0; padding-left: 1.1rem; font-size: var(--text-xs); color: var(--text-tertiary); line-height: 1.7; }
+.cmp-modal { width: min(1320px, calc(100vw - 2rem)); height: min(860px, 92vh); display: flex; flex-direction: column; overflow: hidden; }
+.cmp-setup { padding: 14px 26px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--border-hairline); }
+.cmp-pickers { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.cmp-picker { display: flex; align-items: center; gap: 4px; }
+.cmp-picker .ui-select-trigger { min-width: 220px; height: 34px; font-size: var(--text-xs); }
+.cmp-prompt { display: flex; gap: 10px; align-items: flex-end; }
+.cmp-prompt textarea { flex: 1; resize: none; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--bg-inset); color: var(--text-primary); font: inherit; font-size: var(--text-sm); }
+.cmp-prompt textarea:focus { outline: none; border-color: color-mix(in srgb, var(--signal-general) 55%, var(--border-soft)); }
+.cmp-grid { flex: 1; min-height: 0; display: grid; gap: 1px; background: var(--border-hairline); }
+.cmp-empty { grid-column: 1 / -1; background: var(--bg-panel); padding: 30px; }
+.cmp-history { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-direction: column; gap: 6px; max-width: 760px; }
+.cmp-history li { display: flex; gap: 6px; align-items: center; }
+.cmp-history li > button:first-child { flex: 1; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-hairline); display: flex; flex-direction: column; gap: 2px; }
+.cmp-history li > button:first-child:hover { border-color: var(--border-soft); }
+.cmp-history strong { font-size: var(--text-sm); color: var(--text-primary); font-weight: 500; }
+.cmp-history em { font-style: normal; font-size: 11.5px; color: var(--text-tertiary); }
+.cmp-col { background: var(--bg-panel); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.cmp-col.is-winner { box-shadow: inset 0 2px 0 var(--signal-general); }
+.cmp-col header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px 6px; }
+.cmp-col header strong { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmp-win { font-size: 11.5px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border-soft); color: var(--text-secondary); }
+.cmp-win.is-on { border-color: var(--signal-general); color: var(--signal-general); background: var(--signal-general-dim); }
+.cmp-stats { display: flex; gap: 14px; padding: 0 16px 10px; border-bottom: 1px solid var(--border-hairline); }
+.cmp-stat { display: flex; align-items: baseline; gap: 5px; font-size: 11px; color: var(--text-tertiary); }
+.cmp-stat b { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-primary); font-weight: 500; }
+.cmp-body { flex: 1; overflow-y: auto; padding: 14px 16px; font-size: var(--text-sm); }
+@media (max-width: 860px) { .cmp-grid { grid-template-columns: 1fr !important; overflow-y: auto; } }

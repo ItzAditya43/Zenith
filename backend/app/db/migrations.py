@@ -350,6 +350,33 @@ def _conversation_archived_column(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE conversations ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
 
 
+def _feedback_and_compare_tables(conn: sqlite3.Connection) -> None:
+    """Answer feedback (thumbs and "wrong model" flags, shown in routing
+    diagnostics — never applied automatically) and saved model comparisons."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS message_feedback (
+            message_id TEXT PRIMARY KEY,
+            conversation_id TEXT,
+            model TEXT,
+            route_role TEXT,
+            rating INTEGER NOT NULL DEFAULT 0,
+            wrong_model INTEGER NOT NULL DEFAULT 0,
+            note TEXT,
+            created_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_message_feedback_model ON message_feedback(model);
+        CREATE TABLE IF NOT EXISTS compare_runs (
+            id TEXT PRIMARY KEY,
+            prompt TEXT NOT NULL,
+            results TEXT NOT NULL,
+            winner TEXT,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -920,6 +947,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (41, "memory_management_columns", _memory_management_columns),
     (42, "background_runs_table", _background_runs_table),
     (43, "conversation_archived_column", _conversation_archived_column),
+    (44, "feedback_and_compare_tables", _feedback_and_compare_tables),
 ]
 
 
