@@ -446,6 +446,40 @@ def _schedule_todo_mode(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE schedules ADD COLUMN todo_mode TEXT NOT NULL DEFAULT 'none'")
 
 
+def _email_workflow_tables(conn: sqlite3.Connection) -> None:
+    """Inbox triage categories, reusable filters, and reply drafts that wait
+    for review before anything is sent."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(email_flags)")}
+    if "category" not in cols:
+        conn.execute("ALTER TABLE email_flags ADD COLUMN category TEXT")
+        conn.execute("UPDATE email_flags SET category = CASE WHEN urgent = 1 THEN 'urgent' ELSE 'fyi' END")
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS email_filters (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            field TEXT NOT NULL,
+            contains TEXT NOT NULL,
+            category TEXT NOT NULL,
+            created_at REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS email_drafts (
+            id TEXT PRIMARY KEY,
+            message_id TEXT,
+            to_addr TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL,
+            original_from TEXT,
+            original_subject TEXT,
+            status TEXT NOT NULL DEFAULT 'draft',
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL,
+            sent_at REAL
+        );
+        """
+    )
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -1022,6 +1056,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (47, "import_fingerprints_table", _import_fingerprints_table),
     (48, "cleanup_log_table", _cleanup_log_table),
     (49, "schedule_todo_mode", _schedule_todo_mode),
+    (50, "email_workflow_tables", _email_workflow_tables),
 ]
 
 

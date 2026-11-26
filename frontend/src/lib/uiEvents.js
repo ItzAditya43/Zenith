@@ -12,3 +12,4 @@ export const openChatManager = (show = "active") =>
 export const openModelCompare = () => window.dispatchEvent(new CustomEvent("zenith:open-compare"));
 export const openNotifications = () => window.dispatchEvent(new CustomEvent("zenith:open-notifications"));
 export const openCleanup = () => window.dispatchEvent(new CustomEvent("zenith:open-cleanup"));
+export const openMail = () => window.dispatchEvent(new CustomEvent("zenith:open-mail"));

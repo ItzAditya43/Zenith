@@ -643,6 +643,85 @@ async def email_send(body: dict):
         raise HTTPException(400, str(exc)) from exc
 
 
+@router.get("/email/inbox")
+async def email_inbox():
+    from app.services import email_service
+    try:
+        return await asyncio.to_thread(email_service.inbox)
+    except email_service.EmailError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/email/triage")
+async def email_triage(force: bool = False):
+    from app.services import email_service
+    return await email_service.triage(force=force)
+
+
+@router.get("/email/filters")
+async def email_filters():
+    from app.services import email_service
+    return email_service.list_filters()
+
+
+@router.post("/email/filters")
+async def email_add_filter(body: dict):
+    from app.services import email_service
+    try:
+        return email_service.add_filter(str(body.get("name", "")), str(body.get("field", "")),
+                                        str(body.get("contains", "")), str(body.get("category", "")))
+    except email_service.EmailError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.delete("/email/filters/{fid}")
+async def email_delete_filter(fid: str):
+    from app.services import email_service
+    email_service.delete_filter(fid)
+    return {"ok": True}
+
+
+@router.get("/email/drafts")
+async def email_drafts(status: str = "draft"):
+    from app.services import email_service
+    return email_service.list_drafts(status)
+
+
+@router.post("/email/messages/{message_id}/draft")
+async def email_create_draft(message_id: str, body: dict):
+    """Draft a reply and keep it for review; nothing is sent."""
+    from app.services import email_service
+    try:
+        return await email_service.create_draft(message_id, str(body.get("instruction", "")))
+    except email_service.EmailError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.patch("/email/drafts/{did}")
+async def email_update_draft(did: str, body: dict):
+    from app.services import email_service
+    try:
+        return email_service.update_draft(did, body.get("to"), body.get("subject"), body.get("body"))
+    except email_service.EmailError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.post("/email/drafts/{did}/send")
+async def email_send_draft(did: str):
+    from app.services import email_service
+    try:
+        return await asyncio.to_thread(email_service.send_draft, did)
+    except email_service.EmailError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.delete("/email/drafts/{did}")
+async def email_discard_draft(did: str):
+    from app.services import email_service
+    email_service.discard_draft(did)
+    return {"ok": True}
+
+
 @router.get("/email/flags")
 async def email_flags(unseen_only: bool = True):
     from app.db import storage

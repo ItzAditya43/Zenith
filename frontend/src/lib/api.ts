@@ -595,6 +595,19 @@ export const api = {
   usageStats: (days: number = 14) => request(`/api/usage/stats?days=${days}`).then((r) => r.json()),
 
   emailTest: () => request("/api/email/test").then((r) => r.json()),
+  emailInbox: () => request("/api/email/inbox").then((r) => r.json()),
+  emailTriage: (force = false) => request(`/api/email/triage?force=${force}`, { method: "POST" }).then((r) => r.json()),
+  emailFilters: () => request("/api/email/filters").then((r) => r.json()),
+  addEmailFilter: (f: { name: string; field: string; contains: string; category: string }) =>
+    request("/api/email/filters", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) }).then((r) => r.json()),
+  deleteEmailFilter: (id: string) => request(`/api/email/filters/${id}`, { method: "DELETE" }),
+  emailDrafts: () => request("/api/email/drafts").then((r) => r.json()),
+  createEmailDraft: (messageId: string, instruction = "") =>
+    request(`/api/email/messages/${messageId}/draft`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ instruction }) }).then((r) => r.json()),
+  updateEmailDraft: (id: string, patch: { to?: string; subject?: string; body?: string }) =>
+    request(`/api/email/drafts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }).then((r) => r.json()),
+  sendEmailDraft: (id: string) => request(`/api/email/drafts/${id}/send`, { method: "POST" }).then((r) => r.json()),
+  discardEmailDraft: (id: string) => request(`/api/email/drafts/${id}`, { method: "DELETE" }),
   emailFlags: () => request("/api/email/flags").then((r) => r.json()),
   markEmailFlagsSeen: () => request("/api/email/flags/mark-seen", { method: "POST" }),
   emailMessages: () => request("/api/email/messages").then((r) => r.json()),

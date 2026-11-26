@@ -135,6 +135,7 @@ export default function Sidebar({
   onOpenResearch,
   onOpenWorkflows,
   onOpenTasks,
+  onOpenMail,
   onTogglePin = null,
   onEditTags = null,
   onSetProjectAgentMode = null,
@@ -246,6 +247,11 @@ export default function Sidebar({
           {onOpenResearch && (
             <button className="sidebar-nav-item" onClick={onOpenResearch}>
               <Icon name="flask" size={15} /> <span>Research</span>
+            </button>
+          )}
+          {onOpenMail && (
+            <button className="sidebar-nav-item" onClick={onOpenMail}>
+              <Icon name="at-sign" size={15} /> <span>Mail</span>
             </button>
           )}
           {onOpenTasks && (

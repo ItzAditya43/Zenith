@@ -280,60 +280,243 @@ def send_message(to: str, subject: str, body: str, in_reply_to: str | None = Non
         raise EmailError(f"Send failed: {exc}") from exc
 
 
-async def scan_for_urgent(limit: int = 10) -> int:
-    """Background triage: looks at the most recent messages, classifies
-    any not already seen, and records the urgent ones. Returns how many
-    new urgent flags were found this pass. Called on a timer from
-    main.py, same pattern as the folder scanner / schedule runner —
-    never raises, a flaky inbox connection just means "nothing new this
-    cycle" rather than crashing the loop."""
-    from app.db import storage
+# ---- triage, filters and drafts ---------------------------------------------------
+
+CATEGORIES = ("urgent", "reply", "fyi", "newsletter")
+FILTER_FIELDS = ("from", "subject", "body")
+
+
+def list_filters() -> list[dict]:
+    from app.db.storage import _conn
+
+    with _conn() as conn:
+        return [dict(r) for r in conn.execute("SELECT * FROM email_filters ORDER BY created_at ASC")]
+
+
+def add_filter(name: str, field: str, contains: str, category: str) -> dict:
+    import time
+    import uuid
+
+    from app.db.storage import _conn
+
+    if field not in FILTER_FIELDS:
+        raise EmailError(f"field must be one of {FILTER_FIELDS}")
+    if category not in CATEGORIES:
+        raise EmailError(f"category must be one of {CATEGORIES}")
+    if not contains.strip():
+        raise EmailError("Say what the filter should look for.")
+    fid = uuid.uuid4().hex[:12]
+    with _conn() as conn:
+        conn.execute("INSERT INTO email_filters (id, name, field, contains, category, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                     (fid, name.strip() or contains.strip(), field, contains.strip(), category, time.time()))
+    return {"id": fid, "name": name.strip() or contains.strip(), "field": field, "contains": contains.strip(), "category": category}
+
+
+def delete_filter(fid: str) -> None:
+    from app.db.storage import _conn
+
+    with _conn() as conn:
+        conn.execute("DELETE FROM email_filters WHERE id = ?", (fid,))
+
+
+def match_filter(msg: dict, filters: list[dict] | None = None) -> dict | None:
+    for f in filters if filters is not None else list_filters():
+        hay = str(msg.get("snippet" if f["field"] == "body" else f["field"]) or "").lower()
+        if f["contains"].lower() in hay:
+            return f
+    return None
+
+
+def _flag(message_id: str) -> dict | None:
+    from app.db.storage import _conn
+
+    with _conn() as conn:
+        r = conn.execute("SELECT * FROM email_flags WHERE message_id = ?", (message_id,)).fetchone()
+    return dict(r) if r else None
+
+
+def _record(m: dict, category: str, reason: str) -> None:
+    import time
+
+    from app.db.storage import _conn
+
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO email_flags (message_id, subject, sender, reason, urgent, seen, flagged_at, category)
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+               ON CONFLICT(message_id) DO UPDATE SET category = excluded.category, reason = excluded.reason,
+                 urgent = excluded.urgent""",
+            (m["id"], m["subject"], m["from"], reason, 1 if category == "urgent" else 0, time.time(), category),
+        )
+
+
+async def triage(limit: int = 15, force: bool = False) -> dict:
+    """Sort recent mail into urgent / reply / fyi / newsletter. Your filters
+    decide first (no model call); the model handles the rest, once per
+    message. Urgent ones raise the `urgent_email` event as before."""
     from app.services.ollama_client import OllamaClient
     from app.services.router import ModelRegistry, ModelRouter
 
     if not settings.get("email_enabled"):
-        return 0
+        return {"triaged": 0, "urgent": 0}
     try:
         messages = await asyncio.to_thread(list_messages, "INBOX", limit)
     except EmailError as exc:
         log.warning("email.triage_fetch_failed", error=str(exc))
-        return 0
-
-    unseen = [m for m in messages if not storage.is_email_flagged_seen(m["id"])]
-    if not unseen:
-        return 0
-
-    registry = ModelRegistry()
-    installed = await registry.models()
-    router = ModelRouter(registry=registry)
-    model = router._match_capability("small_fast", installed) or (installed[0] if installed else None)  # noqa: SLF001
-    if not model:
-        return 0
-
-    client = OllamaClient()
-    new_urgent = 0
-    for m in unseen:
-        prompt = (
-            "Is this email urgent — a time-sensitive deadline, a document needing a "
-            "signature, a legal/financial/business action item? Reply with exactly "
-            "one line: either 'URGENT: <one-sentence reason>' or 'NOT_URGENT'.\n\n"
-            f"From: {m['from']}\nSubject: {m['subject']}\n\n{m['snippet']}"
-        )
-        try:
-            out = (await client.chat(model, [{"role": "user", "content": prompt}])).strip()
-        except Exception as exc:
-            log.warning("email.triage_classify_failed", error=str(exc))
-            continue
-        urgent = out.upper().startswith("URGENT")
-        reason = out.split(":", 1)[1].strip() if urgent and ":" in out else ""
-        storage.record_email_flag(m["id"], m["subject"], m["from"], reason, urgent)
-        if urgent:
-            new_urgent += 1
+        return {"triaged": 0, "urgent": 0, "error": str(exc)}
+    todo = [m for m in messages if force or not _flag(m["id"])]
+    if not todo:
+        return {"triaged": 0, "urgent": 0}
+    filters = list_filters()
+    model = None
+    triaged = urgent = 0
+    for m in todo:
+        f = match_filter(m, filters)
+        if f:
+            category, reason = f["category"], f"filter: {f['name']}"
+        else:
+            if model is None:
+                registry = ModelRegistry()
+                installed = await registry.models()
+                model = ModelRouter(registry=registry)._match_capability("small_fast", installed) or (installed[0] if installed else "")  # noqa: SLF001
+            if not model:
+                break
+            prompt = (
+                "Sort this email into exactly one category and reply with one line, 'CATEGORY: short reason'.\n"
+                "URGENT = time-sensitive: a deadline, something to sign, a legal/financial/business action.\n"
+                "REPLY = a person is asking you something or expects an answer.\n"
+                "NEWSLETTER = marketing, newsletters, promotions, automated digests.\n"
+                "FYI = everything else worth knowing but needing no action.\n\n"
+                f"From: {m['from']}\nSubject: {m['subject']}\n\n{m['snippet']}"
+            )
+            try:
+                out = (await OllamaClient().chat(model, [{"role": "user", "content": prompt}])).strip()
+            except Exception as exc:
+                log.warning("email.triage_classify_failed", error=str(exc))
+                continue
+            head, _, rest = out.partition(":")
+            word = head.strip().strip("*").upper()
+            category = {"URGENT": "urgent", "REPLY": "reply", "NEWSLETTER": "newsletter", "FYI": "fyi"}.get(word)
+            if not category:
+                category = "urgent" if "URGENT" in out.upper()[:20] else "fyi"
+            reason = rest.strip()[:300]
+        _record(m, category, reason)
+        triaged += 1
+        if category == "urgent":
+            urgent += 1
             try:
                 from app.services import events
-                await events.emit("urgent_email", {
-                    "subject": m["subject"], "from": m["from"], "reason": reason,
-                })
+                await events.emit("urgent_email", {"subject": m["subject"], "from": m["from"], "reason": reason})
             except Exception as exc:
                 log.debug("email.event_emit_failed", error=str(exc))
-    return new_urgent
+    return {"triaged": triaged, "urgent": urgent}
+
+
+async def scan_for_urgent(limit: int = 10) -> int:
+    """Background timer entry point (main.py): triage new mail and return
+    how many urgent messages it found. Never raises."""
+    try:
+        return (await triage(limit))["urgent"]
+    except Exception as exc:  # noqa: BLE001
+        log.warning("email.triage_failed", error=str(exc))
+        return 0
+
+
+def inbox(limit: int | None = None) -> list[dict]:
+    """Recent messages with their triage category and whether a draft
+    reply is waiting."""
+    from app.db.storage import _conn
+
+    msgs = list_messages("INBOX", limit)
+    with _conn() as conn:
+        flags = {r["message_id"]: dict(r) for r in conn.execute("SELECT * FROM email_flags")}
+        drafts = {r["message_id"] for r in conn.execute("SELECT message_id FROM email_drafts WHERE status = 'draft'")}
+    for m in msgs:
+        f = flags.get(m["id"])
+        m["category"] = (f or {}).get("category")
+        m["reason"] = (f or {}).get("reason")
+        m["has_draft"] = m["id"] in drafts
+    return msgs
+
+
+def _sender_addr(raw: str) -> str:
+    from email.utils import parseaddr
+
+    return parseaddr(raw or "")[1] or raw
+
+
+def list_drafts(status: str = "draft") -> list[dict]:
+    from app.db.storage import _conn
+
+    with _conn() as conn:
+        return [dict(r) for r in conn.execute("SELECT * FROM email_drafts WHERE status = ? ORDER BY updated_at DESC", (status,))]
+
+
+def get_draft(did: str) -> dict | None:
+    from app.db.storage import _conn
+
+    with _conn() as conn:
+        r = conn.execute("SELECT * FROM email_drafts WHERE id = ?", (did,)).fetchone()
+    return dict(r) if r else None
+
+
+async def create_draft(message_id: str, instruction: str = "") -> dict:
+    """Draft a reply with the model and save it for review. Never sends."""
+    import time
+    import uuid
+
+    from app.db.storage import _conn
+
+    msg = await asyncio.to_thread(get_message, message_id, "INBOX")
+    result = await draft_reply(message_id, instruction, "INBOX", auto_research=not instruction)
+    subject = msg["subject"] if msg["subject"].lower().startswith("re:") else f"Re: {msg['subject']}"
+    did, now = uuid.uuid4().hex[:12], time.time()
+    with _conn() as conn:
+        conn.execute("UPDATE email_drafts SET status = 'replaced', updated_at = ? WHERE message_id = ? AND status = 'draft'", (now, message_id))
+        conn.execute(
+            "INSERT INTO email_drafts (id, message_id, to_addr, subject, body, original_from, original_subject, status, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)",
+            (did, message_id, _sender_addr(msg["from"]), subject, result["draft"].strip(), msg["from"], msg["subject"], now, now),
+        )
+    return {**get_draft(did), "research_query": result.get("research_query"), "research_sources": result.get("research_sources")}  # type: ignore[arg-type]
+
+
+def update_draft(did: str, to: str | None = None, subject: str | None = None, body: str | None = None) -> dict:
+    import time
+
+    from app.db.storage import _conn
+
+    d = get_draft(did)
+    if not d or d["status"] != "draft":
+        raise EmailError("That draft isn't open any more.")
+    with _conn() as conn:
+        conn.execute("UPDATE email_drafts SET to_addr = ?, subject = ?, body = ?, updated_at = ? WHERE id = ?",
+                     (to if to is not None else d["to_addr"], subject if subject is not None else d["subject"],
+                      body if body is not None else d["body"], time.time(), did))
+    return get_draft(did)  # type: ignore[return-value]
+
+
+def discard_draft(did: str) -> None:
+    import time
+
+    from app.db.storage import _conn
+
+    with _conn() as conn:
+        conn.execute("UPDATE email_drafts SET status = 'discarded', updated_at = ? WHERE id = ? AND status = 'draft'", (time.time(), did))
+
+
+def send_draft(did: str) -> dict:
+    """Send a reviewed draft. The only way a drafted reply leaves the machine."""
+    import time
+
+    from app.db.storage import _conn
+
+    d = get_draft(did)
+    if not d or d["status"] != "draft":
+        raise EmailError("That draft isn't open any more.")
+    if not d["to_addr"].strip() or not d["body"].strip():
+        raise EmailError("The draft needs a recipient and some text.")
+    send_message(d["to_addr"], d["subject"], d["body"])
+    with _conn() as conn:
+        conn.execute("UPDATE email_drafts SET status = 'sent', sent_at = ?, updated_at = ? WHERE id = ?", (time.time(), time.time(), did))
+    return get_draft(did)  # type: ignore[return-value]

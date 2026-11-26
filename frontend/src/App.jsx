@@ -58,6 +58,7 @@ const NotificationsPanel = lazyPanel(() => import("./components/NotificationsPan
 const TemplateFillDialog = lazyPanel(() => import("./components/TemplateFillDialog.jsx"));
 const ShareDialog = lazyPanel(() => import("./components/ShareDialog.jsx"));
 const CleanupPanel = lazyPanel(() => import("./components/CleanupPanel.jsx"));
+const MailPanel = lazyPanel(() => import("./components/MailPanel.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
 const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
@@ -144,6 +145,12 @@ export default function App() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [notesPanelOpen, setNotesPanelOpen] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => { setSettingsOpen(false); setMailOpen(true); };
+    window.addEventListener("zenith:open-mail", onOpen);
+    return () => window.removeEventListener("zenith:open-mail", onOpen);
+  }, []);
   useEffect(() => {
     const onOpen = () => { setSettingsOpen(false); setMemoryBrowser(null); setCleanupOpen(true); };
     window.addEventListener("zenith:open-cleanup", onOpen);
@@ -1497,6 +1504,7 @@ export default function App() {
           onOpenResearch={() => setResearchOpen(true)}
           onOpenWorkflows={() => setWorkflowsOpen(true)}
           onOpenTasks={() => setTasksPanel({ focusId: null })}
+          onOpenMail={() => setMailOpen(true)}
           onTogglePin={handleTogglePin}
           onEditTags={handleEditTags}
           onSetProjectAgentMode={handleSetProjectAgentMode}
@@ -1596,6 +1604,7 @@ export default function App() {
         )}
         {compareOpen && <ModelCompare onClose={() => setCompareOpen(false)} />}
         {cleanupOpen && <CleanupPanel onClose={() => setCleanupOpen(false)} />}
+        {mailOpen && <MailPanel onClose={() => setMailOpen(false)} onOpenSettings={openSettingsAt} />}
         {shareOpen && activeId && (
           <ShareDialog
             conversationId={activeId}

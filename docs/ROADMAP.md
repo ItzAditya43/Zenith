@@ -97,7 +97,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 16. **Calendar interoperability** — Add calendar import/export or provider
     connections, plus conflict checks before creating or changing events.
     **M–L**.
-17. **Email workflows** — Extend IMAP/SMTP with inbox triage and reply drafts
+17. ~~**Email workflows**~~ — **Done (1.2.7):** a Mail panel (sidebar) sorts the inbox into urgent / needs reply / FYI / newsletters, with your own filters applied first and no model call for them; reply drafts are saved, editable and only sent when you press Send. Original note: Extend IMAP/SMTP with inbox triage and reply drafts
     that require review before sending; add reusable filters for common tasks.
     **M**.
 18. ~~**Task-linked automations**~~ — **Done (1.2.7):** automation rules can add a to-do from any event ({field} placeholders, optional due time, never a duplicate open copy); to-dos being added or completed are triggers; schedules can add their result, or each follow-up they list, as to-dos and report what they added. Original note: Connect tasks, schedules, and automation
