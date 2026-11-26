@@ -84,6 +84,48 @@ def is_cloud_model(name: str) -> bool:
     return tag == "cloud" or tag.endswith("-cloud")
 
 
+def provider_of(name: str) -> str:
+    """Which remote provider a model belongs to: an API provider id, or
+    "ollama-cloud" for Ollama Cloud models; "" for local models."""
+    if "::" in (name or ""):
+        return name.split("::", 1)[0]
+    return "ollama-cloud" if is_cloud_model(name) else ""
+
+
+def routing_policy() -> str:
+    pol = str(settings.get("routing_policy") or "")
+    if pol in ("manual_remote", "allow_selected", "local_only"):
+        return pol
+    # Before the policy setting existed, one switch allowed every remote model.
+    return "allow_selected" if settings.get("route_to_cloud_models", False) else "manual_remote"
+
+
+def auto_allowed(name: str, role: str | None = None) -> bool:
+    """May automatic routing (and background jobs) use this model?"""
+    if not is_cloud_model(name):
+        return True
+    if routing_policy() != "allow_selected":
+        return False
+    allowed = settings.get("routing_allowed_providers") or []
+    if settings.get("route_to_cloud_models", False) and not settings.get("routing_policy"):
+        allowed = ["*"]
+    prov = provider_of(name)
+    if "*" not in allowed and prov not in allowed:
+        return False
+    if role and "::" in name:
+        from app.services import providers
+        p = providers.get(prov) or {}
+        roles = p.get("roles") or []
+        if roles and role not in roles:
+            return False
+    return True
+
+
+def manual_allowed(name: str) -> bool:
+    """May the user pick this model by hand? Only local-only mode says no."""
+    return not (is_cloud_model(name) and routing_policy() == "local_only")
+
+
 # name -> Ollama-reported capabilities ("vision", "tools", "thinking", "embedding"...)
 _model_caps: dict[str, frozenset[str]] = {}
 
@@ -154,7 +196,8 @@ def _best_fit(names: list[str]) -> str:
 class ModelRegistry:
     """Caches `ollama list` for a few seconds so every keystroke doesn't re-hit it.
 
-    `models()` returns LOCAL models only unless `route_to_cloud_models` is on:
+    `models()` returns only models automatic routing may use (see
+    routing_policy / auto_allowed — local only by default):
     every automatic pick in the app (routing, fallbacks, titles, memory,
     digests, email) goes through here, and an installed cloud model used to
     win the 'general' keyword match, silently sending chats off the machine.
@@ -193,9 +236,7 @@ class ModelRegistry:
 
     async def models(self, force: bool = False) -> list[str]:
         names = await self.all_models(force)
-        if bool(settings.get("route_to_cloud_models", False)):
-            return names
-        return [n for n in names if not is_cloud_model(n)]
+        return [n for n in names if auto_allowed(n)]
 
 
 # Above this confidence, the keyword/embedding match is considered strong
@@ -256,7 +297,7 @@ class ModelRouter:
             if not model_health.is_unavailable(override):
                 return override
             log.warning("routing.pinned_model_unavailable", role=role, model=override)
-        installed = [n for n in installed if not model_health.is_unavailable(n)]
+        installed = [n for n in installed if not model_health.is_unavailable(n) and auto_allowed(n, role)]
 
         keywords = settings.get("capability_keywords", {}).get(role, [])
         matches = [n for n in installed if any(kw in n.lower() for kw in keywords)]

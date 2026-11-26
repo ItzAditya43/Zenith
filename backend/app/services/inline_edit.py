@@ -24,7 +24,7 @@ class InlineEditError(RuntimeError):
 
 async def pick_model() -> str:
     from app.services import model_health
-    from app.services.router import ModelRegistry, ModelRouter, is_cloud_model
+    from app.services.router import ModelRegistry, ModelRouter, auto_allowed, is_cloud_model
 
     registry = ModelRegistry()
     installed = await registry.models()
@@ -34,7 +34,7 @@ async def pick_model() -> str:
         if not m or model_health.is_unavailable(m):
             continue
         pinned = (settings.get("model_overrides") or {}).get(role) == m
-        if is_cloud_model(m) and not pinned and not settings.get("route_to_cloud_models", False):
+        if is_cloud_model(m) and not pinned and not auto_allowed(m):
             continue
         return m
     raise InlineEditError("No model is available for code edits. Pull one (e.g. a qwen coder model) or pin one in Settings → Model routing.")

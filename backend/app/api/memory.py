@@ -15,11 +15,10 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 
 from app.core.logging import get_logger
 from app.db import storage
-from fastapi.responses import JSONResponse
-
 from app.models.schemas import MemoryCreate, MemoryMerge, MemoryUpdate
 from app.services import memory_service
 

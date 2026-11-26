@@ -28,7 +28,7 @@ from app.models.schemas import (
 from app.services import summary_service, trace_service
 from app.services.ollama_client import OllamaClient, OllamaError, ThinkingDelta
 from app.services.orchestrator import run_turn
-from app.services.router import ModelRouter
+from app.services.router import ModelRouter, auto_allowed
 from app.services.stream_registry import registry
 
 log = get_logger(__name__)
@@ -951,7 +951,7 @@ async def _pick_fallback(request: Request, current_model: str) -> str | None:
     # never a model Ollama just refused, and never a cloud model unless the
     # user allowed cloud routing.
     if pick and not model_health.is_unavailable(pick) and (
-        not is_cloud_model(pick) or settings.get("route_to_cloud_models", False)
+        auto_allowed(pick)
     ):
         return pick
     try:

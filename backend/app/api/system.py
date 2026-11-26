@@ -16,6 +16,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.core.config import profile_name, settings
 from app.core.logging import get_logger
@@ -25,7 +26,6 @@ from app.services.ollama_client import OllamaClient, OllamaError
 from app.services.router import ModelRegistry, ModelRouter
 
 log = get_logger(__name__)
-from pydantic import BaseModel
 
 router = APIRouter(prefix="/api", tags=["system"])
 

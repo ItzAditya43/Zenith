@@ -1,7 +1,7 @@
 """Calendar .ics import/export round trip and conflict checks."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 ICS = (
     "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
@@ -20,7 +20,7 @@ def test_import_export_roundtrip(client):
     assert client.post("/api/calendar/import", json={"ics": ICS}).json() == {"added": 0, "updated": 2}
     ev = {e["title"]: e for e in client.get("/api/calendar/events").json()}
     d = ev["Dentist, check-up"]
-    assert d["start_ts"] == datetime(2026, 12, 1, 9, 30, tzinfo=timezone.utc).timestamp()
+    assert d["start_ts"] == datetime(2026, 12, 1, 9, 30, tzinfo=UTC).timestamp()
     assert "Bring the form\nand insurance card" in d["description"] and "folding" in d["description"]
     assert "Location: Main St 4" in d["description"]
     h = ev["Holiday"]

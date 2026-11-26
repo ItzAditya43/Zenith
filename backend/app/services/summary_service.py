@@ -265,14 +265,14 @@ def _map_sources(state: dict, refs: dict[str, str], known_ids: set[str]) -> dict
 
 async def _pick_model() -> str | None:
     from app.services import model_health
-    from app.services.router import ModelRegistry, ModelRouter, is_cloud_model
+    from app.services.router import ModelRegistry, ModelRouter, auto_allowed
 
     registry = ModelRegistry()
     installed = await registry.models()
     router = ModelRouter(registry=registry)
     for role in ("general", "small_fast"):
         m = router._match_capability(role, installed)  # noqa: SLF001
-        if m and not model_health.is_unavailable(m) and (not is_cloud_model(m) or settings.get("route_to_cloud_models", False)):
+        if m and not model_health.is_unavailable(m) and auto_allowed(m):
             return m
     return None
 

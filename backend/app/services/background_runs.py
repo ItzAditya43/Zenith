@@ -59,10 +59,13 @@ def get_run(bid: str, with_log: bool = True) -> dict | None:
 def list_runs(conversation_id: str | None = None, since: float | None = None, limit: int = 50) -> list[dict]:
     sql, args = "SELECT * FROM background_runs WHERE 1=1", []
     if conversation_id:
-        sql += " AND conversation_id = ?"; args.append(conversation_id)
+        sql += " AND conversation_id = ?"
+        args.append(conversation_id)
     if since is not None:
-        sql += " AND COALESCE(finished_at, started_at, created_at) > ?"; args.append(since)
-    sql += " ORDER BY created_at DESC LIMIT ?"; args.append(limit)
+        sql += " AND COALESCE(finished_at, started_at, created_at) > ?"
+        args.append(since)
+    sql += " ORDER BY created_at DESC LIMIT ?"
+    args.append(limit)
     with _conn() as conn:
         rows = conn.execute(sql, args).fetchall()
     out = []
@@ -173,7 +176,8 @@ async def _work_loop() -> None:
             task = asyncio.get_running_loop().create_task(_execute(q["id"]))
             _tasks[q["id"]] = task
             task.add_done_callback(lambda _t: _wakeup.set() if _wakeup else None)
-            running.add(q["id"]); busy_convs.add(q["conversation_id"])
+            running.add(q["id"])
+            busy_convs.add(q["conversation_id"])
         if not queued and not running:
             return
         await _wakeup.wait()

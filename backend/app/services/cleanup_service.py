@@ -22,7 +22,6 @@ import re
 import time
 import uuid
 
-from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.storage import _conn
 
@@ -144,7 +143,7 @@ def _chunk_rows(kind: str, sid: str) -> list[dict]:
     cur = _rag()._conn().cursor()  # noqa: SLF001
     cur.execute("SELECT source_kind, source_id, conversation_id, chunk_index, text, created_at FROM chunks "
                 "WHERE source_kind = ? AND source_id = ?", (kind, sid))
-    return [dict(zip(("source_kind", "source_id", "conversation_id", "chunk_index", "text", "created_at"), r))
+    return [dict(zip(("source_kind", "source_id", "conversation_id", "chunk_index", "text", "created_at"), r, strict=True))
             for r in cur.fetchall()]
 
 

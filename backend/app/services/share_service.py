@@ -125,7 +125,8 @@ def revoke(conversation_id: str) -> None:
 def to_markdown(snap: dict) -> str:
     lines = [f"# {snap['title']}", ""]
     for m in snap["messages"]:
-        who = "You" if m["role"] == "user" else f"Assistant{f' ({m['model']})' if m.get('model') else ''}"
+        model = f" ({m['model']})" if m.get("model") else ""
+        who = "You" if m["role"] == "user" else f"Assistant{model}"
         lines += [f"**{who}:**", "", m["content"], ""]
         if m.get("attachments"):
             lines += ["_Attachments: " + ", ".join(m["attachments"]) + "_", ""]

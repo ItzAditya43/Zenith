@@ -17,11 +17,10 @@ from app.api import (
     batch,
     chat,
     desktop,
-    workflows,
-    feedback,
     digest,
     documents,
     export,
+    feedback,
     files,
     folders,
     git,
@@ -44,6 +43,7 @@ from app.api import (
     upload,
     usage_stats,
     voice,
+    workflows,
 )
 from app.core.config import settings
 from app.core.logging import get_logger

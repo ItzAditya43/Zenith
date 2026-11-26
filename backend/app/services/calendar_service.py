@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 import time
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from app.db.storage import _conn
 
@@ -44,7 +44,7 @@ def _parse_dt(params: str, value: str) -> tuple[float, bool]:
         d = datetime.strptime(value[:8], "%Y%m%d")
         return d.timestamp(), True
     if value.endswith("Z"):
-        return datetime.strptime(value, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc).timestamp(), False
+        return datetime.strptime(value, "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC).timestamp(), False
     return datetime.strptime(value[:15], "%Y%m%dT%H%M%S").timestamp(), False
 
 
@@ -118,7 +118,7 @@ def export_ics() -> str:
     from app.db import storage
 
     def stamp(ts: float) -> str:
-        return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        return datetime.fromtimestamp(ts, UTC).strftime("%Y%m%dT%H%M%SZ")
 
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Zenith//Calendar//EN", "CALSCALE:GREGORIAN"]
     for e in storage.list_calendar_events():

@@ -1066,9 +1066,11 @@ def _research_row(row) -> dict:
 def update_research_report(report_id: str, notes: str | None = None, claims: list | None = None) -> None:
     sets, args = ["updated_at = ?"], [time.time()]
     if notes is not None:
-        sets.append("notes = ?"); args.append(notes)
+        sets.append("notes = ?")
+        args.append(notes)
     if claims is not None:
-        sets.append("claims = ?"); args.append(json.dumps(claims))
+        sets.append("claims = ?")
+        args.append(json.dumps(claims))
     with _conn() as conn:
         conn.execute(f"UPDATE research_reports SET {', '.join(sets)} WHERE id = ?", (*args, report_id))
 

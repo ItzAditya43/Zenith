@@ -83,12 +83,15 @@ def list_notifications(q: str = "", event_type: str | None = None, since: float 
         sql += " AND (lower(title) LIKE ? OR lower(body) LIKE ?)"
         args += [f"%{q.strip().lower()}%"] * 2
     if event_type:
-        sql += " AND event_type = ?"; args.append(event_type)
+        sql += " AND event_type = ?"
+        args.append(event_type)
     if since is not None:
-        sql += " AND created_at > ?"; args.append(since)
+        sql += " AND created_at > ?"
+        args.append(since)
     if unread:
         sql += " AND read_at IS NULL"
-    sql += " ORDER BY created_at DESC LIMIT ?"; args.append(limit)
+    sql += " ORDER BY created_at DESC LIMIT ?"
+    args.append(limit)
     with _conn() as conn:
         rows = conn.execute(sql, args).fetchall()
     out = []

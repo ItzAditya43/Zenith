@@ -11,7 +11,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
-
 from app.core.logging import get_logger
 from app.services import agent_service
 

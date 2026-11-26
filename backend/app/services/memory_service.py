@@ -129,13 +129,16 @@ def update_memory(memory_id: str, *, content: str | None = None, enabled: bool |
                                (content, memory_id)).fetchone()
         if dup:
             raise ValueError("Another memory already says that.")
-        sets.append("content = ?"); args.append(content)
+        sets.append("content = ?")
+        args.append(content)
     if enabled is not None:
-        sets.append("enabled = ?"); args.append(1 if enabled else 0)
+        sets.append("enabled = ?")
+        args.append(1 if enabled else 0)
     if status is not None:
         if status not in ("active", "pending"):
             raise ValueError("Unknown status.")
-        sets.append("status = ?"); args.append(status)
+        sets.append("status = ?")
+        args.append(status)
     if scope is not None:
         if scope not in ("global", "project", "conversation"):
             raise ValueError("Unknown scope.")
@@ -150,7 +153,8 @@ def update_memory(memory_id: str, *, content: str | None = None, enabled: bool |
                  cid or ((row.get("scope_conversation_id") or row.get("source_conversation_id")) if scope == "conversation" else None)]
     if not sets:
         return row
-    sets.append("updated_at = ?"); args.append(time.time())
+    sets.append("updated_at = ?")
+    args.append(time.time())
     with _conn() as conn:
         conn.execute(f"UPDATE memories SET {', '.join(sets)} WHERE id = ?", (*args, memory_id))
     if content is not None:

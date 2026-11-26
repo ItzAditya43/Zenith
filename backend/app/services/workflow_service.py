@@ -20,7 +20,6 @@ import json
 import time
 import uuid
 from collections.abc import AsyncIterator
-from typing import Any
 
 from app.core.logging import get_logger
 from app.db.storage import _conn
@@ -199,7 +198,7 @@ async def _run_node(node: dict, inputs: list[tuple[str, str]], run_input: str, r
         await emit({"type": "review_request", "node": node["id"], "preview": upstream[:1500]})
         try:
             approved = await asyncio.wait_for(fut, REVIEW_TIMEOUT_S)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise RuntimeError("Review timed out with no answer.") from None
         finally:
             _pending.get(run_id, {}).pop(node["id"], None)
