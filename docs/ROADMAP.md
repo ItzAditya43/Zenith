@@ -88,7 +88,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 13. ~~**Source freshness and quality cues**~~ — **Done (1.2.6):** web sources are numbered and labelled by kind (docs, code, forum, wiki, paper, news, blog, video) with published/updated dates from the page and when they were checked; old pages are flagged; the model is told to cite [n] for retrieved facts and to say when it's using its own knowledge. Original note: Show publication/update date,
     source type, and last-checked time; distinguish retrieved facts from model
     inference. **M**.
-14. **Knowledge graph exploration** — Filter and search graph entities and
+14. ~~**Knowledge graph exploration**~~ — **Done (1.2.6):** search (keeps what matches connect to), type filters, an only-connected toggle, curved links that light up on hover, and a side pane listing each item's connections with Open (chat, memory browser, or document preview). Original note: Filter and search graph entities and
     open the underlying conversation, memory, or document from each node.
     Reuse the real relationships already stored in Zenith. **M**.
 15. **Knowledge cleanup** — Find duplicate or stale indexed sources and offer

@@ -6244,3 +6244,32 @@ a.wf-btn { text-decoration: none; }
 .msg-source-chip .src-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
 .msg-source-chip .src-kind, .msg-source-chip .src-age { font-size: 10px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border-hairline); color: var(--text-tertiary); text-transform: lowercase; }
 .msg-source-chip .src-age.is-old { color: var(--signal-voice); border-color: color-mix(in srgb, var(--signal-voice) 40%, transparent); }
+
+/* ===== Knowledge graph ===== */
+.kg-modal { width: min(1240px, calc(100vw - 2rem)); height: min(820px, 90vh); display: flex; flex-direction: column; overflow: hidden; }
+.kg-tools { padding: 14px 26px 10px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--border-hairline); }
+.kg-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 320px; }
+.kg-canvas { overflow: auto; padding: 12px 18px; }
+.kg-cols { display: flex; position: sticky; top: -12px; background: var(--bg-panel); z-index: 1; padding-bottom: 6px; }
+.kg-cols div { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-tertiary); padding-left: 14px; }
+.kg-canvas .graph-edge { fill: none; stroke: var(--border-soft); stroke-width: 1; transition: opacity 160ms; }
+.kg-canvas .graph-edge.is-lit { stroke: var(--signal-general); stroke-width: 1.6; }
+.kg-canvas .graph-edge-dim { opacity: 0.12; }
+.kg-canvas .graph-node text { fill: var(--text-secondary); font-size: 12px; }
+.kg-canvas .graph-node:hover text, .kg-canvas .graph-node.is-sel text { fill: var(--text-primary); }
+.kg-canvas .graph-node-dim { opacity: 0.25; }
+.kg-canvas .graph-node-project circle, .kg-type-project.is-on { --kg: var(--signal-voice); }
+.kg-canvas .graph-node-conversation circle, .kg-type-conversation.is-on { --kg: var(--signal-general); }
+.kg-canvas .graph-node-memory circle, .kg-type-memory.is-on { --kg: var(--signal-vision); }
+.kg-canvas .graph-node-document circle, .kg-type-document.is-on { --kg: var(--signal-code); }
+.kg-canvas .graph-node circle { fill: var(--kg); }
+.membrowser-filter.kg-type-project.is-on, .membrowser-filter.kg-type-conversation.is-on, .membrowser-filter.kg-type-memory.is-on, .membrowser-filter.kg-type-document.is-on { border-color: var(--kg); background: color-mix(in srgb, var(--kg) 12%, transparent); }
+.kg-side { border-left: 1px solid var(--border-hairline); padding: 18px; overflow-y: auto; background: color-mix(in srgb, var(--bg-inset) 55%, transparent); }
+.kg-title { margin: 10px 0 12px; font-family: var(--font-display); font-size: 16px; color: var(--text-primary); line-height: 1.4; word-break: break-word; }
+.kg-side h5 { margin: 18px 0 8px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); }
+.kg-links { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.kg-links button { display: flex; gap: 8px; align-items: flex-start; width: 100%; text-align: left; padding: 8px; border-radius: 10px; font-size: var(--text-xs); color: var(--text-primary); }
+.kg-links button:hover { background: var(--bg-panel-raised); }
+.kg-links span { display: flex; flex-direction: column; gap: 2px; min-width: 0; word-break: break-word; }
+.kg-links em { font-style: normal; color: var(--text-tertiary); font-size: 10.5px; }
+@media (max-width: 860px) { .kg-body { grid-template-columns: 1fr; } .kg-side { border-left: 0; border-top: 1px solid var(--border-hairline); max-height: 35vh; } }
