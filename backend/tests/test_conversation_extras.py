@@ -59,8 +59,13 @@ def test_tags_reject_non_list(client):
 
 
 def test_share_link_round_trip(client):
+    from app.db import storage
+
     r = client.post("/api/conversations", json={"title": "shared chat"})
     cid = r.json()["id"]
+    # An empty chat has nothing to share.
+    assert client.post(f"/api/conversations/{cid}/share").status_code == 400
+    storage.add_message(cid, "user", "hello")
 
     r = client.post(f"/api/conversations/{cid}/share")
     assert r.status_code == 200
