@@ -100,7 +100,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 17. **Email workflows** — Extend IMAP/SMTP with inbox triage and reply drafts
     that require review before sending; add reusable filters for common tasks.
     **M**.
-18. **Task-linked automations** — Connect tasks, schedules, and automation
+18. ~~**Task-linked automations**~~ — **Done (1.2.7):** automation rules can add a to-do from any event ({field} placeholders, optional due time, never a duplicate open copy); to-dos being added or completed are triggers; schedules can add their result, or each follow-up they list, as to-dos and report what they added. Original note: Connect tasks, schedules, and automation
     rules so scheduled work can create/update tasks and report changes.
     **M**.
 19. ~~**Notification controls**~~ — **Done (1.2.6):** one history of everything that notifies (bell in the header, searchable, filter by kind), per-kind pop-up switches, quiet hours that also hold back ntfy pushes, and a retention setting. Original note: Add per-event preferences, quiet hours, and a

@@ -63,8 +63,10 @@ async def create_rule(body: AutomationRuleCreate):
     from app.services.events import EVENT_TYPES
     if body.trigger_type not in EVENT_TYPES:
         raise HTTPException(422, f"trigger_type must be one of {EVENT_TYPES}")
-    if body.action_type not in ("prompt", "webhook"):
-        raise HTTPException(422, "action_type must be 'prompt' or 'webhook'")
+    if body.action_type not in ("prompt", "webhook", "todo"):
+        raise HTTPException(422, "action_type must be 'prompt', 'webhook' or 'todo'")
+    if body.action_type == "todo" and not str(body.action_config.get("text") or "").strip():
+        raise HTTPException(422, "action_config.text is required for a to-do action.")
     if body.action_type == "prompt" and not body.action_config.get("prompt"):
         raise HTTPException(422, "action_config.prompt is required for a prompt action.")
     if body.action_type == "webhook" and not body.action_config.get("url"):

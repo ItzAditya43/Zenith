@@ -439,6 +439,13 @@ def _cleanup_log_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _schedule_todo_mode(conn: sqlite3.Connection) -> None:
+    """Schedules can turn their results into to-dos: none | add | checklist."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(schedules)")}
+    if "todo_mode" not in cols:
+        conn.execute("ALTER TABLE schedules ADD COLUMN todo_mode TEXT NOT NULL DEFAULT 'none'")
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -1014,6 +1021,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (46, "share_snapshots_table", _share_snapshots_table),
     (47, "import_fingerprints_table", _import_fingerprints_table),
     (48, "cleanup_log_table", _cleanup_log_table),
+    (49, "schedule_todo_mode", _schedule_todo_mode),
 ]
 
 

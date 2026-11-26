@@ -27,7 +27,7 @@ async def list_schedules():
 @router.post("")
 async def create_schedule(body: ScheduleCreate):
     try:
-        return schedule_service.create_schedule(body.name, body.prompt, body.mode, body.interval_minutes)
+        return schedule_service.create_schedule(body.name, body.prompt, body.mode, body.interval_minutes, body.todo_mode)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 

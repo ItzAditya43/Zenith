@@ -121,6 +121,9 @@ export default function SettingsPanel({
   const [newRuleFolderId, setNewRuleFolderId] = useState("");
   const [newRuleActionType, setNewRuleActionType] = useState("prompt");
   const [newRulePrompt, setNewRulePrompt] = useState("");
+  const [newRuleTodoText, setNewRuleTodoText] = useState("");
+  const [newRuleTodoDue, setNewRuleTodoDue] = useState("");
+  const [newScheduleTodoMode, setNewScheduleTodoMode] = useState("none");
   const [newRuleMode, setNewRuleMode] = useState("chat");
   const [newRuleWebhookUrl, setNewRuleWebhookUrl] = useState("");
   const [mcpServers, setMcpServers] = useState([]);
@@ -335,9 +338,12 @@ export default function SettingsPanel({
     const actionConfig =
       newRuleActionType === "prompt"
         ? { prompt: newRulePrompt.trim(), mode: newRuleMode }
-        : { url: newRuleWebhookUrl.trim() };
+        : newRuleActionType === "todo"
+          ? { text: newRuleTodoText.trim(), ...(newRuleTodoDue ? { due_in_hours: Number(newRuleTodoDue) } : {}) }
+          : { url: newRuleWebhookUrl.trim() };
     if (newRuleActionType === "prompt" && !actionConfig.prompt) return;
     if (newRuleActionType === "webhook" && !actionConfig.url) return;
+    if (newRuleActionType === "todo" && !actionConfig.text) return;
     try {
       await api.createAutomationRule({
         name: newRuleName.trim(),
@@ -349,6 +355,7 @@ export default function SettingsPanel({
       setNewRuleName("");
       setNewRulePrompt("");
       setNewRuleWebhookUrl("");
+      setNewRuleTodoText("");
       setNewRuleFolderId("");
       refreshAutomation();
     } catch (err) {
@@ -379,7 +386,7 @@ export default function SettingsPanel({
   const addSchedule = async () => {
     if (!newScheduleName.trim() || !newSchedulePrompt.trim()) return;
     try {
-      await api.createSchedule(newScheduleName.trim(), newSchedulePrompt.trim(), newScheduleMode, Number(newScheduleInterval));
+      await api.createSchedule(newScheduleName.trim(), newSchedulePrompt.trim(), newScheduleMode, Number(newScheduleInterval), newScheduleTodoMode);
       setNewScheduleName("");
       setNewSchedulePrompt("");
       refreshSchedules();
@@ -1003,6 +1010,12 @@ export default function SettingsPanel({
     newRuleActionType,
     setNewRuleActionType,
     newRulePrompt,
+    newRuleTodoText,
+    setNewRuleTodoText,
+    newRuleTodoDue,
+    setNewRuleTodoDue,
+    newScheduleTodoMode,
+    setNewScheduleTodoMode,
     setNewRulePrompt,
     newRuleMode,
     setNewRuleMode,

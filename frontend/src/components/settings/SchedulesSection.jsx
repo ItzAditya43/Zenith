@@ -11,6 +11,8 @@ export default function SchedulesSection() {
     newSchedulePrompt,
     setNewSchedulePrompt,
     newScheduleMode,
+    newScheduleTodoMode,
+    setNewScheduleTodoMode,
     setNewScheduleMode,
     newScheduleInterval,
     setNewScheduleInterval,
@@ -78,6 +80,11 @@ export default function SchedulesSection() {
             <option value={1440}>day</option>
             <option value={10080}>week</option>
           </Select>
+          <Select className="settings-select" value={newScheduleTodoMode} onChange={(e) => setNewScheduleTodoMode(e.target.value)} aria-label="Turn results into to-dos">
+            <option value="none">No to-dos</option>
+            <option value="add">Add the result as a to-do</option>
+            <option value="checklist">Add each follow-up it lists</option>
+          </Select>
           <button className="settings-btn-primary" onClick={addSchedule}>
             Add schedule
           </button>
@@ -92,7 +99,7 @@ export default function SchedulesSection() {
               <span className="model-name" style={{ flex: 1 }}>
                 {s.name}
                 <span className="setting-hint" style={{ display: "block" }}>
-                  {s.mode} · every {s.interval_minutes} min
+                  {s.mode} · every {s.interval_minutes} min{s.todo_mode && s.todo_mode !== "none" ? ` · ${s.todo_mode === "add" ? "adds a to-do" : "adds follow-ups as to-dos"}` : ""}
                   {s.last_run_at ? ` · last run ${new Date(s.last_run_at * 1000).toLocaleString()}` : " · never run"}
                 </span>
               </span>

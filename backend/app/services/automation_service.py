@@ -25,6 +25,7 @@ reference what actually happened.
 from __future__ import annotations
 
 import json
+import re
 
 from app.core.logging import get_logger
 from app.db import storage
@@ -89,16 +90,53 @@ async def _run_webhook_action(rule: dict, data: dict) -> None:
         log.warning("automation.webhook_action_failed", rule_id=rule["id"], error=str(exc))
 
 
+def _fill(template: str, data: dict) -> str:
+    """{field} placeholders from the event's data; unknown ones stay as-is."""
+    def sub(m):
+        v = data.get(m.group(1))
+        return str(v) if v not in (None, "") else m.group(0)
+    return re.sub(r"\{([a-zA-Z_]+)\}", sub, template)
+
+
+async def add_todo_once(text: str, due_ts: float | None = None, source: str = "", via_rule: str | None = None) -> dict | None:
+    """Create a to-do unless an open one with the same text exists, and
+    announce it (todo_created) so other rules can react. Returns the new
+    to-do, or None if it was a duplicate."""
+    text = " ".join(text.split())[:500]
+    if not text:
+        return None
+    if any(not t.get("done") and t["text"].strip().lower() == text.lower() for t in storage.list_todos()):
+        return None
+    todo = storage.create_todo(text, due_ts)
+    from app.services import events
+    await events.emit("todo_created", {"id": todo["id"], "text": text, "source": source, "via_rule": via_rule})
+    return todo
+
+
+async def _run_todo_action(rule: dict, data: dict) -> None:
+    import time as _time
+
+    cfg = rule.get("action_config") or {}
+    text = _fill(str(cfg.get("text") or "").strip(), data)
+    hours = cfg.get("due_in_hours")
+    due = _time.time() + float(hours) * 3600 if hours not in (None, "") else None
+    await add_todo_once(text, due, source=f"rule:{rule['name']}", via_rule=rule["id"])
+
+
 async def handle_event(event_type: str, data: dict) -> None:
     rules = [r for r in storage.list_automation_rules(enabled_only=True) if r["trigger_type"] == event_type]
     for rule in rules:
         if not _matches_filter(rule, data):
             continue
+        if data.get("via_rule") == rule["id"]:
+            continue  # a rule never re-fires on its own output (no loops)
         try:
             if rule["action_type"] == "prompt":
                 await _run_prompt_action(rule, data)
             elif rule["action_type"] == "webhook":
                 await _run_webhook_action(rule, data)
+            elif rule["action_type"] == "todo":
+                await _run_todo_action(rule, data)
             storage.mark_automation_rule_fired(rule["id"])
             log.info("automation.rule_fired", rule_id=rule["id"], name=rule["name"], event=event_type)
         except Exception as exc:

@@ -27,6 +27,8 @@ LABELS = {
     "urgent_email": "Urgent email",
     "memory_conflict_found": "Memory conflict found",
     "folder_file_added": "New file in a watched folder",
+    "todo_created": "To-do added by a schedule or rule",
+    "todo_completed": "To-do completed",
 }
 
 

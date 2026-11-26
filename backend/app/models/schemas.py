@@ -237,6 +237,7 @@ class ScheduleCreate(StrictModel):
     prompt: str = Field(min_length=1, max_length=4000)
     mode: Literal["chat", "research"] = "chat"
     interval_minutes: int = Field(ge=1, le=43200)
+    todo_mode: Literal["none", "add", "checklist"] = "none"
 
 
 class ScheduleToggle(StrictModel):

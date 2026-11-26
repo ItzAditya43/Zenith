@@ -22,6 +22,10 @@ export default function AutomationSection() {
     newRuleActionType,
     setNewRuleActionType,
     newRulePrompt,
+    newRuleTodoText,
+    setNewRuleTodoText,
+    newRuleTodoDue,
+    setNewRuleTodoDue,
     setNewRulePrompt,
     newRuleMode,
     setNewRuleMode,
@@ -92,7 +96,10 @@ export default function AutomationSection() {
 
       <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>Automation rules</h3>
       <p className="settings-section-desc">
-        Trigger -&gt; action, on top of the same events webhooks use. A "prompt" action
+        Trigger -&gt; action, on top of the same events webhooks use. "Add a to-do" fills
+        <code>{"{field}"}</code> from the event (e.g. <code>{"{from}"}</code>, <code>{"{subject}"}</code>,{" "}
+        <code>{"{name}"}</code>) and never adds a second open copy; to-dos being added or completed are
+        triggers too. A "prompt" action
         sends a message into a persistent conversation (chat/research mode only —
         never agent, same reason schedules never run unattended agent turns). Use
         <code>{"{event_data}"}</code> in the prompt to reference what happened.
@@ -122,6 +129,7 @@ export default function AutomationSection() {
         <Select className="settings-select" value={newRuleActionType} onChange={(e) => setNewRuleActionType(e.target.value)} aria-label="Rule action type">
           <option value="prompt">Send a prompt</option>
           <option value="webhook">Call a webhook</option>
+          <option value="todo">Add a to-do</option>
         </Select>
         {newRuleActionType === "prompt" ? (
           <>
@@ -138,6 +146,26 @@ export default function AutomationSection() {
               <option value="research">Deep Research</option>
             </Select>
           </>
+        ) : newRuleActionType === "todo" ? (
+          <div className="settings-row">
+            <input
+              className="settings-input"
+              placeholder="To-do text, e.g. Reply to {from}: {subject}"
+              aria-label="To-do text"
+              value={newRuleTodoText}
+              onChange={(e) => setNewRuleTodoText(e.target.value)}
+            />
+            <input
+              className="settings-input"
+              style={{ flex: "0 0 150px" }}
+              type="number"
+              min={1}
+              placeholder="Due in hours"
+              aria-label="Due in hours (optional)"
+              value={newRuleTodoDue}
+              onChange={(e) => setNewRuleTodoDue(e.target.value)}
+            />
+          </div>
         ) : (
           <input
             className="settings-input"

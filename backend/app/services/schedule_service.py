@@ -15,6 +15,7 @@ through, rather than a new orphaned conversation every time.
 """
 from __future__ import annotations
 
+import re
 import time
 import uuid
 
@@ -38,7 +39,35 @@ def get_schedule(schedule_id: str) -> dict | None:
         return dict(row) if row else None
 
 
-def create_schedule(name: str, prompt: str, mode: str, interval_minutes: int) -> dict:
+CHECKLIST_NOTE = (
+    "\n\nEnd your reply with any follow-up tasks as a checklist, one per line, like:\n"
+    "- [ ] Do the thing\nWrite \"- [ ] none\" if there's nothing to do."
+)
+
+
+def checklist_items(text: str) -> list[str]:
+    items = [m.strip() for m in re.findall(r"^\s*[-*]\s*\[ \]\s*(.+)$", text or "", re.M)]
+    return [i for i in items if i and i.lower() not in ("none", "nothing", "n/a")][:10]
+
+
+async def _todos_from_run(schedule: dict, full_text: str) -> list[str]:
+    """Turn a run's result into to-dos per the schedule's todo_mode."""
+    from app.services.automation_service import add_todo_once
+
+    mode = schedule.get("todo_mode") or "none"
+    if mode == "none" or not full_text.strip():
+        return []
+    texts = checklist_items(full_text) if mode == "checklist" else [
+        f"{schedule['name']}: " + next((ln.strip(" #*-") for ln in full_text.splitlines() if ln.strip(" #*-")), "")[:200]
+    ]
+    added = []
+    for t in texts:
+        if await add_todo_once(t, source=f"schedule:{schedule['name']}"):
+            added.append(t)
+    return added
+
+
+def create_schedule(name: str, prompt: str, mode: str, interval_minutes: int, todo_mode: str = "none") -> dict:
     if mode not in ALLOWED_MODES:
         raise ValueError(f"mode must be one of {sorted(ALLOWED_MODES)}, got {mode!r}")
     if interval_minutes < 1:
@@ -50,14 +79,16 @@ def create_schedule(name: str, prompt: str, mode: str, interval_minutes: int) ->
         conn.execute(
             """INSERT INTO schedules
                (id, name, prompt, mode, interval_minutes, conversation_id, enabled,
-                last_run_at, next_run_at, created_at)
-               VALUES (?, ?, ?, ?, ?, NULL, 1, NULL, ?, ?)""",
-            (sid, name.strip(), prompt.strip(), mode, interval_minutes, next_run, now),
+                last_run_at, next_run_at, created_at, todo_mode)
+               VALUES (?, ?, ?, ?, ?, NULL, 1, NULL, ?, ?, ?)""",
+            (sid, name.strip(), prompt.strip(), mode, interval_minutes, next_run, now,
+             todo_mode if todo_mode in ("none", "add", "checklist") else "none"),
         )
     return {
         "id": sid, "name": name.strip(), "prompt": prompt.strip(), "mode": mode,
         "interval_minutes": interval_minutes, "conversation_id": None, "enabled": 1,
         "last_run_at": None, "next_run_at": next_run, "created_at": now,
+        "todo_mode": todo_mode if todo_mode in ("none", "add", "checklist") else "none",
     }
 
 
@@ -130,17 +161,18 @@ async def run_schedule(schedule: dict) -> dict:
     try:
         conversation_id = await _ensure_conversation(schedule)
         full_text = ""
+        prompt = schedule["prompt"] + (CHECKLIST_NOTE if schedule.get("todo_mode") == "checklist" else "")
 
         if schedule["mode"] == "research":
             from app.services import research_service
-            async for ev in research_service.run_deep_research(conversation_id, schedule["prompt"], []):
+            async for ev in research_service.run_deep_research(conversation_id, prompt, []):
                 if ev.get("type") == "done":
                     full_text = ev["full_text"]
         else:
             from app.db import storage as _storage
             from app.services.orchestrator import run_turn
             decision, stream, _sources, assistant_parent_id = await run_turn(
-                conversation_id, schedule["prompt"], [],
+                conversation_id, prompt, [],
             )
             collected = []
             async for piece in stream:
@@ -153,11 +185,17 @@ async def run_schedule(schedule: dict) -> dict:
                     parent_id=assistant_parent_id,
                 )
 
+        added_todos = []
+        try:
+            added_todos = await _todos_from_run(schedule, full_text)
+        except Exception as exc:
+            log.warning("schedule.todo_add_failed", error=str(exc))
+        summary = full_text[:500] + (f"\n\nAdded {len(added_todos)} to-do(s): " + "; ".join(added_todos) if added_todos else "")
         finished = time.time()
         with _conn() as conn:
             conn.execute(
                 "UPDATE schedule_runs SET finished_at = ?, status = 'success', summary = ? WHERE id = ?",
-                (finished, full_text[:500], run_id),
+                (finished, summary[:1500], run_id),
             )
             conn.execute(
                 "UPDATE schedules SET last_run_at = ?, next_run_at = ? WHERE id = ?",
@@ -168,11 +206,12 @@ async def run_schedule(schedule: dict) -> dict:
             from app.services import events
             await events.emit("schedule_completed", {
                 "schedule_id": schedule["id"], "name": schedule["name"],
-                "summary": full_text[:500],
+                "summary": full_text[:500], "todos_added": added_todos,
+                "result": (f"Added {len(added_todos)} to-do(s). " if added_todos else "") + full_text[:300],
             })
         except Exception as exc:
             log.debug("schedule.event_emit_failed", error=str(exc))
-        return {"id": run_id, "status": "success", "summary": full_text[:500]}
+        return {"id": run_id, "status": "success", "summary": summary[:1500], "todos_added": added_todos}
     except Exception as exc:
         finished = time.time()
         log.warning("schedule.run_failed", schedule_id=schedule["id"], error=str(exc))

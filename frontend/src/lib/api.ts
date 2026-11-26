@@ -506,11 +506,11 @@ export const api = {
   scanFolderNow: (id: string) => request(`/api/folders/${id}/scan`, { method: "POST" }).then((r) => r.json()),
 
   listSchedules: () => request("/api/schedules").then((r) => r.json()),
-  createSchedule: (name: string, prompt: string, mode: string, intervalMinutes: number) =>
+  createSchedule: (name: string, prompt: string, mode: string, intervalMinutes: number, todoMode = "none") =>
     request("/api/schedules", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, prompt, mode, interval_minutes: intervalMinutes }),
+      body: JSON.stringify({ name, prompt, mode, interval_minutes: intervalMinutes, todo_mode: todoMode }),
     }).then((r) => r.json()),
   toggleSchedule: (id: string, enabled: boolean) =>
     request(`/api/schedules/${id}`, {

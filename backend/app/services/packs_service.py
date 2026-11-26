@@ -141,7 +141,7 @@ def preview_pack(pack: Any) -> dict:
         problem = None
         if trig not in EVENT_TYPES:
             problem = f"Unknown trigger “{trig}”."
-        elif act not in ("prompt", "webhook"):
+        elif act not in ("prompt", "webhook", "todo"):
             problem = f"Unknown action “{act}”."
         elif act == "prompt" and not cfg.get("prompt"):
             problem = "The prompt action has no prompt."
@@ -152,6 +152,8 @@ def preview_pack(pack: Any) -> dict:
             perms.append(f"sends event data to {cfg.get('url')}")
         elif act == "prompt":
             perms.append("sends a prompt to a model and saves the reply")
+        elif act == "todo":
+            perms.append("adds a to-do")
         out.append({"kind": "automation_rule", "index": i, "name": name,
                     "detail": f"{trig} → {act}", "duplicate": name.lower() in have_ru, "problem": problem,
                     "permissions": perms, "added_disabled": True})

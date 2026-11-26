@@ -23,6 +23,8 @@ EVENT_TYPES = [
     "folder_file_added",
     "agent_run_finished",
     "agent_run_needs_approval",
+    "todo_created",
+    "todo_completed",
 ]
 
 

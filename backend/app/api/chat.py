@@ -1157,7 +1157,12 @@ async def update_todo(todo_id: str, body: dict):
     status = body.get("status")
     if status is not None and status not in storage.TODO_STATUSES:
         raise HTTPException(422, f"status must be one of {storage.TODO_STATUSES}")
+    before = next((t for t in storage.list_todos() if t["id"] == todo_id), None)
     storage.update_todo(todo_id, body.get("text"), body.get("done"), due_ts, status)
+    after = next((t for t in storage.list_todos() if t["id"] == todo_id), None)
+    if before and after and not before.get("done") and after.get("done"):
+        from app.services import events
+        await events.emit("todo_completed", {"id": todo_id, "text": after["text"]})
     return {"ok": True}
 
 
