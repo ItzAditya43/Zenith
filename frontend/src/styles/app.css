@@ -6348,3 +6348,36 @@ a.wf-btn { text-decoration: none; }
 .prov-usage-bar i.warn { background: var(--signal-voice); }
 .model-badge-where { font-size: 10.5px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border-hairline); color: var(--text-tertiary); margin-left: 4px; }
 .model-badge-where.is-remote { color: var(--signal-voice); border-color: color-mix(in srgb, var(--signal-voice) 40%, transparent); }
+
+/* ===== Get started ===== */
+.getstarted { width: min(760px, 100%); margin: 18px auto 0; padding: 16px 18px; border-radius: 20px; border: 1px solid var(--border-soft);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--signal-general) 6%, var(--bg-panel)), var(--bg-panel)); animation: home-rise 600ms 200ms var(--ease-out, ease-out) both; }
+.getstarted header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.getstarted header strong { display: block; font-family: var(--font-display); font-size: 16px; color: var(--text-primary); }
+.getstarted header span { font-size: var(--text-xs); color: var(--text-tertiary); }
+.getstarted-links { display: flex; gap: 12px; }
+.getstarted-links button { font-size: var(--text-xs); color: var(--text-tertiary); }
+.getstarted-links button:hover { color: var(--text-primary); }
+.getstarted-checks { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.getstarted-checks li { display: flex; gap: 8px; font-size: var(--text-xs); color: var(--text-secondary); padding: 10px 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--signal-voice) 40%, transparent); }
+.getstarted-checks li > svg { color: var(--signal-voice); flex: none; margin-top: 2px; }
+.getstarted-checks b { color: var(--text-primary); }
+.getstarted-checks em { display: block; font-style: normal; color: var(--text-tertiary); margin-top: 2px; }
+.getstarted-fix { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.getstarted-fix code { flex: 1; padding: 6px 10px; border-radius: 8px; background: var(--bg-inset); border: 1px solid var(--border-hairline); color: var(--text-primary); font-size: 11.5px; overflow-x: auto; white-space: nowrap; }
+.getstarted-fix button { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; color: var(--text-tertiary); }
+.getstarted-fix button:hover { background: var(--bg-panel-raised); color: var(--text-primary); }
+.getstarted-steps { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.getstarted-steps li { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 12px; }
+.getstarted-steps li:hover { background: var(--bg-panel-raised); }
+.getstarted-tick { width: 18px; height: 18px; flex: none; border-radius: 50%; border: 1.5px solid var(--border-soft); display: grid; place-items: center; color: var(--text-on-accent); }
+.getstarted-steps li.is-done .getstarted-tick { background: var(--signal-code); border-color: var(--signal-code); }
+.getstarted-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.getstarted-text b { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
+.getstarted-text em { font-style: normal; font-size: 11.5px; color: var(--text-tertiary); }
+.getstarted-steps li.is-done .getstarted-text b { color: var(--text-tertiary); text-decoration: line-through; }
+.getstarted-steps .wf-btn { height: 30px; padding: 0 12px; }
+html[data-reduce-motion] .getstarted { animation: none; }
+.sidebar-list-tools .sidebar-new-project-btn, .sidebar-manage-btn { white-space: nowrap; }
+.sidebar-manage-btn { display: inline-flex; align-items: center; gap: 6px; }
+.sidebar-manage-count { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--bg-panel-raised); font-size: 10px; display: inline-grid; place-items: center; color: var(--text-secondary); }

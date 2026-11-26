@@ -58,6 +58,7 @@ const NotificationsPanel = lazyPanel(() => import("./components/NotificationsPan
 const TemplateFillDialog = lazyPanel(() => import("./components/TemplateFillDialog.jsx"));
 const ShareDialog = lazyPanel(() => import("./components/ShareDialog.jsx"));
 const CleanupPanel = lazyPanel(() => import("./components/CleanupPanel.jsx"));
+const GetStarted = lazyPanel(() => import("./components/GetStarted.jsx"));
 const MailPanel = lazyPanel(() => import("./components/MailPanel.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
@@ -1864,6 +1865,13 @@ export default function App() {
           runFlags={runFlags}
         />
         {messages.length === 0 && (
+          <>
+          <GetStarted
+            onOpenSettings={openSettingsAt}
+            onOpenCode={handleOpenCode}
+            onOpenTour={() => setOnboardingOpen(true)}
+            onFocusComposer={() => document.querySelector(".composer textarea")?.focus()}
+          />
           <div className="hero-cards" role="group" aria-label="Start with">
             <button className="hero-card" onClick={handleOpenCode}>
               <span className="hero-card-icon"><Icon name="terminal" size={16} /></span>
@@ -1884,6 +1892,7 @@ export default function App() {
               <span>Press Super+Space anywhere and tell Zenith what to do on your computer.</span>
             </button>
           </div>
+          </>
         )}
         </div>
 

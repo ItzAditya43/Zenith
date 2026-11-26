@@ -230,6 +230,16 @@ async def health(request: Request):
     return payload
 
 
+@router.get("/setup/status")
+async def setup_status():
+    """Readiness (with per-platform fixes) and the optional checklist's progress."""
+    from app.services import setup_service
+
+    ready = await setup_service.readiness()
+    return {**ready, "progress": await asyncio.to_thread(setup_service.progress),
+            "hidden": bool(settings.get("setup_checklist_hidden", False))}
+
+
 @router.get("/activity")
 async def activity():
     """What's actually running right now, across the whole backend (not

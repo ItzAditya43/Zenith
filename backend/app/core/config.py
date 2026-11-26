@@ -261,6 +261,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     #   "manual_remote"  — automatic = this machine only; you can still pick a remote model yourself (default)
     #   "allow_selected" — automatic may also use the remote providers listed below ("ollama-cloud" = Ollama Cloud)
     #   "local_only"     — nothing leaves this machine, even if picked by hand
+    "setup_checklist_hidden": False,   # "Don't show again" on the home-screen Get started card
     "routing_policy": "",
     "routing_allowed_providers": [],          # Manage chats: [{name, q, tag, show}]           # words/topics never to remember (matched case-insensitively)
     "system_prompt": "",             # user persona / standing instructions

@@ -173,13 +173,13 @@ and **XL** ≈ a multi-week design and implementation effort.
 
 ### Installation and a calmer first run
 
-31. **One-path install and first launch** — Make the recommended route obvious
+31. ~~**One-path install and first launch**~~ — **Done (1.2.8):** a readiness check (engine, Ollama, a usable model or provider, disk space, ffmpeg) with copyable per-platform fixes, shown on the home screen until you can chat; an API provider counts, so Ollama is optional. Original note: Make the recommended route obvious
     for desktop, Docker, and manual installs; detect prerequisites and give
     copyable, platform-specific fixes. After install, run a short readiness
     check for the backend, Ollama or a chosen API provider, model availability,
     storage, and optional ffmpeg. Let users start with an already available
     provider or skip model downloads and finish setup later. **M–L**.
-32. **Optional, low-pressure onboarding** — Replace the compulsory-feeling
+32. ~~**Optional, low-pressure onboarding**~~ — **Done (1.2.8):** a dismissible "Get started" card (Skip for now / Don't show again / Tour) whose steps tick themselves off from real use; chat is usable immediately. The full tour still opens once on first launch (by request) and replays from the palette. Original note: Replace the compulsory-feeling
     first-run tour with a dismissible “Get started” checklist in the app. The
     first screen should let people start chatting immediately, with a few
     optional next steps (connect a model, try a file, explore agent mode).
@@ -188,7 +188,7 @@ and **XL** ≈ a multi-week design and implementation effort.
     an audience question, or step through every feature before using chat.
     Offer short contextual tips only when relevant, and replay the full tour
     from Help/Command Palette. **S–M**.
-33. **Progressive setup and clear choices** — Split setup into “ready to chat”
+33. ~~**Progressive setup and clear choices**~~ — **Done (1.2.8):** setup is split into "ready to chat" vs optional steps; remote routing, paid providers, voice, desktop control and agent autonomy all default off and explain cost/privacy where you turn them on (Model routing, Providers, Agent tools). Original note: Split setup into “ready to chat”
     and optional capabilities. Explain local Ollama versus remote API models,
     privacy, and possible provider charges in plain language at the moment a
     user chooses them. Never preselect remote routing, paid features, voice

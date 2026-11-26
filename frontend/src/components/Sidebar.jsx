@@ -472,8 +472,8 @@ export default function Sidebar({
                 <button className="sidebar-new-project-btn" onClick={onCreateProject}>
                   <Icon name="plus" size={12} /> New project
                 </button>
-                <button className="sidebar-manage-btn" onClick={() => openChatManager()} title="Filter, tag, archive or delete chats in bulk">
-                  Manage{archivedCount ? ` · ${archivedCount} archived` : ""}
+                <button className="sidebar-manage-btn" onClick={() => openChatManager()} title={`Filter, tag, archive or delete chats in bulk${archivedCount ? ` · ${archivedCount} archived` : ""}`}>
+                  Manage{archivedCount ? <span className="sidebar-manage-count">{archivedCount}</span> : null}
                 </button>
               </div>
             )}
