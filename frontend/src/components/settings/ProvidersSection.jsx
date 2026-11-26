@@ -5,7 +5,8 @@ import Icon from "../Icon.jsx";
 import Select from "../Select.jsx";
 import { useSettings } from "./SettingsContext.js";
 
-const EMPTY = { id: "", name: "", kind: "openai", base_url: "", api_key: "", models: "" };
+const EMPTY = { id: "", name: "", kind: "openai", base_url: "", api_key: "", models: "", roles: [], price_in: "", price_out: "", monthly_limit: "" };
+const ROLE_NAMES = { general: "General", code: "Code", vision: "Vision", reasoning: "Reasoning", small_fast: "Quick", embedding: "Embeddings" };
 
 /** Settings → "Providers": API models next to Ollama (OpenAI, Claude, Gemini, OpenRouter, local servers…). */
 export default function ProvidersSection() {
@@ -17,6 +18,10 @@ export default function ProvidersSection() {
   const [error, setError] = useState(null);
   const [tests, setTests] = useState({}); // id -> {ok, error, count}
 
+  const [usage, setUsage] = useState({});
+  useEffect(() => {
+    api.providerUsage().then((r) => setUsage(Object.fromEntries((r.usage || []).map((u) => [u.provider, u])))).catch(() => {});
+  }, [list]);
   const load = () =>
     api.listProviders().then((r) => setList(r.providers)).catch((err) => setError(err.message));
 
@@ -36,7 +41,9 @@ export default function ProvidersSection() {
 
   const startEdit = (prov) => {
     setError(null);
-    setForm({ ...EMPTY, ...prov, api_key: "", models: (prov.models || []).join("\n"), preset: presets.find((x) => x.id === prov.id) || null, editing: true });
+    setForm({ ...EMPTY, ...prov, api_key: "", models: (prov.models || []).join("\n"), roles: prov.roles || [],
+      price_in: prov.price_in ?? "", price_out: prov.price_out ?? "", monthly_limit: prov.monthly_limit ?? "",
+      preset: presets.find((x) => x.id === prov.id) || null, editing: true });
   };
 
   const save = async () => {
@@ -51,6 +58,10 @@ export default function ProvidersSection() {
         api_key: form.api_key.trim() || null,
         models: form.models.split(/[\n,]/).map((s) => s.trim()).filter(Boolean),
         enabled: form.enabled ?? true,
+        roles: form.roles || [],
+        price_in: form.price_in === "" ? null : Number(form.price_in),
+        price_out: form.price_out === "" ? null : Number(form.price_out),
+        monthly_limit: form.monthly_limit === "" ? null : Number(form.monthly_limit),
       });
       setForm(null);
       await load();
@@ -128,6 +139,7 @@ export default function ProvidersSection() {
                     {p.kind === "anthropic" && <span className="lib-chip">claude</span>}
                   </strong>
                   <span className="setting-hint">{p.base_url}{p.has_key ? " · key saved" : p.local ? "" : " · no key"}</span>
+                  {usage[p.id] && <UsageLine u={usage[p.id]} local={p.local} />}
                   {t && <CheckResult result={t} />}
                 </div>
                 <div className="prov-actions">
@@ -202,6 +214,27 @@ export default function ProvidersSection() {
               <span>Only these models (optional, one per line). Empty = everything the provider lists.</span>
               <textarea className="settings-input" rows={3} value={form.models} placeholder={form.preset?.default_models?.join("\n") || "gpt-4.1\ngpt-4.1-mini"} onChange={(e) => setForm({ ...form, models: e.target.value })} />
             </label>
+            <div className="prov-wide prov-roles">
+              <span>Automatic routing may use it for (only when Model routing allows this provider; none ticked = any role)</span>
+              <div>
+                {Object.entries(ROLE_NAMES).map(([role, label]) => (
+                  <label key={role}><input type="checkbox" checked={(form.roles || []).includes(role)}
+                    onChange={(e) => setForm({ ...form, roles: e.target.checked ? [...(form.roles || []), role] : (form.roles || []).filter((x) => x !== role) })} /> {label}</label>
+                ))}
+              </div>
+            </div>
+            <label>
+              <span>Input price, $ per 1M tokens</span>
+              <input className="settings-input" type="number" min={0} step="0.01" value={form.price_in} placeholder="optional" onChange={(e) => setForm({ ...form, price_in: e.target.value })} />
+            </label>
+            <label>
+              <span>Output price, $ per 1M tokens</span>
+              <input className="settings-input" type="number" min={0} step="0.01" value={form.price_out} placeholder="optional" onChange={(e) => setForm({ ...form, price_out: e.target.value })} />
+            </label>
+            <label className="prov-wide">
+              <span>Monthly limit in $ (stops using this provider once this month's estimate reaches it; needs prices above)</span>
+              <input className="settings-input" type="number" min={0} step="1" value={form.monthly_limit} placeholder="no limit" onChange={(e) => setForm({ ...form, monthly_limit: e.target.value })} />
+            </label>
           </div>
           {error && <p className="settings-notice settings-notice-error" role="alert">{error}</p>}
           {formCheck && <CheckResult result={formCheck} />}
@@ -248,3 +281,19 @@ function CheckResult({ result }) {
   );
 }
 
+/** This month's calls, tokens and estimated cost — clearly an estimate
+ * unless every call's token counts came from the provider. */
+function UsageLine({ u, local }) {
+  if (!u.calls) return null;
+  const k = (n) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
+  const pct = u.monthly_limit && u.estimated_cost != null ? Math.min(100, (u.estimated_cost / u.monthly_limit) * 100) : null;
+  return (
+    <span className="prov-usage">
+      This month: {u.calls} call{u.calls === 1 ? "" : "s"} · {k(u.input_tokens)} in / {k(u.output_tokens)} out tokens
+      {!u.all_reported && " (estimated)"}
+      {u.estimated_cost != null ? ` · ≈$${u.estimated_cost.toFixed(2)}` : local ? "" : " · set prices to estimate cost"}
+      {u.monthly_limit != null && (u.prices_set ? ` of $${u.monthly_limit} limit` : " · limit needs prices to work")}
+      {pct != null && <span className="prov-usage-bar"><i style={{ width: `${pct}%` }} className={pct >= 90 ? "warn" : ""} /></span>}
+    </span>
+  );
+}

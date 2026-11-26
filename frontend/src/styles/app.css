@@ -6329,3 +6329,22 @@ a.wf-btn { text-decoration: none; }
 .prov-check details { margin-top: 8px; color: var(--text-secondary); }
 .prov-check-models { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 3px; max-height: 200px; overflow: auto; }
 .prov-check-models li { display: flex; gap: 6px; align-items: center; }
+
+/* ===== Routing policy + provider usage ===== */
+.route-policy { margin: 1rem 0; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--border-hairline); background: linear-gradient(180deg, color-mix(in srgb, var(--bg-panel-raised) 55%, transparent), transparent); }
+.route-policy > strong { font-size: var(--text-sm); color: var(--text-primary); }
+.route-policy-options { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.route-policy-option { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-hairline); cursor: pointer; }
+.route-policy-option.is-on { border-color: var(--signal-general); background: var(--signal-general-dim); }
+.route-policy-option input { margin-top: 3px; accent-color: var(--signal-general); }
+.route-policy-option b { display: block; font-size: var(--text-sm); color: var(--text-primary); font-weight: 600; }
+.route-policy-option em { display: block; font-style: normal; font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.5; }
+.route-policy-provs { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: var(--text-xs); color: var(--text-primary); }
+.route-policy-provs input, .prov-roles input { accent-color: var(--signal-general); }
+.prov-roles > div { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: var(--text-xs); color: var(--text-primary); }
+.prov-usage { display: block; font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; }
+.prov-usage-bar { display: block; height: 4px; margin-top: 4px; max-width: 220px; border-radius: 4px; background: var(--border-hairline); overflow: hidden; }
+.prov-usage-bar i { display: block; height: 100%; background: var(--signal-code); }
+.prov-usage-bar i.warn { background: var(--signal-voice); }
+.model-badge-where { font-size: 10.5px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border-hairline); color: var(--text-tertiary); margin-left: 4px; }
+.model-badge-where.is-remote { color: var(--signal-voice); border-color: color-mix(in srgb, var(--signal-voice) 40%, transparent); }

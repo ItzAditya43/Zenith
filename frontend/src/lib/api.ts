@@ -573,6 +573,7 @@ export const api = {
     }).then((r) => r.json()),
   hideQuickbar: () => request("/api/desktop/quickbar/hide", { method: "POST" }).then((r) => r.json()),
   listProviders: () => request("/api/providers").then((r) => r.json()),
+  providerUsage: () => request("/api/providers/usage").then((r) => r.json()),
   providerPresets: () => request("/api/providers/presets").then((r) => r.json()),
   saveProvider: (p: Record<string, unknown>) =>
     request("/api/providers", {

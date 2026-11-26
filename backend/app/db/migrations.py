@@ -497,6 +497,25 @@ def _research_workspace_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE research_reports ADD COLUMN {name} {ddl}")
 
 
+def _provider_usage_table(conn: sqlite3.Connection) -> None:
+    """Tokens and (estimated) cost per API-provider call, for spend limits."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS provider_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            provider TEXT NOT NULL,
+            model TEXT NOT NULL,
+            input_tokens INTEGER NOT NULL DEFAULT 0,
+            output_tokens INTEGER NOT NULL DEFAULT 0,
+            reported INTEGER NOT NULL DEFAULT 0,
+            cost REAL,
+            created_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_provider_usage ON provider_usage(provider, created_at);
+        """
+    )
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -1076,6 +1095,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (50, "email_workflow_tables", _email_workflow_tables),
     (51, "calendar_uid_column", _calendar_uid_column),
     (52, "research_workspace_columns", _research_workspace_columns),
+    (53, "provider_usage_table", _provider_usage_table),
 ]
 
 

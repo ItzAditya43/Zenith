@@ -155,12 +155,12 @@ and **XL** ≈ a multi-week design and implementation effort.
     embeddings), and explain the next step when a check fails. Keep credentials
     encrypted and never echo them back. Include local OpenAI-compatible servers
     as a first-class no-key path. **M**.
-28. **Per-provider controls and spend visibility** — Add per-provider enable /
+28. ~~**Per-provider controls and spend visibility**~~ — **Done (1.2.8):** per provider: on/off, model allow-list, which routing roles it may serve, your own input/output prices and a monthly limit that stops calls once the estimate reaches it; usage shows real token counts when the provider reports them and is labelled an estimate otherwise. Original note: Add per-provider enable /
     disable, model allow-lists, role eligibility, and optional monthly or
     per-session spend limits where provider usage data is available. Show
     clearly labeled estimates when costs must be calculated locally; do not
     imply exact billing data if the provider does not expose it. **M–L**.
-29. **Provider-aware model routing** — Make capability and privacy choices
+29. ~~**Provider-aware model routing**~~ — **Done (1.2.8):** Model routing → "Where models may run": this machine unless I pick otherwise (default) / also the providers I tick / only this machine (refuses remote models even when picked); the Auto option states the policy, and every reply's badge says where it ran. The fallback model follows the same policy. Original note: Make capability and privacy choices
     explicit in routing: local-only, allow selected remote providers, or use
     remote only when manually selected. Explain the route before a request and
     show which provider/model handled it afterward. Add provider failover only

@@ -71,24 +71,7 @@ export default function RoutingSection() {
           <option value="off">Never think</option>
         </Select>
       </div>
-      <div className="setting-row">
-        <div>
-          <strong>Use cloud models for automatic routing</strong>
-          <span className="setting-hint">
-            Off: Zenith only auto-picks models that run on this machine. Ollama Cloud models still work when you
-            pin one above or pick it for a single message, but your chats then leave this machine.
-          </span>
-        </div>
-        <button
-          className={`switch ${config?.route_to_cloud_models ? "switch-on" : ""}`}
-          onClick={() => patch({ route_to_cloud_models: !config?.route_to_cloud_models })}
-          role="switch"
-          aria-checked={!!config?.route_to_cloud_models}
-          aria-label="Use cloud models for automatic routing"
-        >
-          <span className="switch-thumb" />
-        </button>
-      </div>
+      <RoutingPolicy config={config} patch={patch} />
       <div className="role-grid">
         {ROLES.map((role) => {
           const recommended = recommendedModelForRole(role, models, hardware);
@@ -206,6 +189,53 @@ function FeedbackTable() {
             <li key={r.message_id}><code>{r.model}</code> picked as {r.route_role || "?"} in “{r.title || "a chat"}”{r.note ? ` — ${r.note}` : ""}</li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+
+const POLICIES = [
+  ["manual_remote", "This machine, unless I pick otherwise", "Automatic picks run on this machine. You can still choose an Ollama Cloud or API model yourself for a message or a role."],
+  ["allow_selected", "Also let it use providers I choose", "Automatic picks may use the remote providers ticked below — they cost money or credits and your message goes to that company."],
+  ["local_only", "Only this machine — never send anything out", "Remote models are refused even if picked by hand. Web search still works when you turn it on for a message."],
+];
+
+/** Where models may run: the privacy choice for routing, stated up front. */
+function RoutingPolicy({ config, patch }) {
+  const [provs, setProvs] = useState([]);
+  useEffect(() => { api.listProviders().then((r) => setProvs((r.providers || []).filter((p) => !p.local))).catch(() => {}); }, []);
+  if (!config) return null;
+  const policy = config.routing_policy || (config.route_to_cloud_models ? "allow_selected" : "manual_remote");
+  const allowed = new Set(config.routing_allowed_providers?.length ? config.routing_allowed_providers : (config.route_to_cloud_models && !config.routing_policy ? ["*"] : []));
+  const toggle = (id) => {
+    const next = new Set([...allowed].filter((x) => x !== "*"));
+    if (next.has(id)) next.delete(id); else next.add(id);
+    patch({ routing_policy: "allow_selected", routing_allowed_providers: [...next] });
+  };
+  const remotes = [{ id: "ollama-cloud", name: "Ollama Cloud" }, ...provs];
+  return (
+    <div className="route-policy">
+      <strong>Where models may run</strong>
+      <div className="route-policy-options" role="radiogroup" aria-label="Where models may run">
+        {POLICIES.map(([id, label, hint]) => (
+          <label key={id} className={`route-policy-option ${policy === id ? "is-on" : ""}`}>
+            <input type="radio" name="routing-policy" checked={policy === id}
+              onChange={() => patch({ routing_policy: id, ...(id !== "allow_selected" ? { route_to_cloud_models: false } : {}) })} />
+            <span><b>{label}</b><em>{hint}</em></span>
+          </label>
+        ))}
+      </div>
+      {policy === "allow_selected" && (
+        <div className="route-policy-provs">
+          {remotes.map((p) => (
+            <label key={p.id}>
+              <input type="checkbox" checked={allowed.has("*") || allowed.has(p.id)} onChange={() => toggle(p.id)} /> {p.name}
+            </label>
+          ))}
+          {provs.length === 0 && <span className="setting-hint">Add API providers under Settings → Providers to list them here.</span>}
+          <span className="setting-hint">A provider can be limited to certain roles (e.g. only Code) in its own settings.</span>
+        </div>
       )}
     </div>
   );

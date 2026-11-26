@@ -147,9 +147,15 @@ class OllamaClient:
                                                     emit_thinking, self.timeout):
                     yield piece
             except providers.ProviderError as exc:
-                model_health.note_error(model, str(exc))
+                if not isinstance(exc, providers.ProviderBlocked):  # a policy/limit block isn't a broken model
+                    model_health.note_error(model, str(exc))
                 raise OllamaError(str(exc)) from exc
             return
+
+        from app.services.router import is_cloud_model, manual_allowed
+        if is_cloud_model(model) and not manual_allowed(model):
+            raise OllamaError("Local-only mode is on, so Ollama Cloud models can't be used. "
+                              "Change it in Settings → Model routing.")
 
         payload_messages = [dict(m) for m in messages]
         if images_b64:

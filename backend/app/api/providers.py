@@ -27,11 +27,23 @@ class ProviderBody(StrictModel):
     clear_key: bool = False
     models: list[str] = Field(default_factory=list, max_length=200)
     enabled: bool = True
+    roles: list[str] = Field(default_factory=list, max_length=10)
+    price_in: float | None = Field(default=None, ge=0)
+    price_out: float | None = Field(default=None, ge=0)
+    monthly_limit: float | None = Field(default=None, ge=0)
 
 
 @router.get("")
 async def list_providers():
     return {"providers": providers.list_public()}
+
+
+@router.get("/usage")
+async def provider_usage():
+    """This month's calls, tokens and estimated cost per provider."""
+    from app.services import spend_service
+
+    return {"usage": [spend_service.month_summary(p) for p in providers._all()]}  # noqa: SLF001
 
 
 @router.get("/presets")

@@ -76,7 +76,11 @@ PRESETS: list[dict[str, Any]] = [
 
 
 class ProviderError(RuntimeError):
-    pass
+    """A provider call failed."""
+
+
+class ProviderBlocked(ProviderError):
+    """Zenith itself refused the call (local-only mode, spend limit)."""
 
 
 # --- storage -------------------------------------------------------------------
@@ -113,6 +117,8 @@ def public(p: dict) -> dict:
         "base_url": p.get("base_url", ""), "enabled": p.get("enabled", True),
         "has_key": bool(p.get("api_key")), "models": p.get("models") or [],
         "local": is_local_url(p.get("base_url", "")),
+        "roles": p.get("roles") or [], "price_in": p.get("price_in"), "price_out": p.get("price_out"),
+        "monthly_limit": p.get("monthly_limit"),
     }
 
 
@@ -146,6 +152,10 @@ def save(entry: dict) -> dict:
         "enabled": bool(entry.get("enabled", True)),
         "models": [str(m)[:200] for m in (entry.get("models") or [])][:200],
         "api_key": old.get("api_key", "") if old else "",
+        "roles": [str(r) for r in (entry.get("roles") or []) if r][:10],
+        "price_in": _num(entry.get("price_in")),
+        "price_out": _num(entry.get("price_out")),
+        "monthly_limit": _num(entry.get("monthly_limit")),
     }
     key = entry.get("api_key")
     if isinstance(key, str) and key.strip():
@@ -156,6 +166,14 @@ def save(entry: dict) -> dict:
     settings.update({"providers": providers})
     _models_cache.pop(pid, None)
     return public(new)
+
+
+def _num(v) -> float | None:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if f >= 0 else None
 
 
 def delete(provider_id: str) -> bool:
@@ -330,10 +348,12 @@ def _format_instruction(fmt: Any) -> str:
 
 async def openai_stream(p: dict, model: str, messages: list[dict], images_b64: list[str] | None = None,
                         options: dict | None = None, fmt: Any = None, emit_thinking: bool = False,
-                        timeout: float = 600) -> AsyncIterator[str]:
+                        timeout: float = 600, usage: dict | None = None) -> AsyncIterator[str]:
     from app.services.ollama_client import ThinkingDelta
 
     body: dict[str, Any] = {"model": model, "messages": _openai_messages(messages, images_b64), "stream": True}
+    if usage is not None and not is_local_url(p.get("base_url", "")):
+        body["stream_options"] = {"include_usage": True}  # hosted APIs report real token counts
     opts = options or {}
     if "temperature" in opts:
         body["temperature"] = opts["temperature"]
@@ -361,6 +381,10 @@ async def openai_stream(p: dict, model: str, messages: list[dict], images_b64: l
                         chunk = json.loads(data)
                     except json.JSONDecodeError:
                         continue
+                    u = chunk.get("usage")
+                    if usage is not None and isinstance(u, dict) and u.get("completion_tokens") is not None:
+                        usage["input"] = int(u.get("prompt_tokens") or 0)
+                        usage["output"] = int(u.get("completion_tokens") or 0)
                     for ch in chunk.get("choices") or []:
                         delta = ch.get("delta") or {}
                         think = delta.get("reasoning_content") or delta.get("reasoning")
@@ -498,7 +522,8 @@ def _anthropic_error(anthropic, exc: Exception) -> ProviderError:
 
 
 async def anthropic_stream(p: dict, model: str, messages: list[dict], images_b64: list[str] | None = None,
-                           options: dict | None = None, fmt: Any = None, emit_thinking: bool = False) -> AsyncIterator[str]:
+                           options: dict | None = None, fmt: Any = None, emit_thinking: bool = False,
+                           usage: dict | None = None) -> AsyncIterator[str]:
     from app.services.ollama_client import ThinkingDelta
 
     anthropic, client = _anthropic_client(p)
@@ -514,6 +539,9 @@ async def anthropic_stream(p: dict, model: str, messages: list[dict], images_b64
                     elif event.delta.type == "thinking_delta" and emit_thinking and event.delta.thinking:
                         yield ThinkingDelta(event.delta.thinking)
             final = await stream.get_final_message()
+            if usage is not None and getattr(final, "usage", None) is not None:
+                usage["input"] = int(final.usage.input_tokens or 0)
+                usage["output"] = int(final.usage.output_tokens or 0)
             if final.stop_reason == "refusal":
                 yield "\n\n(Claude declined this request.)"
     except anthropic.APIError as exc:
@@ -547,12 +575,28 @@ async def stream(name: str, messages: list[dict], images_b64: list[str] | None, 
     if not hit:
         raise ProviderError(f"No enabled provider for '{name}'. Check Settings → Providers.")
     p, model = hit
-    if p.get("kind") == "anthropic":
-        async for piece in anthropic_stream(p, model, messages, images_b64, options, fmt, emit_thinking):
+    _guard(p, name)
+    from app.services import spend_service
+
+    usage: dict = {}
+    out: list[str] = []
+    try:
+        if p.get("kind") == "anthropic":
+            gen = anthropic_stream(p, model, messages, images_b64, options, fmt, emit_thinking, usage=usage)
+        else:
+            gen = openai_stream(p, model, messages, images_b64, options, fmt, emit_thinking, timeout, usage=usage)
+        async for piece in gen:
+            if type(piece).__name__ != "ThinkingDelta":
+                out.append(str(piece))
             yield piece
-    else:
-        async for piece in openai_stream(p, model, messages, images_b64, options, fmt, emit_thinking, timeout):
-            yield piece
+    finally:
+        prompt_text = "".join(str(m.get("content") or "") for m in messages)
+        reported = "output" in usage
+        try:
+            spend_service.record(p, model, usage.get("input", spend_service.estimate_tokens(prompt_text)),
+                                 usage.get("output", spend_service.estimate_tokens("".join(out))), reported)
+        except Exception as exc:  # noqa: BLE001 — usage accounting never breaks a reply
+            log.debug("providers.usage_record_failed", error=str(exc))
 
 
 async def tools_call(name: str, messages: list[dict], tools: list[dict], timeout: float) -> dict:
@@ -560,9 +604,31 @@ async def tools_call(name: str, messages: list[dict], tools: list[dict], timeout
     if not hit:
         raise ProviderError(f"No enabled provider for '{name}'.")
     p, model = hit
+    _guard(p, name)
+    from app.services import spend_service
+
     if p.get("kind") == "anthropic":
-        return await anthropic_tools(p, model, messages, tools)
-    return await openai_tools(p, model, messages, tools, timeout)
+        res = await anthropic_tools(p, model, messages, tools)
+    else:
+        res = await openai_tools(p, model, messages, tools, timeout)
+    try:
+        spend_service.record(p, model, spend_service.estimate_tokens(json.dumps(messages)),
+                             spend_service.estimate_tokens(json.dumps(res)), False)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("providers.usage_record_failed", error=str(exc))
+    return res
+
+
+def _guard(p: dict, name: str) -> None:
+    """Local-only mode refuses remote providers outright; a monthly limit
+    stops calls once reached."""
+    from app.services import spend_service
+    from app.services.router import manual_allowed
+
+    if not manual_allowed(name):
+        raise ProviderBlocked("Local-only mode is on, so models on other companies' servers can't be used. "
+                            "Change it in Settings → Model routing.")
+    spend_service.check_limit(p)
 
 
 async def embed(name: str, text: str) -> list[float]:

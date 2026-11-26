@@ -97,7 +97,19 @@ function ModePicker({ mode, setMode, agentAvailable, councilAvailable, imageAvai
 
 const isCloudModel = (m) => /(^|-)cloud$/.test(m.split(":")[1] || "");
 
+let _policyCache = null;
 function ModelPicker({ models, value, onChange }) {
+  const [autoHint, setAutoHint] = useState(_policyCache || "Zenith picks by capability");
+  useEffect(() => {
+    if (_policyCache) return;
+    api.getConfig().then((c) => {
+      const pol = c.routing_policy || (c.route_to_cloud_models ? "allow_selected" : "manual_remote");
+      _policyCache = pol === "local_only" ? "Picks by capability · only this machine"
+        : pol === "allow_selected" ? `Picks by capability · may use ${(c.routing_allowed_providers || []).join(", ") || "remote providers"}`
+        : "Picks by capability · stays on this machine";
+      setAutoHint(_policyCache);
+    }).catch(() => {});
+  }, []);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ref = useRef(null);
@@ -180,7 +192,7 @@ function ModelPicker({ models, value, onChange }) {
                 >
                   <span className="mode-picker-option-text">
                     <span className="mode-picker-option-label">Auto</span>
-                    <span className="mode-picker-option-hint">Zenith routes by capability</span>
+                    <span className="mode-picker-option-hint">{autoHint}</span>
                   </span>
                 </button>
               </li>
