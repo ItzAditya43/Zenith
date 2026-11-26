@@ -765,6 +765,7 @@ export default function SettingsPanel({
       if (res.projects) extra.push(`${res.projects} projects`);
       if (res.quick_actions) extra.push(`${res.quick_actions} quick actions`);
       if (res.folders) extra.push(`${res.folders} watched folders`);
+      if (res.skipped_duplicates) extra.push(`skipped ${res.skipped_duplicates} already imported`);
       setImportStatus(
         `Imported ${res.conversations} conversation(s), ${res.messages} messages` +
           (extra.length ? `, ${extra.join(", ")}.` : ".")

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { api } from "../../lib/api";
 import { useSettings } from "./SettingsContext.js";
 
@@ -14,6 +15,8 @@ export default function DataSection() {
     handleDisablePasscode,
     handleImport,
   } = useSettings();
+  const [mdMeta, setMdMeta] = useState(true);
+  const [mdAtt, setMdAtt] = useState(true);
 
   return (
     <section className="settings-section">
@@ -45,9 +48,17 @@ export default function DataSection() {
             reading outside Zenith.
           </span>
         </div>
-        <a className="settings-btn-primary" href={api.exportUrl("markdown")} download>
+        <a className="settings-btn-primary" href={`${api.exportUrl("markdown")}?metadata=${mdMeta}&attachments=${mdAtt}`} download>
           Download .zip
         </a>
+      </div>
+      <div className="settings-row" style={{ gap: "1.25rem", margin: "-0.25rem 0 0.75rem", fontSize: "var(--text-xs)" }}>
+        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input type="checkbox" checked={mdMeta} onChange={(e) => setMdMeta(e.target.checked)} /> Models, times and tags
+        </label>
+        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input type="checkbox" checked={mdAtt} onChange={(e) => setMdAtt(e.target.checked)} /> Attachment names
+        </label>
       </div>
 
       <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
@@ -55,7 +66,9 @@ export default function DataSection() {
       </h3>
       <p className="settings-section-desc">
         Bring your history over from another tool, or move it between two Zenith
-        instances — upload a ChatGPT/Claude <code>conversations.json</code>, or a
+        instances — upload a ChatGPT or Claude <code>conversations.json</code>, an Open WebUI
+        chat export, an OpenAI-style message list (LM Studio, LibreChat, scripts), a Markdown
+        transcript (Zenith's own export, or <code>## User</code> / <code>**You:**</code> style), or a
         <code> zenith-export.json</code> downloaded from "Export as JSON" above (on this
         machine or another one). A Zenith-to-Zenith import also re-creates projects
         (conversations are re-linked to the new project), quick actions, and watched
@@ -66,14 +79,14 @@ export default function DataSection() {
         <div className="setting-meta">
           <span className="setting-label">Import a file</span>
           <span className="setting-hint">
-            {importStatus || "Your original messages and timestamps are preserved."}
+            {importStatus || "Original messages and timestamps are kept, each chat is tagged with where it came from, and chats you already imported are skipped."}
           </span>
         </div>
         <label className="settings-btn-primary" style={{ cursor: "pointer" }}>
           {importing ? "Importing…" : "Choose a file"}
           <input
             type="file"
-            accept="application/json,.json"
+            accept="application/json,.json,.md,.markdown,.txt,text/markdown,text/plain"
             hidden
             disabled={importing}
             onChange={handleImport}

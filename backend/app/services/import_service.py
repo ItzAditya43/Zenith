@@ -1,11 +1,23 @@
-"""Import conversation history exported from ChatGPT or Claude, so a user's
-past chats aren't stranded in another tool. Both are self-serve data exports
-(no API, no scraping): ChatGPT's `conversations.json` (a tree of message
-nodes under `mapping`), and Claude's `conversations.json` (a flat
-`chat_messages` list). We normalize either into Zenith conversations.
+"""Import conversation history from other assistants, so past chats aren't
+stranded in another tool. All are self-serve exports (no API, no scraping):
+
+- ChatGPT `conversations.json` (a tree of message nodes under `mapping`)
+- Claude `conversations.json` (a flat `chat_messages` list)
+- Open WebUI chat exports (`[{"chat": {"title", "messages"|"history"}}]`)
+- OpenAI-style message lists (`[{"role", "content"}]` or `{"messages": [...]}`),
+  which LM Studio, LibreChat and many scripts produce
+- Markdown transcripts, including Zenith's own Markdown export and
+  "**You:**" / "## User" style files
+
+Every imported chat is tagged with where it came from, and a fingerprint
+of its title and messages is kept so importing the same file twice
+doesn't create duplicates.
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 from datetime import datetime
 
 from app.core.logging import get_logger
@@ -87,6 +99,105 @@ def parse_claude(convos: list) -> list[dict]:
     return out
 
 
+def _text_of(content) -> str:
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):  # OpenAI content parts
+        return "\n".join(p.get("text", "") for p in content if isinstance(p, dict) and p.get("type", "text") == "text").strip()
+    return ""
+
+
+def _role(r) -> str | None:
+    return {"user": "user", "human": "user", "assistant": "assistant", "ai": "assistant", "bot": "assistant",
+            "model": "assistant"}.get(str(r or "").lower())
+
+
+def parse_openai_messages(data) -> list[dict]:
+    """A bare message list, or {"messages": [...], "title"?}; or a list of those."""
+    if isinstance(data, dict):
+        data = [data]
+    if data and isinstance(data[0], dict) and "role" in data[0]:
+        data = [{"messages": data}]
+    out = []
+    for c in data:
+        if not isinstance(c, dict):
+            continue
+        msgs = []
+        for m in c.get("messages") or []:
+            if not isinstance(m, dict):
+                continue
+            role, text = _role(m.get("role")), _text_of(m.get("content"))
+            if role and text:
+                msgs.append({"role": role, "content": text, "created_at": _parse_ts(m.get("timestamp") or m.get("created_at"))})
+        if msgs:
+            out.append({"title": (c.get("title") or msgs[0]["content"][:60] or "Imported chat").strip(), "messages": msgs})
+    return out
+
+
+def parse_open_webui(data: list) -> list[dict]:
+    out = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        chat = item.get("chat") or {}
+        title = (chat.get("title") or item.get("title") or "Imported chat").strip()
+        raw = chat.get("messages")
+        if not raw:
+            hist = (chat.get("history") or {}).get("messages") or {}
+            # Follow the active branch back from currentId when there is one.
+            cur = (chat.get("history") or {}).get("currentId")
+            chain = []
+            while cur and cur in hist:
+                chain.append(hist[cur])
+                cur = hist[cur].get("parentId")
+            raw = list(reversed(chain)) if chain else sorted(hist.values(), key=lambda m: m.get("timestamp") or 0)
+        msgs = []
+        for m in raw or []:
+            if not isinstance(m, dict):
+                continue
+            role, text = _role(m.get("role")), _text_of(m.get("content"))
+            if role and text:
+                msgs.append({"role": role, "content": text, "created_at": _parse_ts(m.get("timestamp"))})
+        if msgs:
+            out.append({"title": title, "messages": msgs})
+    return out
+
+
+_MD_SPEAKER = re.compile(
+    r"^(?:#{1,6}\s*|\*\*)?(you|user|human|me|assistant|ai|claude|chatgpt|zenith|bot)(?:\s*\([^)]*\))?\s*:?\s*(?:\*\*)?\s*:?\s*$",
+    re.IGNORECASE,
+)
+
+
+def parse_markdown(text: str, fallback_title: str = "Imported chat") -> list[dict]:
+    """Speaker headings or bold labels on their own line ("## User",
+    "**You:**", "## Assistant (model)") start each message."""
+    title = fallback_title
+    msgs: list[dict] = []
+    cur: dict | None = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# ") and not msgs and cur is None:
+            title = stripped[2:].strip() or title
+            continue
+        m = _MD_SPEAKER.match(stripped)
+        if m:
+            if cur and cur["content"].strip():
+                msgs.append(cur)
+            who = m.group(1).lower()
+            cur = {"role": "user" if who in ("you", "user", "human", "me") else "assistant", "content": ""}
+            continue
+        if cur is not None:
+            if stripped.startswith("_Attachments:") or stripped.startswith("*Attachments:"):
+                continue
+            cur["content"] += line + "\n"
+    if cur and cur["content"].strip():
+        msgs.append(cur)
+    for m in msgs:
+        m["content"] = m["content"].strip()
+    return [{"title": title, "messages": msgs}] if msgs else []
+
+
 def detect_and_parse(data) -> list[dict]:
     """Sniff ChatGPT vs Claude from the shape and normalize. Accepts either a
     list of conversations or a single conversation object."""
@@ -101,9 +212,34 @@ def detect_and_parse(data) -> list[dict]:
         return parse_chatgpt(data)
     if "chat_messages" in sample:
         return parse_claude(data)
+    if isinstance(sample.get("chat"), dict):
+        return parse_open_webui(data)
+    if "role" in sample or "messages" in sample:
+        return parse_openai_messages(data)
     raise ValueError(
-        "Unrecognized export format — expected a ChatGPT or Claude conversations.json."
+        "Unrecognized export — expected ChatGPT, Claude, Open WebUI, an OpenAI-style message list, or Markdown."
     )
+
+
+def source_of(data) -> str:
+    sample = data[0] if isinstance(data, list) and data else data
+    if not isinstance(sample, dict):
+        return "import"
+    if "mapping" in sample:
+        return "chatgpt"
+    if "chat_messages" in sample:
+        return "claude"
+    if isinstance(sample.get("chat"), dict):
+        return "open-webui"
+    return "openai-format"
+
+
+def fingerprint(conv: dict) -> str:
+    h = hashlib.sha256()
+    h.update((conv.get("title") or "").encode())
+    for m in conv["messages"][:50]:
+        h.update(b"\x00" + m["role"].encode() + b"\x01" + m["content"][:2000].encode())
+    return h.hexdigest()[:32]
 
 
 def is_zenith_backup(data) -> bool:
@@ -221,15 +357,37 @@ def import_zenith_backup(data: dict) -> dict:
     }
 
 
-def import_conversations(parsed: list[dict]) -> dict:
+def _seen_fingerprints() -> set[str]:
+    from app.db.storage import _conn
+
+    with _conn() as conn:
+        return {r[0] for r in conn.execute("SELECT fingerprint FROM import_fingerprints")}
+
+
+def import_conversations(parsed: list[dict], source: str = "import") -> dict:
     """Create Zenith conversations from normalized data. Messages are chained
     linearly (each is the previous one's child) to match the branching
-    model's active-chain shape."""
+    model's active-chain shape. Chats already imported (same title and
+    messages) are skipped; each new one is tagged "imported" and with its
+    source."""
+    from app.db.storage import _conn
+
     conversations = 0
     messages = 0
+    skipped = 0
+    seen = _seen_fingerprints()
     for conv in parsed:
+        fp = fingerprint(conv)
+        if fp in seen:
+            skipped += 1
+            continue
+        seen.add(fp)
         title = (conv["title"] or "Imported chat")[:200]
         c = storage.create_conversation(title)
+        storage.set_conversation_tags(c["id"], ["imported", source])
+        with _conn() as conn:
+            conn.execute("INSERT OR IGNORE INTO import_fingerprints (fingerprint, conversation_id, source, imported_at)"
+                         " VALUES (?, ?, ?, strftime('%s','now'))", (fp, c["id"], source))
         prev_id = None
         for m in conv["messages"]:
             msg = storage.add_message(
@@ -239,4 +397,4 @@ def import_conversations(parsed: list[dict]) -> dict:
             prev_id = msg["id"]
             messages += 1
         conversations += 1
-    return {"conversations": conversations, "messages": messages}
+    return {"conversations": conversations, "messages": messages, "skipped_duplicates": skipped}

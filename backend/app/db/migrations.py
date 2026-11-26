@@ -413,6 +413,19 @@ def _share_snapshots_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _import_fingerprints_table(conn: sqlite3.Connection) -> None:
+    """Which imported chats came from where, so re-importing the same
+    export skips what's already here."""
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS import_fingerprints (
+            fingerprint TEXT PRIMARY KEY,
+            conversation_id TEXT,
+            source TEXT,
+            imported_at REAL
+        )"""
+    )
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -986,6 +999,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (44, "feedback_and_compare_tables", _feedback_and_compare_tables),
     (45, "notifications_table", _notifications_table),
     (46, "share_snapshots_table", _share_snapshots_table),
+    (47, "import_fingerprints_table", _import_fingerprints_table),
 ]
 
 

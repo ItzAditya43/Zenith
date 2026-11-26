@@ -72,10 +72,20 @@ async def import_history(file: UploadFile):
     data = await file.read()
     if len(data) > MAX_FILE_BYTES:
         raise HTTPException(413, "File too large (200MB limit).")
+    text = data.decode("utf-8", errors="ignore")
+    name = (file.filename or "").lower()
+    if name.endswith((".md", ".markdown", ".txt")):
+        stem = (file.filename or "Imported chat").rsplit(".", 1)[0]
+        normalized = import_service.parse_markdown(text, stem)
+        if not normalized:
+            raise HTTPException(400, "No conversation found — the file needs speaker lines like “## User” / “## Assistant” or “**You:**”.")
+        result = import_service.import_conversations(normalized, "markdown")
+        log.info("import_completed", source="markdown", **result)
+        return result
     try:
-        parsed_json = _json.loads(data.decode("utf-8", errors="ignore"))
+        parsed_json = _json.loads(text)
     except _json.JSONDecodeError:
-        raise HTTPException(400, "That file isn't valid JSON — upload the conversations.json from your export.") from None
+        raise HTTPException(400, "That file isn't valid JSON or Markdown — upload the conversations.json from your export.") from None
 
     if import_service.is_zenith_backup(parsed_json):
         result = import_service.import_zenith_backup(parsed_json)
@@ -88,8 +98,9 @@ async def import_history(file: UploadFile):
         raise HTTPException(400, str(exc)) from exc
     if not normalized:
         raise HTTPException(400, "No importable conversations found in that file.")
-    result = import_service.import_conversations(normalized)
-    log.info("import_completed", source="chatgpt/claude", **result)
+    source = import_service.source_of(parsed_json)
+    result = import_service.import_conversations(normalized, source)
+    log.info("import_completed", source=source, **result)
     return result
 
 

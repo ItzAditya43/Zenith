@@ -60,22 +60,68 @@ async def export_json():
     )
 
 
-def _conversation_to_markdown(conv: dict) -> str:
+def _conversation_to_markdown(conv: dict, metadata: bool = True, attachments: bool = True) -> str:
+    """One chat as Markdown. `metadata` adds the model and time to each
+    message heading and a provenance line (tags, created); `attachments`
+    lists attachment names. Zenith can re-import this format."""
+    from datetime import datetime
+
     lines = [f"# {conv['title']}", ""]
+    if metadata:
+        made = datetime.fromtimestamp(conv.get("created_at") or 0).strftime("%Y-%m-%d %H:%M")
+        tags = ", ".join(conv.get("tags") or [])
+        lines += [f"_Created {made}{f' · tags: {tags}' if tags else ''}_", ""]
     for m in conv["messages"]:
         role = m["role"].capitalize()
-        lines.append(f"## {role}" + (f" ({m['model']})" if m.get("model") else ""))
+        head = f"## {role}"
+        if metadata:
+            extra = [x for x in (m.get("model"), datetime.fromtimestamp(m["created_at"]).strftime("%Y-%m-%d %H:%M") if m.get("created_at") else None) if x]
+            if extra:
+                head += f" ({' · '.join(extra)})"
+        lines.append(head)
         lines.append("")
         lines.append(m["content"])
-        if m.get("attachments"):
-            names = ", ".join(a.get("name", "?") for a in m["attachments"])
+        if attachments and m.get("attachments"):
+            names = ", ".join(a.get("name") or a.get("filename") or "?" for a in m["attachments"])
             lines.append(f"\n*Attachments: {names}*")
         lines.append("")
     return "\n".join(lines)
 
 
+def _strip_conv(conv: dict, metadata: bool, attachments: bool) -> dict:
+    keep_msg = ("role", "content") + (("model", "created_at", "route_role") if metadata else ())
+    out = {"title": conv["title"]}
+    if metadata:
+        out.update({k: conv.get(k) for k in ("id", "created_at", "updated_at", "tags", "pinned")})
+    out["messages"] = []
+    for m in conv["messages"]:
+        mm = {k: m.get(k) for k in keep_msg}
+        if attachments and m.get("attachments"):
+            mm["attachments"] = [a.get("name") or a.get("filename") for a in m["attachments"]]
+        out["messages"].append(mm)
+    return out
+
+
+@router.get("/conversation/{conversation_id}")
+async def export_one(conversation_id: str, format: str = "markdown", metadata: bool = True, attachments: bool = True):
+    """One chat as Markdown or JSON, with metadata and attachment names on or off."""
+    from fastapi import HTTPException
+
+    conv = storage.get_conversation(conversation_id)
+    if not conv:
+        raise HTTPException(404, "No such conversation.")
+    conv["messages"] = storage.get_messages(conversation_id)
+    name = _safe_filename(conv["title"], conv["id"][:8])
+    if format == "json":
+        return Response(json.dumps(_strip_conv(conv, metadata, attachments), indent=2, default=str),
+                        media_type="application/json",
+                        headers={"Content-Disposition": f'attachment; filename="{name}.json"'})
+    return Response(_conversation_to_markdown(conv, metadata, attachments), media_type="text/markdown",
+                    headers={"Content-Disposition": f'attachment; filename="{name}.md"'})
+
+
 @router.get("/markdown")
-async def export_markdown():
+async def export_markdown(metadata: bool = True, attachments: bool = True):
     dump = _full_dump()
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -88,7 +134,7 @@ async def export_markdown():
                 name = f"{base}-{i}"
                 i += 1
             used_names.add(name)
-            zf.writestr(f"conversations/{name}.md", _conversation_to_markdown(conv))
+            zf.writestr(f"conversations/{name}.md", _conversation_to_markdown(conv, metadata, attachments))
 
         if dump["memories"]:
             mem_lines = ["# Memories", ""]

@@ -76,7 +76,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 10. ~~**Safe conversation sharing**~~ — **Done (1.2.6):** sharing opens a preview that finds emails, phone numbers, keys and tokens, IPs and home paths; you choose what to hide and which messages to include, and the link serves a frozen redacted snapshot (or download it as Markdown). Original note: Add a previewable export/share flow with
     explicit redaction of sensitive text and attachments. Keep it opt-in and
     local-first. **M**.
-11. **More import/export formats** — Add common assistant and chat formats,
+11. ~~**More import/export formats**~~ — **Done (1.2.6):** imports Open WebUI exports, OpenAI-style message lists and Markdown transcripts (including Zenith's own export) alongside ChatGPT/Claude, tags each chat with its source and skips ones already imported; Markdown/JSON export can include or leave out models, times, tags and attachment names, per chat or all at once. Original note: Add common assistant and chat formats,
     plus Markdown/JSON export controls for attachments and metadata. Preserve
     the existing deduplication and provenance behavior. **S–M**.
 
