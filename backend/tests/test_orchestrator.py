@@ -131,7 +131,8 @@ async def test_document_and_web_context_are_both_kept(chat, monkeypatch):
     user = _last_call(chat["fake"])[-1]["content"]
     assert "Internal plan says launch in Q2" in user
     assert "Fresh web fact about the launch" in user
-    assert {"url": "https://example.com/a", "title": "Example A"} in sources
+    web = [x for x in sources if x.get("url") == "https://example.com/a"]
+    assert web and web[0]["title"] == "Example A" and web[0]["n"] == 1 and web[0]["checked_at"]
 
 
 # --- web context honesty ------------------------------------------------------------

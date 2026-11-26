@@ -6238,3 +6238,9 @@ a.wf-btn { text-decoration: none; }
 .share-msg p { margin: 6px 0 0; font-size: var(--text-sm); color: var(--text-primary); white-space: pre-wrap; line-height: 1.55; }
 .share-msg small { display: block; margin-top: 4px; color: var(--text-tertiary); font-size: 11px; }
 @media (max-width: 800px) { .share-body { grid-template-columns: 1fr; } .share-side { border-right: 0; border-bottom: 1px solid var(--border-hairline); max-height: 40vh; } }
+
+/* ===== Source cues ===== */
+.msg-source-chip .src-n { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 6px; display: inline-grid; place-items: center; background: var(--signal-general-dim); color: var(--signal-general); font-size: 10.5px; font-weight: 700; }
+.msg-source-chip .src-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.msg-source-chip .src-kind, .msg-source-chip .src-age { font-size: 10px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border-hairline); color: var(--text-tertiary); text-transform: lowercase; }
+.msg-source-chip .src-age.is-old { color: var(--signal-voice); border-color: color-mix(in srgb, var(--signal-voice) 40%, transparent); }

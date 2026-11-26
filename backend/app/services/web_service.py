@@ -209,6 +209,89 @@ def _unwrap_ddg_redirect(href: str) -> str:
     return href
 
 
+# ---- source quality cues -------------------------------------------------------
+
+_KIND_HOSTS = {
+    "code": ("github.com", "gitlab.com", "bitbucket.org", "codeberg.org", "huggingface.co", "pypi.org", "npmjs.com", "crates.io"),
+    "forum": ("reddit.com", "stackoverflow.com", "stackexchange.com", "news.ycombinator.com", "discourse", "forum", "lemmy", "quora.com"),
+    "wiki": ("wikipedia.org", "wiki"),
+    "paper": ("arxiv.org", "doi.org", "acm.org", "ieee.org", "nature.com", "sciencedirect.com", "springer.com", "researchgate.net", "pubmed", "ncbi.nlm.nih.gov", "openreview.net"),
+    "video": ("youtube.com", "youtu.be", "vimeo.com"),
+    "news": ("bbc.", "reuters.com", "apnews.com", "nytimes.com", "theguardian.com", "theverge.com", "arstechnica.com", "techcrunch.com", "cnn.com", "wsj.com", "bloomberg.com", "news."),
+    "docs": ("docs.", "developer.", "developers.", "readthedocs", "/docs", "/documentation", "learn.microsoft.com", "devdocs", "man7.org"),
+    "blog": ("medium.com", "substack.com", "dev.to", "hashnode", "blog.", "/blog"),
+}
+
+
+def classify_source(url: str) -> str:
+    """A rough label for the kind of page — docs, code, forum, wiki,
+    paper, video, news, blog — or "page". Heuristic, shown as a hint."""
+    low = (url or "").lower()
+    host = urlparse(low).netloc
+    for kind in ("code", "forum", "wiki", "paper", "video", "news", "docs", "blog"):
+        for needle in _KIND_HOSTS[kind]:
+            if needle.startswith("/"):
+                if needle in urlparse(low).path:
+                    return kind
+            elif needle in host:
+                return kind
+    return "page"
+
+
+_DATE_META = (
+    ("published", ("article:published_time", "og:published_time", "datePublished", "publish-date", "pubdate", "date", "dc.date", "citation_publication_date")),
+    ("updated", ("article:modified_time", "og:updated_time", "dateModified", "last-modified", "dc.date.modified")),
+)
+
+
+def _norm_date(value: str | None) -> str | None:
+    """ISO date (YYYY-MM-DD) from the many formats pages use, or None."""
+    if not value:
+        return None
+    value = value.strip()
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", value) or re.search(r"(\d{4})/(\d{2})/(\d{2})", value)
+    if m:
+        y, mo, d = (int(x) for x in m.groups())
+        if 1990 <= y <= 2100 and 1 <= mo <= 12 and 1 <= d <= 31:
+            return f"{y:04d}-{mo:02d}-{d:02d}"
+    try:
+        from email.utils import parsedate_to_datetime
+
+        return parsedate_to_datetime(value).date().isoformat()
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def page_dates(soup, last_modified: str | None = None) -> dict[str, str | None]:
+    """Published/updated dates from meta tags, JSON-LD and <time>, falling
+    back to the Last-Modified header for "updated"."""
+    out: dict[str, str | None] = {"published": None, "updated": None}
+    for key, names in _DATE_META:
+        for name in names:
+            tag = soup.find("meta", attrs={"property": name}) or soup.find("meta", attrs={"name": name}) \
+                or soup.find("meta", attrs={"itemprop": name}) or soup.find(attrs={"itemprop": name})
+            if tag:
+                val = _norm_date(tag.get("content") or tag.get("datetime") or tag.get_text(" ", strip=True))
+                if val:
+                    out[key] = val
+                    break
+    if not out["published"] or not out["updated"]:
+        for script in soup.find_all("script", type="application/ld+json")[:5]:
+            raw = script.string or ""
+            for key, field in (("published", "datePublished"), ("updated", "dateModified")):
+                if not out[key]:
+                    m = re.search(rf'"{field}"\s*:\s*"([^"]+)"', raw)
+                    if m:
+                        out[key] = _norm_date(m.group(1))
+    if not out["published"]:
+        t = soup.find("time", attrs={"datetime": True})
+        if t:
+            out["published"] = _norm_date(t["datetime"])
+    if not out["updated"] and last_modified:
+        out["updated"] = _norm_date(last_modified)
+    return out
+
+
 async def fetch_url(url: str, allow_private: bool = True) -> dict[str, Any] | None:
     """Fetch + extract readable text for one URL. Returns
     {"url", "title", "text"} or None on failure. Routes GitHub/Reddit
@@ -263,12 +346,13 @@ async def _fetch_generic(url: str, max_chars: int) -> dict[str, Any] | None:
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(resp.text, "lxml")
+    dates = page_dates(soup, resp.headers.get("last-modified"))
     for tag in soup(["script", "style", "nav", "header", "footer", "noscript", "svg"]):
         tag.decompose()
     title = soup.title.get_text(strip=True) if soup.title else url
     main = soup.find("article") or soup.find("main") or soup.body or soup
     text = re.sub(r"\n{3,}", "\n\n", main.get_text("\n", strip=True))
-    return {"url": url, "title": title, "text": text[:max_chars]}
+    return {"url": url, "title": title, "text": text[:max_chars], **dates}
 
 
 async def _fetch_github(url: str, max_chars: int) -> dict[str, Any] | None:

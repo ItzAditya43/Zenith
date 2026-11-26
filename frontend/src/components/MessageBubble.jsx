@@ -366,6 +366,26 @@ function PlanCard({ plan, onDecision }) {
   );
 }
 
+function ageLabel(iso) {
+  if (!iso) return "";
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (Number.isNaN(days)) return "";
+  if (days < 1) return "today";
+  if (days < 31) return `${days}d old`;
+  if (days < 365) return `${Math.round(days / 30)}mo old`;
+  return `${(days / 365).toFixed(days < 3650 ? 1 : 0)}y old`;
+}
+const isOld = (iso) => iso && Date.now() - new Date(iso).getTime() > 2 * 365 * 86400000;
+function sourceTooltip(s) {
+  const parts = [s.url];
+  if (s.published) parts.push(`Published ${s.published}`);
+  if (s.updated && s.updated !== s.published) parts.push(`Updated ${s.updated}`);
+  if (!s.published && !s.updated) parts.push("No date found on the page");
+  if (s.checked_at) parts.push(`Checked ${new Date(s.checked_at * 1000).toLocaleString()}`);
+  if (s.snippet_only) parts.push("The page couldn't be read; only the search snippet was used");
+  return parts.join("\n");
+}
+
 /** Thumbs up/down and "wrong model" for one reply. Shown per model under
  * Settings → Model routing; never changes routing by itself. */
 function FeedbackButtons({ message }) {
@@ -589,9 +609,15 @@ export default function MessageBubble({
                   href={s.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  title={s.url}
+                  title={sourceTooltip(s)}
                 >
-                  <Icon name="link" size={12} /> {s.title || s.url}
+                  {s.n ? <span className="src-n">{s.n}</span> : <Icon name="link" size={12} />}
+                  <span className="src-title">{s.title || s.url}</span>
+                  {(s.kind && s.kind !== "page") && <span className="src-kind">{s.kind}</span>}
+                  {ageLabel(s.updated || s.published) && (
+                    <span className={`src-age ${isOld(s.updated || s.published) ? "is-old" : ""}`}>{ageLabel(s.updated || s.published)}</span>
+                  )}
+                  {s.snippet_only && <span className="src-kind" title="Only the search snippet was available">snippet</span>}
                 </a>
               ) : s.kind === "document" && s.attachment_id ? (
                 <button

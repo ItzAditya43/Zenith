@@ -85,7 +85,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 12. **Research workspaces** — Save sources, notes, claims, and reports together;
     show which sources support claims and allow users to rerun searches for
     updates. **M–L**.
-13. **Source freshness and quality cues** — Show publication/update date,
+13. ~~**Source freshness and quality cues**~~ — **Done (1.2.6):** web sources are numbered and labelled by kind (docs, code, forum, wiki, paper, news, blog, video) with published/updated dates from the page and when they were checked; old pages are flagged; the model is told to cite [n] for retrieved facts and to say when it's using its own knowledge. Original note: Show publication/update date,
     source type, and last-checked time; distinguish retrieved facts from model
     inference. **M**.
 14. **Knowledge graph exploration** — Filter and search graph entities and

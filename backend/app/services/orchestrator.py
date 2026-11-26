@@ -12,7 +12,9 @@ list of chat messages, so routes stay thin.
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import AsyncIterator
+from urllib.parse import urlparse
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -278,16 +280,25 @@ async def _gather_web_context(user_text: str, web_search: bool) -> tuple[str, li
     sections: list[str] = []
     sources: list[dict] = []
     snippet_by_url = {r["url"]: r.get("snippet", "") for r in search_results}
+    checked = time.time()
     for url, page in zip(to_fetch, pages, strict=True):
+        n = len(sources) + 1
         if isinstance(page, BaseException) or not page:
             # Fall back to the search snippet so a failed fetch doesn't
             # silently drop a result the user can see was found.
             if url in snippet_by_url and snippet_by_url[url]:
-                sections.append(f"[{url}]\n{snippet_by_url[url]}")
-                sources.append({"url": url, "title": url})
+                sections.append(f"[{n}] {url} (search snippet only — the page couldn't be read)\n{snippet_by_url[url]}")
+                sources.append({"url": url, "title": url, "n": n, "kind": web_service.classify_source(url),
+                                "domain": urlparse(url).netloc.removeprefix("www."), "checked_at": checked,
+                                "snippet_only": True})
             continue
-        sections.append(f"[{page['title']}]({page['url']})\n{page['text']}")
-        sources.append({"url": page["url"], "title": page["title"]})
+        dated = ", ".join(f"{k} {page[k]}" for k in ("published", "updated") if page.get(k))
+        sections.append(f"[{n}] {page['title']} — {page['url']}{f' ({dated})' if dated else ''}\n{page['text']}")
+        sources.append({"url": page["url"], "title": page["title"], "n": n,
+                        "kind": web_service.classify_source(page["url"]),
+                        "domain": urlparse(page["url"]).netloc.removeprefix("www."),
+                        "published": page.get("published"), "updated": page.get("updated"),
+                        "checked_at": checked})
 
     if not sections:
         if web_search and not search_results:
@@ -317,7 +328,12 @@ async def _gather_web_context(user_text: str, web_search: bool) -> tuple[str, li
                 [],
             )
         return "", []
-    header = "Web content fetched for this turn (cite naturally, don't dump raw URLs):\n\n"
+    header = (
+        f"Web content fetched for this turn (today is {time.strftime('%Y-%m-%d')}). Each source is numbered. "
+        "When you state something taken from a source, cite it like [1]; when you add your own reasoning "
+        "or knowledge, make that clear (\"from what I know…\"), so the user can tell retrieved facts from "
+        "inference. Mention it if a source looks old for a time-sensitive question. Don't dump raw URLs.\n\n"
+    )
     return header + "\n\n---\n\n".join(sections), sources
 
 
