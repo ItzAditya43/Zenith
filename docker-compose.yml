@@ -6,6 +6,9 @@
 # the `ollama` service + its `depends_on` block below.
 services:
   backend:
+    # Prebuilt image from the release workflow; `docker compose pull` fetches
+    # it, and `docker compose up --build` builds from source instead.
+    image: ghcr.io/itzaditya43/zenith-backend:${ZENITH_VERSION:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -84,6 +87,7 @@ services:
     # to guess at — read_only/cap_drop are deliberately NOT added here.
 
   frontend:
+    image: ghcr.io/itzaditya43/zenith-frontend:${ZENITH_VERSION:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile

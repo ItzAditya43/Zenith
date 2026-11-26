@@ -62,12 +62,19 @@ You need [Ollama](https://ollama.com) running locally.
 (macOS). It bundles the backend, so there's nothing else to run — just point
 it at Ollama on first launch. See [DESKTOP.md](DESKTOP.md).
 
-**Docker**
+**Docker** — prebuilt images (amd64 and arm64) are published to GHCR with
+every release, so there's nothing to compile:
 
 ```bash
-docker compose up -d --build                   # http://localhost:5173
-docker compose --profile search up -d --build  # optional: adds a SearXNG search container
+docker compose pull && docker compose up -d    # http://localhost:5173
+ZENITH_VERSION=1.2.4 docker compose up -d      # pin a version instead of latest
+docker compose --profile search up -d          # optional: adds a SearXNG search container
+docker compose up -d --build                   # or build from source
 ```
+
+Upgrading is `docker compose pull && docker compose up -d`. Your chats,
+settings and uploads live in the `backend-data` volume and survive upgrades;
+`docker compose down -v` is the only thing that deletes them.
 
 **Manual** (Python 3.11–3.13, Node 18+)
 
