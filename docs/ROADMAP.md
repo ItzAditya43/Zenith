@@ -127,7 +127,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 
 ### Memory and multimodal upgrades
 
-24. **Conversation compaction with continuity** — Upgrade the existing
+24. ~~**Conversation compaction with continuity**~~ — **Done (1.2.5):** structured state (goals, decisions, constraints, facts, files, open questions, next actions) with source links, inspect/edit/pin/regenerate from the chat menu → Conversation state; pinned items survive edits and regeneration. Original note: Upgrade the existing
     long-chat summary into a durable, inspectable conversation state: goals,
     decisions, constraints, important facts, files, open questions, and next
     actions, each tied to the source messages it summarizes. Compact before

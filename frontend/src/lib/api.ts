@@ -218,6 +218,17 @@ export interface ChatTurn {
 export const api = {
   base: BASE,
 
+  getConversationState: (id: string) => request(`/api/conversations/${id}/state`).then((r) => r.json()),
+  saveConversationState: (id: string, state: unknown) =>
+    request(`/api/conversations/${id}/state`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    }).then((r) => r.json()),
+  regenerateConversationState: (id: string) =>
+    request(`/api/conversations/${id}/state/regenerate`, { method: "POST" }).then((r) => r.json()),
+  clearConversationState: (id: string) => request(`/api/conversations/${id}/state`, { method: "DELETE" }),
+
   listWorkflows: () => request("/api/workflows").then((r) => r.json()),
   saveWorkflow: (body: { id?: string | null; name: string; graph: unknown }) =>
     request("/api/workflows", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json()),

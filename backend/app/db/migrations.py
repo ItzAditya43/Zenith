@@ -285,6 +285,17 @@ def _workflows_tables(conn: sqlite3.Connection) -> None:
     )
 
 
+def _summary_state_columns(conn: sqlite3.Connection) -> None:
+    """Structured, editable compaction state next to the plain summary:
+    `state` is JSON {section: [{text, sources, pinned}]}; `edited_at` marks
+    a user edit so the UI can say so."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(conversation_summaries)")}
+    if "state" not in cols:
+        conn.execute("ALTER TABLE conversation_summaries ADD COLUMN state TEXT")
+    if "edited_at" not in cols:
+        conn.execute("ALTER TABLE conversation_summaries ADD COLUMN edited_at REAL")
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -851,6 +862,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (37, "project_workspace_columns", _project_workspace_columns),
     (38, "conversation_summaries_table", _conversation_summaries_table),
     (39, "workflows_tables", _workflows_tables),
+    (40, "summary_state_columns", _summary_state_columns),
 ]
 
 

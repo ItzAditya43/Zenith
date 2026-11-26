@@ -84,3 +84,62 @@ async def test_can_be_turned_off(long_chat):
         assert await summary_service.update(cid) is False
     finally:
         settings.update({"summarize_long_chats": True})
+
+
+async def test_structured_state_with_sources(long_chat):
+    import json
+
+    from app.db import storage
+    from app.services import summary_service
+
+    cid, fake = long_chat
+    fake.queue(json.dumps({
+        "goals": [{"text": "Design the database schema", "sources": ["m1"]}],
+        "decisions": [{"text": "Use SQLite", "sources": ["m2", "m99"]}],
+        "next_actions": ["Build the UI"],
+    }))
+    assert await summary_service.update(cid) is True
+    ids = [m["id"] for m in storage.get_messages(cid)]
+    st = summary_service.inspect(cid)
+    assert st["current"] and st["covered_count"] == 8
+    assert st["state"]["goals"][0]["sources"] == [ids[0]]
+    assert st["state"]["decisions"][0]["sources"] == [ids[1]]  # unknown m99 dropped
+    block = summary_service.summary_block(cid, storage.get_messages(cid))
+    assert "Decisions:" in block and "- Use SQLite" in block
+
+
+async def test_pinned_items_survive_regenerate_and_edits(long_chat, client):
+    import json
+
+    from app.db import storage
+    from app.services import summary_service
+
+    cid, fake = long_chat
+    fake.queue(json.dumps({"facts": [{"text": "Old fact", "sources": ["m1"]}]}))
+    await summary_service.update(cid)
+    st = client.get(f"/api/conversations/{cid}/state").json()
+    st["state"]["constraints"] = [{"text": "Never use MongoDB", "pinned": True}]
+    r = client.put(f"/api/conversations/{cid}/state", json={"state": st["state"]})
+    assert r.status_code == 200 and r.json()["edited_at"]
+
+    fake.queue(json.dumps({"facts": [{"text": "New fact", "sources": ["m3"]}], "constraints": []}))
+    r = client.post(f"/api/conversations/{cid}/state/regenerate").json()
+    assert r["regenerated"] is True
+    assert [i["text"] for i in r["state"]["constraints"]] == ["Never use MongoDB"]
+    assert r["state"]["facts"][0]["text"] == "New fact"
+
+    # After an edit/branch switch makes the state stale, pins still reach the model.
+    history = storage.get_messages(cid)
+    covered = summary_service._load(cid)["covered_until"]
+    block = summary_service.summary_block(cid, [m for m in history if m["id"] != covered])
+    assert "Never use MongoDB" in block and "New fact" not in block
+
+
+async def test_clear_state(long_chat, client):
+    cid, fake = long_chat
+    fake.queue("- something")
+    from app.services import summary_service
+
+    await summary_service.update(cid)
+    assert client.delete(f"/api/conversations/{cid}/state").json()["ok"]
+    assert client.get(f"/api/conversations/{cid}/state").json()["exists"] is False

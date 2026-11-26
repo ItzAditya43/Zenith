@@ -430,7 +430,7 @@ export default function MessageBubble({
   };
 
   return (
-    <div className={`msg-row ${isUser ? "msg-row-user" : "msg-row-assistant"}`}>
+    <div className={`msg-row ${isUser ? "msg-row-user" : "msg-row-assistant"}`} id={message?.id ? `msg-${message.id}` : undefined}>
       <div
         className={`msg-bubble ${isUser ? "msg-bubble-user" : "msg-bubble-assistant"} ${
           !isUser && message.toolCalls?.length > 0 ? "msg-bubble-agent" : ""

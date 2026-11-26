@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -23,7 +24,7 @@ from app.models.schemas import (
     PersonaCreate,
     PersonaUpdate,
 )
-from app.services import trace_service
+from app.services import summary_service, trace_service
 from app.services.ollama_client import OllamaClient, OllamaError, ThinkingDelta
 from app.services.orchestrator import run_turn
 from app.services.router import ModelRouter
@@ -298,6 +299,42 @@ async def update_persona(persona_id: str, body: PersonaUpdate):
 async def delete_persona(persona_id: str):
     from app.services import persona_service
     persona_service.delete_persona(persona_id)
+    return {"ok": True}
+
+
+@router.get("/conversations/{conversation_id}/state")
+async def get_conversation_state(conversation_id: str):
+    """The compacted state of this conversation's older messages."""
+    if not storage.get_conversation(conversation_id):
+        raise HTTPException(404, "Conversation not found")
+    return await asyncio.to_thread(summary_service.inspect, conversation_id)
+
+
+class StateEdit(BaseModel):
+    state: dict
+
+
+@router.put("/conversations/{conversation_id}/state")
+async def edit_conversation_state(conversation_id: str, body: StateEdit):
+    if not storage.get_conversation(conversation_id):
+        raise HTTPException(404, "Conversation not found")
+    return await asyncio.to_thread(summary_service.save_edit, conversation_id, body.state)
+
+
+@router.post("/conversations/{conversation_id}/state/regenerate")
+async def regenerate_conversation_state(conversation_id: str):
+    """Rebuild from the source messages; pinned items are kept."""
+    if not storage.get_conversation(conversation_id):
+        raise HTTPException(404, "Conversation not found")
+    ok = await summary_service.update(conversation_id, force=True)
+    out = await asyncio.to_thread(summary_service.inspect, conversation_id)
+    out["regenerated"] = ok
+    return out
+
+
+@router.delete("/conversations/{conversation_id}/state")
+async def clear_conversation_state(conversation_id: str):
+    await asyncio.to_thread(summary_service.clear, conversation_id)
     return {"ok": True}
 
 

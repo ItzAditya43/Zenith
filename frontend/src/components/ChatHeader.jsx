@@ -3,6 +3,7 @@ import Icon from "./Icon.jsx";
 import StatusRail from "./StatusRail.jsx";
 import { api } from "../lib/api";
 import Select from "./Select.jsx";
+import ConversationStatePanel from "./ConversationStatePanel.jsx";
 
 /** The chat header toolbar, extracted from App.jsx. App owns all state; this is presentational. */
 /** Secondary panels live behind one labelled "More" menu instead of a row of
@@ -105,6 +106,7 @@ export default function ChatHeader({
   activeConversation,
   openSettingsAt,
 }) {
+  const [stateOpen, setStateOpen] = useState(false);
   return (
     <header className="chat-header">
       <button
@@ -120,6 +122,17 @@ export default function ChatHeader({
       <div className="header-actions">
         <HeaderMore>
           <HeaderMoreGroup label="Workspace">
+            {activeId && (
+              <button
+                className={`icon-btn ${stateOpen ? "is-active" : ""}`}
+                onClick={() => setStateOpen(true)}
+                title="Conversation state — what Zenith carries forward from older messages"
+                aria-label="Conversation state"
+              >
+                <Icon name="target" size={16} />
+                <span className="header-more-label">Conversation state</span>
+              </button>
+            )}
             {Object.values(branches).some((s) => s.length > 1) && (
               <button
                 className={`icon-btn branch-tree-toggle ${branchTreeOpen ? "is-active" : ""}`}
@@ -385,6 +398,7 @@ export default function ChatHeader({
           </button>
         </div>
       </div>
+    {stateOpen && activeId && <ConversationStatePanel conversationId={activeId} onClose={() => setStateOpen(false)} />}
     </header>
   );
 }

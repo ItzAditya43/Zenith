@@ -6016,3 +6016,26 @@ html[data-reduce-motion] .brand-anim * { animation: none !important; }
 .wf-canvas .react-flow__node-input, .wf-canvas .react-flow__node-output, .wf-canvas .react-flow__node-default {
   background: none; border: 0; padding: 0; width: auto; border-radius: 0; box-shadow: none; color: inherit; font-size: inherit; text-align: left;
 }
+
+/* ===== Conversation state panel ===== */
+.cstate-modal { display: flex; flex-direction: column; overflow: hidden; }
+.cstate-body { flex: 1; overflow-y: auto; padding: 6px 26px 18px; }
+.cstate-lead { color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.6; margin: 10px 0 14px; }
+.cstate-error { margin-bottom: 12px; padding: 10px 12px; border-radius: 12px; font-size: var(--text-xs); color: var(--signal-voice); border: 1px solid color-mix(in srgb, var(--signal-voice) 40%, transparent); }
+.cstate-section { margin-bottom: 16px; }
+.cstate-section h4 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-tertiary); }
+.cstate-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px 6px 12px; margin-bottom: 6px; border-radius: 12px; border: 1px solid var(--border-hairline); background: linear-gradient(180deg, color-mix(in srgb, var(--bg-panel-raised) 55%, transparent), transparent); }
+.cstate-item.is-pinned { border-color: color-mix(in srgb, var(--signal-general) 45%, var(--border-soft)); }
+.cstate-item textarea { flex: 1; min-width: 0; resize: none; field-sizing: content; min-height: 22px; background: none; border: 0; color: var(--text-primary); font: inherit; font-size: var(--text-sm); line-height: 1.5; padding: 3px 0; outline: none; }
+.cstate-item-meta { display: flex; align-items: center; gap: 4px; flex: none; padding-top: 2px; }
+.cstate-src { padding: 1px 7px; border-radius: 999px; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-secondary); border: 1px solid var(--border-soft); }
+.cstate-src:hover { color: var(--text-primary); border-color: var(--signal-general); }
+.cstate-pin, .cstate-del { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; color: var(--text-tertiary); }
+.cstate-pin:hover, .cstate-del:hover { background: var(--bg-panel-raised); color: var(--text-primary); }
+.cstate-pin.is-on { color: var(--signal-general); }
+.cstate-add input { width: 100%; padding: 8px 12px; border-radius: 12px; border: 1px dashed var(--border-soft); background: none; color: var(--text-primary); font-size: var(--text-xs); }
+.cstate-add input:focus { outline: none; border-style: solid; border-color: color-mix(in srgb, var(--signal-general) 55%, var(--border-soft)); }
+.cstate-foot { display: flex; justify-content: space-between; gap: 8px; padding: 14px 26px; border-top: 1px solid var(--border-hairline); }
+.cstate-foot > div { display: flex; gap: 8px; }
+.msg-flash { animation: msg-flash 1.6s ease-out; border-radius: 14px; }
+@keyframes msg-flash { 0%, 30% { box-shadow: 0 0 0 2px var(--signal-general), 0 0 30px -6px var(--signal-general); } 100% { box-shadow: 0 0 0 0 transparent; } }
