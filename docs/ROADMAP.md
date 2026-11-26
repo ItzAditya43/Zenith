@@ -94,7 +94,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 15. ~~**Knowledge cleanup**~~ — **Done (1.2.6):** Knowledge cleanup (palette or Memory → Clean up) proposes merging near-duplicate memories, turning off unused ones, removing index entries whose source is gone, dropping documents indexed twice and reindexing changed files — with the evidence for each, applied only on your say-so, and every batch undoable. Original note: Find duplicate or stale indexed sources and offer
     reviewable memory updates before they affect future answers. Include
     provenance and undo. **M**.
-16. **Calendar interoperability** — Add calendar import/export or provider
+16. ~~**Calendar interoperability**~~ — **Done (1.2.7):** import .ics files or a calendar's secret iCal link (Google, Outlook, Apple; re-import refreshes by UID), export everything as .ics, and a clash check that asks before double-booking. Live two-way provider sync isn't built. Original note: Add calendar import/export or provider
     connections, plus conflict checks before creating or changing events.
     **M–L**.
 17. ~~**Email workflows**~~ — **Done (1.2.7):** a Mail panel (sidebar) sorts the inbox into urgent / needs reply / FYI / newsletters, with your own filters applied first and no model call for them; reply drafts are saved, editable and only sent when you press Send. Original note: Extend IMAP/SMTP with inbox triage and reply drafts

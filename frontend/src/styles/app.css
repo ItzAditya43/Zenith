@@ -6296,3 +6296,4 @@ a.wf-btn { text-decoration: none; }
 .mail-draft-new input { flex: 1; }
 .mail-filter-new { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .mail-filter-new input { flex: 1; min-width: 160px; }
+.app-dialog-message { white-space: pre-line; }

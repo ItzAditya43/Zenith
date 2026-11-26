@@ -480,6 +480,14 @@ def _email_workflow_tables(conn: sqlite3.Connection) -> None:
     )
 
 
+def _calendar_uid_column(conn: sqlite3.Connection) -> None:
+    """iCalendar UID for imported events, so re-importing doesn't duplicate."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(calendar_events)")}
+    if "uid" not in cols:
+        conn.execute("ALTER TABLE calendar_events ADD COLUMN uid TEXT")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_events_uid ON calendar_events(uid) WHERE uid IS NOT NULL")
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -1057,6 +1065,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (48, "cleanup_log_table", _cleanup_log_table),
     (49, "schedule_todo_mode", _schedule_todo_mode),
     (50, "email_workflow_tables", _email_workflow_tables),
+    (51, "calendar_uid_column", _calendar_uid_column),
 ]
 
 

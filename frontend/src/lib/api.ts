@@ -712,6 +712,20 @@ export const api = {
       body: JSON.stringify(event),
     }).then((r) => r.json()),
   deleteCalendarEvent: (id: string) => request(`/api/calendar/events/${id}`, { method: "DELETE" }),
+  /** Like createCalendarEvent, but a clash comes back as {conflicts} instead of throwing. */
+  tryCreateCalendarEvent: async (event: Record<string, unknown>) => {
+    const res = await fetch(`${BASE}/api/calendar/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(event),
+    });
+    if (res.status === 409) return { conflicts: (await res.json()).conflicts as unknown[] };
+    if (!res.ok) throw new Error(await errorDetail(res));
+    return { event: await res.json() };
+  },
+  importCalendar: (body: { ics?: string; url?: string }) =>
+    request("/api/calendar/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json()),
+  calendarExportUrl: () => `${BASE}/api/calendar/export.ics`,
 
   listProjects: () => request("/api/projects").then((r) => r.json()),
   createProject: (name: string, workdir: string) =>

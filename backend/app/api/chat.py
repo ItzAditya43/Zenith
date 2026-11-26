@@ -1092,12 +1092,65 @@ async def list_calendar_events(from_ts: float | None = None, to_ts: float | None
     return storage.list_calendar_events(from_ts, to_ts)
 
 
+@router.get("/calendar/conflicts")
+async def calendar_conflicts(start_ts: float, end_ts: float | None = None, all_day: bool = False):
+    from app.services import calendar_service
+
+    return calendar_service.conflicts(start_ts, end_ts, all_day)
+
+
+@router.get("/calendar/export.ics")
+async def calendar_export():
+    from fastapi.responses import Response
+
+    from app.services import calendar_service
+
+    return Response(calendar_service.export_ics(), media_type="text/calendar",
+                    headers={"Content-Disposition": 'attachment; filename="zenith-calendar.ics"'})
+
+
+@router.post("/calendar/import")
+async def calendar_import(body: dict):
+    """{ics: "<file text>"} or {url: "https://…/basic.ics"} (a calendar's
+    secret iCal link). Events keep their UID, so importing again updates
+    instead of duplicating."""
+    from app.services import calendar_service, web_service
+
+    text = str(body.get("ics") or "")
+    url = str(body.get("url") or "").strip()
+    if url:
+        if url.startswith("webcal://"):
+            url = "https://" + url[len("webcal://"):]
+        if not url.startswith(("http://", "https://")):
+            raise HTTPException(422, "Paste an https:// (or webcal://) calendar link.")
+        try:
+            async with await web_service._client(20) as client:  # noqa: SLF001 — same guarded client as web fetches
+                resp = await client.get(url)
+                resp.raise_for_status()
+                text = resp.text
+        except Exception as exc:
+            raise HTTPException(400, f"Couldn't fetch that calendar: {exc}") from exc
+    if "BEGIN:VCALENDAR" not in text.upper():
+        raise HTTPException(422, "That isn't an iCalendar (.ics) file.")
+    return calendar_service.import_ics(text)
+
+
 @router.post("/calendar/events")
 async def create_calendar_event(body: dict):
+    """409 with the clashing events unless `force` is set, so the UI (or the
+    agent) can confirm a double-booking instead of silently making one."""
     title = str(body.get("title", "")).strip()
     start_ts = body.get("start_ts")
     if not title or start_ts is None:
         raise HTTPException(422, "title and start_ts are required.")
+    if not body.get("force"):
+        from fastapi.responses import JSONResponse
+
+        from app.services import calendar_service
+
+        clash = calendar_service.conflicts(float(start_ts), body.get("end_ts"), bool(body.get("all_day", False)))
+        if clash:
+            return JSONResponse({"detail": "This overlaps something already on your calendar.", "conflicts": clash}, status_code=409)
     return storage.create_calendar_event(
         title, float(start_ts), body.get("end_ts"), body.get("description", ""),
         bool(body.get("all_day", False)), body.get("source_conversation_id"),

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import { confirmDialog, promptDialog } from "../lib/dialogs";
 
 function fmt(ts) {
   return new Date(ts * 1000).toLocaleString(undefined, {
@@ -39,10 +40,27 @@ export default function CalendarPanel({ onClose }) {
     if (!title.trim() || !when) return;
     const start_ts = new Date(when).getTime() / 1000;
     if (Number.isNaN(start_ts)) return;
-    await api.createCalendarEvent({ title: title.trim(), start_ts });
+    const first = await api.tryCreateCalendarEvent({ title: title.trim(), start_ts });
+    if (first.conflicts) {
+      const list = first.conflicts.map((c) => `• ${c.title} (${fmt(c.start_ts)})`).join("\n");
+      if (!(await confirmDialog({ title: "That clashes with your calendar", message: `${list}\n\nAdd it anyway?`, confirmLabel: "Add anyway" }))) return;
+      await api.tryCreateCalendarEvent({ title: title.trim(), start_ts, force: true });
+    }
     setTitle("");
     setWhen("");
     refresh();
+  };
+
+  const [ioMsg, setIoMsg] = useState("");
+  const importFile = async (file) => {
+    try { const r = await api.importCalendar({ ics: await file.text() }); setIoMsg(`Imported: ${r.added} new, ${r.updated} updated.`); refresh(); }
+    catch (e) { setIoMsg(e.message); }
+  };
+  const importUrl = async () => {
+    const url = await promptDialog({ title: "Import from a calendar link", message: "Paste the secret iCal address (Google: Settings → your calendar → “Secret address in iCal format”; Outlook: Publish calendar → ICS). Import again any time to refresh.", placeholder: "https://…/basic.ics", confirmLabel: "Import" });
+    if (!url) return;
+    try { const r = await api.importCalendar({ url }); setIoMsg(`Imported: ${r.added} new, ${r.updated} updated.`); refresh(); }
+    catch (e) { setIoMsg(e.message); }
   };
 
   const removeEvent = async (id) => {
@@ -80,6 +98,14 @@ export default function CalendarPanel({ onClose }) {
             Add
           </button>
         </div>
+        <div className="pack-bar" style={{ padding: "0 26px 8px" }}>
+          <label className="wf-btn"><Icon name="plus" size={13} /> Import .ics
+            <input type="file" accept=".ics,text/calendar" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); e.target.value = ""; }} />
+          </label>
+          <button className="wf-btn" onClick={importUrl}><Icon name="link" size={13} /> From a link</button>
+          <a className="wf-btn" href={api.calendarExportUrl()} download><Icon name="download" size={13} /> Export .ics</a>
+        </div>
+        {ioMsg && <p className="setting-hint" style={{ padding: "0 26px" }}>{ioMsg}</p>}
         {error && <p className="settings-error">{error}</p>}
         <ul className="calendar-event-list">
           {events.map((e) => (
