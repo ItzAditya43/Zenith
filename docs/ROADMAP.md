@@ -23,7 +23,6 @@ Zenith stays chat-first: these make the code side panel pleasant, not an IDE.
 | P1 | **Notarized macOS builds** | Needs an Apple Developer ID; removes the right-click → Open step. | S (+ account) |
 | P2 | **Windows code signing** | SmartScreen warns on unsigned installers. | S (+ certificate) |
 | P3 | **Encrypted sync between your machines** | Multi-master sync with conflict resolution; today devices share one backend. | L |
-| P8 | **Shareable extensions beyond MCP** | Other front ends have community functions and pipelines. Smallest version: importable packs of quick actions, personas and automation rules. Parked 2026-11-13. | M |
 | P9 | **Tested on more setups** | Hand-verified on one Linux laptop. A support matrix (OS, GPU, Ollama version) filled in from real reports, plus the Windows/macOS smoke runs. Parked 2026-11-13. | ongoing |
 
 ## Known follow-ups
@@ -66,7 +65,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 
 6. ~~**Conversation organization**~~ — **Done (1.2.6):** Manage chats (sidebar or palette) filters by title, tag and state, saves filters, and pins, tags, archives, restores or deletes in bulk; archived chats leave the sidebar. Original note: Add tags, pinned chats, saved filters, and
    bulk archive/delete controls to the existing search and sidebar. **S–M**.
-7. **Reusable prompt workflows** — Turn quick actions into parameterized
+7. ~~**Reusable prompt workflows**~~ — **Done (1.2.6):** quick actions take fields ({{file}}, {{tone|friendly}}, auto {{date}}/{{time}}), are validated on save, ask for their fields when run, and travel in packs. Original note: Turn quick actions into parameterized
    templates (for example, “review this diff”), with validation and import /
    export. **M**.
 8. ~~**Answer and routing feedback**~~ — **Done (1.2.6):** thumbs and a "wrong model" flag on replies; Settings → Model routing shows per-model totals and recent wrong-model picks; nothing is applied automatically. Original note: Let users rate answers and flag poor model
@@ -116,7 +115,7 @@ and **XL** ≈ a multi-week design and implementation effort.
     merging (see `NOT_BUILT.md`). **XL** (existing roadmap item P3).
 21. ~~**Prebuilt Docker images**~~ — **Done (1.2.5):** the release workflow
     publishes versioned amd64/arm64 images to GHCR; compose pulls them.
-22. **Shareable feature packs** — Package quick actions, personas, and
+22. ~~**Shareable feature packs**~~ — **Done (1.2.6):** export quick actions, personas and automation rules as a versioned `zenith-pack` file; import shows a preview with duplicates, problems and what each item may do, and imported rules start switched off. Original note: Package quick actions, personas, and
     automation rules for import/export, with a manifest, versioning, and a
     clear permission preview. **M** (existing roadmap item P8).
 23. **Release signing and platform validation** — Add macOS notarization and

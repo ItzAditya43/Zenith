@@ -218,6 +218,25 @@ export interface ChatTurn {
 export const api = {
   base: BASE,
 
+  renderTemplate: (template: string, values: Record<string, string>) =>
+    request("/api/quick-actions/render", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template, values }),
+    }).then((r) => r.json()),
+  packExportUrl: (name = "My Zenith pack") => `${BASE}/api/packs/export?name=${encodeURIComponent(name)}`,
+  previewPack: (pack: unknown) =>
+    request("/api/packs/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pack }),
+    }).then((r) => r.json()),
+  importPack: (pack: unknown, include: string[] | null = null) =>
+    request("/api/packs/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pack, include }),
+    }).then((r) => r.json()),
   listNotifications: (params: { q?: string; event_type?: string; since?: number; unread?: boolean } = {}) => {
     const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== "" && v !== false).map(([k, v]) => [k, String(v)])).toString();
     return request(`/api/notifications${qs ? `?${qs}` : ""}`).then((r) => r.json());

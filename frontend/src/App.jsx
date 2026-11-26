@@ -55,6 +55,7 @@ const RunReview = lazyPanel(() => import("./components/RunReview.jsx"));
 const ChatManager = lazyPanel(() => import("./components/ChatManager.jsx"));
 const ModelCompare = lazyPanel(() => import("./components/ModelCompare.jsx"));
 const NotificationsPanel = lazyPanel(() => import("./components/NotificationsPanel.jsx"));
+const TemplateFillDialog = lazyPanel(() => import("./components/TemplateFillDialog.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
 const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
@@ -1384,8 +1385,19 @@ export default function App() {
     return [...recent, ...defaults].slice(0, 3);
   }, [conversations, activeId]);
 
+  // Quick actions with {{fields}} ask for them first; the rest insert or send directly.
+  const [fillAction, setFillAction] = useState(null);
+  const finishQuickAction = (action, text) => {
+    if (action.auto_send) handleSend(text, []);
+    else setSeedText({ text, nonce: Date.now() });
+  };
+  const runQuickAction = (action) => {
+    if (action.fields?.length) setFillAction(action);
+    else finishQuickAction(action, action.prompt_template);
+  };
+
   const paletteHandlers = useRef({});
-  paletteHandlers.current = { handleSend, handleSetWorkdir, handlePersonaChange };
+  paletteHandlers.current = { handleSend, handleSetWorkdir, handlePersonaChange, runQuickAction };
 
   const commands = useMemo(
     () =>
@@ -1594,6 +1606,13 @@ export default function App() {
           />
         )}
         {compareOpen && <ModelCompare onClose={() => setCompareOpen(false)} />}
+        {fillAction && (
+          <TemplateFillDialog
+            action={fillAction}
+            onCancel={() => setFillAction(null)}
+            onDone={(text) => { const a = fillAction; setFillAction(null); finishQuickAction(a, text); }}
+          />
+        )}
         {notesPanelOpen && (
           <NotificationsPanel
             onClose={() => setNotesPanelOpen(false)}
@@ -1637,11 +1656,7 @@ export default function App() {
             }}
             onRunQuickAction={(action) => {
               setSnippetsOpen(false);
-              if (action.auto_send) {
-                handleSend(action.prompt_template, []);
-              } else {
-                setSeedText({ text: action.prompt_template, nonce: Date.now() });
-              }
+              runQuickAction(action);
             }}
           />
         )}

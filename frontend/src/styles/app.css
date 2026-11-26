@@ -6192,3 +6192,24 @@ html[data-reduce-motion] .brand-anim * { animation: none !important; }
 .notif-quiet { display: flex; align-items: center; gap: 12px; font-size: var(--text-xs); color: var(--text-secondary); }
 .notif-quiet input { margin-left: 6px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--border-soft); background: var(--bg-inset); color: var(--text-primary); color-scheme: dark; }
 .notif-quiet input[type="number"] { width: 80px; }
+
+/* ===== Templates + packs ===== */
+.tfill { width: min(560px, calc(100vw - 2rem)); }
+.tfill-body { padding: 16px 26px 6px; display: flex; flex-direction: column; gap: 12px; }
+.tfill-body label { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-xs); color: var(--text-secondary); text-transform: capitalize; }
+.tfill-body textarea { resize: vertical; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--bg-inset); color: var(--text-primary); font: inherit; font-size: var(--text-sm); text-transform: none; }
+.tfill-body textarea:focus { outline: none; border-color: color-mix(in srgb, var(--signal-general) 55%, var(--border-soft)); }
+.pack-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 1rem 0.75rem; }
+.pack-bar label.wf-btn { cursor: pointer; }
+.pack-preview { margin: 0 1rem 0.75rem; padding: 14px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--signal-general) 40%, var(--border-soft)); background: var(--bg-inset); font-size: var(--text-xs); }
+.pack-preview > strong { font-size: var(--text-sm); color: var(--text-primary); }
+.pack-preview p { margin: 4px 0 0; color: var(--text-secondary); }
+.pack-preview ul { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.pack-preview li { display: flex; gap: 8px; align-items: flex-start; }
+.pack-preview li input { margin-top: 3px; accent-color: var(--signal-general); }
+.pack-preview li.is-blocked { opacity: 0.55; }
+.pack-preview li b { color: var(--text-primary); font-weight: 600; }
+.pack-preview li em { font-style: normal; color: var(--text-tertiary); } .pack-preview li em.warn { color: var(--signal-voice); }
+.pack-preview li small { display: block; margin-top: 2px; color: var(--text-tertiary); }
+.pack-actions { display: flex; justify-content: flex-end; gap: 8px; }
+a.wf-btn { text-decoration: none; }

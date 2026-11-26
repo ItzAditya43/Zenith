@@ -14,6 +14,25 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
   const [actionName, setActionName] = useState("");
   const [actionPrompt, setActionPrompt] = useState("");
   const [actionAutoSend, setActionAutoSend] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [packPreview, setPackPreview] = useState(null); // { pack, preview, include:Set }
+  const [packMsg, setPackMsg] = useState("");
+
+  const openPackFile = async (file) => {
+    setPackMsg("");
+    try {
+      const pack = JSON.parse(await file.text());
+      const preview = await api.previewPack(pack);
+      setPackPreview({ pack, preview, include: new Set(preview.items.filter((i) => !i.problem && !i.duplicate).map((i) => `${i.kind}:${i.index}`)) });
+    } catch (e) { setPackMsg(e.message || "That file couldn't be read."); }
+  };
+  const doImport = async () => {
+    const r = await api.importPack(packPreview.pack, [...packPreview.include]);
+    const a = r.added;
+    setPackMsg(`Added ${a.quick_actions} quick action${a.quick_actions === 1 ? "" : "s"}, ${a.personas} persona${a.personas === 1 ? "" : "s"} and ${a.automation_rules} automation rule${a.automation_rules === 1 ? "" : "s"}${a.automation_rules ? " (switched off — turn them on in Settings → Automation)" : ""}.`);
+    setPackPreview(null);
+    refreshActions();
+  };
 
   const refresh = () => api.listSnippets().then(setSnippets).catch(() => {});
   const refreshActions = () => api.listQuickActions().then(setActions).catch(() => {});
@@ -38,12 +57,18 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
 
   const addAction = async () => {
     if (!actionName.trim() || !actionPrompt.trim()) return;
-    await api.createQuickAction(actionName.trim(), actionPrompt.trim(), actionAutoSend);
+    setActionError("");
+    try {
+      await api.createQuickAction(actionName.trim(), actionPrompt.trim(), actionAutoSend);
+    } catch (e) {
+      setActionError(e.message);
+      return;
+    }
     setActionName("");
     setActionPrompt("");
     setActionAutoSend(false);
     refreshActions();
-  };
+  };;
 
   const removeAction = async (id) => {
     await api.deleteQuickAction(id);
@@ -120,9 +145,47 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
         ) : (
           <>
             <p className="settings-section-desc" style={{ padding: "0 1rem" }}>
-              Reusable commands, one keystroke away from the command palette (⌘K). "Auto-send"
-              sends immediately instead of just filling the composer for you to review first.
+              Reusable commands, one keystroke away from the command palette (⌘K). Add fields like{" "}
+              <code>{"{{file}}"}</code> or <code>{"{{tone|friendly}}"}</code> and Zenith asks for them each time;{" "}
+              <code>{"{{date}}"}</code> and <code>{"{{time}}"}</code> fill themselves.
             </p>
+            <div className="pack-bar">
+              <a className="wf-btn" href={api.packExportUrl()} download><Icon name="download" size={13} /> Export pack</a>
+              <label className="wf-btn">
+                <Icon name="plus" size={13} /> Import pack
+                <input type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) openPackFile(f); e.target.value = ""; }} />
+              </label>
+              <span className="wf-muted" style={{ margin: 0 }}>Packs bundle quick actions, personas and automation rules.</span>
+            </div>
+            {packMsg && <div className="cstate-error" style={{ margin: "0 1rem 0.5rem" }}>{packMsg}</div>}
+            {packPreview && (
+              <div className="pack-preview">
+                <strong>{packPreview.preview.name}</strong>
+                {packPreview.preview.description && <p>{packPreview.preview.description}</p>}
+                <ul>
+                  {packPreview.preview.items.map((it) => {
+                    const key = `${it.kind}:${it.index}`;
+                    const blocked = !!it.problem || it.duplicate;
+                    return (
+                      <li key={key} className={blocked ? "is-blocked" : ""}>
+                        <input type="checkbox" disabled={blocked} checked={packPreview.include.has(key)}
+                          onChange={(e) => setPackPreview((p) => { const n = new Set(p.include); if (e.target.checked) n.add(key); else n.delete(key); return { ...p, include: n }; })} />
+                        <div>
+                          <span className="mb-badge">{it.kind.replace("_", " ")}</span> <b>{it.name || "(no name)"}</b>
+                          {it.duplicate && <em> — already have it</em>}
+                          {it.problem && <em className="warn"> — {it.problem}</em>}
+                          {it.permissions.length > 0 && <small>{it.permissions.join(" · ")}</small>}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="pack-actions">
+                  <button className="wf-btn" onClick={() => setPackPreview(null)}>Cancel</button>
+                  <button className="wf-btn primary" onClick={doImport} disabled={!packPreview.include.size}>Import {packPreview.include.size}</button>
+                </div>
+              </div>
+            )}
             <div className="notes-add-row" style={{ flexDirection: "column", alignItems: "stretch" }}>
               <input
                 className="settings-input"
@@ -143,6 +206,7 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
                 <input type="checkbox" checked={actionAutoSend} onChange={(e) => setActionAutoSend(e.target.checked)} />
                 Send immediately (skip review)
               </label>
+              {actionError && <div className="cstate-error">{actionError}</div>}
               <button className="settings-btn-primary" onClick={addAction} style={{ alignSelf: "flex-end" }}>
                 Save quick action
               </button>
@@ -157,6 +221,7 @@ export default function SnippetsPanel({ onClose, onInsert, onRunQuickAction }) {
                   >
                     <div style={{ fontWeight: 600, fontSize: "var(--text-sm)" }}>
                       {a.name} {a.auto_send && <Icon name="bolt" size={11} />}
+                      {a.fields?.length > 0 && <span className="mb-badge" style={{ marginLeft: 6 }}>asks for {a.fields.map((f) => f.name).join(", ")}</span>}
                     </div>
                     <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", whiteSpace: "pre-wrap" }}>
                       {a.prompt_template.length > 140 ? a.prompt_template.slice(0, 140) + "…" : a.prompt_template}

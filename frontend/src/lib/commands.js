@@ -13,7 +13,6 @@ export function buildCommands({
   setFocusMode,
   agentAvailable,
   personas,
-  setSeedText,
   quickActions,
   setOnboardingOpen,
   setWhatsNewOpen,
@@ -145,13 +144,8 @@ export function buildCommands({
     list.push({
       id: `quick-action-${a.id}`, group: "Quick actions", icon: a.auto_send ? "bolt" : "copy",
       label: a.name,
-      action: () => {
-        if (a.auto_send) {
-          paletteHandlers.current.handleSend(a.prompt_template, []);
-        } else {
-          setSeedText({ text: a.prompt_template, nonce: Date.now() });
-        }
-      },
+      hint: a.fields?.length ? `asks for ${a.fields.map((f) => f.name).join(", ")}` : undefined,
+      action: () => paletteHandlers.current.runQuickAction(a),
     });
   }
   return list;

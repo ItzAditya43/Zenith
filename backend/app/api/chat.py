@@ -216,7 +216,69 @@ async def remove_snippet(snippet_id: str):
 
 @router.get("/quick-actions")
 async def list_quick_actions():
-    return storage.list_quick_actions()
+    """Each action carries its template `fields` ({{name|default}}) so the
+    UI can ask for them before sending."""
+    from app.services import packs_service
+
+    out = []
+    for q in storage.list_quick_actions():
+        try:
+            q["fields"] = packs_service.template_fields(q["prompt_template"])
+        except ValueError:
+            q["fields"] = []
+        out.append(q)
+    return out
+
+
+@router.post("/quick-actions/render")
+async def render_quick_action(body: dict):
+    """Fill a template's fields: {template, values}."""
+    from app.services import packs_service
+
+    tpl = str(body.get("template") or "")
+    try:
+        packs_service.template_fields(tpl)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"text": packs_service.fill_template(tpl, {str(k): str(v) for k, v in (body.get("values") or {}).items()})}
+
+
+@router.get("/packs/export")
+async def export_pack(name: str = "My Zenith pack", description: str = "", quick_actions: str | None = None,
+                      personas: str | None = None, rules: str | None = None):
+    """A shareable pack. Each list param is comma-separated ids; omitted
+    means all of that kind, an empty string means none."""
+    from fastapi.responses import JSONResponse
+
+    from app.services import packs_service
+
+    def ids(v):
+        return None if v is None else [x for x in v.split(",") if x]
+
+    pack = packs_service.export_pack(name, description, ids(quick_actions), ids(personas), ids(rules))
+    slug = "".join(ch if ch.isalnum() else "-" for ch in pack["name"].lower()).strip("-") or "pack"
+    return JSONResponse(pack, headers={"Content-Disposition": f'attachment; filename="{slug}.zenith-pack.json"'})
+
+
+@router.post("/packs/preview")
+async def preview_pack(body: dict):
+    from app.services import packs_service
+
+    try:
+        return packs_service.preview_pack(body.get("pack"))
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(400, str(exc) or "That pack couldn't be read.") from exc
+
+
+@router.post("/packs/import")
+async def import_pack(body: dict):
+    from app.services import packs_service
+
+    include = body.get("include")
+    try:
+        return packs_service.import_pack(body.get("pack"), include if isinstance(include, list) else None)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(400, str(exc) or "That pack couldn't be imported.") from exc
 
 
 @router.post("/quick-actions")
@@ -225,7 +287,13 @@ async def create_quick_action(body: dict):
     prompt_template = str(body.get("prompt_template", "")).strip()
     if not name or not prompt_template:
         raise HTTPException(422, "name and prompt_template are required.")
-    return storage.create_quick_action(name[:100], prompt_template[:5000], bool(body.get("auto_send")))
+    from app.services import packs_service
+    try:
+        fields = packs_service.template_fields(prompt_template)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    row = storage.create_quick_action(name[:100], prompt_template[:5000], bool(body.get("auto_send")))
+    return {**row, "fields": fields}
 
 
 @router.delete("/quick-actions/{quick_action_id}")
