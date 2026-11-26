@@ -248,7 +248,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Zenith",
-    version="1.2.5",
+    version="1.2.6",
     lifespan=lifespan,
     description="Local-first AI chat with a small router over local Ollama models.",
 )

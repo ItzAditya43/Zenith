@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [1.2.6] — 2026-11-27
+
+### Added
+- Background tasks (sidebar → Tasks): queue agent work that keeps running with the window closed, watch it live, approve steps, cancel, and get notified.
+- Run review: a Review button on agent replies and tasks shows changed files with diffs, commands and checks, and the timeline, with Accept / Undo all / Continue.
+- Manage chats: filter by title, tag and state, save filters, and pin, tag, archive, restore or delete in bulk.
+- Answer feedback (thumbs and "wrong model?") with per-model totals under Model routing; nothing is applied automatically.
+- Compare models: one prompt on 2–4 models side by side with time to first word, total time and speed; saved, with a winner.
+- Notifications: a bell with a searchable history, per-kind pop-up switches and quiet hours.
+- Prompt templates: quick actions with fields like {{file}} or {{tone|friendly}}; shareable packs of quick actions, personas and automation rules with an import preview.
+- Safe sharing: a preview that finds emails, phone numbers, keys, IPs and home paths; the link serves a frozen redacted copy.
+- Imports from Open WebUI, OpenAI-style message lists and Markdown, with duplicate skipping and source tags; export options for metadata and attachments.
+- Web sources show their kind, page dates and when they were checked; answers cite [n].
+- Knowledge graph search, filters and a detail pane that opens items.
+- Knowledge cleanup: reviewable merges and removals for duplicate, stale and orphaned memories and index entries, with undo.
+
 ## [1.2.5] — 2026-11-26
 
 ### Added

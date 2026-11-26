@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.2.6",
+    date: "2026-11-27",
+    title: "Tasks that run while you're away, and tidier knowledge",
+    items: [
+      "Queue agent tasks that keep running with the window closed, then review exactly what they changed and undo it if needed.",
+      "Manage chats in bulk, rate answers, compare models side by side, and see every notification in one place with quiet hours.",
+      "Share a redacted copy, import from more assistants, see how fresh each web source is, and clean up duplicate or stale knowledge with undo.",
+    ],
+  },
+  {
     version: "1.2.5",
     date: "2026-11-26",
     title: "Memory you can see and shape",
