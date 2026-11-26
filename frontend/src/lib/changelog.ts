@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.2.5",
+    date: "2026-11-26",
+    title: "Memory you can see and shape",
+    items: [
+      "Long chats keep a conversation state — goals, decisions, constraints, files, next steps — linked to the messages they came from. Edit or pin it from the chat menu.",
+      "A memory browser to search, edit, scope, merge, turn off and export what Zenith remembers. Unsure or private facts wait for your OK.",
+      "Replies show which memories they used. Docker installs can pull prebuilt images.",
+    ],
+  },
+  {
     version: "1.2.4",
     date: "2026-11-24",
     title: "Workflows: build with agents on a canvas",

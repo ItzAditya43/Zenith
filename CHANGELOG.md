@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.2.5] — 2026-11-26
+
+### Added
+- Conversation state: long chats are compacted into goals, decisions, constraints, facts, files, open questions and next actions, each linked to its source messages. Inspect, edit, pin or regenerate it from the chat menu; pinned items survive edits and regeneration.
+- Memory browser: search, edit, re-scope (everywhere / one project / one chat), merge, turn off, forget and export memories. Uncertain or private facts wait for your approval, a never-remember list blocks topics, and each reply shows the memories it used.
+- Prebuilt Docker images for amd64 and arm64 on GHCR; `docker compose pull && docker compose up -d` installs without building.
+
 ## [1.2.4] — 2026-11-24
 
 ### Added
