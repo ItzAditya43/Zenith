@@ -3,3 +3,7 @@
 // callbacks through every component in between.
 export const openMemoryBrowser = (focusId = null) =>
   window.dispatchEvent(new CustomEvent("zenith:open-memory", { detail: { focusId } }));
+export const openTasks = (focusId = null) =>
+  window.dispatchEvent(new CustomEvent("zenith:open-tasks", { detail: { focusId } }));
+export const openRunReview = (runId) =>
+  window.dispatchEvent(new CustomEvent("zenith:open-run-review", { detail: { runId } }));

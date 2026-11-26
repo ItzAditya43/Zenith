@@ -49,6 +49,12 @@ def _format_message(event_type: str, data: dict) -> tuple[str, str]:
         fname = data.get("filename") or data.get("file") or ""
         title = "Zenith: new file detected"
         body = f"{fname} added to {folder}" if fname else f"New file added to {folder}"
+    elif event_type == "agent_run_finished":
+        title = f"Zenith: task {data.get('status') or 'finished'}"
+        body = data.get("summary") or data.get("prompt") or "A background task finished."
+    elif event_type == "agent_run_needs_approval":
+        title = "Zenith: a task needs your OK"
+        body = data.get("detail") or data.get("prompt") or "A background task is waiting for approval."
     else:
         title = f"Zenith: {event_type}"
         body = str(data) if data else event_type

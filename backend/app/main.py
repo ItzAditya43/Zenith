@@ -218,6 +218,14 @@ async def lifespan(app: FastAPI):
             if name and is_cloud_model(name):
                 await model_health.probe(name)
     asyncio.create_task(_probe_pinned_cloud())
+    # Background agent runs: mark ones cut off by the last shutdown, then
+    # pick up anything still queued.
+    try:
+        from app.services import background_runs
+        background_runs.recover_interrupted()
+        background_runs._kick()  # noqa: SLF001
+    except Exception as exc:
+        log.warning("background.startup_failed", error=str(exc))
     if bool(settings.get("prewarm_model_on_startup", False)):
         asyncio.create_task(_prewarm())
     try:

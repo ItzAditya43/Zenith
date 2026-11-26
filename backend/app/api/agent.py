@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.core.config import settings
 
 from app.core.logging import get_logger
 from app.services import agent_service
@@ -60,3 +62,68 @@ async def list_runs(conversation_id: str):
 async def revert_run(run_id: str):
     messages = agent_service.revert_run(run_id)
     return {"ok": True, "messages": messages}
+
+
+# ---- background runs + run review ------------------------------------------
+
+class BackgroundCreate(BaseModel):
+    conversation_id: str = Field(min_length=1, max_length=80)
+    prompt: str = Field(min_length=1, max_length=20000)
+    model: str | None = Field(default=None, max_length=200)
+
+
+@router.post("/background")
+async def queue_background_run(body: BackgroundCreate):
+    """Queue an agent task that keeps running with the window closed."""
+    from app.services import background_runs
+
+    if not bool(settings.get("agent_enabled", False)):
+        raise HTTPException(400, "Turn on agent tools in Settings first.")
+    try:
+        return background_runs.enqueue(body.conversation_id, body.prompt, body.model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/background")
+async def list_background_runs(conversation_id: str | None = None, since: float | None = None):
+    from app.services import background_runs
+
+    return background_runs.list_runs(conversation_id, since)
+
+
+@router.get("/background/{bid}")
+async def get_background_run(bid: str):
+    from app.services import background_runs
+
+    run = background_runs.get_run(bid)
+    if not run:
+        raise HTTPException(404, "No such task.")
+    return run
+
+
+@router.post("/background/{bid}/cancel")
+async def cancel_background_run(bid: str):
+    from app.services import background_runs
+
+    if not background_runs.cancel(bid):
+        raise HTTPException(409, "That task isn't running.")
+    return {"ok": True}
+
+
+@router.post("/background/{bid}/reviewed")
+async def mark_background_reviewed(bid: str):
+    from app.services import background_runs
+
+    if not background_runs.mark_reviewed(bid):
+        raise HTTPException(404, "No such task.")
+    return {"ok": True}
+
+
+@router.get("/runs/{run_id}/review")
+async def review_run(run_id: str):
+    """Changed files, diffs, commands, checks and tool activity for one run."""
+    from app.services import background_runs
+
+    return background_runs.review(run_id)
+

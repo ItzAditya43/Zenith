@@ -3,7 +3,7 @@ import ModelBadge from "./ModelBadge";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
-import { openMemoryBrowser } from "../lib/uiEvents.js";
+import { openMemoryBrowser, openRunReview } from "../lib/uiEvents.js";
 import DiffView from "./DiffView.jsx";
 import RegenerationDiff from "./RegenerationDiff.jsx";
 import DocumentPreview from "./DocumentPreview.jsx";
@@ -467,6 +467,11 @@ export default function MessageBubble({
               <span>
                 {message.toolCalls.length} step{message.toolCalls.length === 1 ? "" : "s"}
               </span>
+              {message.parent_id && (
+                <button className="build-log-undo-all-btn" onClick={() => openRunReview(message.parent_id)}>
+                  Review
+                </button>
+              )}
               {message.toolCalls.some((c) => ["edit_file", "write_file"].includes(c.tool) && c.status === "done") && (
                 <button
                   className="build-log-undo-all-btn"

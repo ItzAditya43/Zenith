@@ -8,7 +8,6 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 | # | Feature | Why | Effort |
 |---|---|---|---|
 | C3 | **Type errors from language servers** | Quick checks after edits are built (syntax, undefined names). Real type errors for TypeScript, Rust and typed Python need a language server per language (tsserver, rust-analyzer, pyright). | L |
-| C4 | **Unattended runs** | Separate copies (git worktrees with their own chat) are built. Still missing: queue a task and let it run with the window closed, then get notified to review. | M |
 
 ## Experience
 
@@ -44,7 +43,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 
 ### Core coding-agent workflow
 
-1. **Background agent runs** — Queue work, keep it running after the UI closes,
+1. ~~**Background agent runs**~~ — **Done (1.2.6):** sidebar → Tasks queues agent work that runs in the backend with the window closed; persisted live log, approvals, cancel, restart recovery, desktop and ntfy notifications. Original note: Queue work, keep it running after the UI closes,
    and notify when it finishes. Provide run status, logs, cancellation, and a
    review step for proposed changes. Build on existing resumable streams,
    checkpoint/resume, worktrees, schedules, and notifications. **M–L**.
@@ -59,7 +58,7 @@ and **XL** ≈ a multi-week design and implementation effort.
    architecture decisions, and recent agent runs; retrieve only relevant,
    cited snippets into coding conversations. Reuse the existing RAG and
    project/folder concepts. **M–L**.
-5. **Agent run review screen** — Present changed files, diffs, checks, and tool
+5. ~~**Agent run review screen**~~ — **Done (1.2.6):** a Review button on every agent reply and task shows changed files with diffs, commands and checks, and the timeline, with Accept / Undo all / Continue. Original note: Present changed files, diffs, checks, and tool
    activity together, with accept/revert/continue controls. Preserve the
    existing per-hunk diff approval and undo semantics. **M**.
 

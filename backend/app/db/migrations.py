@@ -318,6 +318,31 @@ def _memory_management_columns(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE memories SET scope = 'project' WHERE project_id IS NOT NULL AND scope = 'global'")
 
 
+def _background_runs_table(conn: sqlite3.Connection) -> None:
+    """Agent tasks queued to run without the window open: status, a
+    persisted event log, and the run id their tool calls are grouped by."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS background_runs (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            prompt TEXT NOT NULL,
+            model TEXT,
+            status TEXT NOT NULL DEFAULT 'queued',
+            created_at REAL NOT NULL,
+            started_at REAL,
+            finished_at REAL,
+            run_id TEXT,
+            summary TEXT,
+            error TEXT,
+            log TEXT NOT NULL DEFAULT '[]',
+            reviewed_at REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_background_runs_conv ON background_runs(conversation_id, created_at);
+        """
+    )
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -886,6 +911,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (39, "workflows_tables", _workflows_tables),
     (40, "summary_state_columns", _summary_state_columns),
     (41, "memory_management_columns", _memory_management_columns),
+    (42, "background_runs_table", _background_runs_table),
 ]
 
 

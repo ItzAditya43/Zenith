@@ -21,6 +21,8 @@ EVENT_TYPES = [
     "urgent_email",
     "memory_conflict_found",
     "folder_file_added",
+    "agent_run_finished",
+    "agent_run_needs_approval",
 ]
 
 

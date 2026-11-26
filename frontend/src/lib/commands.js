@@ -1,4 +1,4 @@
-import { openMemoryBrowser } from "./uiEvents.js";
+import { openMemoryBrowser, openTasks } from "./uiEvents.js";
 /** Builds the command-palette entries. Pure: everything comes in through `ctx`
  * (App passes its state, setters and a ref to the latest handlers). */
 export function buildCommands({
@@ -39,6 +39,11 @@ export function buildCommands({
     id: "whats-new", group: "Actions", icon: "bolt",
     label: "What's new",
     action: () => setWhatsNewOpen(true),
+  });
+  list.push({
+    id: "background-tasks", group: "Actions", icon: "clock",
+    label: "Background tasks — queue agent work that runs with the window closed",
+    action: () => openTasks(),
   });
   list.push({
     id: "memory-browser", group: "Actions", icon: "layers",

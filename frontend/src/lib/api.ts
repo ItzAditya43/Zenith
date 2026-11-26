@@ -218,6 +218,21 @@ export interface ChatTurn {
 export const api = {
   base: BASE,
 
+  queueBackgroundRun: (conversationId: string, prompt: string, model: string | null = null) =>
+    request("/api/agent/background", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversation_id: conversationId, prompt, model }),
+    }).then((r) => r.json()),
+  listBackgroundRuns: (params: { conversation_id?: string; since?: number } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, String(v)])).toString();
+    return request(`/api/agent/background${qs ? `?${qs}` : ""}`).then((r) => r.json());
+  },
+  getBackgroundRun: (id: string) => request(`/api/agent/background/${id}`).then((r) => r.json()),
+  cancelBackgroundRun: (id: string) => request(`/api/agent/background/${id}/cancel`, { method: "POST" }),
+  markBackgroundReviewed: (id: string) => request(`/api/agent/background/${id}/reviewed`, { method: "POST" }),
+  reviewRun: (runId: string) => request(`/api/agent/runs/${runId}/review`).then((r) => r.json()),
+
   getConversationState: (id: string) => request(`/api/conversations/${id}/state`).then((r) => r.json()),
   saveConversationState: (id: string, state: unknown) =>
     request(`/api/conversations/${id}/state`, {

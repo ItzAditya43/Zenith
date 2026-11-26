@@ -6076,3 +6076,50 @@ html[data-reduce-motion] .brand-anim * { animation: none !important; }
 .membrowser-excl { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 260px; }
 .membrowser-excl input { flex: 1; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-soft); background: var(--bg-inset); color: var(--text-primary); font-size: var(--text-xs); }
 @media (max-width: 680px) { .membrowser-row { flex-wrap: wrap; } .membrowser-actions { width: 100%; justify-content: flex-end; } }
+
+/* ===== Background tasks + run review ===== */
+.tasks-modal, .runreview { width: min(1080px, calc(100vw - 2rem)); height: min(780px, 88vh); display: flex; flex-direction: column; overflow: hidden; }
+.tasks-new { display: flex; gap: 10px; align-items: flex-end; padding: 16px 26px; }
+.tasks-new textarea { flex: 1; resize: none; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--bg-inset); color: var(--text-primary); font: inherit; font-size: var(--text-sm); }
+.tasks-new textarea:focus { outline: none; border-color: color-mix(in srgb, var(--signal-general) 55%, var(--border-soft)); }
+.tasks-new .wf-muted { margin: 0; }
+.tasks-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 320px 1fr; border-top: 1px solid var(--border-hairline); }
+.tasks-list { list-style: none; margin: 0; padding: 8px; overflow-y: auto; border-right: 1px solid var(--border-hairline); background: color-mix(in srgb, var(--bg-inset) 55%, transparent); }
+.tasks-list button { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; padding: 10px; border-radius: 12px; }
+.tasks-list button:hover { background: var(--bg-panel-raised); }
+.tasks-list button.is-on { background: color-mix(in srgb, var(--signal-general) 12%, var(--bg-panel-raised)); }
+.task-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--text-tertiary); }
+.task-dot.s-running, .task-dot.s-queued { background: var(--signal-vision); box-shadow: 0 0 8px var(--signal-vision); }
+.task-dot.s-waiting { background: var(--signal-voice); box-shadow: 0 0 8px var(--signal-voice); }
+.task-dot.s-done { background: var(--signal-code); } .task-dot.s-failed, .task-dot.s-interrupted { background: var(--signal-danger); }
+.task-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.task-text strong { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.task-text em { font-style: normal; font-size: 11.5px; color: var(--text-tertiary); }
+.tasks-detail { padding: 18px 24px; overflow-y: auto; }
+.tasks-detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tasks-detail-actions { margin-left: auto; display: flex; gap: 8px; }
+.tasks-prompt { margin: 12px 0 14px; font-size: var(--text-sm); color: var(--text-primary); line-height: 1.6; }
+.tasks-h4 { margin: 16px 0 6px; font-size: var(--text-xs); color: var(--text-secondary); }
+.rr-summary { display: flex; gap: 24px; justify-content: space-between; align-items: flex-start; padding: 16px 26px 6px; flex-wrap: wrap; }
+.rr-prompt { flex: 1; min-width: 260px; }
+.rr-prompt span { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-tertiary); }
+.rr-prompt p { margin: 4px 0 0; color: var(--text-primary); font-size: var(--text-sm); line-height: 1.55; }
+.rr-stats { display: grid; grid-template-columns: auto auto; gap: 2px 8px; align-items: baseline; font-size: var(--text-xs); color: var(--text-secondary); }
+.rr-stats b { font-family: var(--font-display); font-size: 18px; color: var(--text-primary); text-align: right; } .rr-stats b.warn { color: var(--signal-voice); }
+.rr-tabs { display: flex; gap: 6px; padding: 10px 26px; }
+.rr-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 26px 16px; }
+.rr-files { display: grid; grid-template-columns: 260px 1fr; gap: 14px; min-height: 100%; }
+.rr-filelist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rr-filelist button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border-radius: 10px; font-size: var(--text-xs); color: var(--text-secondary); text-align: left; }
+.rr-filelist button span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
+.rr-filelist button em { font-style: normal; font-size: 10.5px; } .rr-filelist em.ok { color: var(--signal-code); } .rr-filelist em.warn { color: var(--signal-voice); }
+.rr-filelist button:hover { background: var(--bg-panel-raised); color: var(--text-primary); }
+.rr-filelist button.is-on { background: color-mix(in srgb, var(--signal-general) 12%, var(--bg-panel-raised)); color: var(--text-primary); }
+.rr-diff { min-width: 0; border: 1px solid var(--border-hairline); border-radius: 12px; overflow: auto; background: var(--bg-inset); }
+.rr-cmd { border: 1px solid var(--border-hairline); border-radius: 12px; margin-bottom: 8px; overflow: hidden; }
+.rr-cmd-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-panel-raised); }
+.rr-cmd-head code { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-cmd-head em { font-style: normal; font-size: 11px; color: var(--text-tertiary); }
+.rr-cmd pre { margin: 0; padding: 10px 12px; max-height: 220px; overflow: auto; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-secondary); white-space: pre-wrap; }
+.rr-timeline li { flex-wrap: wrap; } .rr-args { color: var(--text-tertiary); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+@media (max-width: 760px) { .tasks-body, .rr-files { grid-template-columns: 1fr; } .tasks-list { max-height: 200px; border-right: 0; border-bottom: 1px solid var(--border-hairline); } }

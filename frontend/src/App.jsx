@@ -50,6 +50,8 @@ const TodoPanel = lazyPanel(() => import("./components/TodoPanel.jsx"));
 const ResearchDashboard = lazyPanel(() => import("./components/ResearchDashboard.jsx"));
 const WorkflowCanvas = lazyPanel(() => import("./components/WorkflowCanvas.jsx"));
 const MemoryBrowser = lazyPanel(() => import("./components/MemoryBrowser.jsx"));
+const TasksPanel = lazyPanel(() => import("./components/TasksPanel.jsx"));
+const RunReview = lazyPanel(() => import("./components/RunReview.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
 const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
@@ -107,6 +109,8 @@ export default function App() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     () => localStorage.getItem("zenith-notifications") === "1"
   );
+  const lastTaskPollRef = useRef(0);
+  const seenTaskStates = useRef(new Set());
   const lastRunPollRef = useRef(Date.now() / 1000);
   const [focusMode, setFocusMode] = useState(false);
   const [agentAvailable, setAgentAvailable] = useState(false);
@@ -129,6 +133,18 @@ export default function App() {
     const onOpen = (e) => { setSettingsOpen(false); setMemoryBrowser({ focusId: e.detail?.focusId ?? null }); };
     window.addEventListener("zenith:open-memory", onOpen);
     return () => window.removeEventListener("zenith:open-memory", onOpen);
+  }, []);
+  const [tasksPanel, setTasksPanel] = useState(null); // null = closed, else { focusId }
+  const [reviewRunId, setReviewRunId] = useState(null);
+  useEffect(() => {
+    const onTasks = (e) => { setSettingsOpen(false); setTasksPanel({ focusId: e.detail?.focusId ?? null }); };
+    const onReview = (e) => setReviewRunId(e.detail?.runId ?? null);
+    window.addEventListener("zenith:open-tasks", onTasks);
+    window.addEventListener("zenith:open-run-review", onReview);
+    return () => {
+      window.removeEventListener("zenith:open-tasks", onTasks);
+      window.removeEventListener("zenith:open-run-review", onReview);
+    };
   }, []);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [workspaceOpenRequest, setWorkspaceOpenRequest] = useState(null);
@@ -320,6 +336,7 @@ export default function App() {
   useEffect(() => {
     if (!notificationsEnabled) return;
     lastRunPollRef.current = Date.now() / 1000;
+    lastTaskPollRef.current = Date.now() / 1000;
     const tick = async () => {
       try {
         const runs = await api.recentScheduleRuns(lastRunPollRef.current);
@@ -330,11 +347,20 @@ export default function App() {
             notify(`Scheduled task ${label}`, r.schedule_name || "A scheduled task ran.");
           }
         }
+        const tasks = await api.listBackgroundRuns({ since: lastTaskPollRef.current });
+        for (const t of tasks) {
+          const key = `${t.id}:${t.status}`;
+          if (seenTaskStates.current.has(key)) continue;
+          seenTaskStates.current.add(key);
+          if (t.status === "waiting") notify("A background task needs your OK", t.prompt);
+          else if (["done", "failed", "interrupted"].includes(t.status)) notify(`Background task ${t.status === "done" ? "finished" : t.status}`, t.summary || t.prompt);
+        }
+        if (tasks.length) lastTaskPollRef.current = Math.max(lastTaskPollRef.current, ...tasks.map((t) => (t.finished_at || t.started_at || t.created_at) - 1));
       } catch {
         /* transient; try again next tick */
       }
     };
-    const id = setInterval(tick, 30000);
+    const id = setInterval(tick, 15000);
     return () => clearInterval(id);
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- notify is recreated every render; restarting the poller on each render would reset its cursor
   }, [notificationsEnabled]);
@@ -1458,6 +1484,7 @@ export default function App() {
           onOpenCalendar={() => setCalendarOpen(true)}
           onOpenResearch={() => setResearchOpen(true)}
           onOpenWorkflows={() => setWorkflowsOpen(true)}
+          onOpenTasks={() => setTasksPanel({ focusId: null })}
           onTogglePin={handleTogglePin}
           onEditTags={handleEditTags}
           onSetProjectAgentMode={handleSetProjectAgentMode}
@@ -1544,6 +1571,24 @@ export default function App() {
         {todosOpen && <TodoPanel onClose={() => setTodosOpen(false)} />}
         {researchOpen && <ResearchDashboard onClose={() => setResearchOpen(false)} />}
         {workflowsOpen && <WorkflowCanvas onClose={() => setWorkflowsOpen(false)} />}
+        {tasksPanel && (
+          <TasksPanel
+            focusId={tasksPanel.focusId}
+            conversationId={activeId}
+            conversationTitle={activeConversation?.title}
+            agentAvailable={agentAvailable}
+            onClose={() => setTasksPanel(null)}
+            onOpenConversation={(cid) => { setTasksPanel(null); selectConversation(cid); }}
+          />
+        )}
+        {reviewRunId && (
+          <RunReview
+            runId={reviewRunId}
+            onClose={() => setReviewRunId(null)}
+            onReverted={() => { showToast("Run undone — files restored.", "success"); if (activeId) selectConversation(activeId); }}
+            onContinue={() => { setTasksPanel(null); setSeedText("Continue from where that run left off: "); }}
+          />
+        )}
         {memoryBrowser && (
           <MemoryBrowser
             focusId={memoryBrowser.focusId}
