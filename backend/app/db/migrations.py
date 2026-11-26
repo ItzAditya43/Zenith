@@ -488,6 +488,15 @@ def _calendar_uid_column(conn: sqlite3.Connection) -> None:
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_events_uid ON calendar_events(uid) WHERE uid IS NOT NULL")
 
 
+def _research_workspace_columns(conn: sqlite3.Connection) -> None:
+    """Research workspaces: your notes on a report, the claims it makes with
+    the sources behind each, and re-runs kept as newer versions."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(research_reports)")}
+    for name, ddl in (("notes", "TEXT"), ("claims", "TEXT"), ("parent_id", "TEXT"), ("updated_at", "REAL")):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE research_reports ADD COLUMN {name} {ddl}")
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -1066,6 +1075,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (49, "schedule_todo_mode", _schedule_todo_mode),
     (50, "email_workflow_tables", _email_workflow_tables),
     (51, "calendar_uid_column", _calendar_uid_column),
+    (52, "research_workspace_columns", _research_workspace_columns),
 ]
 
 

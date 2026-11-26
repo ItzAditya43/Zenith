@@ -666,6 +666,13 @@ export const api = {
   listResearchReports: () => request("/api/research/reports").then((r) => r.json()),
   getResearchReport: (id: string) => request(`/api/research/reports/${id}`).then((r) => r.json()),
   deleteResearchReport: (id: string) => request(`/api/research/reports/${id}`, { method: "DELETE" }),
+  saveResearchNotes: (id: string, notes: string) =>
+    request(`/api/research/reports/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes }) }).then((r) => r.json()),
+  researchClaims: (id: string, force = false) =>
+    request(`/api/research/reports/${id}/claims?force=${force}`, { method: "POST" }).then((r) => r.json()),
+  researchVersions: (id: string) => request(`/api/research/reports/${id}/versions`).then((r) => r.json()),
+  researchRerun: (id: string) => request(`/api/research/reports/${id}/rerun`, { method: "POST" }).then((r) => r.json()),
+  researchRerunStatus: (id: string) => request(`/api/research/reports/${id}/rerun`).then((r) => r.json()),
   askResearchReport: (id: string, question: string) =>
     request(`/api/research/reports/${id}/ask`, {
       method: "POST",

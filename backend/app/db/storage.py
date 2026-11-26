@@ -1040,36 +1040,49 @@ def mark_email_flags_seen() -> None:
         conn.execute("UPDATE email_flags SET seen = 1 WHERE seen = 0")
 
 
-def create_research_report(conversation_id: str | None, query: str, answer: str, sources: list[dict]) -> dict:
+def create_research_report(conversation_id: str | None, query: str, answer: str, sources: list[dict],
+                           parent_id: str | None = None) -> dict:
     rid = str(uuid.uuid4())
     now = time.time()
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO research_reports (id, conversation_id, query, answer, sources, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (rid, conversation_id, query, answer, json.dumps(sources), now),
+            "INSERT INTO research_reports (id, conversation_id, query, answer, sources, created_at, parent_id, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (rid, conversation_id, query, answer, json.dumps(sources), now, parent_id, now),
         )
-    return {"id": rid, "conversation_id": conversation_id, "query": query, "answer": answer, "sources": sources, "created_at": now}
+    return get_research_report(rid)  # type: ignore[return-value]
+
+
+def _research_row(row) -> dict:
+    d = dict(row)
+    d["sources"] = json.loads(d["sources"])
+    try:
+        d["claims"] = json.loads(d["claims"]) if d.get("claims") else None
+    except (TypeError, ValueError):
+        d["claims"] = None
+    return d
+
+
+def update_research_report(report_id: str, notes: str | None = None, claims: list | None = None) -> None:
+    sets, args = ["updated_at = ?"], [time.time()]
+    if notes is not None:
+        sets.append("notes = ?"); args.append(notes)
+    if claims is not None:
+        sets.append("claims = ?"); args.append(json.dumps(claims))
+    with _conn() as conn:
+        conn.execute(f"UPDATE research_reports SET {', '.join(sets)} WHERE id = ?", (*args, report_id))
 
 
 def list_research_reports() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute("SELECT * FROM research_reports ORDER BY created_at DESC").fetchall()
-    out = []
-    for r in rows:
-        d = dict(r)
-        d["sources"] = json.loads(d["sources"])
-        out.append(d)
-    return out
+    return [_research_row(r) for r in rows]
 
 
 def get_research_report(report_id: str) -> dict | None:
     with _conn() as conn:
         row = conn.execute("SELECT * FROM research_reports WHERE id = ?", (report_id,)).fetchone()
-    if not row:
-        return None
-    d = dict(row)
-    d["sources"] = json.loads(d["sources"])
-    return d
+    return _research_row(row) if row else None
 
 
 def delete_research_report(report_id: str) -> None:

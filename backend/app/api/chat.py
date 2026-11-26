@@ -1238,6 +1238,54 @@ async def get_research_report(report_id: str):
     return report
 
 
+@router.patch("/research/reports/{report_id}")
+async def update_research_report(report_id: str, body: dict):
+    """Save your notes on a report."""
+    if not storage.get_research_report(report_id):
+        raise HTTPException(404, "No such report.")
+    storage.update_research_report(report_id, notes=str(body.get("notes") or "")[:20000])
+    return storage.get_research_report(report_id)
+
+
+@router.post("/research/reports/{report_id}/claims")
+async def research_claims(report_id: str, force: bool = False):
+    """Key claims with the numbered sources behind each (cached)."""
+    from app.services import research_workspace as rw
+
+    try:
+        return {"claims": await rw.extract_claims(report_id, force)}
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@router.get("/research/reports/{report_id}/versions")
+async def research_versions(report_id: str):
+    from app.services import research_workspace as rw
+
+    return rw.versions(report_id)
+
+
+@router.post("/research/reports/{report_id}/rerun")
+async def research_rerun(report_id: str):
+    """Run the same research again in the background; the result becomes a
+    newer version of this report."""
+    from app.services import research_workspace as rw
+
+    try:
+        return rw.start_rerun(report_id)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/research/reports/{report_id}/rerun")
+async def research_rerun_status(report_id: str):
+    from app.services import research_workspace as rw
+
+    return rw.rerun_status(report_id)
+
+
 @router.delete("/research/reports/{report_id}")
 async def remove_research_report(report_id: str):
     storage.delete_research_report(report_id)
