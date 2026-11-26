@@ -9,10 +9,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "1.2.6",
+    version: "1.2.7",
     date: "2026-11-27",
-    title: "Tasks that run while you're away, and tidier knowledge",
+    title: "Tasks that run while you're away, mail, and tidier knowledge",
     items: [
+      "Mail sorts your inbox and drafts replies you review before sending; the calendar imports and exports .ics and warns about clashes.",
+      "Research reports keep your notes and show which sources back each claim, and can check for updates.",
       "Queue agent tasks that keep running with the window closed, then review exactly what they changed and undo it if needed.",
       "Manage chats in bulk, rate answers, compare models side by side, and see every notification in one place with quiet hours.",
       "Share a redacted copy, import from more assistants, see how fresh each web source is, and clean up duplicate or stale knowledge with undo.",

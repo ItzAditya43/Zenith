@@ -2,9 +2,15 @@
 
 ## [Unreleased]
 
-## [1.2.6] — 2026-11-27
+## [1.2.7] — 2026-11-27
+
+(1.2.6 was tagged but never published — a build problem; everything it had is here.)
 
 ### Added
+- Mail (sidebar): the inbox sorted into urgent / needs reply / FYI / newsletters, your own filters first, and reply drafts that are only sent when you press Send.
+- Calendar: import .ics files or a calendar's secret iCal link, export as .ics, and a clash check before adding.
+- Research workspaces: notes, a claims list tying each claim to its sources, and "Check for updates" re-runs saved as new versions.
+- Automations that add to-dos, to-dos as triggers, and schedules that turn results into to-dos.
 - Background tasks (sidebar → Tasks): queue agent work that keeps running with the window closed, watch it live, approve steps, cancel, and get notified.
 - Run review: a Review button on agent replies and tasks shows changed files with diffs, commands and checks, and the timeline, with Accept / Undo all / Continue.
 - Manage chats: filter by title, tag and state, save filters, and pin, tag, archive, restore or delete in bulk.
