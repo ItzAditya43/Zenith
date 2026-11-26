@@ -312,7 +312,8 @@ export default function ChatHeader({
           <button
             className={`icon-btn ${activeConversation?.share_token ? "is-active" : ""}`}
             onClick={handleShare}
-            title={activeConversation?.share_token ? "Revoke share link" : "Create a read-only share link"}
+            title={activeConversation?.share_token ? "Shared — manage or turn off the link" : "Share a redacted copy"}
+            aria-label="Share"
           >
             <Icon name="share" size={16} />
           </button>

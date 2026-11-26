@@ -73,7 +73,7 @@ and **XL** ≈ a multi-week design and implementation effort.
    Any automatic learning should be inspectable and reversible. **M**.
 9. ~~**Model comparison runs**~~ — **Done (1.2.6):** Compare models (palette or Model routing) runs one prompt on 2–4 models at once with time to first word, total time and speed, saves each comparison and lets you pick a winner. Original note: Send the same prompt to selected models, show
    latency, speed, and side-by-side output, and save comparisons. **M**.
-10. **Safe conversation sharing** — Add a previewable export/share flow with
+10. ~~**Safe conversation sharing**~~ — **Done (1.2.6):** sharing opens a preview that finds emails, phone numbers, keys and tokens, IPs and home paths; you choose what to hide and which messages to include, and the link serves a frozen redacted snapshot (or download it as Markdown). Original note: Add a previewable export/share flow with
     explicit redaction of sensitive text and attachments. Keep it opt-in and
     local-first. **M**.
 11. **More import/export formats** — Add common assistant and chat formats,

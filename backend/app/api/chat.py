@@ -159,17 +159,64 @@ async def set_conversation_tags(conversation_id: str, body: dict):
     return {"ok": True}
 
 
-@router.post("/conversations/{conversation_id}/share")
-async def share_conversation(conversation_id: str):
+class ShareBody(BaseModel):
+    redact: list[dict] = []
+    exclude_message_ids: list[str] = []
+    include_attachments: bool = False
+
+
+@router.get("/conversations/{conversation_id}/share/preview")
+async def share_preview(conversation_id: str):
+    """The messages that could be shared and the sensitive-looking text in them."""
+    from app.services import share_service
+
     if not storage.get_conversation(conversation_id):
         raise HTTPException(404, "No such conversation.")
-    token = storage.create_share_link(conversation_id)
+    return await asyncio.to_thread(share_service.preview, conversation_id)
+
+
+@router.post("/conversations/{conversation_id}/share")
+async def share_conversation(conversation_id: str, body: ShareBody | None = None):
+    """Share a redacted snapshot: later messages never appear on the link,
+    and resharing replaces the old link."""
+    from app.services import share_service
+
+    body = body or ShareBody()
+    try:
+        token = await asyncio.to_thread(share_service.create_snapshot, conversation_id, body.redact,
+                                        body.exclude_message_ids, body.include_attachments)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return {"token": token}
+
+
+@router.post("/conversations/{conversation_id}/share/export")
+async def share_export(conversation_id: str, body: ShareBody, format: str = "markdown"):
+    """The same redacted copy as a file, without creating a link."""
+    from fastapi.responses import JSONResponse, PlainTextResponse
+
+    from app.services import share_service
+
+    try:
+        snap = await asyncio.to_thread(share_service.build, conversation_id, body.redact,
+                                       body.exclude_message_ids, body.include_attachments)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    slug = "".join(ch if ch.isalnum() else "-" for ch in snap["title"].lower()).strip("-")[:60] or "conversation"
+    if format == "json":
+        return JSONResponse(snap, headers={"Content-Disposition": f'attachment; filename="{slug}.json"'})
+    return PlainTextResponse(share_service.to_markdown(snap), media_type="text/markdown",
+                             headers={"Content-Disposition": f'attachment; filename="{slug}.md"'})
 
 
 @router.delete("/conversations/{conversation_id}/share")
 async def unshare_conversation(conversation_id: str):
+    from app.services import share_service
+
     storage.revoke_share_link(conversation_id)
+    share_service.revoke(conversation_id)
     return {"ok": True}
 
 
@@ -177,9 +224,13 @@ async def unshare_conversation(conversation_id: str):
 async def view_shared_conversation(token: str):
     """Public, read-only — deliberately not behind the passcode-lock
     middleware (see main.py's lock allowlist) so a link works for anyone
-    it's sent to, the same trust model as "anyone with the link can view"
-    sharing elsewhere. Returns just enough to render: title + messages,
-    no working directory, tags, or other owner-only metadata."""
+    it's sent to. Serves the redacted snapshot taken when the link was
+    made; links created before snapshots existed still show the live chat."""
+    from app.services import share_service
+
+    snap = share_service.get_snapshot(token)
+    if snap:
+        return snap
     conv = storage.get_conversation_by_share_token(token)
     if not conv:
         raise HTTPException(404, "This link is invalid or has been revoked.")

@@ -397,6 +397,22 @@ def _notifications_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _share_snapshots_table(conn: sqlite3.Connection) -> None:
+    """A shared link shows a redacted copy taken when it was made, not the
+    live chat: later messages and anything redacted never reach the link."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS share_snapshots (
+            token TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            messages TEXT NOT NULL,
+            created_at REAL NOT NULL
+        );
+        """
+    )
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -969,6 +985,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (43, "conversation_archived_column", _conversation_archived_column),
     (44, "feedback_and_compare_tables", _feedback_and_compare_tables),
     (45, "notifications_table", _notifications_table),
+    (46, "share_snapshots_table", _share_snapshots_table),
 ]
 
 

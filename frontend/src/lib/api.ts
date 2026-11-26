@@ -736,6 +736,19 @@ export const api = {
       body: JSON.stringify({ tags }),
     }).then((r) => r.json()),
 
+  sharePreview: (conversationId: string) => request(`/api/conversations/${conversationId}/share/preview`).then((r) => r.json()),
+  shareSnapshot: (conversationId: string, body: { redact: unknown[]; exclude_message_ids: string[]; include_attachments: boolean }) =>
+    request(`/api/conversations/${conversationId}/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => r.json()),
+  shareExport: (conversationId: string, body: { redact: unknown[]; exclude_message_ids: string[]; include_attachments: boolean }, format = "markdown") =>
+    request(`/api/conversations/${conversationId}/share/export?format=${format}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => r.blob()),
   shareConversation: (conversationId: string) =>
     request(`/api/conversations/${conversationId}/share`, { method: "POST" }).then((r) => r.json()),
   unshareConversation: (conversationId: string) =>

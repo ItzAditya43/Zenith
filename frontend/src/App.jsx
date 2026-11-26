@@ -56,6 +56,7 @@ const ChatManager = lazyPanel(() => import("./components/ChatManager.jsx"));
 const ModelCompare = lazyPanel(() => import("./components/ModelCompare.jsx"));
 const NotificationsPanel = lazyPanel(() => import("./components/NotificationsPanel.jsx"));
 const TemplateFillDialog = lazyPanel(() => import("./components/TemplateFillDialog.jsx"));
+const ShareDialog = lazyPanel(() => import("./components/ShareDialog.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
 const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
@@ -433,28 +434,9 @@ export default function App() {
     }
   };
 
-  const handleShare = async () => {
-    if (!activeId) return;
-    try {
-      if (activeConversation?.share_token) {
-        await api.unshareConversation(activeId);
-        setConversations((cs) => cs.map((c) => (c.id === activeId ? { ...c, share_token: null } : c)));
-        showToast("Share link revoked.", "success");
-        return;
-      }
-      const { token } = await api.shareConversation(activeId);
-      setConversations((cs) => cs.map((c) => (c.id === activeId ? { ...c, share_token: token } : c)));
-      const url = api.shareUrl(token);
-      try {
-        await navigator.clipboard.writeText(url);
-        showToast("Share link copied to clipboard.", "success");
-      } catch {
-        showToast(`Share link: ${url}`, "success");
-      }
-    } catch (err) {
-      showToast(err.message, "error");
-    }
-  };
+  // Sharing opens a dialog that redacts and snapshots (ShareDialog.jsx).
+  const [shareOpen, setShareOpen] = useState(false);
+  const handleShare = () => { if (activeId) setShareOpen(true); };
 
   const [editingProject, setEditingProject] = useState(null);
   const handleSetProjectAgentMode = (project) => setEditingProject(project);
@@ -1606,6 +1588,25 @@ export default function App() {
           />
         )}
         {compareOpen && <ModelCompare onClose={() => setCompareOpen(false)} />}
+        {shareOpen && activeId && (
+          <ShareDialog
+            conversationId={activeId}
+            title={activeConversation?.title}
+            existingToken={activeConversation?.share_token}
+            onClose={() => setShareOpen(false)}
+            onShared={(token, url) => {
+              setShareOpen(false);
+              setConversations((cs) => cs.map((c) => (c.id === activeId ? { ...c, share_token: token } : c)));
+              showToast(`Link copied: ${url}`, "success");
+            }}
+            onRevoked={async () => {
+              await api.unshareConversation(activeId);
+              setConversations((cs) => cs.map((c) => (c.id === activeId ? { ...c, share_token: null } : c)));
+              setShareOpen(false);
+              showToast("Share link turned off.", "success");
+            }}
+          />
+        )}
         {fillAction && (
           <TemplateFillDialog
             action={fillAction}

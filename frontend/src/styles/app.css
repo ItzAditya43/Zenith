@@ -6213,3 +6213,28 @@ html[data-reduce-motion] .brand-anim * { animation: none !important; }
 .pack-preview li small { display: block; margin-top: 2px; color: var(--text-tertiary); }
 .pack-actions { display: flex; justify-content: flex-end; gap: 8px; }
 a.wf-btn { text-decoration: none; }
+
+/* ===== Share dialog ===== */
+.share-modal { width: min(1100px, calc(100vw - 2rem)); height: min(800px, 90vh); display: flex; flex-direction: column; overflow: hidden; }
+.share-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 340px 1fr; }
+.share-side { padding: 16px 20px; overflow-y: auto; border-right: 1px solid var(--border-hairline); background: color-mix(in srgb, var(--bg-inset) 55%, transparent); }
+.share-side h4, .share-preview h4 { margin: 4px 0 10px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-tertiary); }
+.share-find { display: flex; gap: 8px; align-items: flex-start; padding: 7px 8px; border-radius: 10px; font-size: var(--text-xs); }
+.share-find:hover { background: var(--bg-panel-raised); }
+.share-find input, .share-opt input, .share-msg input { accent-color: var(--signal-general); margin-top: 2px; }
+.share-find span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.share-find em { font-style: normal; color: var(--text-tertiary); font-size: 11px; }
+.share-find code { color: var(--text-primary); word-break: break-all; }
+.share-find small { color: var(--text-tertiary); }
+.share-custom { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.share-custom input { width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-soft); background: var(--bg-inset); color: var(--text-primary); font-size: var(--text-xs); }
+.share-custom .mb-badge button { margin-left: 4px; color: var(--text-tertiary); }
+.share-opt { display: flex; gap: 8px; font-size: var(--text-xs); color: var(--text-secondary); margin: 8px 0; }
+.share-preview { padding: 16px 22px; overflow-y: auto; }
+.share-msg { padding: 10px 14px; border-radius: 14px; border: 1px solid var(--border-hairline); margin-bottom: 8px; }
+.share-msg.role-user { background: var(--bg-panel-raised); }
+.share-msg.is-out { opacity: 0.35; }
+.share-msg label { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.08em; }
+.share-msg p { margin: 6px 0 0; font-size: var(--text-sm); color: var(--text-primary); white-space: pre-wrap; line-height: 1.55; }
+.share-msg small { display: block; margin-top: 4px; color: var(--text-tertiary); font-size: 11px; }
+@media (max-width: 800px) { .share-body { grid-template-columns: 1fr; } .share-side { border-right: 0; border-bottom: 1px solid var(--border-hairline); max-height: 40vh; } }
