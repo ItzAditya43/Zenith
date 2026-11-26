@@ -164,9 +164,12 @@ async def _build_system_context(conversation_id: str, user_text: str) -> tuple[s
         earlier = await asyncio.to_thread(summary_service.summary_block, conversation_id, history)
         if earlier:
             parts.append(earlier)
-        block = await asyncio.to_thread(memory_service.memory_block, project_id, user_text)
+        block, used = await asyncio.to_thread(memory_service.memory_context, project_id, user_text, conversation_id)
         if block:
             parts.append(block)
+            citations.extend(
+                {"kind": "memory", "text": m["content"][:300], "source_id": m["id"]} for m in used
+            )
     except Exception as exc:
         log.debug("orchestrator.memory_block_failed", error=str(exc))
     if bool(settings.get("recall_enabled", True)) and len(user_text.strip()) >= 12:

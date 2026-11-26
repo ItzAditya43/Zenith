@@ -2,7 +2,10 @@
 
   GET    /api/memories          — list all stored memories
   POST   /api/memories          — add one manually
-  PATCH  /api/memories/{id}     — enable/disable one
+  GET    /api/memories/browse   — search + filter (q, scope, status) with provenance
+  GET    /api/memories/export   — everything, as JSON
+  PATCH  /api/memories/{id}     — edit text, scope, enabled, or approve (status)
+  POST   /api/memories/merge    — replace several with one
   DELETE /api/memories/{id}     — forget one
   DELETE /api/memories          — forget everything
   POST   /api/memories/review-conflicts     — scan for contradictions now
@@ -15,7 +18,9 @@ from fastapi import APIRouter, HTTPException
 
 from app.core.logging import get_logger
 from app.db import storage
-from app.models.schemas import MemoryCreate, MemoryToggle
+from fastapi.responses import JSONResponse
+
+from app.models.schemas import MemoryCreate, MemoryMerge, MemoryUpdate
 from app.services import memory_service
 
 log = get_logger(__name__)
@@ -41,10 +46,40 @@ async def add_memory(body: MemoryCreate):
     return row
 
 
+@router.get("/memories/browse")
+async def browse_memories(q: str = "", scope: str | None = None, status: str | None = None,
+                          project_id: str | None = None, conversation_id: str | None = None):
+    return memory_service.search_memories(q, scope, status, project_id, conversation_id)
+
+
+@router.get("/memories/export")
+async def export_memories():
+    return JSONResponse(
+        memory_service.export_memories(),
+        headers={"Content-Disposition": 'attachment; filename="zenith-memories.json"'},
+    )
+
+
+@router.post("/memories/merge")
+async def merge_memories(body: MemoryMerge):
+    try:
+        return memory_service.merge_memories(body.ids, body.content)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @router.patch("/memories/{memory_id}")
-async def toggle_memory(memory_id: str, body: MemoryToggle):
-    memory_service.set_enabled(memory_id, body.enabled)
-    return {"ok": True}
+async def update_memory(memory_id: str, body: MemoryUpdate):
+    try:
+        row = memory_service.update_memory(
+            memory_id, content=body.content, enabled=body.enabled, scope=body.scope,
+            conversation_id=body.conversation_id, project_id=body.project_id, status=body.status,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if row is None:
+        raise HTTPException(404, "No such memory.")
+    return row
 
 
 @router.delete("/memories/{memory_id}")

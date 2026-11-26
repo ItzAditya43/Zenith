@@ -765,6 +765,23 @@ export const api = {
       body: JSON.stringify({ enabled }),
     }),
   deleteMemory: (id: string) => request(`/api/memories/${id}`, { method: "DELETE" }),
+  browseMemories: (params: { q?: string; scope?: string; status?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+    return request(`/api/memories/browse${qs ? `?${qs}` : ""}`).then((r) => r.json());
+  },
+  updateMemory: (id: string, patch: Record<string, unknown>) =>
+    request(`/api/memories/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then((r) => r.json()),
+  mergeMemories: (ids: string[], content: string) =>
+    request("/api/memories/merge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, content }),
+    }).then((r) => r.json()),
+  exportMemoriesUrl: () => `${BASE}/api/memories/export`,
   clearMemories: () => request("/api/memories", { method: "DELETE" }),
   reviewMemoryConflicts: () => request("/api/memories/review-conflicts", { method: "POST" }).then((r) => r.json()),
   listMemoryConflicts: () => request("/api/memories/conflicts").then((r) => r.json()),

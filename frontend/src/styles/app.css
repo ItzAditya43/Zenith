@@ -6039,3 +6039,40 @@ html[data-reduce-motion] .brand-anim * { animation: none !important; }
 .cstate-foot > div { display: flex; gap: 8px; }
 .msg-flash { animation: msg-flash 1.6s ease-out; border-radius: 14px; }
 @keyframes msg-flash { 0%, 30% { box-shadow: 0 0 0 2px var(--signal-general), 0 0 30px -6px var(--signal-general); } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* ===== Memory browser ===== */
+.membrowser { width: min(940px, calc(100vw - 2rem)); display: flex; flex-direction: column; overflow: hidden; }
+.membrowser-head-actions { display: flex; align-items: center; gap: 8px; font-family: var(--font-body); }
+.membrowser-tools { padding: 16px 26px 10px; display: flex; flex-direction: column; gap: 10px; }
+.membrowser-search { width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--bg-inset); color: var(--text-primary); font-size: var(--text-sm); }
+.membrowser-search:focus { outline: none; border-color: color-mix(in srgb, var(--signal-general) 55%, var(--border-soft)); }
+.membrowser-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.membrowser-filter { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border-hairline); font-size: var(--text-xs); color: var(--text-secondary); }
+.membrowser-filter:hover { color: var(--text-primary); border-color: var(--border-soft); }
+.membrowser-filter.is-on { color: var(--text-primary); border-color: var(--signal-general); background: var(--signal-general-dim); }
+.membrowser-bulk { display: flex; align-items: center; gap: 8px; margin: 0 26px 10px; padding: 8px 12px; border-radius: 12px; background: var(--signal-general-dim); font-size: var(--text-xs); }
+.membrowser-bulk span { margin-right: auto; color: var(--text-primary); }
+.membrowser-list { flex: 1; overflow-y: auto; padding: 4px 26px 16px; display: flex; flex-direction: column; gap: 8px; }
+.membrowser-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--border-hairline); background: linear-gradient(180deg, color-mix(in srgb, var(--bg-panel-raised) 55%, transparent), transparent); transition: border-color 200ms; }
+.membrowser-row:hover { border-color: var(--border-soft); }
+.membrowser-row.is-pending { border-color: color-mix(in srgb, var(--signal-voice) 45%, var(--border-soft)); }
+.membrowser-row.is-off .membrowser-text { opacity: 0.45; text-decoration: line-through; }
+.membrowser-row.is-focus { box-shadow: 0 0 0 2px var(--signal-general); }
+.membrowser-check { margin-top: 4px; accent-color: var(--signal-general); }
+.membrowser-main { flex: 1; min-width: 0; }
+.membrowser-text { display: block; width: 100%; text-align: left; color: var(--text-primary); font-size: var(--text-sm); line-height: 1.5; border-radius: 6px; }
+.membrowser-text:hover { background: var(--bg-panel-raised); }
+.membrowser-main textarea { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--signal-general); background: var(--bg-inset); color: var(--text-primary); font: inherit; font-size: var(--text-sm); resize: vertical; }
+.membrowser-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; font-size: 11.5px; color: var(--text-tertiary); }
+.mb-badge { padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border-soft); color: var(--text-secondary); }
+.mb-badge.warn { border-color: color-mix(in srgb, var(--signal-voice) 55%, transparent); color: var(--signal-voice); }
+.mb-link { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--border-soft); }
+.mb-link:hover { color: var(--signal-general); }
+.membrowser-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.membrowser-actions .ui-select-trigger { min-width: 136px; height: 32px; font-size: var(--text-xs); }
+.membrowser-foot { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 14px 26px; border-top: 1px solid var(--border-hairline); font-size: var(--text-xs); color: var(--text-secondary); }
+.membrowser-opt { display: flex; align-items: center; gap: 10px; }
+.membrowser-opt em { font-style: normal; color: var(--text-tertiary); }
+.membrowser-excl { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 260px; }
+.membrowser-excl input { flex: 1; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-soft); background: var(--bg-inset); color: var(--text-primary); font-size: var(--text-xs); }
+@media (max-width: 680px) { .membrowser-row { flex-wrap: wrap; } .membrowser-actions { width: 100%; justify-content: flex-end; } }

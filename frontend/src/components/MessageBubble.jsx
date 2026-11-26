@@ -3,6 +3,7 @@ import ModelBadge from "./ModelBadge";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
+import { openMemoryBrowser } from "../lib/uiEvents.js";
 import DiffView from "./DiffView.jsx";
 import RegenerationDiff from "./RegenerationDiff.jsx";
 import DocumentPreview from "./DocumentPreview.jsx";
@@ -571,6 +572,15 @@ export default function MessageBubble({
                   onClick={() => setPreviewSource(s)}
                 >
                   <Icon name="file-text" size={12} /> {s.source_id}
+                </button>
+              ) : s.kind === "memory" ? (
+                <button
+                  key={(s.source_id || "") + i}
+                  className="msg-source-chip msg-source-chip-recall"
+                  title={`Remembered: "${s.text}" — click to see or edit`}
+                  onClick={() => openMemoryBrowser(s.source_id)}
+                >
+                  <Icon name="layers" size={12} /> memory
                 </button>
               ) : (
                 <span

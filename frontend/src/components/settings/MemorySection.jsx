@@ -1,5 +1,6 @@
 import { api } from "../../lib/api";
 import { useSettings } from "./SettingsContext.js";
+import { openMemoryBrowser } from "../../lib/uiEvents.js";
 
 /** Settings → "memory" section. State lives in SettingsPanel (see SettingsContext). */
 export default function MemorySection() {
@@ -59,6 +60,11 @@ export default function MemorySection() {
         machine.
       </p>
 
+      <div className="settings-row" style={{ marginBottom: "0.75rem" }}>
+        <button className="settings-btn-primary" onClick={() => openMemoryBrowser()}>
+          Open memory browser{memories.some((m) => m.status === "pending") ? ` · ${memories.filter((m) => m.status === "pending").length} to review` : ""}
+        </button>
+      </div>
       <div className="setting-row">
         <div className="setting-meta">
           <span className="setting-label">Remember facts automatically</span>

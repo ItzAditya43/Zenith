@@ -49,6 +49,7 @@ const NotesPanel = lazyPanel(() => import("./components/NotesPanel.jsx"));
 const TodoPanel = lazyPanel(() => import("./components/TodoPanel.jsx"));
 const ResearchDashboard = lazyPanel(() => import("./components/ResearchDashboard.jsx"));
 const WorkflowCanvas = lazyPanel(() => import("./components/WorkflowCanvas.jsx"));
+const MemoryBrowser = lazyPanel(() => import("./components/MemoryBrowser.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
 const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
@@ -123,6 +124,12 @@ export default function App() {
   const [todosOpen, setTodosOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
   const [workflowsOpen, setWorkflowsOpen] = useState(false);
+  const [memoryBrowser, setMemoryBrowser] = useState(null); // null = closed, else { focusId }
+  useEffect(() => {
+    const onOpen = (e) => { setSettingsOpen(false); setMemoryBrowser({ focusId: e.detail?.focusId ?? null }); };
+    window.addEventListener("zenith:open-memory", onOpen);
+    return () => window.removeEventListener("zenith:open-memory", onOpen);
+  }, []);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [workspaceOpenRequest, setWorkspaceOpenRequest] = useState(null);
   const [workspaceWide, setWorkspaceWide] = useState(false);
@@ -1537,6 +1544,17 @@ export default function App() {
         {todosOpen && <TodoPanel onClose={() => setTodosOpen(false)} />}
         {researchOpen && <ResearchDashboard onClose={() => setResearchOpen(false)} />}
         {workflowsOpen && <WorkflowCanvas onClose={() => setWorkflowsOpen(false)} />}
+        {memoryBrowser && (
+          <MemoryBrowser
+            focusId={memoryBrowser.focusId}
+            onClose={() => setMemoryBrowser(null)}
+            onOpenConversation={async (cid, mid) => {
+              setMemoryBrowser(null);
+              await selectConversation(cid);
+              if (mid) setTimeout(() => document.getElementById(`msg-${mid}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 400);
+            }}
+          />
+        )}
         {snippetsOpen && (
           <SnippetsPanel
             onClose={() => setSnippetsOpen(false)}

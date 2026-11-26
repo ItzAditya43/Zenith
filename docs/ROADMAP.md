@@ -134,7 +134,7 @@ and **XL** ≈ a multi-week design and implementation effort.
     context limits, retain recent turns verbatim, and rebuild or invalidate
     summaries after edits or branch changes. Let the user inspect, edit, pin,
     or regenerate the summary. **M**.
-25. **Inter-chat memory and memory management** — Expand existing memory and
+25. ~~**Inter-chat memory and memory management**~~ — **Done (1.2.5):** scopes (everywhere / project / one chat), source message links, confidence, use counts, approval for uncertain or sensitive facts, a never-remember list, and a memory browser (search, edit, re-scope, merge, turn off, forget, export); replies show the memories they used. Original note: Expand existing memory and
     cross-conversation recall with explicit scopes (global, project, and
     conversation), provenance links, confidence/recency, and exclusions.
     Provide a memory browser to search, edit, merge, disable, forget, and

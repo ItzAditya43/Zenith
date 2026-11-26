@@ -296,6 +296,28 @@ def _summary_state_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE conversation_summaries ADD COLUMN edited_at REAL")
 
 
+def _memory_management_columns(conn: sqlite3.Connection) -> None:
+    """Memory scopes, provenance and curation: `scope` is global / project /
+    conversation; `scope_conversation_id` pins a conversation-scoped memory
+    to its chat; `source_message_id` is the message it was learned from;
+    `confidence` is how sure extraction was; `status` is active or pending
+    (waiting for the user's approval); use count and last use show which
+    memories actually get used."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(memories)")}
+    for name, ddl in (
+        ("scope", "TEXT NOT NULL DEFAULT 'global'"),
+        ("scope_conversation_id", "TEXT"),
+        ("source_message_id", "TEXT"),
+        ("confidence", "REAL"),
+        ("status", "TEXT NOT NULL DEFAULT 'active'"),
+        ("use_count", "INTEGER NOT NULL DEFAULT 0"),
+        ("last_used_at", "REAL"),
+    ):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE memories ADD COLUMN {name} {ddl}")
+    conn.execute("UPDATE memories SET scope = 'project' WHERE project_id IS NOT NULL AND scope = 'global'")
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -863,6 +885,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (38, "conversation_summaries_table", _conversation_summaries_table),
     (39, "workflows_tables", _workflows_tables),
     (40, "summary_state_columns", _summary_state_columns),
+    (41, "memory_management_columns", _memory_management_columns),
 ]
 
 

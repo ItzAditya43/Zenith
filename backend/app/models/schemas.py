@@ -82,6 +82,9 @@ class ConfigPatch(StrictModel):
     memory_enabled: bool | None = None
     memory_max_items: int | None = Field(default=None, ge=10, le=2000)
     memory_recall_top_k: int | None = Field(default=None, ge=1, le=100)
+    memory_require_approval: bool | None = None
+    memory_approval_threshold: float | None = Field(default=None, ge=0, le=1)
+    memory_exclusions: list[str] | None = Field(default=None, max_length=100)
     notes_todos_context_enabled: bool | None = None
     digest_enabled: bool | None = None
     digest_interval_hours: int | None = Field(default=None, ge=1, le=168)
@@ -153,6 +156,20 @@ class MemoryCreate(StrictModel):
 
 class MemoryToggle(StrictModel):
     enabled: bool
+
+
+class MemoryUpdate(StrictModel):
+    content: str | None = Field(default=None, min_length=1, max_length=300)
+    enabled: bool | None = None
+    status: str | None = Field(default=None, max_length=20)
+    scope: str | None = Field(default=None, max_length=20)
+    project_id: str | None = Field(default=None, max_length=80)
+    conversation_id: str | None = Field(default=None, max_length=80)
+
+
+class MemoryMerge(StrictModel):
+    ids: list[str] = Field(min_length=2, max_length=20)
+    content: str = Field(min_length=1, max_length=300)
 
 
 class WebhookCreate(StrictModel):

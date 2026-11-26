@@ -252,6 +252,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "memory_enabled": True,          # extract + inject long-term user facts
     "memory_max_items": 200,
     "memory_recall_top_k": 12,       # above this many stored memories, inject only the most relevant instead of all
+    "memory_require_approval": False,  # every new memory waits for approval, not just uncertain/sensitive ones
+    "memory_approval_threshold": 0.6,  # below this extraction confidence a memory waits for approval
+    "memory_exclusions": [],           # words/topics never to remember (matched case-insensitively)
     "system_prompt": "",             # user persona / standing instructions
     "recall_enabled": True,          # cross-conversation retrieval
     "notes_todos_context_enabled": True,  # surface notes/open to-dos in every turn's context
