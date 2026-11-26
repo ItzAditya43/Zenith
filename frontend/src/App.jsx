@@ -54,6 +54,7 @@ const TasksPanel = lazyPanel(() => import("./components/TasksPanel.jsx"));
 const RunReview = lazyPanel(() => import("./components/RunReview.jsx"));
 const ChatManager = lazyPanel(() => import("./components/ChatManager.jsx"));
 const ModelCompare = lazyPanel(() => import("./components/ModelCompare.jsx"));
+const NotificationsPanel = lazyPanel(() => import("./components/NotificationsPanel.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
 const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
@@ -111,8 +112,6 @@ export default function App() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     () => localStorage.getItem("zenith-notifications") === "1"
   );
-  const lastTaskPollRef = useRef(0);
-  const seenTaskStates = useRef(new Set());
   const lastRunPollRef = useRef(Date.now() / 1000);
   const [focusMode, setFocusMode] = useState(false);
   const [agentAvailable, setAgentAvailable] = useState(false);
@@ -140,6 +139,12 @@ export default function App() {
   const [reviewRunId, setReviewRunId] = useState(null);
   const [chatManager, setChatManager] = useState(null); // null = closed, else { show }
   const [compareOpen, setCompareOpen] = useState(false);
+  const [notesPanelOpen, setNotesPanelOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => { setSettingsOpen(false); setNotesPanelOpen(true); };
+    window.addEventListener("zenith:open-notifications", onOpen);
+    return () => window.removeEventListener("zenith:open-notifications", onOpen);
+  }, []);
   useEffect(() => {
     const onCompare = () => { setSettingsOpen(false); setCompareOpen(true); };
     window.addEventListener("zenith:open-compare", onCompare);
@@ -344,38 +349,30 @@ export default function App() {
     localStorage.setItem("zenith-ambient", ambientAnim);
   }, [ambientAnim]);
 
-  // Poll for background scheduled-task completions while notifications are on,
-  // so an unattended schedule that runs while you're in another tab still
-  // reaches you. Only notifies for runs finished since the last poll.
+  // One poller for everything that can notify (schedules, background tasks,
+  // digests, urgent mail…). The backend keeps the history and decides
+  // which items may pop up (muted types and quiet hours don't); the bell in
+  // the header shows the unread count either way.
+  const [unreadNotes, setUnreadNotes] = useState(0);
   useEffect(() => {
-    if (!notificationsEnabled) return;
     lastRunPollRef.current = Date.now() / 1000;
-    lastTaskPollRef.current = Date.now() / 1000;
     const tick = async () => {
       try {
-        const runs = await api.recentScheduleRuns(lastRunPollRef.current);
-        if (runs.length) {
-          lastRunPollRef.current = Math.max(...runs.map((r) => r.finished_at));
-          for (const r of runs) {
-            const label = r.status === "error" ? "failed" : "finished";
-            notify(`Scheduled task ${label}`, r.schedule_name || "A scheduled task ran.");
-          }
+        const r = await api.listNotifications({ since: lastRunPollRef.current });
+        setUnreadNotes(r.unread);
+        if (r.items.length) {
+          lastRunPollRef.current = Math.max(...r.items.map((n) => n.created_at));
+          for (const n of r.items) if (n.desktop) notify(n.title, n.body || "");
         }
-        const tasks = await api.listBackgroundRuns({ since: lastTaskPollRef.current });
-        for (const t of tasks) {
-          const key = `${t.id}:${t.status}`;
-          if (seenTaskStates.current.has(key)) continue;
-          seenTaskStates.current.add(key);
-          if (t.status === "waiting") notify("A background task needs your OK", t.prompt);
-          else if (["done", "failed", "interrupted"].includes(t.status)) notify(`Background task ${t.status === "done" ? "finished" : t.status}`, t.summary || t.prompt);
-        }
-        if (tasks.length) lastTaskPollRef.current = Math.max(lastTaskPollRef.current, ...tasks.map((t) => (t.finished_at || t.started_at || t.created_at) - 1));
       } catch {
         /* transient; try again next tick */
       }
     };
+    tick();
     const id = setInterval(tick, 15000);
-    return () => clearInterval(id);
+    const onRead = () => setUnreadNotes(0);
+    window.addEventListener("zenith:notifications-read", onRead);
+    return () => { clearInterval(id); window.removeEventListener("zenith:notifications-read", onRead); };
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- notify is recreated every render; restarting the poller on each render would reset its cursor
   }, [notificationsEnabled]);
 
@@ -1519,6 +1516,7 @@ export default function App() {
       >
         <div className={`chat-column ${messages.length === 0 ? "is-empty" : ""}`}>
         <ChatHeader
+          unreadNotifications={unreadNotes}
           activeId={activeId}
           messages={messages}
           setSidebarCollapsed={setSidebarCollapsed}
@@ -1596,6 +1594,13 @@ export default function App() {
           />
         )}
         {compareOpen && <ModelCompare onClose={() => setCompareOpen(false)} />}
+        {notesPanelOpen && (
+          <NotificationsPanel
+            onClose={() => setNotesPanelOpen(false)}
+            notificationsEnabled={notificationsEnabled}
+            onEnableDesktop={() => enableNotifications(true)}
+          />
+        )}
         {chatManager && (
           <ChatManager
             initialShow={chatManager.show}

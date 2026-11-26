@@ -31,6 +31,11 @@ async def emit(event_type: str, data: dict) -> None:
         log.warning("events.unknown_type", event_type=event_type)
         return
     try:
+        from app.services import notification_service
+        notification_service.record(event_type, data)
+    except Exception as exc:
+        log.warning("events.notification_record_failed", event_type=event_type, error=str(exc))
+    try:
         from app.services import webhook_service
         await webhook_service.dispatch(event_type, data)
     except Exception as exc:

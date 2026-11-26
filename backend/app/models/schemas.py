@@ -145,7 +145,11 @@ class ConfigPatch(StrictModel):
     notify_ntfy_enabled: bool | None = None
     notify_ntfy_url: str | None = Field(default=None, min_length=1, max_length=500)
     notify_ntfy_topic: str | None = Field(default=None, max_length=200)
-    notify_event_types: list[str] | None = Field(default=None, max_length=10)
+    notify_event_types: list[str] | None = Field(default=None, max_length=20)
+    notify_desktop_muted: list[str] | None = Field(default=None, max_length=20)
+    notify_quiet_start: str | None = Field(default=None, pattern=r"^(|([01]\d|2[0-3]):[0-5]\d)$")
+    notify_quiet_end: str | None = Field(default=None, pattern=r"^(|([01]\d|2[0-3]):[0-5]\d)$")
+    notify_history_days: int | None = Field(default=None, ge=1, le=365)
     wake_word_enabled: bool | None = None
     wake_word_phrase: str | None = Field(default=None, min_length=1, max_length=100)
 

@@ -10,3 +10,4 @@ export const openRunReview = (runId) =>
 export const openChatManager = (show = "active") =>
   window.dispatchEvent(new CustomEvent("zenith:open-chats", { detail: { show } }));
 export const openModelCompare = () => window.dispatchEvent(new CustomEvent("zenith:open-compare"));
+export const openNotifications = () => window.dispatchEvent(new CustomEvent("zenith:open-notifications"));

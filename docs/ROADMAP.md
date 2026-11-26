@@ -104,7 +104,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 18. **Task-linked automations** — Connect tasks, schedules, and automation
     rules so scheduled work can create/update tasks and report changes.
     **M**.
-19. **Notification controls** — Add per-event preferences, quiet hours, and a
+19. ~~**Notification controls**~~ — **Done (1.2.6):** one history of everything that notifies (bell in the header, searchable, filter by kind), per-kind pop-up switches, quiet hours that also hold back ntfy pushes, and a retention setting. Original note: Add per-event preferences, quiet hours, and a
     searchable notification history for background runs, schedules, and
     automations. **S–M**.
 

@@ -70,6 +70,10 @@ async def dispatch(event_type: str, data: dict) -> None:
     event_types = settings.get("notify_event_types", []) or []
     if event_type not in event_types:
         return
+    from app.services.notification_service import in_quiet_hours
+    if in_quiet_hours():
+        log.info("notify.quiet_hours", event_type=event_type)
+        return
 
     base_url = (settings.get("notify_ntfy_url", "") or "https://ntfy.sh").rstrip("/")
     url = f"{base_url}/{topic}"

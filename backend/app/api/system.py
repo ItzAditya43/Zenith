@@ -25,6 +25,8 @@ from app.services.ollama_client import OllamaClient, OllamaError
 from app.services.router import ModelRegistry, ModelRouter
 
 log = get_logger(__name__)
+from pydantic import BaseModel
+
 router = APIRouter(prefix="/api", tags=["system"])
 
 # Phase 7 #5 — low-churn endpoints get a short Cache-Control so the browser
@@ -684,3 +686,35 @@ async def usage_summary(days: int = 14):
 
     summary["disk"] = disk
     return summary
+
+
+# ---- notifications ---------------------------------------------------------------
+
+class NotificationsRead(BaseModel):
+    ids: list[str] | None = None
+
+
+@router.get("/notifications")
+async def list_notifications(q: str = "", event_type: str | None = None, since: float | None = None,
+                             unread: bool = False, limit: int = 100):
+    """History of everything that could notify, newest first; `desktop`
+    says whether it should pop up (muted types and quiet hours say no)."""
+    from app.services import notification_service as ns
+
+    return {"items": ns.list_notifications(q, event_type, since, unread, min(limit, 500)),
+            "unread": ns.unread_count(), "quiet_now": ns.in_quiet_hours(), "labels": ns.LABELS}
+
+
+@router.post("/notifications/read")
+async def read_notifications(body: NotificationsRead):
+    from app.services import notification_service as ns
+
+    return {"marked": ns.mark_read(body.ids)}
+
+
+@router.delete("/notifications")
+async def clear_notifications():
+    from app.services import notification_service as ns
+
+    return {"removed": ns.clear()}
+

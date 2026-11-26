@@ -218,6 +218,17 @@ export interface ChatTurn {
 export const api = {
   base: BASE,
 
+  listNotifications: (params: { q?: string; event_type?: string; since?: number; unread?: boolean } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== "" && v !== false).map(([k, v]) => [k, String(v)])).toString();
+    return request(`/api/notifications${qs ? `?${qs}` : ""}`).then((r) => r.json());
+  },
+  markNotificationsRead: (ids: string[] | null = null) =>
+    request("/api/notifications/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }),
+  clearNotifications: () => request("/api/notifications", { method: "DELETE" }),
   setFeedback: (messageId: string, body: { rating?: number; wrong_model?: boolean; note?: string }) =>
     request(`/api/messages/${messageId}/feedback`, {
       method: "PUT",

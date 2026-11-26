@@ -6176,3 +6176,19 @@ html[data-reduce-motion] .brand-anim * { animation: none !important; }
 .cmp-stat b { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-primary); font-weight: 500; }
 .cmp-body { flex: 1; overflow-y: auto; padding: 14px 16px; font-size: var(--text-sm); }
 @media (max-width: 860px) { .cmp-grid { grid-template-columns: 1fr !important; overflow-y: auto; } }
+
+/* ===== Notifications ===== */
+.header-bell { position: relative; }
+.header-bell-count { position: absolute; top: 2px; right: 1px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px; background: var(--signal-general); color: var(--text-on-accent); font-size: 9.5px; font-weight: 700; line-height: 15px; text-align: center; }
+.notif-modal { width: min(760px, calc(100vw - 2rem)); height: min(760px, 88vh); display: flex; flex-direction: column; overflow: hidden; }
+.notif-row.is-unread { border-color: color-mix(in srgb, var(--signal-general) 40%, var(--border-soft)); }
+.notif-title { display: flex; justify-content: space-between; gap: 10px; }
+.notif-title strong { font-size: var(--text-sm); color: var(--text-primary); font-weight: 600; }
+.notif-title em { font-style: normal; font-size: 11.5px; color: var(--text-tertiary); white-space: nowrap; }
+.notif-body { margin: 4px 0 0; font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.55; }
+.notif-settings { flex: 1; overflow-y: auto; padding: 8px 26px 24px; }
+.notif-settings h4 { margin: 18px 0 8px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-tertiary); }
+.notif-opt { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border-hairline); margin-bottom: 6px; font-size: var(--text-sm); color: var(--text-primary); }
+.notif-quiet { display: flex; align-items: center; gap: 12px; font-size: var(--text-xs); color: var(--text-secondary); }
+.notif-quiet input { margin-left: 6px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--border-soft); background: var(--bg-inset); color: var(--text-primary); color-scheme: dark; }
+.notif-quiet input[type="number"] { width: 80px; }

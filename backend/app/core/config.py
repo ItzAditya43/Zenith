@@ -303,6 +303,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "notify_ntfy_url": "https://ntfy.sh",
     "notify_ntfy_topic": "",
     "notify_event_types": [],
+    # Desktop pop-ups (the in-app history keeps everything regardless).
+    # Event types listed here never pop up; quiet hours hold back pop-ups
+    # and ntfy pushes ("HH:MM" local time, empty = off; may wrap midnight).
+    "notify_desktop_muted": [],
+    "notify_quiet_start": "",
+    "notify_quiet_end": "",
+    "notify_history_days": 30,
     # --- Frontend / experimental ---
     "ui_experimental": False,
 }

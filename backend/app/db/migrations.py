@@ -377,6 +377,26 @@ def _feedback_and_compare_tables(conn: sqlite3.Connection) -> None:
     )
 
 
+def _notifications_table(conn: sqlite3.Connection) -> None:
+    """Every notifiable event (schedules, background tasks, digests, urgent
+    email, memory conflicts, new files) for the searchable history."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS notifications (
+            id TEXT PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT,
+            data TEXT,
+            desktop INTEGER NOT NULL DEFAULT 0,
+            read_at REAL,
+            created_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
+        """
+    )
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -948,6 +968,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (42, "background_runs_table", _background_runs_table),
     (43, "conversation_archived_column", _conversation_archived_column),
     (44, "feedback_and_compare_tables", _feedback_and_compare_tables),
+    (45, "notifications_table", _notifications_table),
 ]
 
 

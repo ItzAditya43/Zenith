@@ -4,6 +4,7 @@ import StatusRail from "./StatusRail.jsx";
 import { api } from "../lib/api";
 import Select from "./Select.jsx";
 import ConversationStatePanel from "./ConversationStatePanel.jsx";
+import { openNotifications } from "../lib/uiEvents.js";
 
 /** The chat header toolbar, extracted from App.jsx. App owns all state; this is presentational. */
 /** Secondary panels live behind one labelled "More" menu instead of a row of
@@ -53,6 +54,7 @@ function HeaderMore({ children }) {
 }
 
 export default function ChatHeader({
+  unreadNotifications = 0,
   activeId,
   messages,
   setSidebarCollapsed,
@@ -120,6 +122,10 @@ export default function ChatHeader({
       <h1>{activeConversation?.title || "Zenith"}</h1>
       <StatusRail genStats={genStats} />
       <div className="header-actions">
+        <button className="icon-btn header-bell" onClick={openNotifications} title={unreadNotifications ? `${unreadNotifications} unread notifications` : "Notifications"} aria-label={`Notifications${unreadNotifications ? `, ${unreadNotifications} unread` : ""}`}>
+          <Icon name="bell" size={16} />
+          {unreadNotifications > 0 && <span className="header-bell-count">{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}
+        </button>
         <HeaderMore>
           <HeaderMoreGroup label="Workspace">
             {activeId && (
