@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { confirmDialog, promptDialog } from "../lib/dialogs";
 import Icon from "./Icon.jsx";
 import Select from "./Select.jsx";
+import { openCleanup } from "../lib/uiEvents.js";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -95,6 +96,7 @@ export default function MemoryBrowser({ focusId, onClose, onOpenConversation }) 
         <div className="notes-header">
           <span id="mem-title"><Icon name="layers" size={16} /> Memory</span>
           <div className="membrowser-head-actions">
+            <button className="wf-btn" onClick={openCleanup}><Icon name="wrench" size={13} /> Clean up</button>
             <a className="wf-btn" href={api.exportMemoriesUrl()} download="zenith-memories.json"><Icon name="download" size={13} /> Export</a>
             <button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="x" size={14} /></button>
           </div>

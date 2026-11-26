@@ -218,6 +218,10 @@ export interface ChatTurn {
 export const api = {
   base: BASE,
 
+  cleanupScan: () => request("/api/cleanup/scan").then((r) => r.json()),
+  cleanupApply: (ids: string[]) =>
+    request("/api/cleanup/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) }).then((r) => r.json()),
+  cleanupUndo: (batchId: string) => request(`/api/cleanup/undo/${batchId}`, { method: "POST" }).then((r) => r.json()),
   renderTemplate: (template: string, values: Record<string, string>) =>
     request("/api/quick-actions/render", {
       method: "POST",

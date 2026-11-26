@@ -57,6 +57,7 @@ const ModelCompare = lazyPanel(() => import("./components/ModelCompare.jsx"));
 const NotificationsPanel = lazyPanel(() => import("./components/NotificationsPanel.jsx"));
 const TemplateFillDialog = lazyPanel(() => import("./components/TemplateFillDialog.jsx"));
 const ShareDialog = lazyPanel(() => import("./components/ShareDialog.jsx"));
+const CleanupPanel = lazyPanel(() => import("./components/CleanupPanel.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
 const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
@@ -142,6 +143,12 @@ export default function App() {
   const [chatManager, setChatManager] = useState(null); // null = closed, else { show }
   const [compareOpen, setCompareOpen] = useState(false);
   const [notesPanelOpen, setNotesPanelOpen] = useState(false);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => { setSettingsOpen(false); setMemoryBrowser(null); setCleanupOpen(true); };
+    window.addEventListener("zenith:open-cleanup", onOpen);
+    return () => window.removeEventListener("zenith:open-cleanup", onOpen);
+  }, []);
   useEffect(() => {
     const onOpen = () => { setSettingsOpen(false); setNotesPanelOpen(true); };
     window.addEventListener("zenith:open-notifications", onOpen);
@@ -1588,6 +1595,7 @@ export default function App() {
           />
         )}
         {compareOpen && <ModelCompare onClose={() => setCompareOpen(false)} />}
+        {cleanupOpen && <CleanupPanel onClose={() => setCleanupOpen(false)} />}
         {shareOpen && activeId && (
           <ShareDialog
             conversationId={activeId}

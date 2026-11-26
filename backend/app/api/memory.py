@@ -125,3 +125,40 @@ async def list_memory_conflicts():
 async def resolve_memory_conflict(conflict_id: str):
     storage.resolve_memory_conflict(conflict_id)
     return {"ok": True}
+
+
+# ---- knowledge cleanup -----------------------------------------------------------
+
+@router.get("/cleanup/scan")
+async def cleanup_scan():
+    """Proposed fixes for duplicate, stale and orphaned memories and index entries."""
+    import asyncio
+
+    from app.services import cleanup_service
+
+    return {"proposals": await asyncio.to_thread(cleanup_service.scan), "history": cleanup_service.history()}
+
+
+@router.post("/cleanup/apply")
+async def cleanup_apply(body: dict):
+    import asyncio
+
+    from app.services import cleanup_service
+
+    ids = [str(x) for x in (body.get("ids") or [])][:500]
+    return await asyncio.to_thread(cleanup_service.apply, ids)
+
+
+@router.post("/cleanup/undo/{batch_id}")
+async def cleanup_undo(batch_id: str):
+    import asyncio
+
+    from app.services import cleanup_service
+
+    try:
+        return await asyncio.to_thread(cleanup_service.undo, batch_id)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+

@@ -91,7 +91,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 14. ~~**Knowledge graph exploration**~~ — **Done (1.2.6):** search (keeps what matches connect to), type filters, an only-connected toggle, curved links that light up on hover, and a side pane listing each item's connections with Open (chat, memory browser, or document preview). Original note: Filter and search graph entities and
     open the underlying conversation, memory, or document from each node.
     Reuse the real relationships already stored in Zenith. **M**.
-15. **Knowledge cleanup** — Find duplicate or stale indexed sources and offer
+15. ~~**Knowledge cleanup**~~ — **Done (1.2.6):** Knowledge cleanup (palette or Memory → Clean up) proposes merging near-duplicate memories, turning off unused ones, removing index entries whose source is gone, dropping documents indexed twice and reindexing changed files — with the evidence for each, applied only on your say-so, and every batch undoable. Original note: Find duplicate or stale indexed sources and offer
     reviewable memory updates before they affect future answers. Include
     provenance and undo. **M**.
 16. **Calendar interoperability** — Add calendar import/export or provider

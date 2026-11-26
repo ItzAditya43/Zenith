@@ -1,4 +1,4 @@
-import { openChatManager, openMemoryBrowser, openModelCompare, openTasks } from "./uiEvents.js";
+import { openChatManager, openCleanup, openMemoryBrowser, openModelCompare, openTasks } from "./uiEvents.js";
 /** Builds the command-palette entries. Pure: everything comes in through `ctx`
  * (App passes its state, setters and a ref to the latest handlers). */
 export function buildCommands({
@@ -38,6 +38,11 @@ export function buildCommands({
     id: "whats-new", group: "Actions", icon: "bolt",
     label: "What's new",
     action: () => setWhatsNewOpen(true),
+  });
+  list.push({
+    id: "knowledge-cleanup", group: "Actions", icon: "wrench",
+    label: "Knowledge cleanup — duplicate, stale and orphaned memories and index entries",
+    action: () => openCleanup(),
   });
   list.push({
     id: "model-compare", group: "Actions", icon: "split",

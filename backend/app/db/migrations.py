@@ -426,6 +426,19 @@ def _import_fingerprints_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _cleanup_log_table(conn: sqlite3.Connection) -> None:
+    """Knowledge cleanups the user applied, with what's needed to undo them."""
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS cleanup_log (
+            id TEXT PRIMARY KEY,
+            applied TEXT NOT NULL,
+            undo TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            undone_at REAL
+        )"""
+    )
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -1000,6 +1013,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (45, "notifications_table", _notifications_table),
     (46, "share_snapshots_table", _share_snapshots_table),
     (47, "import_fingerprints_table", _import_fingerprints_table),
+    (48, "cleanup_log_table", _cleanup_log_table),
 ]
 
 
