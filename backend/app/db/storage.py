@@ -373,7 +373,15 @@ def _row_to_conversation(r: sqlite3.Row) -> dict:
     except (TypeError, ValueError):
         d["tags"] = []
     d["pinned"] = bool(d.get("pinned"))
+    d["archived"] = bool(d.get("archived"))
     return d
+
+
+def set_conversations_archived(ids: list[str], archived: bool) -> int:
+    with _conn() as conn:
+        cur = conn.executemany("UPDATE conversations SET archived = ? WHERE id = ?",
+                               [(1 if archived else 0, i) for i in ids])
+        return cur.rowcount
 
 
 def get_conversation(conversation_id: str) -> dict | None:

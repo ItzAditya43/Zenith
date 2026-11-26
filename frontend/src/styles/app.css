@@ -6123,3 +6123,20 @@ html[data-reduce-motion] .brand-anim * { animation: none !important; }
 .rr-cmd pre { margin: 0; padding: 10px 12px; max-height: 220px; overflow: auto; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-secondary); white-space: pre-wrap; }
 .rr-timeline li { flex-wrap: wrap; } .rr-args { color: var(--text-tertiary); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
 @media (max-width: 760px) { .tasks-body, .rr-files { grid-template-columns: 1fr; } .tasks-list { max-height: 200px; border-right: 0; border-bottom: 1px solid var(--border-hairline); } }
+
+/* ===== Manage chats ===== */
+.chatmgr { width: min(860px, calc(100vw - 2rem)); height: min(760px, 88vh); display: flex; flex-direction: column; overflow: hidden; }
+.chatmgr-row { display: flex; gap: 8px; }
+.chatmgr-tag { padding: 0 12px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--bg-inset); color: var(--text-primary); font-size: var(--text-xs); }
+.chatmgr-sep { width: 1px; background: var(--border-hairline); margin: 0 4px; }
+.chatmgr-saved { display: inline-flex; align-items: center; }
+.chatmgr-x { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; color: var(--text-tertiary); margin-left: -4px; }
+.chatmgr-x:hover { color: var(--signal-danger); }
+.chatmgr-bulk { background: var(--bg-panel-raised); flex-wrap: wrap; }
+.chatmgr-all { display: flex; align-items: center; gap: 8px; margin-right: auto; color: var(--text-primary); }
+.chatmgr-all input, .chatmgr-item input { accent-color: var(--signal-general); }
+.chatmgr-item { padding: 10px 14px; }
+.sidebar-list-tools { display: flex; gap: 6px; align-items: stretch; }
+.sidebar-list-tools .sidebar-new-project-btn { flex: 1; }
+.sidebar-manage-btn { padding: 0 10px; border-radius: 8px; border: 1px dashed var(--border-soft); font-size: 11.5px; color: var(--text-tertiary); white-space: nowrap; }
+.sidebar-manage-btn:hover { color: var(--text-primary); border-style: solid; }

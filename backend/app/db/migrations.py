@@ -343,6 +343,13 @@ def _background_runs_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _conversation_archived_column(conn: sqlite3.Connection) -> None:
+    """Archived chats leave the sidebar but stay searchable and restorable."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(conversations)")}
+    if "archived" not in cols:
+        conn.execute("ALTER TABLE conversations ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -912,6 +919,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (40, "summary_state_columns", _summary_state_columns),
     (41, "memory_management_columns", _memory_management_columns),
     (42, "background_runs_table", _background_runs_table),
+    (43, "conversation_archived_column", _conversation_archived_column),
 ]
 
 

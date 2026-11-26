@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Icon from "./Icon.jsx";
 import ZenithMark from "./ZenithMark.jsx";
+import { openChatManager } from "../lib/uiEvents.js";
 
 function groupByDate(conversations) {
   const now = new Date();
@@ -150,7 +151,8 @@ export default function Sidebar({
   const totalResults =
     convResults.length + docResults.length + memResults.length +
     noteResults.length + todoResults.length + eventResults.length + researchResults.length;
-  const unassigned = conversations.filter((c) => !c.project_id);
+  const unassigned = conversations.filter((c) => !c.project_id && !c.archived);
+  const archivedCount = conversations.filter((c) => c.archived).length;
   const pinned = unassigned.filter((c) => c.pinned);
   const unpinned = unassigned.filter((c) => !c.pinned);
   const groups = showSearchResults || collapsed ? null : groupByDate(unpinned);
@@ -460,9 +462,14 @@ export default function Sidebar({
                 );
               })}
             {!collapsed && (
-              <button className="sidebar-new-project-btn" onClick={onCreateProject}>
-                <Icon name="plus" size={12} /> New project
-              </button>
+              <div className="sidebar-list-tools">
+                <button className="sidebar-new-project-btn" onClick={onCreateProject}>
+                  <Icon name="plus" size={12} /> New project
+                </button>
+                <button className="sidebar-manage-btn" onClick={() => openChatManager()} title="Filter, tag, archive or delete chats in bulk">
+                  Manage{archivedCount ? ` · ${archivedCount} archived` : ""}
+                </button>
+              </div>
             )}
             {!collapsed && !showSearchResults && pinned.length > 0 && (
               <div className="conversation-group">

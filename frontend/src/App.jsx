@@ -52,6 +52,7 @@ const WorkflowCanvas = lazyPanel(() => import("./components/WorkflowCanvas.jsx")
 const MemoryBrowser = lazyPanel(() => import("./components/MemoryBrowser.jsx"));
 const TasksPanel = lazyPanel(() => import("./components/TasksPanel.jsx"));
 const RunReview = lazyPanel(() => import("./components/RunReview.jsx"));
+const ChatManager = lazyPanel(() => import("./components/ChatManager.jsx"));
 const GroupChatPicker = lazyPanel(() => import("./components/GroupChatPicker.jsx"));
 const OnboardingTour = lazyPanel(() => import("./components/OnboardingTour.jsx"));
 const WhatsNewPanel = lazyPanel(() => import("./components/WhatsNewPanel.jsx"));
@@ -136,6 +137,12 @@ export default function App() {
   }, []);
   const [tasksPanel, setTasksPanel] = useState(null); // null = closed, else { focusId }
   const [reviewRunId, setReviewRunId] = useState(null);
+  const [chatManager, setChatManager] = useState(null); // null = closed, else { show }
+  useEffect(() => {
+    const onChats = (e) => { setSettingsOpen(false); setChatManager({ show: e.detail?.show || "active" }); };
+    window.addEventListener("zenith:open-chats", onChats);
+    return () => window.removeEventListener("zenith:open-chats", onChats);
+  }, []);
   useEffect(() => {
     const onTasks = (e) => { setSettingsOpen(false); setTasksPanel({ focusId: e.detail?.focusId ?? null }); };
     const onReview = (e) => setReviewRunId(e.detail?.runId ?? null);
@@ -1579,6 +1586,14 @@ export default function App() {
             agentAvailable={agentAvailable}
             onClose={() => setTasksPanel(null)}
             onOpenConversation={(cid) => { setTasksPanel(null); selectConversation(cid); }}
+          />
+        )}
+        {chatManager && (
+          <ChatManager
+            initialShow={chatManager.show}
+            onClose={() => setChatManager(null)}
+            onChanged={() => api.listConversations().then(setConversations).catch(() => {})}
+            onOpen={(cid) => { setChatManager(null); selectConversation(cid); }}
           />
         )}
         {reviewRunId && (

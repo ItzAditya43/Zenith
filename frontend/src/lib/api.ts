@@ -218,6 +218,12 @@ export interface ChatTurn {
 export const api = {
   base: BASE,
 
+  bulkConversations: (ids: string[], action: string, tag: string | null = null) =>
+    request("/api/conversations/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, action, tag }),
+    }).then((r) => r.json()),
   queueBackgroundRun: (conversationId: string, prompt: string, model: string | null = null) =>
     request("/api/agent/background", {
       method: "POST",

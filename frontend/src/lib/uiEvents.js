@@ -7,3 +7,5 @@ export const openTasks = (focusId = null) =>
   window.dispatchEvent(new CustomEvent("zenith:open-tasks", { detail: { focusId } }));
 export const openRunReview = (runId) =>
   window.dispatchEvent(new CustomEvent("zenith:open-run-review", { detail: { runId } }));
+export const openChatManager = (show = "active") =>
+  window.dispatchEvent(new CustomEvent("zenith:open-chats", { detail: { show } }));

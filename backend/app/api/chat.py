@@ -16,6 +16,7 @@ from app.core.rate_limit import conversation_lock
 from app.db import storage
 from app.models.schemas import (
     ChatRequest,
+    ConversationBulk,
     ConversationCreate,
     ConversationPersonaSet,
     ConversationRename,
@@ -57,6 +58,41 @@ async def search_all(q: str = ""):
 @router.post("/conversations")
 async def create_conversation(body: ConversationCreate):
     return storage.create_conversation(body.title, body.project_id)
+
+
+@router.post("/conversations/bulk")
+async def bulk_conversations(body: ConversationBulk):
+    """Apply one action to many chats: pin, unpin, archive, unarchive,
+    tag, untag, or delete."""
+    action = body.action
+    if action not in ("pin", "unpin", "archive", "unarchive", "tag", "untag", "delete"):
+        raise HTTPException(400, "Unknown action.")
+    if action in ("tag", "untag") and not (body.tag or "").strip():
+        raise HTTPException(400, "Name the tag.")
+    done = 0
+    for cid in body.ids:
+        conv = storage.get_conversation(cid)
+        if not conv:
+            continue
+        if action in ("pin", "unpin"):
+            storage.set_conversation_pinned(cid, action == "pin")
+        elif action in ("archive", "unarchive"):
+            storage.set_conversations_archived([cid], action == "archive")
+        elif action in ("tag", "untag"):
+            tag = body.tag.strip()
+            tags = [t for t in conv.get("tags", []) if t != tag]
+            if action == "tag":
+                tags.append(tag)
+            storage.set_conversation_tags(cid, tags[:20])
+        elif action == "delete":
+            try:
+                from app.services.attachments import cleanup_for_conversation
+                await asyncio.to_thread(cleanup_for_conversation, cid)
+            except Exception as exc:
+                log.warning("chat.bulk_delete_cleanup_failed", error=str(exc))
+            storage.delete_conversation(cid)
+        done += 1
+    return {"ok": True, "count": done}
 
 
 @router.patch("/conversations/{conversation_id}/project")

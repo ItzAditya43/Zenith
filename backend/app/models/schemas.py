@@ -85,6 +85,7 @@ class ConfigPatch(StrictModel):
     memory_require_approval: bool | None = None
     memory_approval_threshold: float | None = Field(default=None, ge=0, le=1)
     memory_exclusions: list[str] | None = Field(default=None, max_length=100)
+    saved_chat_filters: list[dict] | None = Field(default=None, max_length=50)
     notes_todos_context_enabled: bool | None = None
     digest_enabled: bool | None = None
     digest_interval_hours: int | None = Field(default=None, ge=1, le=168)
@@ -156,6 +157,12 @@ class MemoryCreate(StrictModel):
 
 class MemoryToggle(StrictModel):
     enabled: bool
+
+
+class ConversationBulk(StrictModel):
+    ids: list[str] = Field(min_length=1, max_length=500)
+    action: str = Field(max_length=20)  # pin | unpin | archive | unarchive | tag | untag | delete
+    tag: str | None = Field(default=None, max_length=40)
 
 
 class MemoryUpdate(StrictModel):

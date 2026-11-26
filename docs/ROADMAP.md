@@ -64,7 +64,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 
 ### Conversations, models, and sharing
 
-6. **Conversation organization** — Add tags, pinned chats, saved filters, and
+6. ~~**Conversation organization**~~ — **Done (1.2.6):** Manage chats (sidebar or palette) filters by title, tag and state, saves filters, and pins, tags, archives, restores or deletes in bulk; archived chats leave the sidebar. Original note: Add tags, pinned chats, saved filters, and
    bulk archive/delete controls to the existing search and sidebar. **S–M**.
 7. **Reusable prompt workflows** — Turn quick actions into parameterized
    templates (for example, “review this diff”), with validation and import /
