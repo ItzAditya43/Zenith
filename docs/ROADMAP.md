@@ -149,7 +149,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 
 ### API providers and integrations
 
-27. **Provider setup that just works** — Improve the existing API provider
+27. ~~**Provider setup that just works**~~ — **Done (1.2.8):** "Check connection" (in the add form and on each provider) walks address → server → key → models → a real streamed reply → tool calling → embeddings, stops at the first failure with a plain fix (new key and where to get it, credits, quota, /v1, how to start LM Studio/llama.cpp/vLLM), and lists each model's likely capabilities; keys are never echoed. Original note: Improve the existing API provider
     flow with a guided connection check: validate the endpoint and key, list
     available models, report supported capabilities (vision, tools, streaming,
     embeddings), and explain the next step when a check fails. Keep credentials

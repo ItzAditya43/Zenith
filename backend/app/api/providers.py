@@ -5,6 +5,7 @@
   POST   /api/providers               create or update {id, name, kind, base_url, api_key?, models?, enabled?}
   DELETE /api/providers/{id}
   POST   /api/providers/{id}/test     list its models: proves the URL and key work
+  POST   /api/providers/check         guided check: address, reach, key, models, a real reply (+tools, embeddings)
 """
 from __future__ import annotations
 
@@ -54,6 +55,26 @@ async def delete_provider(provider_id: str):
         raise HTTPException(404, "No such provider.")
     await _bust_registry()
     return {"deleted": provider_id}
+
+
+class CheckBody(StrictModel):
+    id: str | None = Field(default=None, max_length=40)
+    name: str | None = Field(default=None, max_length=60)
+    kind: str = "openai"
+    base_url: str | None = Field(default=None, max_length=500)
+    api_key: str | None = Field(default=None, max_length=500)
+    model: str | None = Field(default=None, max_length=200)
+    thorough: bool = False
+
+
+@router.post("/check")
+async def check_provider(body: CheckBody):
+    """Guided connection check for a saved provider ({id}) or one being set
+    up (base_url + api_key). Never echoes the key."""
+    from app.services import provider_check
+
+    entry = body.model_dump(exclude={"model", "thorough"})
+    return await provider_check.check(entry, body.model, body.thorough)
 
 
 @router.post("/{provider_id}/test")

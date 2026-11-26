@@ -63,14 +63,26 @@ export default function ProvidersSection() {
     }
   };
 
-  const test = async (id) => {
-    setTests((t) => ({ ...t, [id]: null }));
+  // Guided check: address → reach → key → models → a real reply (+ tools and
+  // embeddings when thorough). Results render as a step list with fixes.
+  const test = async (id, thorough = true) => {
+    setTests((t) => ({ ...t, [id]: { running: true } }));
     try {
-      const r = await api.testProvider(id);
+      const r = await api.checkProvider({ id, thorough });
       setTests((t) => ({ ...t, [id]: r }));
     } catch (err) {
-      setTests((t) => ({ ...t, [id]: { ok: false, error: err.message } }));
+      setTests((t) => ({ ...t, [id]: { ok: false, steps: [{ id: "x", label: "Check", ok: false, detail: err.message }] } }));
     }
+  };
+  const [formCheck, setFormCheck] = useState(null);
+  const checkForm = async () => {
+    setFormCheck({ running: true });
+    try {
+      setFormCheck(await api.checkProvider({
+        id: form.editing ? form.id : undefined, name: form.name || form.id, kind: form.kind,
+        base_url: form.base_url.trim(), api_key: form.api_key.trim() || null, thorough: true,
+      }));
+    } catch (err) { setFormCheck({ ok: false, steps: [{ id: "x", label: "Check", ok: false, detail: err.message }] }); }
   };
 
   const toggle = async (prov) => {
@@ -116,11 +128,10 @@ export default function ProvidersSection() {
                     {p.kind === "anthropic" && <span className="lib-chip">claude</span>}
                   </strong>
                   <span className="setting-hint">{p.base_url}{p.has_key ? " · key saved" : p.local ? "" : " · no key"}</span>
-                  {t && t.ok === true && <span className="model-ok">Connected · {t.count} model{t.count === 1 ? "" : "s"}</span>}
-                  {t && t.ok === false && <span className="model-dead">{t.error}</span>}
+                  {t && <CheckResult result={t} />}
                 </div>
                 <div className="prov-actions">
-                  <button className="text-btn" onClick={() => test(p.id)}>Test</button>
+                  <button className="text-btn" onClick={() => test(p.id)} disabled={t?.running}>{t?.running ? "Checking…" : "Check"}</button>
                   <button className="text-btn" onClick={() => startEdit(p)}>Edit</button>
                   <button
                     className={`switch ${p.enabled ? "switch-on" : ""}`}
@@ -193,8 +204,12 @@ export default function ProvidersSection() {
             </label>
           </div>
           {error && <p className="settings-notice settings-notice-error" role="alert">{error}</p>}
+          {formCheck && <CheckResult result={formCheck} />}
           <div className="prov-form-actions">
-            <button className="settings-btn-secondary" onClick={() => setForm(null)}>Cancel</button>
+            <button className="settings-btn-secondary" onClick={() => { setForm(null); setFormCheck(null); }}>Cancel</button>
+            <button className="settings-btn-secondary" onClick={checkForm} disabled={formCheck?.running || !form.base_url.trim()}>
+              {formCheck?.running ? "Checking…" : "Check connection"}
+            </button>
             <button className="settings-btn-primary" onClick={save} disabled={busy || !form.id.trim() || !form.base_url.trim() || (!form.editing && needsKey && !form.api_key.trim())}>
               {busy ? "Saving…" : "Save and test"}
             </button>
@@ -204,3 +219,32 @@ export default function ProvidersSection() {
     </section>
   );
 }
+
+/** The guided check's steps: a tick, a cross with the fix, or a note. */
+function CheckResult({ result }) {
+  if (result.running) return <p className="setting-hint">Checking the address, key, models and a real reply…</p>;
+  return (
+    <div className={`prov-check ${result.ok ? "is-ok" : "is-bad"}`}>
+      <ol>
+        {(result.steps || []).map((s) => (
+          <li key={s.id} className={s.ok === true ? "ok" : s.ok === false ? "bad" : "note"}>
+            <span className="prov-check-mark">{s.ok === true ? "✓" : s.ok === false ? "✕" : "–"}</span>
+            <span><b>{s.label}</b>{s.detail && <> · {s.detail}</>}{s.fix && <em>{s.fix}</em>}</span>
+          </li>
+        ))}
+      </ol>
+      {result.next && <p className="prov-check-next">{result.next}</p>}
+      {result.models?.length > 0 && (
+        <details>
+          <summary>{result.models.length} model{result.models.length === 1 ? "" : "s"} and what they can likely do</summary>
+          <ul className="prov-check-models">
+            {result.models.slice(0, 80).map((m) => (
+              <li key={m.name}><code>{m.name}</code>{m.caps.map((c) => <span key={c} className="lib-chip">{c}</span>)}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
