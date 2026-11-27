@@ -1119,6 +1119,22 @@ def _digest_items_and_push_log(conn: sqlite3.Connection) -> None:
     if "push_error" not in ncols:
         conn.execute("ALTER TABLE notifications ADD COLUMN push_error TEXT")
 
+
+def _mcp_tool_policy(conn: sqlite3.Connection) -> None:
+    """Per-tool allow/ask/off for MCP servers, plus the last connection check."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(mcp_servers)")}
+    for name, ddl in (("tool_policy", "TEXT NOT NULL DEFAULT '{}'"), ("last_check_at", "REAL"),
+                      ("last_check_ok", "INTEGER"), ("last_error", "TEXT"), ("tool_count", "INTEGER")):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE mcp_servers ADD COLUMN {name} {ddl}")
+
+
+def _watched_folder_patterns(conn: sqlite3.Connection) -> None:
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(watched_folders)")}
+    for name in ("include_patterns", "exclude_patterns"):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE watched_folders ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+
 MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "baseline", _baseline),
     (2, "attachments_table", _attachments_table),
@@ -1178,6 +1194,8 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (56, "schedule_calendar_columns", _schedule_calendar_columns),
     (57, "memory_conflict_resolution", _memory_conflict_resolution),
     (58, "digest_items_and_push_log", _digest_items_and_push_log),
+    (59, "mcp_tool_policy", _mcp_tool_policy),
+    (60, "watched_folder_patterns", _watched_folder_patterns),
 ]
 
 

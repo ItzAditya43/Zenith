@@ -235,6 +235,14 @@ class CouncilRequest(StrictModel):
 class WatchedFolderCreate(StrictModel):
     path: str = Field(min_length=1, max_length=1000)
     extensions: str | None = Field(default=None, max_length=200)
+    include_patterns: str = Field(default="", max_length=2000)
+    exclude_patterns: str = Field(default="", max_length=2000)
+
+
+class WatchedFolderPatterns(StrictModel):
+    include_patterns: str = Field(default="", max_length=2000)
+    exclude_patterns: str = Field(default="", max_length=2000)
+    extensions: str | None = Field(default=None, max_length=200)
 
 
 class WatchedFolderToggle(StrictModel):

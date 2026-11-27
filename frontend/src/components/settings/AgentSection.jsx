@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { api } from "../../lib/api";
 import McpGallery from "./McpGallery.jsx";
 import { useSettings } from "./SettingsContext.js";
@@ -351,6 +352,11 @@ export default function AgentSection() {
                 <span className="setting-hint" style={{ display: "block", fontFamily: "var(--font-mono)" }}>
                   {s.command} {s.args.join(" ")}
                 </span>
+                {s.last_check_at && (
+                  <span className={s.last_check_ok ? "setting-hint" : "settings-error"} style={{ display: "block", margin: 0 }}>
+                    {s.last_check_ok ? `Connected · ${s.tool_count ?? 0} tools` : `Last check failed: ${s.last_error || "error"}`} · {new Date(s.last_check_at * 1000).toLocaleString()}
+                  </span>
+                )}
               </span>
               <span className="settings-row" style={{ gap: "0.5rem" }}>
                 <button className="text-btn" onClick={() => checkMcpTools(s.id)}>
@@ -371,11 +377,11 @@ export default function AgentSection() {
                 ) : mcpToolsResult[s.id].length === 0 ? (
                   <span className="setting-hint">Connected, but no tools advertised.</span>
                 ) : (
-                  mcpToolsResult[s.id].map((t) => (
-                    <pre key={t.name} className="tool-call-result" style={{ marginBottom: "0.3rem" }}>
-                      {t.name}: {t.description}
-                    </pre>
-                  ))
+                  <ul className="mcp-tools">
+                    {mcpToolsResult[s.id].map((t) => (
+                      <McpToolRow key={t.name} serverId={s.id} tool={t} />
+                    ))}
+                  </ul>
                 )}
               </div>
             )}
@@ -386,5 +392,35 @@ export default function AgentSection() {
         )}
       </ul>
     </section>
+  );
+}
+
+
+/** One MCP tool: what it does, whether it only reads, and whether the agent
+ * may run it without asking. */
+function McpToolRow({ serverId, tool, }) {
+  const [policy, setPolicy] = useState(tool.policy || "ask");
+  const change = async (p) => {
+    setPolicy(p);
+    try {
+      await api.setMcpToolPolicy(serverId, tool.name, p);
+    } catch {
+      setPolicy(tool.policy || "ask");
+    }
+  };
+  return (
+    <li className="mcp-tool">
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <code>{tool.name}</code>
+        {tool.read_only === true && <span className="mb-badge" title="The server says this tool only reads">read-only</span>}
+        {tool.destructive === true && <span className="mb-badge mb-badge-warn" title="The server says this tool can delete or overwrite">destructive</span>}
+        {tool.description && <span className="setting-hint" style={{ display: "block" }}>{tool.description}</span>}
+      </div>
+      <Select className="settings-select" style={{ flex: "0 0 150px" }} value={policy} onChange={(e) => change(e.target.value)} aria-label={`Policy for ${tool.name}`}>
+        <option value="ask">Ask first</option>
+        <option value="auto">Run without asking</option>
+        <option value="off">Off (agent can't see it)</option>
+      </Select>
+    </li>
   );
 }

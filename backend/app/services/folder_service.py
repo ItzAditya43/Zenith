@@ -10,6 +10,8 @@ documented there for agent mode's bash/file tools).
 """
 from __future__ import annotations
 
+import fnmatch
+import re
 import time
 import uuid
 from pathlib import Path
@@ -35,7 +37,75 @@ def get_watched_folder(folder_id: str) -> dict | None:
         return dict(row) if row else None
 
 
-def add_watched_folder(path: str, extensions: str | None = None) -> dict:
+def _patterns(raw: str | None) -> list[str]:
+    return [x.strip() for x in re.split(r"[,\n]", raw or "") if x.strip()]
+
+
+def _matches(rel: str, patterns: list[str]) -> bool:
+    """Glob match against the relative path or any single path component,
+    so "drafts/**", "*.log" and "secret" all do what you'd expect."""
+    parts = rel.split("/")
+    for pat in patterns:
+        p = pat.rstrip("/")
+        if fnmatch.fnmatch(rel, p) or fnmatch.fnmatch(rel, p + "/*") or any(fnmatch.fnmatch(x, p) for x in parts):
+            return True
+        if p.endswith("/**") and (rel == p[:-3] or rel.startswith(p[:-3] + "/")):
+            return True
+    return False
+
+
+def iter_folder_files(folder: dict):
+    """Yields (path, rel, status) for every candidate file, status being
+    "index", "excluded", "not_included" or "outside" (a symlink that leads
+    out of the watched folder — never followed)."""
+    exts = {e.strip().lower() for e in folder["extensions"].split(",") if e.strip()}
+    root = Path(folder["path"])
+    real_root = root.resolve()
+    include = _patterns(folder.get("include_patterns"))
+    exclude = _patterns(folder.get("exclude_patterns"))
+    for path in root.rglob("*"):
+        if any(part in _SKIP_DIR_NAMES for part in path.parts):
+            continue
+        if not path.is_file() or path.suffix.lower() not in exts:
+            continue
+        rel = path.relative_to(root).as_posix()
+        try:
+            path.resolve().relative_to(real_root)
+        except ValueError:
+            yield path, rel, "outside"
+            continue
+        if exclude and _matches(rel, exclude):
+            yield path, rel, "excluded"
+        elif include and not _matches(rel, include):
+            yield path, rel, "not_included"
+        else:
+            yield path, rel, "index"
+
+
+def preview_folder(folder: dict, sample: int = 40) -> dict:
+    counts = {"index": 0, "excluded": 0, "not_included": 0, "outside": 0}
+    files: list[str] = []
+    outside: list[str] = []
+    for _path, rel, status in iter_folder_files(folder):
+        counts[status] += 1
+        if status == "index" and len(files) < sample:
+            files.append(rel)
+        elif status == "outside" and len(outside) < 20:
+            outside.append(rel)
+    return {"counts": counts, "files": files, "outside": outside}
+
+
+def set_patterns(folder_id: str, include: str, exclude: str, extensions: str | None = None) -> dict | None:
+    if not get_watched_folder(folder_id):
+        return None
+    with _conn() as conn:
+        conn.execute("UPDATE watched_folders SET include_patterns = ?, exclude_patterns = ?,"
+                     " extensions = COALESCE(?, extensions) WHERE id = ?",
+                     (include.strip(), exclude.strip(), (extensions or "").strip() or None, folder_id))
+    return get_watched_folder(folder_id)
+
+
+def add_watched_folder(path: str, extensions: str | None = None, include: str = "", exclude: str = "") -> dict:
     p = Path(path).expanduser()
     if not p.exists() or not p.is_dir():
         raise ValueError(f"Not a directory (or not visible to the backend process): {path}")
@@ -48,11 +118,13 @@ def add_watched_folder(path: str, extensions: str | None = None) -> dict:
         if existing:
             raise ValueError("This folder is already being watched.")
         conn.execute(
-            "INSERT INTO watched_folders (id, path, extensions, enabled, created_at) VALUES (?, ?, ?, 1, ?)",
-            (fid, resolved, exts, now),
+            "INSERT INTO watched_folders (id, path, extensions, enabled, created_at, include_patterns, exclude_patterns)"
+            " VALUES (?, ?, ?, 1, ?, ?, ?)",
+            (fid, resolved, exts, now, include.strip(), exclude.strip()),
         )
     return {"id": fid, "path": resolved, "extensions": exts, "enabled": 1,
-            "last_scanned_at": None, "created_at": now}
+            "last_scanned_at": None, "created_at": now, "include_patterns": include.strip(),
+            "exclude_patterns": exclude.strip()}
 
 
 def remove_watched_folder(folder_id: str) -> None:
@@ -92,7 +164,6 @@ def scan_folder(folder: dict) -> dict:
     never raises; per-file errors are collected, not fatal."""
     from app.services import rag_service
 
-    exts = {e.strip().lower() for e in folder["extensions"].split(",") if e.strip()}
     root = Path(folder["path"])
     scanned = indexed = 0
     errors: list[str] = []
@@ -101,10 +172,12 @@ def scan_folder(folder: dict) -> dict:
 
     seen_paths: set[str] = set()
     new_files: list[str] = []
-    for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in exts:
+    skipped_outside = 0
+    for path, _rel, status in iter_folder_files(folder):
+        if status == "outside":
+            skipped_outside += 1
             continue
-        if any(part in _SKIP_DIR_NAMES for part in path.parts):
+        if status != "index":
             continue
         scanned += 1
         abs_path = str(path.resolve())
@@ -150,7 +223,8 @@ def scan_folder(folder: dict) -> dict:
         )
     log.info("folder.scanned", folder_id=folder["id"], path=folder["path"],
               scanned=scanned, indexed=indexed, errors=len(errors))
-    return {"scanned": scanned, "indexed": indexed, "errors": errors, "new_files": new_files}
+    return {"scanned": scanned, "indexed": indexed, "errors": errors, "new_files": new_files,
+            "skipped_outside": skipped_outside, "removed": len(stale)}
 
 
 async def scan_all_enabled() -> None:

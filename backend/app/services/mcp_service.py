@@ -42,6 +42,7 @@ def list_servers() -> list[dict]:
             d = dict(r)
             d["args"] = json.loads(d["args"])
             d["env"] = json.loads(d["env"])
+            d["tool_policy"] = json.loads(d.get("tool_policy") or "{}")
             out.append(d)
         return out
 
@@ -77,6 +78,44 @@ def set_enabled(server_id: str, enabled: bool) -> None:
         conn.execute("UPDATE mcp_servers SET enabled = ? WHERE id = ?", (1 if enabled else 0, server_id))
 
 
+POLICIES = {"auto", "ask", "off"}
+
+
+def set_tool_policy(server_id: str, tool: str, policy: str) -> dict:
+    """auto = runs without asking (in semi mode), ask = always needs your OK
+    (the default), off = hidden from the agent entirely."""
+    if policy not in POLICIES:
+        raise ValueError(f"policy must be one of {sorted(POLICIES)}")
+    server = get_server(server_id)
+    if not server:
+        raise LookupError("No such MCP server.")
+    pol = dict(server.get("tool_policy") or {})
+    if policy == "ask":
+        pol.pop(tool, None)
+    else:
+        pol[tool] = policy
+    with _conn() as conn:
+        conn.execute("UPDATE mcp_servers SET tool_policy = ? WHERE id = ?", (json.dumps(pol), server_id))
+    return pol
+
+
+def policy_for(agent_tool_name: str) -> str:
+    parsed = parse_agent_tool_name(agent_tool_name)
+    if not parsed:
+        return "ask"
+    server_name, tool = parsed
+    for s in list_servers():
+        if s["name"] == server_name:
+            return (s.get("tool_policy") or {}).get(tool, "ask")
+    return "ask"
+
+
+def record_check(server_id: str, ok: bool, error: str | None = None, tool_count: int | None = None) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE mcp_servers SET last_check_at = ?, last_check_ok = ?, last_error = ?, tool_count = ? WHERE id = ?",
+                     (time.time(), 1 if ok else 0, (error or "")[:500] or None, tool_count, server_id))
+
+
 def _field(obj, snake: str, camel: str):
     """mcp 2.x renamed protocol fields to snake_case (input_schema,
     is_error); 1.x used the wire names (inputSchema, isError)."""
@@ -107,10 +146,16 @@ async def _list_tools_raw(server: dict) -> list[dict]:
     an error instead of an indistinguishable empty list."""
     async def _list(session):
         result = await session.list_tools()
-        return [
-            {"name": t.name, "description": t.description or "", "input_schema": _field(t, "input_schema", "inputSchema")}
-            for t in result.tools
-        ]
+        out = []
+        for t in result.tools:
+            ann = getattr(t, "annotations", None)
+            out.append({
+                "name": t.name, "description": t.description or "",
+                "input_schema": _field(t, "input_schema", "inputSchema"),
+                "read_only": _field(ann, "read_only_hint", "readOnlyHint") if ann else None,
+                "destructive": _field(ann, "destructive_hint", "destructiveHint") if ann else None,
+            })
+        return out
     return await asyncio.wait_for(_with_session(server, _list), timeout=_CONNECT_TIMEOUT + 5)
 
 
@@ -134,7 +179,10 @@ async def list_all_tools() -> list[dict]:
     for server in list_servers():
         if not server["enabled"]:
             continue
+        policy = server.get("tool_policy") or {}
         for t in await list_tools(server):
+            if policy.get(t["name"]) == "off":
+                continue
             out.append({
                 "agent_tool_name": f"{TOOL_PREFIX}{server['name']}__{t['name']}",
                 "server_id": server["id"],

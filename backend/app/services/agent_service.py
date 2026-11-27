@@ -336,6 +336,10 @@ _PATH_READ_TOOLS = ("read_file", "list_dir", "grep", "glob")
 def classify_risk(tool: str, args: dict[str, Any], workdir: str | None = None) -> str:
     """Returns "safe" or "risky". Safe calls auto-run in "semi" mode;
     risky calls always pause for approval outside "full" mode."""
+    if tool.startswith("mcp__"):
+        # MCP tools ask first unless you set that tool to "auto" in Settings.
+        from app.services import mcp_service
+        return "safe" if mcp_service.policy_for(tool) == "auto" else "risky"
     if tool in _PATH_READ_TOOLS:
         # Safe only inside the bound working directory — see
         # _classify_bash_command for why out-of-tree reads pause.

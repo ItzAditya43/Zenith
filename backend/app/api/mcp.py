@@ -75,7 +75,8 @@ async def search_registry(q: str = "", limit: int = 20):
 
 @router.get("/servers")
 async def list_servers():
-    return mcp_service.list_servers()
+    # env often holds API keys: say which are set, never send the values.
+    return [{**s, "env": {k: "********" for k in (s.get("env") or {})}} for s in mcp_service.list_servers()]
 
 
 @router.post("/servers")
@@ -110,6 +111,20 @@ async def get_server_tools(server_id: str):
     if not server:
         raise HTTPException(404, "No such MCP server.")
     try:
-        return await mcp_service._list_tools_raw(server)
+        tools = await mcp_service._list_tools_raw(server)
     except Exception as exc:
+        mcp_service.record_check(server_id, False, str(exc))
         raise HTTPException(502, f"Couldn't connect to '{server['name']}': {exc}") from exc
+    mcp_service.record_check(server_id, True, None, len(tools))
+    policy = server.get("tool_policy") or {}
+    return [{**t, "policy": policy.get(t["name"], "ask")} for t in tools]
+
+
+@router.put("/servers/{server_id}/tools/{tool_name}/policy")
+async def set_tool_policy(server_id: str, tool_name: str, body: dict):
+    try:
+        return {"tool_policy": mcp_service.set_tool_policy(server_id, tool_name, str(body.get("policy", "")))}
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from None
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None

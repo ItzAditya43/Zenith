@@ -336,7 +336,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID", "X-Zenith-API-Version"],
 )
+# Outermost: every response (including CORS/auth rejections) gets an ID.
+from app.core.request_context import RequestContext, unhandled_error  # noqa: E402
+
+app.add_middleware(RequestContext)
+app.add_exception_handler(Exception, unhandled_error)
 
 
 app.include_router(chat.router)

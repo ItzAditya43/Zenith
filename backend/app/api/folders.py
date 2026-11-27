@@ -11,7 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from app.core.logging import get_logger
-from app.models.schemas import WatchedFolderCreate, WatchedFolderToggle
+from app.models.schemas import WatchedFolderCreate, WatchedFolderPatterns, WatchedFolderToggle
 from app.services import folder_service
 
 log = get_logger(__name__)
@@ -26,7 +26,8 @@ async def list_folders():
 @router.post("")
 async def add_folder(body: WatchedFolderCreate):
     try:
-        return folder_service.add_watched_folder(body.path, body.extensions)
+        return folder_service.add_watched_folder(body.path, body.extensions, body.include_patterns,
+                                                 body.exclude_patterns)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -37,6 +38,25 @@ async def toggle_folder(folder_id: str, body: WatchedFolderToggle):
         raise HTTPException(404, "No such watched folder.")
     folder_service.set_folder_enabled(folder_id, body.enabled)
     return {"ok": True}
+
+
+@router.put("/{folder_id}/patterns")
+async def set_patterns(folder_id: str, body: WatchedFolderPatterns):
+    f = folder_service.set_patterns(folder_id, body.include_patterns, body.exclude_patterns, body.extensions)
+    if not f:
+        raise HTTPException(404, "No such watched folder.")
+    return f
+
+
+@router.get("/{folder_id}/preview")
+async def preview(folder_id: str):
+    """Which files would be indexed with the current patterns, without indexing."""
+    import asyncio
+
+    folder = folder_service.get_watched_folder(folder_id)
+    if not folder:
+        raise HTTPException(404, "No such watched folder.")
+    return await asyncio.to_thread(folder_service.preview_folder, folder)
 
 
 @router.delete("/{folder_id}")

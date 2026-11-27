@@ -521,7 +521,48 @@ async def models_pull(body: dict):
     name = str(body.get("name", "")).strip()
     if not name:
         raise HTTPException(400, "A model name is required.")
-    return _model_progress_sse(lambda c: c.pull_model(name))
+    return _model_progress_sse(lambda c: _pull_with_space_check(c, name))
+
+
+def _ollama_models_dir() -> str | None:
+    """Where a local Ollama keeps model blobs, if we can see it."""
+    import os
+    from pathlib import Path
+    from urllib.parse import urlparse
+
+    host = urlparse(str(settings.get("ollama_host") or "")).hostname or ""
+    if host not in ("localhost", "127.0.0.1", "::1", ""):
+        return None  # remote Ollama: its disk isn't ours to measure
+    for cand in (os.environ.get("OLLAMA_MODELS"), str(Path.home() / ".ollama" / "models"),
+                 "/usr/share/ollama/.ollama/models", "/var/lib/ollama/.ollama/models"):
+        if cand and Path(cand).is_dir():
+            return cand
+    return None
+
+
+async def _pull_with_space_check(client: OllamaClient, name: str):
+    """Ollama's pull, stopped early with a clear message when the layers it
+    announces won't fit. Cancelling (closing the request) stops the
+    download; pulling again resumes from the part already fetched."""
+    import shutil
+
+    models_dir = _ollama_models_dir()
+    totals: dict[str, int] = {}
+    checked: set[str] = set()
+    async for ev in client.pull_model(name):
+        digest, total = ev.get("digest"), ev.get("total")
+        if models_dir and digest and total and digest not in checked:
+            checked.add(digest)
+            totals[digest] = int(total) - int(ev.get("completed") or 0)
+            need = sum(totals.values())
+            free = shutil.disk_usage(models_dir).free
+            if need > free - 512 * 1024 * 1024:
+                raise OllamaError(
+                    f"Not enough disk space for {name}: it needs about {need / 1e9:.1f} GB more and "
+                    f"{free / 1e9:.1f} GB is free on the drive holding Ollama's models. "
+                    "Free some space (Settings → Installed models lets you delete unused ones) and try again."
+                )
+        yield ev
 
 
 @router.post("/models/create")

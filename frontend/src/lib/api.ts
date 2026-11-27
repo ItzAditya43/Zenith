@@ -92,7 +92,9 @@ async function errorDetail(res: Response): Promise<string> {
   try {
     const body = (await res.json()) as ErrorBody;
     signalGate(body);
-    return typeof body.detail === "string" ? body.detail : res.statusText;
+    const msg = typeof body.detail === "string" ? body.detail : res.statusText;
+    const id = (body as { error_id?: string }).error_id || (res.status >= 500 ? res.headers.get("X-Request-ID") : null);
+    return id ? `${msg} (error ID ${id})` : msg;
   } catch {
     return res.statusText; // non-JSON error body
   }
@@ -532,6 +534,12 @@ export const api = {
       body: JSON.stringify({ enabled }),
     }),
   removeFolder: (id: string) => request(`/api/folders/${id}`, { method: "DELETE" }),
+  setFolderPatterns: (id: string, include: string, exclude: string, extensions: string | null = null) =>
+    request(`/api/folders/${id}/patterns`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ include_patterns: include, exclude_patterns: exclude, extensions }),
+    }).then((r) => r.json()),
+  previewFolder: (id: string) => request(`/api/folders/${id}/preview`).then((r) => r.json()),
   scanFolderNow: (id: string) => request(`/api/folders/${id}/scan`, { method: "POST" }).then((r) => r.json()),
 
   listSchedules: () => request("/api/schedules").then((r) => r.json()),
@@ -568,6 +576,10 @@ export const api = {
     }),
   removeMcpServer: (id: string) => request(`/api/mcp/servers/${id}`, { method: "DELETE" }),
   getMcpServerTools: (id: string) => request(`/api/mcp/servers/${id}/tools`).then((r) => r.json()),
+  setMcpToolPolicy: (id: string, tool: string, policy: string) =>
+    request(`/api/mcp/servers/${id}/tools/${encodeURIComponent(tool)}/policy`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ policy }),
+    }).then((r) => r.json()),
 
   listBranches: (conversationId: string) =>
     request(`/api/conversations/${conversationId}/branches`).then((r) => r.json()),
@@ -974,7 +986,7 @@ export const api = {
     request("/api/models/unavailable").then((r) => r.json()),
   getRoutingOverrideSummary: (days: number = 30) =>
     request(`/api/routing/override-summary?days=${days}`).then((r) => r.json()),
-  pullModel: (name: string, onEvent: StreamHandler) => streamSSE("/api/models/pull", { name }, onEvent),
+  pullModel: (name: string, onEvent: StreamHandler, signal?: AbortSignal) => streamSSE("/api/models/pull", { name }, onEvent, signal),
   createModel: (spec: Record<string, unknown>, onEvent: StreamHandler) => streamSSE("/api/models/create", spec, onEvent),
   deleteModel: (name: string) =>
     request(`/api/models/${name}`, { method: "DELETE" }).then((r) => r.json()),

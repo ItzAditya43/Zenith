@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
 import { SECTIONS, SECTION_GROUPS } from "./settings/constants.js";
@@ -305,6 +305,7 @@ export default function SettingsPanel({
       setMcpToolsResult((r) => ({ ...r, [id]: { error: err.message } }));
     } finally {
       setMcpToolsChecking(null);
+      refreshMcpServers();
     }
   };
 
@@ -686,12 +687,16 @@ export default function SettingsPanel({
     }
   };
 
+  const pullAbort = useRef(null);
+  const cancelPull = () => pullAbort.current?.abort();
   const handlePull = async (overrideName) => {
     const name = (overrideName || pullName).trim();
     if (!name || pullBusy) return;
     setPullBusy(true);
     setPullStatus("Starting…");
     setPullPct(null);
+    const ctl = new AbortController();
+    pullAbort.current = ctl;
     await api.pullModel(name, (ev) => {
       if (ev.error) setPullStatus(`Error: ${ev.error}`);
       else if (ev.status === "done") setPullStatus("Done.");
@@ -699,7 +704,9 @@ export default function SettingsPanel({
         setPullStatus(ev.status || "Pulling…");
         if (ev.total && ev.completed) setPullPct(Math.round((ev.completed / ev.total) * 100));
       }
-    });
+    }, ctl.signal);
+    if (ctl.signal.aborted) setPullStatus(`Stopped. Download ${name} again to pick up where it left off.`);
+    pullAbort.current = null;
     setPullBusy(false);
     setPullName("");
     setPullPct(null);
@@ -1094,6 +1101,7 @@ export default function SettingsPanel({
     draftEmailReply,
     sendEmailReply,
     handlePull,
+    cancelPull,
     handleCreate,
     handleDeleteModel,
     handleImport,

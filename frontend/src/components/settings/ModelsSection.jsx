@@ -23,6 +23,7 @@ export default function ModelsSection() {
     createBusy,
     createStatus,
     handlePull,
+    cancelPull,
     handleCreate,
     handleDeleteModel,
     unavailableModels = {},
@@ -189,6 +190,9 @@ export default function ModelsSection() {
           <span className="setting-hint">
             {pullStatus}
             {pullPct != null ? ` — ${pullPct}%` : ""}
+            {pullBusy && (
+              <button className="text-btn" style={{ marginLeft: "0.5rem" }} onClick={cancelPull}>Cancel</button>
+            )}
           </span>
           {pullPct != null && (
             <div className="model-progress-bar">

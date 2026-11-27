@@ -6451,3 +6451,12 @@ html[data-reduce-motion] .getstarted { animation: none; }
 .digest-items ul { margin: 4px 0 0; padding-left: 16px; display: grid; gap: 2px; }
 .digest-items em { font-style: normal; color: var(--text-tertiary, var(--text-secondary)); }
 .notif-push-failed { color: var(--color-danger, #d33); }
+
+.mcp-tools { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.mcp-tool { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; background: var(--surface-sunken, rgba(127,127,127,.06)); }
+.mcp-tool code { font-size: 12px; margin-right: 6px; }
+.mb-badge-warn { color: var(--color-danger, #d33); }
+
+.folder-filters-toggle { flex-basis: 100%; text-align: left; font-size: 12px; }
+.folder-filters { flex-basis: 100%; display: grid; gap: 6px; padding: 8px 0 2px; }
+.folder-filters label { display: grid; gap: 3px; font-size: 12px; color: var(--text-secondary); }

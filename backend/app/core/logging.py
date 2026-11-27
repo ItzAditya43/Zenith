@@ -20,6 +20,7 @@ import logging
 import os
 import sys
 import time
+from contextvars import ContextVar
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,10 @@ def _get_settings():
 
 
 _LOGGER: logging.Logger | None = None
+
+# Set per HTTP request by RequestContext (app/core/request_context.py), so
+# every log line written while handling a request carries its ID.
+request_id_var: ContextVar[str | None] = ContextVar("zenith_request_id", default=None)
 _FILE_HANDLER: RotatingFileHandler | None = None
 
 
@@ -187,6 +192,10 @@ class BoundLogger:
 
     def _emit(self, level: int, msg: object, *args, **kwargs) -> None:
         extra = kwargs.pop("extra", None) or {}
+        exc_info = kwargs.pop("exc_info", None)
+        rid = request_id_var.get()
+        if rid:
+            extra.setdefault("request_id", rid)
         # Harvest any leftover kwargs as structured context.
         for k, v in list(kwargs.items()):
             if k in _STDLIB_RESERVED:
@@ -199,7 +208,7 @@ class BoundLogger:
             # Auto-rename keys that would collide with LogRecord attrs
             # so the structured context isn't silently dropped.
             extra.setdefault(_collision_safe(k), v)
-        self._log.log(level, msg, *args, extra=extra)
+        self._log.log(level, msg, *args, extra=extra, exc_info=exc_info)
 
     def debug(self, msg: object, *args, **kwargs) -> None:
         self._emit(logging.DEBUG, msg, *args, **kwargs)
