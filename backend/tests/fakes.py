@@ -89,6 +89,7 @@ class FakeOllama:
 
         cls = ollama_client.OllamaClient
         monkeypatch.setattr(cls, "list_models", list_models)
+        monkeypatch.setattr(cls, "_ollama_models", list_models)
         monkeypatch.setattr(cls, "chat_stream", chat_stream)
         monkeypatch.setattr(cls, "embeddings", embeddings)
         monkeypatch.setattr(cls, "preload", preload)
