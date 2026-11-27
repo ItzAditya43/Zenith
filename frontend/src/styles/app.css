@@ -6479,3 +6479,4 @@ html[data-reduce-motion] .getstarted { animation: none; }
 .council-member { display: inline-flex; gap: 6px; align-items: center; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-hairline); }
 .council-member em { font-style: normal; color: var(--text-secondary); }
 .council-member.is-stopped em { color: var(--color-danger, #d33); }
+.ws-terminal-tools { display: flex; gap: 8px; justify-content: flex-end; padding: 2px 8px; font-size: 11px; }

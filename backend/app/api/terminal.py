@@ -120,6 +120,21 @@ async def resize(sid: str, body: ResizeRequest, request: Request):
     return {"ok": True}
 
 
+@router.get("/terminal/sessions")
+async def terminal_sessions():
+    """Every open terminal, so stray ones can be found and closed."""
+    return terminal_service.list_sessions()
+
+
+@router.post("/terminal/{sid}/interrupt")
+async def terminal_interrupt(sid: str):
+    s = terminal_service.get(sid)
+    if not s:
+        raise HTTPException(404, "No such terminal.")
+    terminal_service.interrupt(s)
+    return {"ok": True}
+
+
 @router.delete("/terminal/{sid}")
 async def close(sid: str, request: Request):
     _guard(request)

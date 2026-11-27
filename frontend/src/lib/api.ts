@@ -489,6 +489,8 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cols, rows }),
     }).then((r) => r.json()),
+  terminalInterrupt: (sid: string) => request(`/api/terminal/${sid}/interrupt`, { method: "POST" }).then((r) => r.json()),
+  terminalSessions: () => request("/api/terminal/sessions").then((r) => r.json()),
   terminalClose: (sid: string) => request(`/api/terminal/${sid}`, { method: "DELETE" }).then((r) => r.json()),
   codeSymbols: (conversationId: string, q: string) =>
     request(`/api/conversations/${conversationId}/code/symbols?q=${encodeURIComponent(q)}`).then((r) => r.json()),

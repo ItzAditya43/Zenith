@@ -148,6 +148,12 @@ export default function TerminalView({ conversationId, active }) {
 
   return (
     <div className="ws-terminal">
+      {status !== "exited" && status !== "error" && (
+        <div className="ws-terminal-tools">
+          <button className="text-btn" title="Stop the running command (Ctrl+C)" onClick={() => sid.current && api.terminalInterrupt(sid.current).catch(() => {})}>Interrupt</button>
+          <button className="text-btn" title="Close this shell and start a fresh one" onClick={restart}>Restart</button>
+        </div>
+      )}
       <div className="ws-terminal-host" ref={host} />
       {(status === "exited" || status === "error") && (
         <div className="ws-terminal-status" role="status">

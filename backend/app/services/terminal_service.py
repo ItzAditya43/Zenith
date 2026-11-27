@@ -191,10 +191,37 @@ def kill(session_id: str) -> bool:
         return False
     if s.alive:
         try:
-            os.killpg(os.getpgid(s.pid), signal.SIGHUP)
+            pgid = os.getpgid(s.pid)
+            os.killpg(pgid, signal.SIGHUP)
         except (ProcessLookupError, PermissionError, OSError):
-            pass
+            return True
+
+        def _escalate() -> None:
+            # Something that ignores SIGHUP (nohup'd job, stuck process) gets SIGKILL.
+            time.sleep(2.0)
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+
+        threading.Thread(target=_escalate, daemon=True).start()
     return True
+
+
+def interrupt(s: Session) -> None:
+    """Ctrl-C for whatever is running in the foreground of this terminal."""
+    try:
+        fg = os.tcgetpgrp(s.fd)
+        os.killpg(fg, signal.SIGINT)
+    except (ProcessLookupError, PermissionError, OSError):
+        write(s, "\x03")
+
+
+def list_sessions() -> list[dict]:
+    with _registry_lock:
+        items = list(_sessions.values())
+    return [{"id": x.id, "conversation_id": x.conversation_id, "cwd": x.cwd, "pid": x.pid, "alive": x.alive,
+             "exit_code": x.exit_code, "started": x.started, "last_seen": x.last_seen} for x in items]
 
 
 def cleanup_idle(now: float | None = None) -> None:
