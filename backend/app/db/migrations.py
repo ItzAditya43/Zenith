@@ -1057,6 +1057,26 @@ def _turn_traces_table(conn: sqlite3.Connection) -> None:
 
 
 # Ordered list — never reorder, only append.
+
+def _webhook_delivery_tables(conn: sqlite3.Connection) -> None:
+    """Signing secret + failure counter per webhook, and a delivery log
+    (one row per attempt series) so users can see what was sent and why
+    it failed."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(webhooks)")}
+    if "secret" not in cols:
+        conn.execute("ALTER TABLE webhooks ADD COLUMN secret TEXT")
+    if "consecutive_failures" not in cols:
+        conn.execute("ALTER TABLE webhooks ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0")
+    if "disabled_reason" not in cols:
+        conn.execute("ALTER TABLE webhooks ADD COLUMN disabled_reason TEXT")
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS webhook_deliveries (
+            id TEXT PRIMARY KEY, webhook_id TEXT, target TEXT NOT NULL, event TEXT NOT NULL,
+            delivery_key TEXT NOT NULL, attempts INTEGER NOT NULL, status TEXT NOT NULL,
+            http_status INTEGER, error TEXT, payload TEXT NOT NULL, created_at REAL NOT NULL)"""
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_hook ON webhook_deliveries (webhook_id, created_at)")
+
 MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "baseline", _baseline),
     (2, "attachments_table", _attachments_table),
@@ -1112,6 +1132,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (52, "research_workspace_columns", _research_workspace_columns),
     (53, "provider_usage_table", _provider_usage_table),
     (54, "api_keys_table", _api_keys_table),
+    (55, "webhook_delivery_tables", _webhook_delivery_tables),
 ]
 
 

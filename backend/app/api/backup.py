@@ -17,6 +17,7 @@ snapshot regardless of WAL state, without needing to stop the server.
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import shutil
@@ -92,17 +93,29 @@ def _build_backup_zip() -> bytes:
         if config_path.exists():
             zf.write(config_path, CONFIG_ARCNAME)
 
+        checksums: dict[str, str] = {}
+        if DB_ARCNAME in zf.namelist():
+            checksums[DB_ARCNAME] = hashlib.sha256(zf.read(DB_ARCNAME)).hexdigest()
         upload_dir = _upload_dir()
+        n_uploads, upload_bytes = 0, 0
         if upload_dir.exists():
             for f in upload_dir.rglob("*"):
                 if f.is_file():
                     arcname = UPLOADS_PREFIX + str(f.relative_to(upload_dir))
                     zf.write(f, arcname)
+                    n_uploads += 1
+                    upload_bytes += f.stat().st_size
 
         manifest = {
             "created_at": time.time(),
             "app": "zenith",
             "kind": "full-backup",
+            "format": 2,
+            "app_version": _app_version(),
+            "schema_version": _schema_version(db_path) if db_path.exists() else None,
+            "attachments": {"files": n_uploads, "bytes": upload_bytes},
+            "includes_config": config_path.exists(),
+            "sha256": checksums,
         }
         zf.writestr("manifest.json", json.dumps(manifest, indent=2))
     return buf.getvalue()
@@ -126,6 +139,123 @@ async def create_backup():
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _app_version() -> str:
+    from app.main import app as _app
+    return str(_app.version)
+
+
+def _schema_version(db: Path) -> int | None:
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        try:
+            r = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()
+            return int(r[0]) if r and r[0] is not None else None
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
+def _safe_upload_target(upload_dir: Path, name: str) -> Path | None:
+    """Resolve an archive member under uploads/, refusing anything that
+    would land outside it ("zip slip": ../ segments or absolute paths)."""
+    rel = name[len(UPLOADS_PREFIX):]
+    if not rel or rel.startswith(("/", "\\")) or ".." in Path(rel).parts:
+        return None
+    target = (upload_dir / rel).resolve()
+    try:
+        target.relative_to(upload_dir.resolve())
+    except ValueError:
+        return None
+    return target
+
+
+def inspect_backup(zf: zipfile.ZipFile) -> dict:
+    """What restoring this archive would do, without touching anything:
+    manifest, integrity (checksums + SQLite integrity_check), contents,
+    and how it compares with the current install."""
+    import tempfile
+
+    names = zf.namelist()
+    problems: list[str] = []
+    manifest: dict = {}
+    if "manifest.json" in names:
+        try:
+            manifest = json.loads(zf.read("manifest.json"))
+        except (ValueError, zipfile.BadZipFile) as exc:
+            problems.append(f"manifest.json is unreadable: {exc}")
+    else:
+        problems.append("No manifest — an older or hand-made backup; integrity can't be fully verified.")
+    bad = zf.testzip()
+    if bad:
+        problems.append(f"Archive member {bad} is corrupt (CRC mismatch).")
+    unsafe = [n for n in names if n.startswith(UPLOADS_PREFIX) and not n.endswith("/")
+              and _safe_upload_target(_upload_dir(), n) is None]
+    if unsafe:
+        problems.append(f"{len(unsafe)} attachment path(s) point outside the uploads folder and will be skipped.")
+    counts: dict[str, int] = {}
+    schema = None
+    if DB_ARCNAME in names:
+        raw = zf.read(DB_ARCNAME)
+        want = (manifest.get("sha256") or {}).get(DB_ARCNAME)
+        if want and hashlib.sha256(raw).hexdigest() != want:
+            problems.append("Database checksum doesn't match the manifest — the backup was modified or damaged.")
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+            tmp.write(raw)
+            tmp_path = Path(tmp.name)
+        try:
+            conn = sqlite3.connect(str(tmp_path))
+            try:
+                ok = conn.execute("PRAGMA integrity_check").fetchone()[0]
+                if ok != "ok":
+                    problems.append(f"Database integrity check failed: {ok}")
+                for table in ("conversations", "messages", "memories", "documents", "notes", "todos"):
+                    try:
+                        counts[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # noqa: S608
+                    except sqlite3.Error:
+                        pass
+            finally:
+                conn.close()
+            schema = _schema_version(tmp_path)
+        except sqlite3.DatabaseError as exc:
+            problems.append(f"The database in this backup can't be opened: {exc}")
+        finally:
+            tmp_path.unlink(missing_ok=True)
+    else:
+        problems.append("Missing zenith.db — this isn't a Zenith backup.")
+    current_schema = _schema_version(_db_path()) if _db_path().exists() else None
+    notes = []
+    if schema is not None and current_schema is not None and schema > current_schema:
+        problems.append(f"This backup is from a newer Zenith (schema {schema} > {current_schema}). Update Zenith first.")
+    elif schema is not None and current_schema is not None and schema < current_schema:
+        notes.append(f"Older backup (schema {schema}); it will be upgraded to {current_schema} on the next start.")
+    attachments = sum(1 for n in names if n.startswith(UPLOADS_PREFIX) and not n.endswith("/"))
+    return {
+        "ok": not any(p for p in problems if not p.startswith(("No manifest", f"{len(unsafe)} attachment"))),
+        "problems": problems,
+        "notes": notes,
+        "created_at": manifest.get("created_at"),
+        "app_version": manifest.get("app_version"),
+        "schema_version": schema,
+        "current_schema_version": current_schema,
+        "counts": counts,
+        "attachments": attachments,
+        "includes_config": CONFIG_ARCNAME in names,
+    }
+
+
+@router.post("/inspect")
+async def inspect_backup_upload(file: UploadFile):
+    """Restore preview: validates an uploaded backup and reports what it holds."""
+    raw = await file.read()
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile:
+        raise HTTPException(400, "That file isn't a zip archive.") from None
+    with zf:
+        return inspect_backup(zf)
 
 
 def _validate_backup_zip(zf: zipfile.ZipFile) -> None:
@@ -206,6 +336,9 @@ async def restore_backup(file: UploadFile, confirm: bool = Form(False)):
 
     with zf:
         _validate_backup_zip(zf)
+        report = inspect_backup(zf)
+        if not report["ok"]:
+            raise HTTPException(400, "Backup failed its integrity check — nothing was touched. " + " ".join(report["problems"]))
 
         data_dir = _data_dir()
 
@@ -237,8 +370,10 @@ async def restore_backup(file: UploadFile, confirm: bool = Form(False)):
         upload_dir.mkdir(parents=True, exist_ok=True)
         for name in zf.namelist():
             if name.startswith(UPLOADS_PREFIX) and not name.endswith("/"):
-                rel = name[len(UPLOADS_PREFIX):]
-                target = upload_dir / rel
+                target = _safe_upload_target(upload_dir, name)
+                if target is None:
+                    log.warning("backup.restore_skipped_unsafe_path", name=name)
+                    continue
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(name) as src, open(target, "wb") as dst:
                     shutil.copyfileobj(src, dst)

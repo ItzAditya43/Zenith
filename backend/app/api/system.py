@@ -230,6 +230,30 @@ async def health(request: Request):
     return payload
 
 
+@router.get("/diagnostics/bundle/preview")
+async def diagnostics_bundle_preview(request: Request):
+    """Exactly what the diagnostic bundle download will contain."""
+    from app.services import support_bundle
+    return {"files": await support_bundle.preview(await _health_payload(request))}
+
+
+@router.get("/diagnostics/bundle")
+async def diagnostics_bundle(request: Request):
+    from fastapi.responses import Response
+
+    from app.services import support_bundle
+    data = support_bundle.build_zip(await support_bundle.preview(await _health_payload(request)))
+    name = f"zenith-diagnostics-{time.strftime('%Y%m%d-%H%M%S')}.zip"
+    return Response(data, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+async def _health_payload(request: Request) -> dict:
+    try:
+        return await health(request)
+    except HTTPException as exc:
+        return exc.detail if isinstance(exc.detail, dict) else {"status": "down"}
+
+
 @router.get("/version")
 async def api_version():
     from app.core.security import API_VERSION

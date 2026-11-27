@@ -207,6 +207,7 @@ def _row_to_webhook(r) -> dict:
     d = dict(r)
     d["event_types"] = json.loads(d["event_types"] or "[]")
     d["enabled"] = bool(d["enabled"])
+    d["has_secret"] = bool(d.pop("secret", None))
     return d
 
 
@@ -218,19 +219,43 @@ def list_webhooks(enabled_only: bool = False) -> list[dict]:
 
 
 def create_webhook(url: str, event_types: list[str]) -> dict:
+    """The signing secret is returned once, here, and never listed again."""
+    import secrets as _secrets
+
     wid = str(uuid.uuid4())
     now = time.time()
+    secret = "whsec_" + _secrets.token_urlsafe(24)
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO webhooks (id, url, event_types, enabled, created_at) VALUES (?, ?, ?, 1, ?)",
-            (wid, url, json.dumps(event_types), now),
+            "INSERT INTO webhooks (id, url, event_types, enabled, created_at, secret) VALUES (?, ?, ?, 1, ?, ?)",
+            (wid, url, json.dumps(event_types), now, secret),
         )
-    return {"id": wid, "url": url, "event_types": event_types, "enabled": True, "created_at": now}
+    return {"id": wid, "url": url, "event_types": event_types, "enabled": True, "created_at": now,
+            "secret": secret, "has_secret": True, "consecutive_failures": 0, "disabled_reason": None}
+
+
+def webhook_secret(webhook_id: str) -> str | None:
+    with _conn() as conn:
+        r = conn.execute("SELECT secret FROM webhooks WHERE id = ?", (webhook_id,)).fetchone()
+        return r["secret"] if r else None
+
+
+def rotate_webhook_secret(webhook_id: str) -> str | None:
+    import secrets as _secrets
+
+    secret = "whsec_" + _secrets.token_urlsafe(24)
+    with _conn() as conn:
+        cur = conn.execute("UPDATE webhooks SET secret = ? WHERE id = ?", (secret, webhook_id))
+        return secret if cur.rowcount else None
 
 
 def set_webhook_enabled(webhook_id: str, enabled: bool) -> None:
     with _conn() as conn:
-        conn.execute("UPDATE webhooks SET enabled = ? WHERE id = ?", (1 if enabled else 0, webhook_id))
+        conn.execute(
+            "UPDATE webhooks SET enabled = ?, consecutive_failures = CASE WHEN ? THEN 0 ELSE consecutive_failures END,"
+            " disabled_reason = NULL WHERE id = ?",
+            (1 if enabled else 0, 1 if enabled else 0, webhook_id),
+        )
 
 
 def delete_webhook(webhook_id: str) -> None:

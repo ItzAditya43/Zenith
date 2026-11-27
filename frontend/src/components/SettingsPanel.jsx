@@ -112,6 +112,7 @@ export default function SettingsPanel({
   const [eventTypes, setEventTypes] = useState([]);
   const [webhooks, setWebhooks] = useState([]);
   const [webhooksError, setWebhooksError] = useState(null);
+  const [newWebhookSecret, setNewWebhookSecret] = useState(null);
   const [newWebhookUrl, setNewWebhookUrl] = useState("");
   const [newWebhookEvents, setNewWebhookEvents] = useState([]);
   const [rules, setRules] = useState([]);
@@ -314,7 +315,8 @@ export default function SettingsPanel({
   const addWebhook = async () => {
     if (!newWebhookUrl.trim() || newWebhookEvents.length === 0) return;
     try {
-      await api.createWebhook(newWebhookUrl.trim(), newWebhookEvents);
+      const created = await api.createWebhook(newWebhookUrl.trim(), newWebhookEvents);
+      setNewWebhookSecret(created?.secret ? { id: created.id, secret: created.secret } : null);
       setNewWebhookUrl("");
       setNewWebhookEvents([]);
       refreshAutomation();
@@ -992,6 +994,8 @@ export default function SettingsPanel({
     webhooks,
     setWebhooks,
     webhooksError,
+    newWebhookSecret,
+    setNewWebhookSecret,
     setWebhooksError,
     newWebhookUrl,
     setNewWebhookUrl,

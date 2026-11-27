@@ -69,7 +69,10 @@ def test_webhook_dispatch_fires_for_matching_event_only(client, monkeypatch):
     import asyncio
     calls = []
 
-    async def fake_post(self, url, json=None, **kwargs):
+    async def fake_post(self, url, json=None, content=None, **kwargs):
+        if content is not None:
+            import json as _j
+            json = _j.loads(content)
         calls.append((url, json))
 
         class R:
@@ -128,7 +131,10 @@ def test_automation_rule_fires_webhook_action_on_matching_event(client, monkeypa
     import asyncio
     calls = []
 
-    async def fake_post(self, url, json=None, **kwargs):
+    async def fake_post(self, url, json=None, content=None, **kwargs):
+        if content is not None:
+            import json as _j
+            json = _j.loads(content)
         calls.append((url, json))
 
         class R:
@@ -182,7 +188,7 @@ def test_automation_rule_folder_filter_only_fires_for_matching_folder(client, mo
     import asyncio
     calls = []
 
-    async def fake_post(self, url, json=None, **kwargs):
+    async def fake_post(self, url, json=None, content=None, **kwargs):
         calls.append(url)
 
         class R:

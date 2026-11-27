@@ -2,12 +2,7 @@ import { useState } from "react";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
 
-/** Full backup/restore overlay — standalone, not yet wired into
- * App.jsx/SettingsPanel.jsx (another pass handles integration). Mirrors
- * HealthPanel's dialog/overlay conventions exactly (role="dialog",
- * aria-modal, close button) and SettingsPanel's `<a download>` pattern
- * for the export link, so it looks and behaves like the rest of the
- * settings surface even though it isn't mounted anywhere yet.
+/** Full backup/restore overlay.
  *
  * Unlike Settings -> Data's JSON/Markdown export (your data, readable),
  * this downloads the actual on-disk state — the SQLite database,
@@ -21,8 +16,26 @@ export default function BackupPanel({ onClose }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [checking, setChecking] = useState(false);
 
-  const canRestore = !!file && confirmed && !busy;
+  const canRestore = !!file && confirmed && !busy && preview?.ok;
+
+  const pick = async (f) => {
+    setFile(f);
+    setResult(null);
+    setError(null);
+    setPreview(null);
+    if (!f) return;
+    setChecking(true);
+    try {
+      setPreview(await api.inspectBackup(f));
+    } catch (err) {
+      setError(err.message || "Couldn't read that backup.");
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const handleRestore = async () => {
     if (!canRestore) return;
@@ -90,12 +103,26 @@ export default function BackupPanel({ onClose }) {
             <input
               type="file"
               accept=".zip"
-              onChange={(e) => {
-                setFile(e.target.files?.[0] || null);
-                setResult(null);
-                setError(null);
-              }}
+              aria-label="Backup file to restore"
+              onChange={(e) => pick(e.target.files?.[0] || null)}
             />
+
+            {checking && <p className="settings-section-desc">Checking the backup…</p>}
+            {preview && (
+              <div className={`backup-preview ${preview.ok ? "" : "is-bad"}`} role="status">
+                <strong>{preview.ok ? "Backup looks good" : "This backup can't be restored"}</strong>
+                <ul>
+                  {preview.created_at && <li>Taken {new Date(preview.created_at * 1000).toLocaleString()}</li>}
+                  {preview.app_version && <li>Zenith {preview.app_version} · schema {preview.schema_version ?? "?"} (this install: {preview.current_schema_version ?? "?"})</li>}
+                  <li>
+                    {Object.entries(preview.counts || {}).map(([k, v]) => `${v} ${k}`).join(" · ") || "No readable tables"}
+                  </li>
+                  <li>{preview.attachments} attachment file{preview.attachments === 1 ? "" : "s"}{preview.includes_config ? " · settings included" : " · no settings file"}</li>
+                  {preview.notes?.map((n) => <li key={n}>{n}</li>)}
+                  {preview.problems?.map((p) => <li key={p} className="backup-problem">{p}</li>)}
+                </ul>
+              </div>
+            )}
 
             <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <input

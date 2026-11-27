@@ -385,7 +385,16 @@ export const api = {
   conversationPdfUrl: (conversationId: string) => `${BASE}/api/export/${conversationId}/pdf`,
 
   // Full backup (DB + config.json + attachments), distinct from the data-only
-  // export above. See app/api/backup.py — not yet registered in main.py.
+  // export above. See app/api/backup.py.
+  inspectBackup: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/api/backup/inspect", { method: "POST", body: form }).then((r) => r.json());
+  },
+  testWebhook: (id: string) => request(`/api/webhooks/${id}/test`, { method: "POST" }).then((r) => r.json()),
+  rotateWebhookSecret: (id: string) => request(`/api/webhooks/${id}/rotate-secret`, { method: "POST" }).then((r) => r.json()),
+  webhookDeliveries: (id?: string) =>
+    request(`/api/webhooks/deliveries${id ? `?webhook_id=${encodeURIComponent(id)}` : ""}`).then((r) => r.json()),
   backupUrl: () => `${BASE}/api/backup/create`,
   restoreBackup: (file: File, confirm: boolean) => {
     const form = new FormData();

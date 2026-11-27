@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { api } from "../../lib/api";
 import { useSettings } from "./SettingsContext.js";
 import Select from "../Select.jsx";
 
@@ -7,6 +9,8 @@ export default function AutomationSection() {
     eventTypes,
     webhooks,
     webhooksError,
+    newWebhookSecret,
+    setNewWebhookSecret,
     newWebhookUrl,
     setNewWebhookUrl,
     newWebhookEvents,
@@ -78,18 +82,14 @@ export default function AutomationSection() {
       {webhooksError && <p className="settings-error">{webhooksError}</p>}
       <ul className="model-list" style={{ marginTop: "0.75rem" }}>
         {webhooks.map((w) => (
-          <li key={w.id} style={{ opacity: w.enabled ? 1 : 0.5 }}>
-            <span className="model-name" style={{ flex: 1 }}>
-              {w.url}
-              <span className="setting-hint" style={{ display: "block" }}>{w.event_types.join(", ")}</span>
-            </span>
-            <span className="settings-row" style={{ gap: "0.5rem" }}>
-              <button className="text-btn" onClick={() => toggleWebhook(w.id, !w.enabled)}>
-                {w.enabled ? "On" : "Off"}
-              </button>
-              <button className="icon-btn" onClick={() => deleteWebhook(w.id)} title="Delete" aria-label="Delete webhook">×</button>
-            </span>
-          </li>
+          <WebhookRow
+            key={w.id}
+            hook={w}
+            secret={newWebhookSecret?.id === w.id ? newWebhookSecret.secret : null}
+            onSecret={(secret) => setNewWebhookSecret(secret ? { id: w.id, secret } : null)}
+            onToggle={() => toggleWebhook(w.id, !w.enabled)}
+            onDelete={() => deleteWebhook(w.id)}
+          />
         ))}
         {webhooks.length === 0 && !webhooksError && <li className="model-empty">No webhooks yet.</li>}
       </ul>
@@ -201,5 +201,71 @@ export default function AutomationSection() {
         {rules.length === 0 && !rulesError && <li className="model-empty">No automation rules yet.</li>}
       </ul>
     </section>
+  );
+}
+
+
+/** One webhook: on/off, a test send, secret rotation and its recent deliveries. */
+function WebhookRow({ hook: w, secret, onSecret, onToggle, onDelete }) {
+  const [test, setTest] = useState(null);
+  const [log, setLog] = useState(null);
+  const runTest = async () => {
+    setTest({ status: "sending" });
+    try {
+      setTest(await api.testWebhook(w.id));
+    } catch (err) {
+      setTest({ status: "failed", error: err.message });
+    }
+  };
+  const toggleLog = async () => {
+    if (log) return setLog(null);
+    setLog(await api.webhookDeliveries(w.id).catch(() => []));
+  };
+  const rotate = async () => {
+    if (!window.confirm("Make a new signing secret? Receivers using the old one will start rejecting deliveries.")) return;
+    const r = await api.rotateWebhookSecret(w.id);
+    onSecret(r.secret);
+  };
+  return (
+    <li style={{ flexDirection: "column", alignItems: "stretch", opacity: w.enabled ? 1 : 0.6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <span className="model-name" style={{ flex: 1, minWidth: 0 }}>
+          {w.url}
+          <span className="setting-hint" style={{ display: "block" }}>{w.event_types.join(", ")}</span>
+        </span>
+        <span className="settings-row" style={{ gap: "0.5rem" }}>
+          <button className="text-btn" onClick={runTest} disabled={test?.status === "sending"}>Test</button>
+          <button className="text-btn" onClick={toggleLog} aria-expanded={!!log}>History</button>
+          <button className="text-btn" onClick={rotate}>New secret</button>
+          <button className="text-btn" onClick={onToggle}>{w.enabled ? "On" : "Off"}</button>
+          <button className="icon-btn" onClick={onDelete} title="Delete" aria-label="Delete webhook">×</button>
+        </span>
+      </div>
+      {w.disabled_reason && <p className="settings-error" style={{ margin: "4px 0 0" }}>{w.disabled_reason}</p>}
+      {secret && (
+        <p className="setting-hint" style={{ margin: "6px 0 0" }}>
+          Signing secret (shown once — copy it now): <code>{secret}</code>{" "}
+          <button className="text-btn" onClick={() => onSecret(null)}>Done</button>
+          <br />Verify <code>X-Zenith-Signature</code> = HMAC-SHA256 of <code>timestamp + &quot;.&quot; + body</code>.
+        </p>
+      )}
+      {test && test.status !== "sending" && (
+        <p className={test.status === "delivered" ? "setting-hint" : "settings-error"} style={{ margin: "4px 0 0" }} role="status">
+          {test.status === "delivered" ? `Delivered (HTTP ${test.http_status}).` : `Test ${test.status}: ${test.error || `HTTP ${test.http_status}`}`}
+        </p>
+      )}
+      {log && (
+        <ul className="webhook-log">
+          {log.length === 0 && <li>No deliveries yet.</li>}
+          {log.map((d) => (
+            <li key={d.id}>
+              <span className={`webhook-log-status is-${d.status}`}>{d.status}</span> {d.event} ·{" "}
+              {new Date(d.created_at * 1000).toLocaleString()} · {d.attempts} attempt{d.attempts === 1 ? "" : "s"}
+              {d.error ? ` · ${d.error}` : d.http_status ? ` · HTTP ${d.http_status}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }

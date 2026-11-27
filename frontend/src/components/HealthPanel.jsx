@@ -155,10 +155,67 @@ export default function HealthPanel({ onClose }) {
                 )}
                 {!jobsError && jobs && jobs.map((job) => <JobRow key={job.name} job={job} />)}
               </div>
+              <DiagnosticBundle />
             </>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+
+/** Bug-report bundle: shows every file it will contain before download. */
+function DiagnosticBundle() {
+  const [files, setFiles] = useState(null);
+  const [open, setOpen] = useState(null);
+  const [err, setErr] = useState(null);
+  const load = async () => {
+    setErr(null);
+    try {
+      const r = await fetch(`${API_BASE}/api/diagnostics/bundle/preview`, { headers: authHeaders() });
+      if (!r.ok) throw new Error(r.statusText);
+      const d = await r.json();
+      setFiles(d.files);
+      setOpen(Object.keys(d.files)[0]);
+    } catch (e) {
+      setErr(e.message || "Couldn't build the preview.");
+    }
+  };
+  const download = async () => {
+    const r = await fetch(`${API_BASE}/api/diagnostics/bundle`, { headers: authHeaders() });
+    const blob = await r.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `zenith-diagnostics-${new Date().toISOString().slice(0, 10)}.zip`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+  return (
+    <div style={{ marginTop: "var(--space-3)" }}>
+      <div className="health-overall">
+        <span>Diagnostic bundle</span>
+      </div>
+      <p className="settings-section-desc">
+        For bug reports: versions, platform, database schema, Ollama models, health and a scrubbed log tail.
+        No conversations, memories, files or keys.
+      </p>
+      {!files ? (
+        <button className="settings-btn-primary" onClick={load}>Preview bundle</button>
+      ) : (
+        <>
+          <div className="diag-tabs" role="tablist" aria-label="Bundle files">
+            {Object.keys(files).map((n) => (
+              <button key={n} role="tab" aria-selected={open === n} className={open === n ? "is-active" : ""} onClick={() => setOpen(n)}>
+                {n}
+              </button>
+            ))}
+          </div>
+          <pre className="diag-preview" tabIndex={0}>{files[open]}</pre>
+          <button className="settings-btn-primary" onClick={download}>Download .zip</button>
+        </>
+      )}
+      {err && <p className="conversation-empty">{err}</p>}
     </div>
   );
 }

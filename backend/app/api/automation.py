@@ -38,7 +38,38 @@ async def create_webhook(body: WebhookCreate):
     bad = [e for e in body.event_types if e not in EVENT_TYPES]
     if bad:
         raise HTTPException(422, f"Unknown event type(s): {bad}")
+    from app.services.webhook_service import UnsafeTarget, check_target
+    try:
+        check_target(body.url)
+    except UnsafeTarget as exc:
+        raise HTTPException(422, str(exc)) from None
     return storage.create_webhook(body.url, body.event_types)
+
+
+@router.post("/webhooks/{webhook_id}/test")
+async def test_webhook(webhook_id: str):
+    """Send a `test` event now and report exactly what happened."""
+    from app.services import webhook_service
+    hook = next((h for h in storage.list_webhooks() if h["id"] == webhook_id), None)
+    if not hook:
+        raise HTTPException(404, "Webhook not found")
+    return await webhook_service.deliver(hook["url"], "test", {"message": "Test delivery from Zenith"},
+                                         secret=storage.webhook_secret(webhook_id), webhook_id=webhook_id,
+                                         backoff=(0.0,))
+
+
+@router.post("/webhooks/{webhook_id}/rotate-secret")
+async def rotate_webhook_secret(webhook_id: str):
+    secret = storage.rotate_webhook_secret(webhook_id)
+    if not secret:
+        raise HTTPException(404, "Webhook not found")
+    return {"secret": secret}
+
+
+@router.get("/webhooks/deliveries")
+async def webhook_deliveries(webhook_id: str | None = None, limit: int = 50):
+    from app.services import webhook_service
+    return webhook_service.deliveries(webhook_id, min(max(limit, 1), 200))
 
 
 @router.patch("/webhooks/{webhook_id}")

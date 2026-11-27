@@ -6410,3 +6410,19 @@ html[data-reduce-motion] .getstarted { animation: none; }
 
 .ws-index-btn { flex: none; height: 26px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-hairline); font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
 .ws-index-btn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--border-soft); }
+
+.backup-preview { border: 1px solid var(--border-hairline); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; color: var(--text-secondary); }
+.backup-preview strong { color: var(--text-primary); }
+.backup-preview ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
+.backup-preview.is-bad { border-color: color-mix(in srgb, var(--color-danger, #d33) 50%, transparent); }
+.backup-problem { color: var(--color-danger, #d33); }
+
+.webhook-log { list-style: none; margin: 6px 0 0; padding: 6px 8px; border-radius: 8px; background: var(--surface-sunken, rgba(127,127,127,.06)); font-size: 11.5px; color: var(--text-secondary); display: grid; gap: 3px; max-height: 180px; overflow-y: auto; }
+.webhook-log-status { font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
+.webhook-log-status.is-delivered { color: var(--color-success, #3a9); }
+.webhook-log-status.is-failed, .webhook-log-status.is-blocked { color: var(--color-danger, #d33); }
+
+.diag-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.diag-tabs button { font-size: 11px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border-hairline); color: var(--text-secondary); }
+.diag-tabs button.is-active { color: var(--text-primary); border-color: var(--border-soft); }
+.diag-preview { max-height: 220px; overflow: auto; font-size: 11px; padding: 8px; border-radius: 8px; background: var(--surface-sunken, rgba(127,127,127,.06)); white-space: pre-wrap; word-break: break-all; margin-bottom: 8px; }

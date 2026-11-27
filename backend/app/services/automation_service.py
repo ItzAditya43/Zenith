@@ -74,19 +74,15 @@ async def _run_prompt_action(rule: dict, data: dict) -> None:
 
 
 async def _run_webhook_action(rule: dict, data: dict) -> None:
-    import time
-
-    import httpx
+    from app.services import webhook_service
 
     cfg = rule.get("action_config") or {}
     url = cfg.get("url")
     if not url:
         return
-    payload = {"event": rule["trigger_type"], "timestamp": time.time(), "data": data, "rule": rule["name"]}
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            await client.post(url, json=payload)
-    except Exception as exc:
+        await webhook_service.deliver(url, rule["trigger_type"], data, extra={"rule": rule["name"]})
+    except Exception as exc:  # noqa: BLE001
         log.warning("automation.webhook_action_failed", rule_id=rule["id"], error=str(exc))
 
 

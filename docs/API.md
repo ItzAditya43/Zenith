@@ -84,3 +84,34 @@ Small, dependency-free clients live in [`examples/clients/`](../examples/clients
   ```
 
 Both cover chat streaming, conversations, uploads, models and events.
+
+## Webhooks
+
+Each delivery is a `POST` with a JSON body:
+
+```json
+{"event": "digest_generated", "timestamp": 1764230400.0, "delivery_id": "…", "schema_version": 1, "data": {…}}
+```
+
+Headers:
+
+| Header | Meaning |
+|---|---|
+| `X-Zenith-Event` | Event name |
+| `X-Zenith-Delivery` | Same value on every retry of one delivery, so you can de-duplicate |
+| `X-Zenith-Timestamp` | Unix seconds used in the signature |
+| `X-Zenith-Signature` | `sha256=` + HMAC-SHA256 of `<timestamp>.<raw body>` with the webhook's secret |
+
+The secret is shown once, when the webhook is created or its secret is rotated (Settings → Automation → New secret).
+Verify in Python:
+
+```python
+import hashlib, hmac
+expected = "sha256=" + hmac.new(secret.encode(), ts.encode() + b"." + body, hashlib.sha256).hexdigest()
+ok = hmac.compare_digest(expected, request.headers["X-Zenith-Signature"])
+```
+
+Network errors, 5xx and 429 are retried up to 3 times (0s, 2s, 8s). Other 4xx responses are not retried.
+After 10 failed deliveries in a row the webhook is switched off, and Settings shows the reason.
+Targets must be `http(s)`. Link-local and cloud-metadata addresses are refused, while loopback and LAN addresses are allowed.
+Delivery history: `GET /api/webhooks/deliveries?webhook_id=…`. Test send: `POST /api/webhooks/{id}/test`.
