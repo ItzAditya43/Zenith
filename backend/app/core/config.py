@@ -287,6 +287,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "wake_word_enabled": False,  # off by default — user must explicitly opt in to continuous mic listening
     "wake_word_phrase": "hey zenith",  # compared case-insensitively against transcribed short bursts
     # --- Document OCR fallback (Tier 4) ---
+    "image_ocr": True,          # read text in attached images with tesseract when it's installed
     "doc_ocr_fallback": False,  # off by default — requires tesseract
     "doc_ocr_min_text_chars": 40,
     # --- Multimodal (Tier 4) ---

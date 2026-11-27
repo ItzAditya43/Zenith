@@ -117,6 +117,7 @@ class ConfigPatch(StrictModel):
     agent_check_timeout_seconds: int | None = Field(default=None, ge=5, le=1800)
     route_to_cloud_models: bool | None = None
     setup_checklist_hidden: bool | None = None
+    image_ocr: bool | None = None
     routing_policy: Literal["", "manual_remote", "allow_selected", "local_only"] | None = None
     routing_allowed_providers: list[str] | None = Field(default=None, max_length=50)
     router_semantic_margin: float | None = Field(default=None, ge=0, le=0.5)

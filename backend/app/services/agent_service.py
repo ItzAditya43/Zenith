@@ -1523,7 +1523,7 @@ async def run_agent_turn(
     max_chars = int(settings.get("agent_output_max_chars", 4000))
     approval_timeout = float(settings.get("agent_approval_timeout_seconds", 600))
 
-    ctx = await build_turn_context(attachment_ids)
+    ctx = await build_turn_context(attachment_ids, user_text)
     history = storage.get_messages(conversation_id)
     system_text, _sys_citations = await _build_system_context(conversation_id, user_text)
     workdir = effective_workdir(conversation_id, storage.get_conversation_workdir(conversation_id))

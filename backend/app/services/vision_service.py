@@ -118,6 +118,94 @@ def _sample_fixed(video_path: Path, max_frames: int) -> list[str]:
     return frames
 
 
+# ---- timestamps, time ranges, OCR ---------------------------------------------------
+
+def fmt_ts(seconds: float) -> str:
+    s = max(0, int(round(seconds)))
+    return f"{s // 3600}:{s % 3600 // 60:02d}:{s % 60:02d}" if s >= 3600 else f"{s // 60}:{s % 60:02d}"
+
+
+def parse_time(text: str) -> float | None:
+    parts = text.strip().split(":")
+    try:
+        nums = [float(p) for p in parts]
+    except ValueError:
+        return None
+    if not 1 <= len(nums) <= 3:
+        return None
+    total = 0.0
+    for n in nums:
+        total = total * 60 + n
+    return total
+
+
+_TS = r"(\d{1,2}:\d{2}(?::\d{2})?)"
+
+
+def requested_range(question: str) -> tuple[float, float] | None:
+    """A moment or range the user asked about: "at 2:15", "around 1:02:30",
+    "between 0:30 and 1:10", "from 3:00 to 3:20". A single moment becomes a
+    ±10 s window."""
+    import re
+
+    q = question or ""
+    m = re.search(rf"(?:between|from)\s+{_TS}\s+(?:and|to|-|–)\s+{_TS}", q, re.I)
+    if m:
+        a, b = parse_time(m.group(1)), parse_time(m.group(2))
+        if a is not None and b is not None and b > a:
+            return a, b
+    m = re.search(rf"(?:at|around|near|@)\s*{_TS}", q, re.I) or re.search(rf"\b{_TS}\b", q)
+    if m:
+        t = parse_time(m.group(1))
+        if t is not None:
+            return max(0.0, t - 10), t + 10
+    return None
+
+
+def sample_frames_timed(video_path: Path, start: float | None = None, end: float | None = None,
+                        max_frames: int | None = None) -> list[tuple[float, str]]:
+    """[(seconds, base64 jpeg)] evenly across the whole video, or densely
+    inside [start, end] when the user asked about a moment."""
+    max_frames = int(max_frames or settings.get("video_max_frames", 8))
+    duration = _probe_duration(video_path)
+    lo = max(0.0, start or 0.0)
+    hi = min(end, duration) if (end is not None and duration) else (end or duration)
+    if not hi or hi <= lo:
+        return [(0.0, f) for f in sample_frames(video_path)]
+    span = hi - lo
+    count = max(1, min(max_frames, int(span // 1) or 1))
+    times = [lo + span * (i + 0.5) / count for i in range(count)]
+    out: list[tuple[float, str]] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for i, t in enumerate(times):
+            frame = Path(tmp) / f"f{i:03d}.jpg"
+            try:
+                subprocess.run(["ffmpeg", "-y", "-ss", f"{t:.2f}", "-i", str(video_path), "-frames:v", "1", "-q:v", "3", str(frame)],
+                               check=True, capture_output=True, timeout=60)
+            except Exception:
+                continue
+            if frame.exists():
+                out.append((t, encode_image(frame)))
+    return out
+
+
+def ocr_image(path: Path, max_chars: int = 3000) -> str:
+    """Text in an image (screenshots, photos of documents) via tesseract,
+    if installed. "" when there's none or tesseract is missing."""
+    import shutil
+
+    if not shutil.which("tesseract"):
+        return ""
+    try:
+        res = subprocess.run(["tesseract", str(path), "stdout", "--psm", "3"], capture_output=True, text=True, timeout=60)
+    except Exception:
+        return ""
+    text = "\n".join(ln.rstrip() for ln in res.stdout.splitlines() if ln.strip())
+    # A photo with no real text produces a few stray characters; keep only real text.
+    words = [w for w in text.split() if len(w) > 2 and any(c.isalpha() for c in w)]
+    return text[:max_chars] if len(words) >= 4 else ""
+
+
 def _probe_duration(video_path: Path) -> float:
     try:
         result = subprocess.run(

@@ -6382,3 +6382,6 @@ html[data-reduce-motion] .getstarted { animation: none; }
 .sidebar-manage-btn { display: inline-flex; align-items: center; gap: 6px; }
 .sidebar-manage-count { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--bg-panel-raised); font-size: 10px; display: inline-grid; place-items: center; color: var(--text-secondary); }
 .apikey-value { display: block; padding: 8px 10px; border-radius: 8px; background: var(--bg-inset); border: 1px solid var(--border-hairline); color: var(--text-primary); word-break: break-all; user-select: all; }
+.msg-image-attachment { position: relative; }
+.msg-attachment-processing { display: block; margin-top: 4px; font-size: 10.5px; color: var(--text-tertiary); max-width: 260px; }
+.msg-attachment-note { font-style: normal; font-size: 10.5px; color: var(--text-tertiary); margin-left: 6px; }

@@ -39,7 +39,7 @@ class TurnContext:
         self.attachment_summaries: list[dict] = []
 
 
-async def build_turn_context(attachment_ids: list[str]) -> TurnContext:
+async def build_turn_context(attachment_ids: list[str], user_text: str = "") -> TurnContext:
     ctx = TurnContext()
     for aid in attachment_ids:
         att = att_service.get(aid)
@@ -49,23 +49,43 @@ async def build_turn_context(attachment_ids: list[str]) -> TurnContext:
         if att.kind == "image":
             ctx.images_b64.append(vision_service.encode_image(att.path))
             ctx.has_image = True
-            ctx.attachment_summaries.append({"id": aid, "kind": "image", "name": att.filename})
+            notes = ["sent to the vision model"]
+            if settings.get("image_ocr", True):
+                text = await asyncio.to_thread(vision_service.ocr_image, att.path)
+                if text:
+                    ctx.text_parts.append(f"[Text read from image '{att.filename}' (OCR)]\n{text}")
+                    notes.append("text read with OCR")
+            ctx.attachment_summaries.append({"id": aid, "kind": "image", "name": att.filename,
+                                             "processing": " · ".join(notes) + " · on this machine"})
 
         elif att.kind == "video":
             ctx.has_video = True
-            frames = vision_service.sample_frames(att.path)
-            ctx.images_b64.extend(frames)
+            rng = vision_service.requested_range(user_text) if user_text else None
+            timed = await asyncio.to_thread(vision_service.sample_frames_timed, att.path,
+                                            rng[0] if rng else None, rng[1] if rng else None)
+            ctx.images_b64.extend(f for _t, f in timed)
+            stamps = ", ".join(vision_service.fmt_ts(t) for t, _f in timed)
+            ctx.text_parts.append(
+                f"[Video '{att.filename}': {len(timed)} frame(s) attached in order, taken at {stamps}"
+                + (f" — sampled around the part asked about ({vision_service.fmt_ts(rng[0])}–{vision_service.fmt_ts(rng[1])})" if rng else "")
+                + ". When you describe what's on screen, say which timestamp you mean.]"
+            )
+            transcript_note = "no transcript"
             try:
                 audio_path = vision_service.extract_audio(att.path)
                 transcript = whisper_service.transcribe(audio_path)
                 if transcript["text"]:
-                    ctx.text_parts.append(
-                        f"[Transcript of video '{att.filename}']\n{transcript['text']}"
-                    )
+                    segs = transcript.get("segments") or []
+                    if rng:
+                        segs = [sg for sg in segs if sg["end"] >= rng[0] - 5 and sg["start"] <= rng[1] + 5] or segs
+                    lines = "\n".join(f"[{vision_service.fmt_ts(sg['start'])}] {sg['text']}" for sg in segs) or transcript["text"]
+                    ctx.text_parts.append(f"[Transcript of video '{att.filename}', with timestamps]\n{lines}")
+                    transcript_note = "timestamped transcript"
             except Exception as exc:  # ffmpeg missing, no audio track, etc.
                 ctx.text_parts.append(f"[Could not extract audio from video: {exc}]")
             ctx.attachment_summaries.append(
-                {"id": aid, "kind": "video", "name": att.filename, "frames": len(frames)}
+                {"id": aid, "kind": "video", "name": att.filename, "frames": len(timed),
+                 "processing": f"{len(timed)} frames ({stamps}) · {transcript_note} · on this machine"}
             )
 
         elif att.kind == "document":
@@ -383,7 +403,7 @@ async def run_turn(
         user_text = user_row["content"]
         attachment_ids = [a["id"] for a in user_row.get("attachments", [])]
 
-    ctx = await build_turn_context(attachment_ids)
+    ctx = await build_turn_context(attachment_ids, user_text)
     history = storage.get_messages(conversation_id)
 
     web_section, web_sources = await _gather_web_context(user_text, web_search)

@@ -45,7 +45,7 @@ async def run_council(
         yield {"type": "error", "message": "No models selected for the council."}
         return
 
-    ctx = await build_turn_context(attachment_ids)
+    ctx = await build_turn_context(attachment_ids, user_text)
     history = storage.get_messages(conversation_id)
     messages = _build_messages(history, user_text, ctx)
     system_text, _sys_citations = await _build_system_context(conversation_id, user_text)

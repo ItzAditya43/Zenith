@@ -142,9 +142,10 @@ function DocumentChip({ attachment: a }) {
         href={`${api.base}/api/attachments/${a.id}/download`}
         target="_blank"
         rel="noopener noreferrer"
-        title={a.name}
+        title={a.processing ? `${a.name} — ${a.processing}` : a.name}
       >
         <img src={`${api.base}/api/attachments/${a.id}/download`} alt={a.name} loading="lazy" />
+        {a.processing && <span className="msg-attachment-processing">{a.processing}</span>}
       </a>
     );
   }
@@ -153,6 +154,7 @@ function DocumentChip({ attachment: a }) {
     <div className="doc-chip-wrap">
       <span className="msg-attachment-chip" onClick={() => setPreviewOpen(true)} style={{ cursor: "pointer" }}>
         <Icon name={KIND_ICON[a.kind] || "paperclip"} size={14} /> {a.name}
+        {a.processing && <em className="msg-attachment-note">{a.processing}</em>}
         {editable && (
           <button
             className="doc-chip-edit-btn"

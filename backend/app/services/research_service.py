@@ -109,7 +109,7 @@ async def run_deep_research(
     max_iters = int(settings.get("research_max_iterations", 10))
     max_chars = int(settings.get("web_fetch_max_chars", 4000))
 
-    ctx = await build_turn_context(attachment_ids)
+    ctx = await build_turn_context(attachment_ids, user_text)
     history = storage.get_messages(conversation_id)
     system_text, _sys_citations = await _build_system_context(conversation_id, user_text)
 

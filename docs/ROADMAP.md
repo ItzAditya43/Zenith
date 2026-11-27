@@ -139,7 +139,7 @@ and **XL** ≈ a multi-week design and implementation effort.
     export memories; show which memories were used in a reply; and support
     approval for sensitive or uncertain saves. Retrieval should be relevant
     rather than injecting every memory into every turn. **M–L**.
-26. **Richer image and video understanding** — Improve existing image and
+26. ~~**Richer image and video understanding**~~ — **Done (1.2.8):** video frames carry timestamps and the model is told to cite them; asking about a moment ("at 2:15", "between 0:30 and 1:10") samples densely there and trims the transcript to it; transcripts are timestamped; screenshots and photos of text get OCR (tesseract) so even non-vision models can read them; each attachment shows what was extracted and that it ran on this machine. Original note: Improve existing image and
     sampled-frame/audio processing with user-selectable video sampling,
     timestamps, scene descriptions, OCR for screenshots, and synchronized
     visual/audio summaries. Let users ask questions about a frame or time
