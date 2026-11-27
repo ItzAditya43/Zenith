@@ -77,7 +77,9 @@ test("agent mode pauses for approval and writes the file once approved", async (
   await approve.click();
 
   await expect(page.getByText("Wrote e2e.txt for you.")).toBeVisible();
-  expect(readFileSync(join(workdir, "e2e.txt"), "utf8")).toBe("hello from e2e");
+  await expect
+    .poll(() => (existsSync(join(workdir, "e2e.txt")) ? readFileSync(join(workdir, "e2e.txt"), "utf8") : null), { timeout: 10_000 })
+    .toBe("hello from e2e");
 });
 
 test("agent mode denial leaves the filesystem untouched", async ({ page }) => {
@@ -139,7 +141,9 @@ test("agent approval works from the keyboard (y)", async ({ page }) => {
   await page.locator("textarea").first().blur();
   await page.keyboard.press("y");
   await expect(page.getByText("Wrote e2e.txt for you.")).toBeVisible();
-  expect(readFileSync(join(workdir, "e2e.txt"), "utf8")).toBe("hello from e2e");
+  await expect
+    .poll(() => (existsSync(join(workdir, "e2e.txt")) ? readFileSync(join(workdir, "e2e.txt"), "utf8") : null), { timeout: 10_000 })
+    .toBe("hello from e2e");
 });
 
 test("boot splash shows health checks once per session", async ({ browser }) => {
