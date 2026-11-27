@@ -306,6 +306,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # --- Ambient daily digest ---
     "digest_enabled": False,     # off by default — an unprompted background LLM call
     "digest_interval_hours": 24,
+    "digest_time": "",           # "HH:MM" local — once a day at/after this time; "" = every digest_interval_hours
+    "digest_sources": ["files", "memories", "schedules", "todos"],
     "digest_check_interval_seconds": 3600,  # how often the background task checks if one's due
     # --- Push notifications (ntfy.sh — free, keyless, self-hostable).
     # Off by default: unlike webhooks (which only reach your own LAN
@@ -316,6 +318,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "notify_ntfy_enabled": False,
     "notify_ntfy_url": "https://ntfy.sh",
     "notify_ntfy_topic": "",
+    "notify_ntfy_include_content": False,  # off: phone gets "<event> — open Zenith", nothing private leaves
     "notify_event_types": [],
     # Desktop pop-ups (the in-app history keeps everything regardless).
     # Event types listed here never pop up; quiet hours hold back pop-ups

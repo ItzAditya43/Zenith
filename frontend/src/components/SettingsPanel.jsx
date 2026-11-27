@@ -160,6 +160,12 @@ export default function SettingsPanel({
       .catch((err) => setMemoriesError(err.message));
     api.listMemoryConflicts().then(setMemoryConflicts).catch(() => {});
   };
+  useEffect(() => {
+    const on = () => refreshMemories();
+    window.addEventListener("zenith:memory-conflicts-changed", on);
+    return () => window.removeEventListener("zenith:memory-conflicts-changed", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const reviewMemoryConflicts = async () => {
     setReviewingConflicts(true);
@@ -174,9 +180,10 @@ export default function SettingsPanel({
     }
   };
 
-  const resolveMemoryConflict = async (id) => {
+  const resolveMemoryConflict = async (id, action = "dismiss", text = "") => {
+    await api.resolveMemoryConflict(id, action, text);
     setMemoryConflicts((cs) => cs.filter((c) => c.id !== id));
-    await api.resolveMemoryConflict(id);
+    refreshMemories();
   };
 
   const refreshSkills = () => {

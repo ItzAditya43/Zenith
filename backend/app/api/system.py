@@ -867,6 +867,17 @@ async def list_notifications(q: str = "", event_type: str | None = None, since: 
             "unread": ns.unread_count(), "quiet_now": ns.in_quiet_hours(), "labels": ns.LABELS}
 
 
+@router.post("/notifications/test")
+async def notifications_test():
+    """Shows an in-app notification and, if a phone push is set up, sends
+    one — so you can check both paths work."""
+    from app.services import notification_service, notify_service
+    data = {"result": "This is a test notification from Zenith."}
+    item = notification_service.record("test", data)
+    push = await notify_service.send("test", data, force=True)
+    return {"in_app": item, "push": push}
+
+
 @router.post("/notifications/read")
 async def read_notifications(body: NotificationsRead):
     from app.services import notification_service as ns

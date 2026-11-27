@@ -104,26 +104,46 @@ async def review_memory_conflicts():
 
 @router.get("/memories/conflicts")
 async def list_memory_conflicts():
-    conflicts = storage.list_memory_conflicts()
-    by_id = {m["id"]: m for m in memory_service.list_memories()}
+    """Unresolved contradictions with evidence (source chat, dates) and a
+    suggested resolution."""
+    from app.services import memory_conflicts
     enriched = []
-    for c in conflicts:
-        mem_a = by_id.get(c["memory_id_a"])
-        mem_b = by_id.get(c["memory_id_b"])
-        if not mem_a or not mem_b:
-            # One side was deleted/disabled between the scan and now —
-            # not actionable, silently drop it rather than show a
-            # broken row.
+    for c in storage.list_memory_conflicts():
+        e = memory_conflicts.enrich(c)
+        if e is None or not (e["memory_a"]["enabled"] and e["memory_b"]["enabled"]):
+            # One side was deleted/turned off since the scan — not actionable.
             storage.resolve_memory_conflict(c["id"])
             continue
-        enriched.append({**c, "memory_a": mem_a, "memory_b": mem_b})
+        enriched.append(e)
     return enriched
 
 
+@router.get("/memories/conflicts/resolved")
+async def list_resolved_conflicts():
+    from app.services import memory_conflicts
+    return memory_conflicts.recent_resolved()
+
+
 @router.post("/memories/conflicts/{conflict_id}/resolve")
-async def resolve_memory_conflict(conflict_id: str):
-    storage.resolve_memory_conflict(conflict_id)
-    return {"ok": True}
+async def resolve_memory_conflict(conflict_id: str, body: dict | None = None):
+    """body: {action: keep_both|keep_a|keep_b|merge|dismiss, text?}. No body = dismiss."""
+    from app.services import memory_conflicts
+    body = body or {}
+    try:
+        return memory_conflicts.resolve(conflict_id, str(body.get("action") or "dismiss"), body.get("text"))
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from None
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@router.post("/memories/conflicts/{conflict_id}/undo")
+async def undo_memory_conflict(conflict_id: str):
+    from app.services import memory_conflicts
+    try:
+        return memory_conflicts.undo(conflict_id)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from None
 
 
 # ---- knowledge cleanup -----------------------------------------------------------

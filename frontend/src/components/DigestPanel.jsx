@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { openConversation, openMemoryBrowser, openTasks } from "../lib/uiEvents.js";
 import Icon from "./Icon.jsx";
 import { useEscapeToClose } from "../hooks/useEscapeToClose";
 
@@ -66,6 +67,27 @@ export default function DigestPanel({ onClose }) {
                 {new Date(d.created_at * 1000).toLocaleString()} · {d.files_changed} file{d.files_changed === 1 ? "" : "s"}, {d.memories_added} new fact{d.memories_added === 1 ? "" : "s"}
               </div>
               <div style={{ fontSize: "var(--text-sm)", lineHeight: 1.6 }}>{d.content}</div>
+              {d.items?.length > 0 && (
+                <details className="digest-items">
+                  <summary>Built from {d.items.length} item{d.items.length === 1 ? "" : "s"}</summary>
+                  <ul>
+                    {d.items.map((it, i) => (
+                      <li key={i}>
+                        {it.kind === "schedule" && it.ref ? (
+                          <button className="text-btn" onClick={() => { onClose?.(); openConversation(it.ref); }}>{it.label}</button>
+                        ) : it.kind === "memory" ? (
+                          <button className="text-btn" onClick={() => { onClose?.(); openMemoryBrowser(); }}>{it.label}</button>
+                        ) : it.kind === "todo" ? (
+                          <button className="text-btn" onClick={() => { onClose?.(); openTasks(); }}>{it.label}</button>
+                        ) : (
+                          <span>{it.label}</span>
+                        )}
+                        <em> — {it.why}</em>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </li>
           ))}
           {history.length === 0 && !error && <p className="conversation-empty">No digests yet.</p>}

@@ -15,3 +15,4 @@ export const openCleanup = () => window.dispatchEvent(new CustomEvent("zenith:op
 export const openInWorkspace = (path, line = null) =>
   window.dispatchEvent(new CustomEvent("zenith:open-in-workspace", { detail: { path, line } }));
 export const openMail = () => window.dispatchEvent(new CustomEvent("zenith:open-mail"));
+export const openConversation = (id) => window.dispatchEvent(new CustomEvent("zenith:open-conversation", { detail: { id } }));

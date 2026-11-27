@@ -78,6 +78,8 @@ export default function NotificationsPanel({ onClose, notificationsEnabled, onEn
                     <div className="membrowser-meta">
                       <span className="mb-badge">{data.labels[n.event_type] || n.event_type}</span>
                       {!n.desktop && <span title="Didn't pop up: muted or during quiet hours">silent</span>}
+                      {n.push_status === "sent" && <span title="Also pushed to your phone">pushed</span>}
+                      {n.push_status === "failed" && <span className="notif-push-failed" title={n.push_error || ""}>push failed</span>}
                       {n.event_type.startsWith("agent_run") && n.data?.id && <button className="mb-link" onClick={() => { onClose(); openTasks(n.data.id); }}>Open task</button>}
                     </div>
                   </div>

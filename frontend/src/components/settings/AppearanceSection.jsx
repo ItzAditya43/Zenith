@@ -1,3 +1,4 @@
+import { api } from "../../lib/api";
 import { ANIMATIONS, THEME_ANIMATIONS } from "../../lib/ambientAnimations";
 import { THEMES } from "./constants.js";
 import { useState } from "react";
@@ -182,11 +183,11 @@ export default function AppearanceSection() {
         <div className="setting-meta">
           <span className="setting-label">Push notifications (ntfy)</span>
           <span className="setting-hint">
-            Get schedule/digest/urgent-email alerts on your phone via{" "}
-            <a href="https://ntfy.sh" target="_blank" rel="noreferrer">ntfy.sh</a> (or your
-            own self-hosted instance) even while Zenith isn't open. Off by default — this is
-            a deliberate exception to "nothing leaves your machine": once on, a short
-            notification text is sent to the ntfy server you configure below.
+            Get alerts on your phone via{" "}
+            <a href="https://ntfy.sh" target="_blank" rel="noreferrer">ntfy.sh</a> or your own
+            self-hosted ntfy server, even while Zenith is closed. Off by default. This sends data
+            off your machine to that server, so by default a push only says what kind of thing
+            happened; turn on "Include details" to send the text too.
           </span>
         </div>
         <button
@@ -214,9 +215,15 @@ export default function AppearanceSection() {
             aria-label="ntfy topic"
             onBlur={(e) => saveNtfyConfig({ notify_ntfy_topic: e.target.value.trim() })}
           />
+          <label className="setting-hint" style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <input type="checkbox" checked={!!config?.notify_ntfy_include_content}
+              onChange={(e) => saveNtfyConfig({ notify_ntfy_include_content: e.target.checked })} />
+            Include details (summaries, email subjects) in the push — they'll be stored on the ntfy server
+          </label>
+          <NtfyTest />
           <div className="setting-hint">
             Events that push a notification:
-            {["digest_generated", "schedule_completed", "urgent_email", "memory_conflict_found", "folder_file_added"].map((ev) => {
+            {["digest_generated", "schedule_completed", "schedule_failing", "urgent_email", "agent_run_needs_approval", "memory_conflict_found", "folder_file_added"].map((ev) => {
               const active = (config?.notify_event_types || []).includes(ev);
               return (
                 <button
@@ -271,5 +278,29 @@ export default function AppearanceSection() {
         </div>
       )}
     </section>
+  );
+}
+
+
+function NtfyTest() {
+  const [res, setRes] = useState(null);
+  const go = async () => {
+    setRes({ status: "sending" });
+    try {
+      const r = await api.testNotification();
+      setRes(r.push);
+    } catch (e) {
+      setRes({ status: "failed", error: e.message });
+    }
+  };
+  return (
+    <div className="settings-row">
+      <button className="settings-btn-secondary" onClick={go} disabled={res?.status === "sending"}>Send a test</button>
+      {res && res.status !== "sending" && (
+        <span className={res.status === "sent" ? "setting-hint" : "settings-error"} role="status">
+          {res.status === "sent" ? "Sent — check your phone." : res.status === "off" ? (res.error || "Push is off.") : `Didn't send: ${res.error || res.status}`}
+        </span>
+      )}
+    </div>
   );
 }

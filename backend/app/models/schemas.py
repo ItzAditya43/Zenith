@@ -89,6 +89,9 @@ class ConfigPatch(StrictModel):
     notes_todos_context_enabled: bool | None = None
     digest_enabled: bool | None = None
     digest_interval_hours: int | None = Field(default=None, ge=1, le=168)
+    digest_time: str | None = Field(default=None, pattern=r"^(|([01]\d|2[0-3]):[0-5]\d)$")
+    digest_sources: list[Literal["files", "memories", "schedules", "todos"]] | None = Field(default=None, max_length=4)
+    notify_ntfy_include_content: bool | None = None
     system_prompt: str | None = Field(default=None, max_length=8000)
     recall_enabled: bool | None = None
     recall_top_k: int | None = Field(default=None, ge=1, le=10)

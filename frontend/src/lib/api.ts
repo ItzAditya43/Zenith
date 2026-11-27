@@ -936,7 +936,13 @@ export const api = {
   clearMemories: () => request("/api/memories", { method: "DELETE" }),
   reviewMemoryConflicts: () => request("/api/memories/review-conflicts", { method: "POST" }).then((r) => r.json()),
   listMemoryConflicts: () => request("/api/memories/conflicts").then((r) => r.json()),
-  resolveMemoryConflict: (id: string) => request(`/api/memories/conflicts/${id}/resolve`, { method: "POST" }),
+  resolveMemoryConflict: (id: string, action = "dismiss", text = "") =>
+    request(`/api/memories/conflicts/${id}/resolve`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, text }),
+    }).then((r) => r.json()),
+  undoMemoryConflict: (id: string) => request(`/api/memories/conflicts/${id}/undo`, { method: "POST" }).then((r) => r.json()),
+  resolvedMemoryConflicts: () => request("/api/memories/conflicts/resolved").then((r) => r.json()),
 
   approveToolCall: (id: string, rejectedHunks: number[] | null = null) =>
     request(`/api/agent/tool-calls/${id}/approve`, {
@@ -992,6 +998,7 @@ export const api = {
       body: JSON.stringify({ prompt, negative }),
     }).then((r) => r.json()),
 
+  testNotification: () => request("/api/notifications/test", { method: "POST" }).then((r) => r.json()),
   lockStatus: () => request("/api/lock/status").then((r) => r.json()),
   lockVerify: (passcode: string) =>
     request("/api/lock/verify", {

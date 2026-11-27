@@ -61,12 +61,24 @@ def _text(event_type: str, data: dict) -> tuple[str, str]:
     return title.removeprefix("Zenith: ").capitalize(), body
 
 
+DEDUPE_SECONDS = 120
+
+
 def record(event_type: str, data: dict) -> dict:
+    """Store one notification. The same title+body for the same event
+    within DEDUPE_SECONDS is not stored again (and doesn't pop up twice)."""
     title, body = _text(event_type, data or {})
     nid = uuid.uuid4().hex[:12]
     now = time.time()
     desktop = should_pop_up(event_type)
     with _conn() as conn:
+        dup = conn.execute(
+            "SELECT id, title, body, desktop, created_at FROM notifications WHERE event_type = ? AND title = ? AND body = ?"
+            " AND created_at >= ? ORDER BY created_at DESC LIMIT 1",
+            (event_type, title, body[:1000], now - DEDUPE_SECONDS)).fetchone()
+        if dup:
+            return {"id": dup["id"], "event_type": event_type, "title": title, "body": body, "desktop": False,
+                    "created_at": dup["created_at"], "duplicate": True}
         conn.execute(
             "INSERT INTO notifications (id, event_type, title, body, data, desktop, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (nid, event_type, title, body[:1000], json.dumps(data or {}, default=str)[:4000], 1 if desktop else 0, now),
@@ -125,3 +137,12 @@ def mark_read(ids: list[str] | None = None) -> int:
 def clear() -> int:
     with _conn() as conn:
         return conn.execute("DELETE FROM notifications").rowcount
+
+
+def set_push_status(event_type: str, status: str, error: str | None = None) -> None:
+    """Mark the newest notification of this type with how the phone push went."""
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE notifications SET push_status = ?, push_error = ? WHERE id = (SELECT id FROM notifications"
+            " WHERE event_type = ? ORDER BY created_at DESC LIMIT 1)",
+            (status, (error or "")[:300] or None, event_type))

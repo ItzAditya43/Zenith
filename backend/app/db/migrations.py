@@ -1098,6 +1098,27 @@ def _schedule_calendar_columns(conn: sqlite3.Connection) -> None:
     if "model" not in rcols:
         conn.execute("ALTER TABLE schedule_runs ADD COLUMN model TEXT")
 
+
+def _memory_conflict_resolution(conn: sqlite3.Connection) -> None:
+    """How a contradiction was resolved, and what to put back on undo."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(memory_conflicts)")}
+    for name, ddl in (("resolution", "TEXT"), ("resolved_at", "REAL"), ("undo", "TEXT")):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE memory_conflicts ADD COLUMN {name} {ddl}")
+
+
+def _digest_items_and_push_log(conn: sqlite3.Connection) -> None:
+    """What each digest was built from (so the UI can say why an item is
+    there and link to it), and a delivery log for push notifications."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(digests)")}
+    if "items" not in cols:
+        conn.execute("ALTER TABLE digests ADD COLUMN items TEXT")
+    ncols = {r[1] for r in conn.execute("PRAGMA table_info(notifications)")}
+    if "push_status" not in ncols:
+        conn.execute("ALTER TABLE notifications ADD COLUMN push_status TEXT")
+    if "push_error" not in ncols:
+        conn.execute("ALTER TABLE notifications ADD COLUMN push_error TEXT")
+
 MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "baseline", _baseline),
     (2, "attachments_table", _attachments_table),
@@ -1155,6 +1176,8 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (54, "api_keys_table", _api_keys_table),
     (55, "webhook_delivery_tables", _webhook_delivery_tables),
     (56, "schedule_calendar_columns", _schedule_calendar_columns),
+    (57, "memory_conflict_resolution", _memory_conflict_resolution),
+    (58, "digest_items_and_push_log", _digest_items_and_push_log),
 ]
 
 

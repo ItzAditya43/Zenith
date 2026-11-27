@@ -148,7 +148,7 @@ def clear_memory_conflicts_for(memory_id: str) -> None:
     actionable, so drop it rather than leave a dangling reference."""
     with _conn() as conn:
         conn.execute(
-            "DELETE FROM memory_conflicts WHERE memory_id_a = ? OR memory_id_b = ?",
+            "DELETE FROM memory_conflicts WHERE resolved = 0 AND (memory_id_a = ? OR memory_id_b = ?)",
             (memory_id, memory_id),
         )
 
@@ -176,17 +176,26 @@ def recent_memories(since_ts: float) -> list[dict]:
         return [dict(r) for r in rows]
 
 
-def create_digest(content: str, files_changed: int, memories_added: int) -> dict:
+def _digest_row(r) -> dict:
+    d = dict(r)
+    try:
+        d["items"] = json.loads(d.get("items") or "[]")
+    except ValueError:
+        d["items"] = []
+    return d
+
+
+def create_digest(content: str, files_changed: int, memories_added: int, items: list[dict] | None = None) -> dict:
     did = str(uuid.uuid4())
     now = time.time()
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO digests (id, content, files_changed, memories_added, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (did, content, files_changed, memories_added, now),
+            "INSERT INTO digests (id, content, files_changed, memories_added, created_at, items) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (did, content, files_changed, memories_added, now, json.dumps(items or [])),
         )
     return {"id": did, "content": content, "files_changed": files_changed,
-            "memories_added": memories_added, "created_at": now}
+            "memories_added": memories_added, "created_at": now, "items": items or []}
 
 
 def list_digests(limit: int = 30) -> list[dict]:
@@ -194,13 +203,13 @@ def list_digests(limit: int = 30) -> list[dict]:
         rows = conn.execute(
             "SELECT * FROM digests ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [_digest_row(r) for r in rows]
 
 
 def latest_digest() -> dict | None:
     with _conn() as conn:
         row = conn.execute("SELECT * FROM digests ORDER BY created_at DESC LIMIT 1").fetchone()
-        return dict(row) if row else None
+        return _digest_row(row) if row else None
 
 
 def _row_to_webhook(r) -> dict:

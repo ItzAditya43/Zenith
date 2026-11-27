@@ -703,6 +703,13 @@ export default function App() {
     refreshBranches(id);
     api.getGroupPersonas(id).then((r) => setGroupPersonaIds(r.persona_ids || [])).catch(() => setGroupPersonaIds([]));
   };
+  useEffect(() => {
+    const on = (e) => e.detail?.id && selectConversation(e.detail.id);
+    window.addEventListener("zenith:open-conversation", on);
+    return () => window.removeEventListener("zenith:open-conversation", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const handleSwitchBranch = async (messageId) => {
     if (!activeId) return;

@@ -1,4 +1,5 @@
 import { api } from "../../lib/api";
+import ConflictReview from "./ConflictReview.jsx";
 import { useSettings } from "./SettingsContext.js";
 import { openMemoryBrowser } from "../../lib/uiEvents.js";
 
@@ -84,8 +85,8 @@ export default function MemorySection() {
         <div className="setting-meta">
           <span className="setting-label">Daily digest</span>
           <span className="setting-hint">
-            Unprompted "what changed" summary from watched folders + new memories, once
-            a day in the background. Generate one manually any time from the sun icon.
+            A short "what changed" summary, made in the background. It only reads; it never
+            adds memories or to-dos. Generate one any time from the sun icon.
           </span>
         </div>
         <button
@@ -97,6 +98,33 @@ export default function MemorySection() {
           <span className="switch-thumb" />
         </button>
       </div>
+      {config?.digest_enabled && (
+        <div className="setting-row setting-row-stack">
+          <div className="settings-row" style={{ flexWrap: "wrap" }}>
+            <label className="setting-hint" htmlFor="digest-time">Every day at</label>
+            <input id="digest-time" type="time" className="settings-input" style={{ flex: "0 0 110px" }}
+              value={config?.digest_time || ""}
+              onChange={async (e) => setConfig(await api.patchConfig({ digest_time: e.target.value }))} />
+            <span className="setting-hint">
+              {config?.digest_time ? `${Intl.DateTimeFormat().resolvedOptions().timeZone} time` : `No time set — every ${config?.digest_interval_hours || 24} h`}
+            </span>
+          </div>
+          <div className="setting-hint" role="group" aria-label="Digest sources">
+            Include:
+            {[["files", "Watched folders"], ["memories", "New memories"], ["schedules", "Scheduled runs"], ["todos", "To-dos done or due"]].map(([k, l]) => {
+              const cur = config?.digest_sources || ["files", "memories", "schedules", "todos"];
+              const on = cur.includes(k);
+              return (
+                <button key={k} className={`theme-choice-btn ${on ? "is-selected" : ""}`} aria-pressed={on}
+                  style={{ marginLeft: "0.4rem", marginTop: "0.4rem" }}
+                  onClick={async () => setConfig(await api.patchConfig({ digest_sources: on ? cur.filter((x) => x !== k) : [...cur, k] }))}>
+                  {l}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="setting-row">
         <div className="setting-meta">
@@ -115,25 +143,7 @@ export default function MemorySection() {
         </button>
       </div>
 
-      {memoryConflicts.length > 0 && (
-        <div className="settings-notice settings-notice-warn" style={{ marginTop: "1rem" }}>
-          <strong>{memoryConflicts.length} possible contradiction{memoryConflicts.length === 1 ? "" : "s"}</strong>
-          <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.1rem" }}>
-            {memoryConflicts.map((c) => (
-              <li key={c.id} style={{ marginBottom: "0.4rem" }}>
-                "{c.memory_a.content}" vs "{c.memory_b.content}" — {c.reason}
-                <button
-                  className="text-btn"
-                  style={{ marginLeft: "0.5rem" }}
-                  onClick={() => resolveMemoryConflict(c.id)}
-                >
-                  Dismiss
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <ConflictReview conflicts={memoryConflicts} onResolve={resolveMemoryConflict} />
       <div className="settings-row" style={{ marginTop: "0.5rem" }}>
         <button className="text-btn" onClick={reviewMemoryConflicts} disabled={reviewingConflicts}>
           {reviewingConflicts ? "Reviewing…" : "Review for contradictions"}
