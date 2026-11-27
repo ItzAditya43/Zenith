@@ -33,3 +33,36 @@ text with OCR first.
 | Linux | AppImage/deb/rpm are signed for the in-app updater | Already on |
 | macOS | Not notarized — first launch needs right-click → Open | Add `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific), `APPLE_TEAM_ID` as repo secrets; the release workflow signs and notarizes when they exist |
 | Windows | Unsigned — SmartScreen warns on first run | Add `WINDOWS_CERTIFICATE` (base64 `.pfx`) and `WINDOWS_CERTIFICATE_PASSWORD`; the release signs with `signtool` when they exist. This path hasn't been run with a real certificate yet. |
+
+## Where your data lives
+
+Everything Zenith knows is in one folder: the database (`zenith.db`), settings (`config.json`), attachments (`uploads/`) and the log (`zenith.log`, rotated at 2 MB, 3 kept).
+
+| Install | Folder |
+|---|---|
+| Desktop app, Linux | `~/.local/share/<app id>/` |
+| Desktop app, macOS | `~/Library/Application Support/<app id>/` |
+| Desktop app, Windows | `%APPDATA%\<app id>\` |
+| From source | `backend/data/` (or `$ZENITH_DATA_DIR`) |
+| Docker | the volume mounted at `/data` |
+
+`<app id>` is the `identifier` in `desktop/src-tauri/tauri.conf.json`. With `ZENITH_PROFILE=name`, each profile has its own folder under `profiles/name/`.
+
+## Uninstalling
+
+Removing the app (deleting the AppImage, the `.app`, or using Windows "Apps & features") does **not** delete your data folder. That's on purpose: reinstalling or upgrading keeps your chats.
+To remove everything, delete the data folder above as well. Models downloaded by Ollama live in Ollama's own folder (`~/.ollama/models`) and are removed with `ollama rm <model>`.
+
+Before uninstalling or upgrading, take a backup from Settings → Backup. The restore preview checks the backup before anything is replaced.
+
+## What the passcode lock does and doesn't do
+
+- It stops anyone who opens Zenith, on this computer or over your network, from seeing your chats until they enter the passcode.
+- It does **not** encrypt anything. The database, attachments and settings on disk can be read by anyone with access to your user account's files. That person can also remove the lock by clearing `lock_pass_hash` in `config.json`.
+- A recovery code is shown once, when you turn the lock on. Use it from "Forgot passcode?" on the lock screen.
+- "Sign out other devices" makes every other browser or phone enter the passcode again.
+- For protection at rest, use full-disk encryption (FileVault, BitLocker, LUKS).
+
+## Reporting a bug
+
+System health → Diagnostic bundle shows exactly what it contains before you download it. Error messages include an error ID, which matches a line in the bundle's log.
