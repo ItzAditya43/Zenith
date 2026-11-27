@@ -88,6 +88,10 @@ cd frontend && npm run dev
 VRAM, proposes chat, code and embedding models that will run well, and pulls
 them when you confirm. You can re-run it any time from `backend/`.
 
+## Using it from scripts
+
+Everything goes through a local HTTP API. Create a key in Settings → Data → API keys and see [docs/API.md](docs/API.md) — with small Python and TypeScript clients in [examples/clients](examples/clients).
+
 ## What it does
 
 | | |

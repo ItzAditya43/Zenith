@@ -222,6 +222,11 @@ export const api = {
   cleanupApply: (ids: string[]) =>
     request("/api/cleanup/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) }).then((r) => r.json()),
   cleanupUndo: (batchId: string) => request(`/api/cleanup/undo/${batchId}`, { method: "POST" }).then((r) => r.json()),
+  listApiKeys: () => request("/api/api-keys").then((r) => r.json()),
+  createApiKey: (name: string, scope: string) =>
+    request("/api/api-keys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, scope }) }).then((r) => r.json()),
+  rotateApiKey: (id: string) => request(`/api/api-keys/${id}/rotate`, { method: "POST" }).then((r) => r.json()),
+  revokeApiKey: (id: string) => request(`/api/api-keys/${id}`, { method: "DELETE" }),
   setupStatus: () => request("/api/setup/status").then((r) => r.json()),
   checkProvider: (body: Record<string, unknown>) =>
     request("/api/providers/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json()),

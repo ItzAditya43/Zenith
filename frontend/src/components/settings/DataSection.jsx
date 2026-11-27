@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { useSettings } from "./SettingsContext.js";
+import ApiKeys from "./ApiKeys.jsx";
 
 /** Settings → "data" section. State lives in SettingsPanel (see SettingsContext). */
 export default function DataSection() {
@@ -93,6 +94,8 @@ export default function DataSection() {
           />
         </label>
       </div>
+
+      <ApiKeys />
 
       <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
         Passcode lock

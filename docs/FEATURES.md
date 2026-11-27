@@ -19,14 +19,11 @@ aspirational copy.
 
 This README is written for developers. If you're pointing someone
 non-technical at this project, [`docs/index.html`](index.html) is a
-short, plain-language page explaining what it is and why — including a
-"Who it's for" section (private-ChatGPT user, developer, writer/researcher,
-privacy-first, tinkerer) that maps each audience to the handful of features
-that actually matter to them, rather than the full feature dump below. Open
-it directly, or enable it for free via GitHub Pages (Settings → Pages →
-deploy from `/docs` on this branch). The in-app onboarding tour asks the
-same question on first run and tailors its "try this first" step to the
-answer.
+short, plain-language page explaining what it is and who it may suit. Open
+it directly, or enable it via GitHub Pages (Settings → Pages → deploy from
+`/docs` on this branch). The current in-app tour is available on first run;
+the [improvement plan](IMPROVEMENT_PLAN.md) proposes making first-run setup
+more optional and less demanding.
 
 ---
 

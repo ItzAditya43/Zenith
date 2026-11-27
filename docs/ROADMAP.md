@@ -165,7 +165,7 @@ and **XL** ≈ a multi-week design and implementation effort.
     remote only when manually selected. Explain the route before a request and
     show which provider/model handled it afterward. Add provider failover only
     when the user has explicitly configured eligible fallback models. **M**.
-30. **Stable public API and client examples** — Document and version the
+30. ~~**Stable public API and client examples**~~ — **Done (1.2.8):** API keys (read/write scopes, shown once, rotate/revoke, last-used, per-key rate limit; work remotely and through the lock), `X-Zenith-API-Version` + `/api/version`, a stable-endpoint list and SSE format in docs/API.md, and dependency-free Python and TypeScript clients in examples/clients. Original note: Document and version the
     backend API, publish OpenAPI examples and a small Python/TypeScript client
     for common workflows (chat streaming, files, models, and events). Make
     authentication, permissions, rate limits, and API-key rotation clear
