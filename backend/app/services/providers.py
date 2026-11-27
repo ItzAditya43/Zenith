@@ -381,12 +381,17 @@ async def openai_stream(p: dict, model: str, messages: list[dict], images_b64: l
                         chunk = json.loads(data)
                     except json.JSONDecodeError:
                         continue
+                    if not isinstance(chunk, dict):
+                        continue
                     u = chunk.get("usage")
                     if usage is not None and isinstance(u, dict) and u.get("completion_tokens") is not None:
                         usage["input"] = int(u.get("prompt_tokens") or 0)
                         usage["output"] = int(u.get("completion_tokens") or 0)
-                    for ch in chunk.get("choices") or []:
-                        delta = ch.get("delta") or {}
+                    choices = chunk.get("choices")
+                    for ch in choices if isinstance(choices, list) else []:
+                        delta = ch.get("delta") if isinstance(ch, dict) else None
+                        if not isinstance(delta, dict):
+                            continue
                         think = delta.get("reasoning_content") or delta.get("reasoning")
                         if emit_thinking and isinstance(think, str) and think:
                             yield ThinkingDelta(think)
@@ -397,6 +402,11 @@ async def openai_stream(p: dict, model: str, messages: list[dict], images_b64: l
             raise ProviderError(f"Can't reach {p.get('name', p['id'])} at {p['base_url']}.") from exc
         except httpx.ReadTimeout as exc:
             raise ProviderError(f"{p.get('name', p['id'])} didn't answer within {int(timeout)}s.") from exc
+        except httpx.TimeoutException as exc:
+            raise ProviderError(f"{p.get('name', p['id'])} timed out ({type(exc).__name__}).") from exc
+        except httpx.HTTPError as exc:
+            # Dropped connection mid-stream, broken chunked encoding, etc.
+            raise ProviderError(f"Lost the connection to {p.get('name', p['id'])} mid-reply: {type(exc).__name__}.") from exc
 
 
 async def openai_tools(p: dict, model: str, messages: list[dict], tools: list[dict], timeout: float = 600) -> dict:

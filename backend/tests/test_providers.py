@@ -161,3 +161,67 @@ def test_anthropic_message_shaping():
     kw = providers._anthropic_call_kwargs("claude-opus-5-5", system, turns, 1000, True)
     assert kw["fallbacks"] == "default" and kw["thinking"]["display"] == "summarized"
     assert "fallbacks" not in providers._anthropic_call_kwargs("claude-haiku-4-5", "", turns, 1000, False)
+
+
+# ---- failure paths: malformed data, dropped connections, timeouts ----------------
+
+def _swap_handler(monkeypatch, handler):
+    real = httpx.AsyncClient.__mro__[1] if httpx.AsyncClient.__name__ == "Client" else httpx.AsyncClient
+
+    class Client(real):  # type: ignore[misc, valid-type]
+        def __init__(self, *a, **kw):
+            kw["transport"] = httpx.MockTransport(handler)
+            super().__init__(*a, **kw)
+
+    monkeypatch.setattr(providers.httpx, "AsyncClient", Client)
+
+
+async def _collect(model="acme::gpt-4.1"):
+    from app.services.ollama_client import OllamaClient
+    return [p async for p in OllamaClient().chat_stream(model, [{"role": "user", "content": "hi"}])]
+
+
+async def test_malformed_stream_lines_are_skipped(fake_api, monkeypatch):
+    sse = ('data: {not json\n\n'
+           'data: {"choices": [{"delta": {"content": "Hel"}}]}\n\n'
+           'data: {"choices": "oops"}\n\n'
+           ': keep-alive\n\n'
+           'data: {"choices": [{"delta": {"content": "lo"}}]}\n\n'
+           'data: [DONE]\n\n')
+    _swap_handler(monkeypatch, lambda req: httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"}))
+    try:
+        out = await _collect()
+    except Exception as exc:  # "choices": "oops" must not crash the turn
+        raise AssertionError(f"malformed chunk crashed the stream: {exc!r}") from exc
+    assert "".join(out) == "Hello"
+
+
+@pytest.mark.parametrize("exc", [httpx.ReadTimeout("slow"), httpx.ConnectTimeout("slow"),
+                                 httpx.RemoteProtocolError("peer closed"), httpx.ReadError("reset")])
+async def test_network_failures_become_clear_errors(fake_api, monkeypatch, exc):
+    from app.services.ollama_client import OllamaError
+
+    def handler(req):
+        raise exc
+
+    _swap_handler(monkeypatch, handler)
+    with pytest.raises(OllamaError) as info:
+        await _collect()
+    assert "Acme AI" in str(info.value)
+
+
+@pytest.mark.parametrize("status,body,hint", [
+    (429, {"error": {"message": "slow down"}}, "rate limited"),
+    (402, {"error": "no credits"}, "needs credits"),
+    (500, "<html>Bad Gateway</html>", "500"),
+])
+async def test_error_statuses_explain_themselves(fake_api, monkeypatch, status, body, hint):
+    from app.services.ollama_client import OllamaError
+
+    def handler(req):
+        return httpx.Response(status, json=body) if isinstance(body, dict) else httpx.Response(status, text=body)
+
+    _swap_handler(monkeypatch, handler)
+    with pytest.raises(OllamaError) as info:
+        await _collect()
+    assert hint in str(info.value)
