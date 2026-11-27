@@ -112,15 +112,37 @@ jobs:
             cp backend/dist/zenith-backend "desktop/src-tauri/binaries/zenith-backend-$triple"
           fi
 
+      # Windows code signing, only when a certificate is configured:
+      # WINDOWS_CERTIFICATE (base64 .pfx) + WINDOWS_CERTIFICATE_PASSWORD.
+      - name: Prepare Windows signing
+        id: winsign
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$WINDOWS_CERTIFICATE" ]; then echo "args=" >> "$GITHUB_OUTPUT"; echo "No Windows certificate set; installers stay unsigned."; exit 0; fi
+          echo "$WINDOWS_CERTIFICATE" | base64 -d > "$RUNNER_TEMP/codesign.pfx"
+          cmd="signtool sign /f $(cygpath -w "$RUNNER_TEMP/codesign.pfx") /p $WINDOWS_CERTIFICATE_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 %1"
+          printf 'args=--config {"bundle":{"windows":{"signCommand":"%s"}}}\n' "${cmd//\\/\\\\}" >> "$GITHUB_OUTPUT"
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS signing + notarization: used by Tauri only when these secrets exist.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: desktop
           tagName: ${{ env.TAG }}
-          releaseName: "Zenith ${{ env.TAG }}"
+          releaseName: "Zenith"
+          args: ${{ steps.winsign.outputs.args }}
           releaseBody: |
             ## Install
 

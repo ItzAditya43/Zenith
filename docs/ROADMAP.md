@@ -108,7 +108,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 
 ### Platform and ecosystem
 
-20. **Encrypted sync across independent installs** — Synchronize separate
+20. **Encrypted sync across independent installs** — *Not started on purpose:* this needs its own design (conflict resolution, version history, key exchange) before any code; doing it quickly would mean the silent last-write-wins merging NOT_BUILT.md rules out. Original note: Synchronize separate
     Zenith backends with real conflict resolution, version history, and
     recovery. This is an XL effort and must not use silent last-write-wins
     merging (see `NOT_BUILT.md`). **XL** (existing roadmap item P3).
@@ -117,7 +117,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 22. ~~**Shareable feature packs**~~ — **Done (1.2.6):** export quick actions, personas and automation rules as a versioned `zenith-pack` file; import shows a preview with duplicates, problems and what each item may do, and imported rules start switched off. Original note: Package quick actions, personas, and
     automation rules for import/export, with a manifest, versioning, and a
     clear permission preview. **M** (existing roadmap item P8).
-23. **Release signing and platform validation** — Add macOS notarization and
+23. **Release signing and platform validation** — *Partly done (1.2.8):* docs/SUPPORT.md records what's verified by hand vs only built in CI; the release signs and notarizes macOS and signs Windows automatically once the certificate secrets are added (not yet, so both stay unsigned); CI now compiles the macOS app on every push (the macOS release build had been failing). Still needs: an Apple Developer ID and a Windows code-signing certificate, and hands-on runs on Windows/macOS. Original note: Add macOS notarization and
     Windows code signing, plus a support matrix and hands-on smoke checks
     across operating systems, GPUs, and Ollama versions. **S + credentials /
     ongoing** (existing roadmap items P1, P2, P9).
