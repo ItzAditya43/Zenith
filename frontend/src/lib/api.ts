@@ -484,6 +484,10 @@ export const api = {
     request(`/api/conversations/${conversationId}/code/definition?name=${encodeURIComponent(name)}`).then((r) => r.json()),
   codeReferences: (conversationId: string, name: string) =>
     request(`/api/conversations/${conversationId}/code/references?name=${encodeURIComponent(name)}`).then((r) => r.json()),
+  codeIndex: (conversationId: string) =>
+    request(`/api/conversations/${conversationId}/code/index`, { method: "POST" }).then((r) => r.json()),
+  codeIndexStatus: (conversationId: string) =>
+    request(`/api/conversations/${conversationId}/code/index`).then((r) => r.json()),
   codeCheck: (conversationId: string) =>
     request(`/api/conversations/${conversationId}/code/check`, { method: "POST" }).then((r) => r.json()),
   listWorkspaceFiles: (conversationId: string, path: string = "") =>

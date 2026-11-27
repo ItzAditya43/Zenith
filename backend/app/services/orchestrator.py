@@ -192,6 +192,13 @@ async def _build_system_context(conversation_id: str, user_text: str) -> tuple[s
             citations.extend(
                 {"kind": "memory", "text": m["content"][:300], "source_id": m["id"]} for m in used
             )
+        workdir = await asyncio.to_thread(storage.get_conversation_workdir, conversation_id)
+        if workdir and len(user_text.strip()) >= 8:
+            from app.services import project_context
+            code_block, code_cites = await asyncio.to_thread(project_context.context_block, conversation_id, workdir, user_text)
+            if code_block:
+                parts.append(code_block)
+                citations.extend(code_cites)
     except Exception as exc:
         log.debug("orchestrator.memory_block_failed", error=str(exc))
     if bool(settings.get("recall_enabled", True)) and len(user_text.strip()) >= 12:

@@ -6407,3 +6407,6 @@ html[data-reduce-motion] .getstarted { animation: none; }
 .ws-nav-list li.sev-warning code { color: var(--signal-voice); }
 .ws-problems-bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border-hairline); }
 .ws-problems-note { margin: 8px 12px 0; font-size: 11.5px; color: var(--signal-voice); white-space: pre-wrap; }
+
+.ws-index-btn { flex: none; height: 26px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-hairline); font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.ws-index-btn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--border-soft); }

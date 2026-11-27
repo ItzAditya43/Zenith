@@ -134,6 +134,19 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
     const r = await api.codeReferences(conversationId, name).catch(() => ({ results: [] }));
     setNavList({ title: `${r.results.length}${r.truncated ? "+" : ""} places mention ${name} (text match)`, items: r.results });
   };
+  const [indexInfo, setIndexInfo] = useState(null);
+  useEffect(() => { api.codeIndexStatus(conversationId).then(setIndexInfo).catch(() => {}); }, [conversationId]);
+  const indexProject = async () => {
+    setIndexInfo(await api.codeIndex(conversationId));
+    const poll = async () => {
+      const st = await api.codeIndexStatus(conversationId).catch(() => null);
+      if (!st) return;
+      setIndexInfo(st);
+      if (st.run?.status === "running") setTimeout(poll, 1500);
+    };
+    setTimeout(poll, 1200);
+  };
+
   const runCheck = async () => {
     setProblems({ running: true });
     try { setProblems(await api.codeCheck(conversationId)); } catch (e) { setProblems({ notes: [e.message], problems: [], ran: [] }); }
@@ -168,7 +181,10 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
   const [seenRequest, setSeenRequest] = useState(null);
   if (openRequest && openRequest !== seenRequest) {
     setSeenRequest(openRequest);
-    if (openRequest.path) openFile(openRequest.path);
+    if (openRequest.path) {
+      if (openRequest.line) openAt(openRequest.path, openRequest.line);
+      else openFile(openRequest.path);
+    }
   }
 
   // Results are applied even if the tab list changed meanwhile: the update
@@ -355,6 +371,10 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
               aria-pressed={treeOpen}
             >
               <Icon name="layers" size={13} />
+            </button>
+            <button className="ws-index-btn" onClick={indexProject} disabled={indexInfo?.run?.status === "running"}
+              title={indexInfo?.indexed_files ? `${indexInfo.indexed_files} files indexed for chat context — click to refresh` : "Index this project so chats can use its code and docs"}>
+              {indexInfo?.run?.status === "running" ? `Indexing ${indexInfo.run.done}/${indexInfo.run.total}` : indexInfo?.indexed_files ? `Indexed · ${indexInfo.indexed_files}` : "Index project"}
             </button>
             <div className="ws-symbol-search">
               <input placeholder="Go to symbol…" value={symQuery} aria-label="Go to symbol"

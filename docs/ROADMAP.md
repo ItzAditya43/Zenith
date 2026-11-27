@@ -52,7 +52,7 @@ and **XL** ≈ a multi-week design and implementation effort.
 3. ~~**Code navigation in the workspace**~~ — **Done (1.2.8):** "Go to symbol" fuzzy search, F12 go-to-definition and Shift+F12 find-references in the editor (text match, labelled as such), built on the repo map's parsers. Original note: Add symbol search, go-to-definition,
    find references, and diagnostics to the existing editor. Use language-server
    support where available and retain text-search fallbacks. **M–L**.
-4. **Project code context** — Maintain a searchable project index of code,
+4. ~~**Project code context**~~ — **Done (1.2.8):** Workspace → Index project builds an incremental index of the project's code and Markdown docs (README, docs/, ADRs) in ~60-line blocks; coding chats get the relevant blocks cited as path:line (chips open the file at that line) plus a summary of what the last agent runs asked for and changed. Original note: Maintain a searchable project index of code,
    architecture decisions, and recent agent runs; retrieve only relevant,
    cited snippets into coding conversations. Reuse the existing RAG and
    project/folder concepts. **M–L**.

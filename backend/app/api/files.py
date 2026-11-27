@@ -30,7 +30,8 @@ log = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["files"])
 
 # Directories never worth showing/scanning in a code-editor file tree.
-_SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", ".next"}
+_SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", ".next",
+              ".mypy_cache", ".pytest_cache", ".ruff_cache", ".tox"}
 MAX_FILE_BYTES = 2 * 1024 * 1024  # 2MB — a code editor, not a binary viewer
 
 
@@ -149,6 +150,27 @@ async def code_check(conversation_id: str):
     from app.services import code_intel
 
     return await code_intel.project_check(_workdir(conversation_id))
+
+
+@router.post("/conversations/{conversation_id}/code/index")
+async def code_index(conversation_id: str):
+    """Index (or refresh) this project's code and docs for chat context.
+    Runs in the background; poll GET for progress."""
+    import asyncio
+
+    from app.services import project_context
+
+    root = _workdir(conversation_id)
+    asyncio.get_running_loop().run_in_executor(None, project_context.index_project, str(root))
+    await asyncio.sleep(0.05)
+    return project_context.status(str(root))
+
+
+@router.get("/conversations/{conversation_id}/code/index")
+async def code_index_status(conversation_id: str):
+    from app.services import project_context
+
+    return project_context.status(str(_workdir(conversation_id)))
 
 
 @router.get("/conversations/{conversation_id}/git/status")

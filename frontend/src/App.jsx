@@ -184,6 +184,14 @@ export default function App() {
   }, []);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [workspaceOpenRequest, setWorkspaceOpenRequest] = useState(null);
+  useEffect(() => {
+    const onOpen = (e) => {
+      setCodeEditorOpen(true);
+      setWorkspaceOpenRequest({ path: e.detail.path, line: e.detail.line, nonce: Date.now() });
+    };
+    window.addEventListener("zenith:open-in-workspace", onOpen);
+    return () => window.removeEventListener("zenith:open-in-workspace", onOpen);
+  }, []);
   const [workspaceWide, setWorkspaceWide] = useState(false);
   const [codeAfterFolder, setCodeAfterFolder] = useState(false);
   const [snippetsOpen, setSnippetsOpen] = useState(false);

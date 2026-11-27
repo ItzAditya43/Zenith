@@ -3,7 +3,7 @@ import ModelBadge from "./ModelBadge";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { api } from "../lib/api";
 import Icon from "./Icon.jsx";
-import { openMemoryBrowser, openRunReview } from "../lib/uiEvents.js";
+import { openInWorkspace, openMemoryBrowser, openRunReview } from "../lib/uiEvents.js";
 import DiffView from "./DiffView.jsx";
 import RegenerationDiff from "./RegenerationDiff.jsx";
 import DocumentPreview from "./DocumentPreview.jsx";
@@ -603,7 +603,16 @@ export default function MessageBubble({
 
         {!isUser && message.sources?.length > 0 && (
           <div className="msg-sources">
-            {message.sources.map((s, i) =>
+            {(() => {
+              const mems = message.sources.filter((s) => s.kind === "memory");
+              return mems.length > 1 ? (
+                <button className="msg-source-chip msg-source-chip-recall" onClick={() => openMemoryBrowser(mems[0].source_id)}
+                  title={"Remembered and used for this reply:\n" + mems.map((m) => `• ${m.text}`).join("\n")}>
+                  <Icon name="layers" size={12} /> {mems.length} memories
+                </button>
+              ) : null;
+            })()}
+            {message.sources.filter((s) => !(s.kind === "memory" && message.sources.filter((x) => x.kind === "memory").length > 1)).map((s, i) =>
               s.url ? (
                 <a
                   key={s.url + i}
@@ -629,6 +638,15 @@ export default function MessageBubble({
                   onClick={() => setPreviewSource(s)}
                 >
                   <Icon name="file-text" size={12} /> {s.source_id}
+                </button>
+              ) : s.kind === "code" ? (
+                <button
+                  key={(s.source_id || "") + i}
+                  className="msg-source-chip msg-source-chip-recall"
+                  title={`${s.path}:${s.start}-${s.end}\n${s.text}`}
+                  onClick={() => openInWorkspace(s.path, s.start)}
+                >
+                  <Icon name="file-text" size={12} /> {s.path}:{s.start}
                 </button>
               ) : s.kind === "memory" ? (
                 <button
