@@ -52,15 +52,31 @@ function StatusDot({ ok }) {
   return <span className={`health-dot ${ok ? "is-ok" : "is-down"}`} aria-hidden="true" />;
 }
 
-function ComponentRow({ id, data }) {
+function ComponentRow({ id, data: initial }) {
+  const [data, setData] = useState(initial);
+  const [busy, setBusy] = useState(false);
   const label = LABELS[id] || id;
-  const entries = Object.entries(data || {}).filter(([k]) => !HIDDEN_FIELDS.has(k));
+  const entries = Object.entries(data || {}).filter(([k]) => !HIDDEN_FIELDS.has(k) && !["fix", "checked_at", "latency_ms"].includes(k));
+  const recheck = async () => {
+    setBusy(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/health/${id}`, { headers: authHeaders() });
+      if (r.ok) setData(await r.json());
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="health-row">
       <div className="health-row-main">
         <StatusDot ok={!!data?.ok} />
         <span className="health-row-label">{label}</span>
+        {data?.latency_ms != null && <span className="health-row-field">{data.latency_ms} ms</span>}
+        <button className="text-btn" style={{ marginLeft: "auto" }} onClick={recheck} disabled={busy} aria-label={`Check ${label} again`}>
+          {busy ? "Checking…" : "Check again"}
+        </button>
       </div>
+      {!data?.ok && data?.fix && <p className="health-fix">How to fix: {data.fix}</p>}
       {entries.length > 0 && (
         <div className="health-row-detail">
           {entries.map(([k, v]) => (

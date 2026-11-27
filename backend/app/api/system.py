@@ -190,6 +190,48 @@ def _overall(ollama: dict, whisper: dict, tts: dict) -> Literal["ok", "degraded"
     return "ok"
 
 
+REMEDIES = {
+    "ollama": "Start Ollama (`ollama serve`, or open the Ollama app) and check Settings → Connection → Ollama host.",
+    "whisper": "Voice input needs faster-whisper: `pip install faster-whisper` in Zenith's environment, then restart.",
+    "tts": "Download a Piper voice in Settings → Voice, or turn spoken replies off.",
+    "vector_search": "Install an embedding model (`ollama pull nomic-embed-text`) so search can use meaning, not just words.",
+    "image_gen": "Set up image generation in Settings → Images (a local Stable Diffusion server or a provider).",
+    "agent_mode": "Agent mode is off. Turn it on in Settings → Agent if you want Zenith to run tools.",
+    "mcp": "Open Settings → Agent → MCP servers and use Test connection on each server.",
+    "embedding_model": "Pull the embedding model named in Settings → Memory, or pick an installed one.",
+}
+
+_PROBES = {
+    "ollama": lambda: _ollama_status(OllamaClient()),
+    "whisper": lambda: _whisper_status(),
+    "tts": lambda: _tts_status(),
+    "vector_search": lambda: asyncio.to_thread(_vector_search_status),
+    "image_gen": lambda: asyncio.to_thread(_image_gen_status),
+    "agent_mode": lambda: asyncio.to_thread(_agent_mode_status),
+    "mcp": lambda: asyncio.to_thread(_mcp_status),
+    "embedding_model": lambda: _embedding_model_status(),
+}
+
+
+async def _timed(name: str) -> dict:
+    t0 = time.perf_counter()
+    res = await _PROBES[name]()
+    res = dict(res)
+    res["latency_ms"] = round((time.perf_counter() - t0) * 1000)
+    res["checked_at"] = time.time()
+    if not res.get("ok"):
+        res["fix"] = REMEDIES.get(name, "")
+    return res
+
+
+@router.get("/health/{component}")
+async def health_component(component: str):
+    """Re-check one component without probing the rest."""
+    if component not in _PROBES:
+        raise HTTPException(404, "Unknown component.")
+    return await _timed(component)
+
+
 @router.get("/health")
 async def health(request: Request):
     """Probes the real dependencies instead of returning a static `ok`.
@@ -198,14 +240,8 @@ async def health(request: Request):
     dependency and its own status so a UI/monitoring layer can render a
     richer health view later without an API change."""
     ollama, whisper, tts, vector_search, image_gen, agent_mode, mcp, embedding_model = await asyncio.gather(
-        _ollama_status(OllamaClient()),
-        _whisper_status(),
-        _tts_status(),
-        asyncio.to_thread(_vector_search_status),
-        asyncio.to_thread(_image_gen_status),
-        asyncio.to_thread(_agent_mode_status),
-        asyncio.to_thread(_mcp_status),
-        _embedding_model_status(),
+        *(_timed(n) for n in ("ollama", "whisper", "tts", "vector_search", "image_gen", "agent_mode", "mcp",
+                              "embedding_model"))
     )
     status = _overall(ollama, whisper, tts)
     log.info("health.probe", status=status, ollama=ollama.get("ok"), whisper=whisper.get("ok"), tts=tts.get("ok"))

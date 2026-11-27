@@ -50,3 +50,12 @@ def test_logger_exception_works():
         raise ValueError("x")
     except ValueError:
         get_logger("t").exception("t.failed", thing=1)
+
+
+def test_health_has_fixes_and_single_component(client):
+    r = client.get("/api/health")
+    comps = (r.json() if r.status_code == 200 else r.json()["detail"])["components"]
+    assert all("latency_ms" in c for c in comps.values())
+    assert all(c.get("fix") for c in comps.values() if not c["ok"])
+    assert client.get("/api/health/mcp").json()["latency_ms"] >= 0
+    assert client.get("/api/health/nope").status_code == 404
