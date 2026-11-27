@@ -84,6 +84,24 @@ async def remove_webhook(webhook_id: str):
     return {"ok": True}
 
 
+@router.post("/automation/rules/preview")
+async def preview_rule(body: dict):
+    """Dry run: {trigger_type, action_type, action_config, trigger_config?, name?, data?} or {rule_id, data?}."""
+    from app.services import automation_service
+    from app.services.events import EVENT_TYPES
+    if body.get("rule_id"):
+        rule = next((r for r in storage.list_automation_rules() if r["id"] == body["rule_id"]), None)
+        if not rule:
+            raise HTTPException(404, "No such rule.")
+    else:
+        rule = {"name": body.get("name") or "New rule", "trigger_type": body.get("trigger_type"),
+                "trigger_config": body.get("trigger_config") or {}, "action_type": body.get("action_type"),
+                "action_config": body.get("action_config") or {}}
+    if rule["trigger_type"] not in EVENT_TYPES or rule["action_type"] not in ("prompt", "webhook", "todo"):
+        raise HTTPException(422, "Pick a trigger and an action first.")
+    return automation_service.dry_run(rule, body.get("data"))
+
+
 @router.get("/automation/rules")
 async def list_rules():
     return storage.list_automation_rules()

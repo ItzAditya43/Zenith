@@ -1164,8 +1164,31 @@ async def remove_calendar_event(event_id: str):
 
 
 @router.get("/notes")
-async def list_notes():
-    return storage.list_notes()
+async def list_notes(q: str = ""):
+    return storage.list_notes(q)
+
+
+@router.get("/notes/export.md")
+async def export_notes():
+    from fastapi.responses import Response
+    parts = []
+    for n in storage.list_notes():
+        when = time.strftime("%Y-%m-%d %H:%M", time.localtime(n["updated_at"]))
+        parts.append(f"## {'📌 ' if n['pinned'] else ''}{when}\n\n{n['content']}\n")
+    return Response("# Notes\n\n" + "\n".join(parts), media_type="text/markdown",
+                    headers={"Content-Disposition": 'attachment; filename="zenith-notes.md"'})
+
+
+@router.get("/notes/{note_id}/history")
+async def note_history(note_id: str):
+    return storage.note_versions(note_id)
+
+
+@router.post("/notes/{note_id}/restore")
+async def restore_note(note_id: str, body: dict):
+    if not storage.restore_note_version(note_id, str(body.get("version_id", ""))):
+        raise HTTPException(404, "No such version.")
+    return {"ok": True}
 
 
 @router.post("/notes")
@@ -1189,8 +1212,13 @@ async def remove_note(note_id: str):
 
 
 @router.get("/todos")
-async def list_todos():
-    return storage.list_todos()
+async def list_todos(q: str = "", project: str | None = None):
+    return storage.list_todos(q, project)
+
+
+@router.get("/todos/projects")
+async def list_todo_projects():
+    return storage.todo_projects()
 
 
 @router.post("/todos")
@@ -1201,7 +1229,7 @@ async def create_todo(body: dict):
     status = body.get("status", "todo")
     if status not in storage.TODO_STATUSES:
         raise HTTPException(422, f"status must be one of {storage.TODO_STATUSES}")
-    return storage.create_todo(text, body.get("due_ts"), status)
+    return storage.create_todo(text, body.get("due_ts"), status, int(body.get("priority") or 0), body.get("project"))
 
 
 @router.patch("/todos/{todo_id}")
@@ -1211,7 +1239,11 @@ async def update_todo(todo_id: str, body: dict):
     if status is not None and status not in storage.TODO_STATUSES:
         raise HTTPException(422, f"status must be one of {storage.TODO_STATUSES}")
     before = next((t for t in storage.list_todos() if t["id"] == todo_id), None)
-    storage.update_todo(todo_id, body.get("text"), body.get("done"), due_ts, status)
+    project = body["project"] if "project" in body else "__unset__"
+    priority = body.get("priority")
+    if priority is not None and priority not in (0, 1, 2, 3):
+        raise HTTPException(422, "priority must be 0 (none), 1 (low), 2 (medium) or 3 (high)")
+    storage.update_todo(todo_id, body.get("text"), body.get("done"), due_ts, status, priority, project)
     after = next((t for t in storage.list_todos() if t["id"] == todo_id), None)
     if before and after and not before.get("done") and after.get("done"):
         from app.services import events

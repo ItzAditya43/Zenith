@@ -6460,3 +6460,16 @@ html[data-reduce-motion] .getstarted { animation: none; }
 .folder-filters-toggle { flex-basis: 100%; text-align: left; font-size: 12px; }
 .folder-filters { flex-basis: 100%; display: grid; gap: 6px; padding: 8px 0 2px; }
 .folder-filters label { display: grid; gap: 3px; font-size: 12px; color: var(--text-secondary); }
+
+.todo-meta { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; flex-wrap: wrap; }
+.todo-meta > span { font-size: 10.5px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border-hairline); color: var(--text-secondary); }
+.todo-pri.p3 { color: var(--color-danger, #d33); border-color: color-mix(in srgb, var(--color-danger, #d33) 40%, transparent); }
+.todo-pri.p2 { color: var(--accent, #f60); }
+.todo-due.is-overdue { color: var(--color-danger, #d33); }
+.calendar-event-item:has(.todo-edit) { flex-wrap: wrap; }
+.todo-edit { flex-basis: 100%; display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 0 2px 26px; }
+.todo-edit > * { flex: 1 1 120px; }
+
+.note-history { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--border-hairline); display: grid; gap: 6px; font-size: 11.5px; }
+.note-history span { color: var(--text-secondary); }
+.note-history p { margin: 2px 0; white-space: pre-wrap; }

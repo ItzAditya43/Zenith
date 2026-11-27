@@ -39,6 +39,8 @@ export default function AutomationSection() {
     toggleWebhook,
     deleteWebhook,
     addRule,
+    previewRule,
+    rulePreview,
     toggleRule,
     deleteRule,
   } = useSettings();
@@ -175,6 +177,23 @@ export default function AutomationSection() {
             onChange={(e) => setNewRuleWebhookUrl(e.target.value)}
           />
         )}
+        {rulePreview && (
+          <div className="backup-preview" role="status">
+            <strong>Dry run — nothing was sent or saved</strong>
+            <ul>
+              <li>When: {rulePreview.trigger.replace(/_/g, " ")}{rulePreview.matches_filter ? "" : " (the sample event doesn't match your filter)"}</li>
+              {rulePreview.target && <li>Goes to: {rulePreview.target}</li>}
+              {rulePreview.prompt && <li>Prompt: <code>{rulePreview.prompt}</code></li>}
+              {rulePreview.text && <li>To-do: {rulePreview.text}</li>}
+              {rulePreview.payload && <li>Sends: <code>{JSON.stringify(rulePreview.payload)}</code></li>}
+              <li>Result: {rulePreview.expected}</li>
+              {rulePreview.problem && <li className="backup-problem">{rulePreview.problem}</li>}
+            </ul>
+          </div>
+        )}
+        <button className="settings-btn-secondary" onClick={previewRule} style={{ alignSelf: "flex-end" }}>
+          Preview
+        </button>
         <button className="settings-btn-primary" onClick={addRule} style={{ alignSelf: "flex-end" }}>
           Add rule
         </button>

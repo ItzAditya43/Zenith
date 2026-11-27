@@ -722,12 +722,14 @@ export const api = {
       body: JSON.stringify({ question }),
     }).then((r) => r.json()),
 
-  listTodos: () => request("/api/todos").then((r) => r.json()),
-  createTodo: (text: string, dueTs: number | null = null) =>
+  listTodos: (q = "", project = "") =>
+    request(`/api/todos?q=${encodeURIComponent(q)}${project ? `&project=${encodeURIComponent(project)}` : ""}`).then((r) => r.json()),
+  todoProjects: () => request("/api/todos/projects").then((r) => r.json()),
+  createTodo: (text: string, dueTs: number | null = null, extra: Record<string, unknown> = {}) =>
     request("/api/todos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, due_ts: dueTs }),
+      body: JSON.stringify({ text, due_ts: dueTs, ...extra }),
     }).then((r) => r.json()),
   updateTodo: (id: string, patch: Record<string, unknown>) =>
     request(`/api/todos/${id}`, {
@@ -737,7 +739,13 @@ export const api = {
     }).then((r) => r.json()),
   deleteTodo: (id: string) => request(`/api/todos/${id}`, { method: "DELETE" }),
 
-  listNotes: () => request("/api/notes").then((r) => r.json()),
+  listNotes: (q = "") => request(`/api/notes?q=${encodeURIComponent(q)}`).then((r) => r.json()),
+  noteHistory: (id: string) => request(`/api/notes/${id}/history`).then((r) => r.json()),
+  restoreNote: (id: string, versionId: string) =>
+    request(`/api/notes/${id}/restore`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version_id: versionId }),
+    }).then((r) => r.json()),
+  notesExportUrl: () => `${BASE}/api/notes/export.md`,
   createNote: (content: string, color: string = "default") =>
     request("/api/notes", {
       method: "POST",
@@ -862,6 +870,10 @@ export const api = {
     }),
   deleteWebhook: (id: string) => request(`/api/webhooks/${id}`, { method: "DELETE" }),
   listAutomationRules: () => request("/api/automation/rules").then((r) => r.json()),
+  previewAutomationRule: (rule: Record<string, unknown>) =>
+    request("/api/automation/rules/preview", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rule),
+    }).then((r) => r.json()),
   createAutomationRule: (rule: Record<string, unknown>) =>
     request("/api/automation/rules", {
       method: "POST",

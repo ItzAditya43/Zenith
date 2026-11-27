@@ -137,3 +137,45 @@ async def handle_event(event_type: str, data: dict) -> None:
             log.info("automation.rule_fired", rule_id=rule["id"], name=rule["name"], event=event_type)
         except Exception as exc:
             log.warning("automation.rule_failed", rule_id=rule["id"], error=str(exc))
+
+
+SAMPLE_EVENTS: dict[str, dict] = {
+    "digest_generated": {"digest_id": "sample", "files_changed": 3, "memories_added": 1},
+    "schedule_completed": {"schedule_id": "sample", "name": "Morning brief", "summary": "Three things changed overnight."},
+    "schedule_failing": {"schedule_id": "sample", "name": "Morning brief", "failures": 3, "paused": False},
+    "urgent_email": {"from": "boss@example.com", "subject": "Need this today", "summary": "Asks for the report by 5pm."},
+    "memory_conflict_found": {"memory_a": "uses fish shell", "memory_b": "uses zsh"},
+    "folder_file_added": {"folder_id": "sample", "path": "/notes/new-idea.md"},
+    "agent_run_finished": {"id": "sample", "prompt": "Fix the failing test", "summary": "Edited 2 files."},
+    "agent_run_needs_approval": {"id": "sample", "prompt": "Clean up", "detail": "wants to run rm -rf build/"},
+    "todo_created": {"id": "sample", "text": "Call the plumber", "source": "manual"},
+    "todo_completed": {"id": "sample", "text": "Call the plumber"},
+}
+
+
+def dry_run(rule: dict, data: dict | None = None) -> dict:
+    """What this rule would do for one event — nothing is run, sent or saved."""
+    event = rule["trigger_type"]
+    data = data if data is not None else SAMPLE_EVENTS.get(event, {})
+    cfg = rule.get("action_config") or {}
+    out: dict = {"trigger": event, "event_data": data, "matches_filter": _matches_filter(rule, data),
+                 "action": rule["action_type"]}
+    if rule["action_type"] == "prompt":
+        prompt = str(cfg.get("prompt", "")).replace("{event_data}", json.dumps(data)[:2000])
+        conv = rule.get("conversation_id")
+        out.update(prompt=prompt, mode=cfg.get("mode") or "chat",
+                   target=f"conversation {conv}" if conv else f'a new conversation "[Automation] {rule.get("name", "")}"',
+                   expected="A chat or research reply posted in that conversation. It can't run tools or commands.")
+    elif rule["action_type"] == "webhook":
+        payload = {"event": event, "delivery_id": "<generated>", "schema_version": 1, "data": data, "rule": rule.get("name")}
+        out.update(target=cfg.get("url"), payload=payload,
+                   expected="One signed POST, retried up to 3 times on network errors or 5xx.")
+        try:
+            from app.services.webhook_service import check_target
+            check_target(str(cfg.get("url") or ""))
+        except Exception as exc:  # noqa: BLE001
+            out["problem"] = str(exc)
+    elif rule["action_type"] == "todo":
+        out.update(text=_fill(str(cfg.get("text") or ""), data), due_in_hours=cfg.get("due_in_hours"),
+                   expected="Adds the to-do unless an open one with the same text already exists.")
+    return out

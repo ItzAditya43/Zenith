@@ -1135,6 +1135,20 @@ def _watched_folder_patterns(conn: sqlite3.Connection) -> None:
         if name not in cols:
             conn.execute(f"ALTER TABLE watched_folders ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
 
+
+def _todo_priority_project_note_versions(conn: sqlite3.Connection) -> None:
+    """To-do priority (0 none … 3 high) and project; earlier versions of notes."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(todos)")}
+    if "priority" not in cols:
+        conn.execute("ALTER TABLE todos ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
+    if "project" not in cols:
+        conn.execute("ALTER TABLE todos ADD COLUMN project TEXT")
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS note_versions (
+            id TEXT PRIMARY KEY, note_id TEXT NOT NULL, content TEXT NOT NULL, saved_at REAL NOT NULL)"""
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_note_versions_note ON note_versions (note_id, saved_at)")
+
 MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "baseline", _baseline),
     (2, "attachments_table", _attachments_table),
@@ -1196,6 +1210,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (58, "digest_items_and_push_log", _digest_items_and_push_log),
     (59, "mcp_tool_policy", _mcp_tool_policy),
     (60, "watched_folder_patterns", _watched_folder_patterns),
+    (61, "todo_priority_project_note_versions", _todo_priority_project_note_versions),
 ]
 
 

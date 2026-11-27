@@ -341,6 +341,26 @@ export default function SettingsPanel({
     refreshAutomation();
   };
 
+  const [rulePreview, setRulePreview] = useState(null);
+  const ruleDraft = () => ({
+    name: newRuleName.trim() || "New rule",
+    trigger_type: newRuleTrigger,
+    trigger_config: newRuleTrigger === "folder_file_added" && newRuleFolderId.trim() ? { folder_id: newRuleFolderId.trim() } : {},
+    action_type: newRuleActionType,
+    action_config:
+      newRuleActionType === "prompt"
+        ? { prompt: newRulePrompt.trim(), mode: newRuleMode }
+        : newRuleActionType === "todo"
+          ? { text: newRuleTodoText.trim(), ...(newRuleTodoDue ? { due_in_hours: Number(newRuleTodoDue) } : {}) }
+          : { url: newRuleWebhookUrl.trim() },
+  });
+  const previewRule = async () => {
+    try {
+      setRulePreview(await api.previewAutomationRule(ruleDraft()));
+    } catch (err) {
+      setRulesError(err.message);
+    }
+  };
   const addRule = async () => {
     if (!newRuleName.trim() || !newRuleTrigger) return;
     const actionConfig =
@@ -1065,6 +1085,8 @@ export default function SettingsPanel({
     toggleWebhook,
     deleteWebhook,
     addRule,
+    previewRule,
+    rulePreview,
     toggleRule,
     deleteRule,
     refreshSchedules,

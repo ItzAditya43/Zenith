@@ -943,18 +943,47 @@ def create_note(content: str, color: str = "default") -> dict:
     return {"id": nid, "content": content, "color": color, "pinned": 0, "created_at": now, "updated_at": now}
 
 
-def list_notes() -> list[dict]:
+def list_notes(q: str = "") -> list[dict]:
     with _conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC"
-        ).fetchall()
+        if q.strip():
+            rows = conn.execute("SELECT * FROM notes WHERE lower(content) LIKE ? ORDER BY pinned DESC, updated_at DESC",
+                                (f"%{q.strip().lower()}%",)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC").fetchall()
         return [dict(r) for r in rows]
+
+
+NOTE_VERSIONS_KEPT = 20
+
+
+def note_versions(note_id: str) -> list[dict]:
+    with _conn() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM note_versions WHERE note_id = ? ORDER BY saved_at DESC", (note_id,))]
+
+
+def restore_note_version(note_id: str, version_id: str) -> bool:
+    with _conn() as conn:
+        r = conn.execute("SELECT content FROM note_versions WHERE id = ? AND note_id = ?", (version_id, note_id)).fetchone()
+    if not r:
+        return False
+    update_note(note_id, content=r["content"])
+    return True
 
 
 def update_note(note_id: str, content: str | None = None, color: str | None = None, pinned: bool | None = None) -> None:
     fields: list[str] = []
     params: list[Any] = []
     if content is not None:
+        # Keep the text being replaced, so an edit can be undone later.
+        with _conn() as conn:
+            prev = conn.execute("SELECT content, updated_at FROM notes WHERE id = ?", (note_id,)).fetchone()
+            if prev and prev["content"] != content:
+                conn.execute("INSERT INTO note_versions (id, note_id, content, saved_at) VALUES (?, ?, ?, ?)",
+                             (str(uuid.uuid4()), note_id, prev["content"], prev["updated_at"]))
+                conn.execute(
+                    "DELETE FROM note_versions WHERE note_id = ? AND id NOT IN (SELECT id FROM note_versions"
+                    " WHERE note_id = ? ORDER BY saved_at DESC LIMIT ?)", (note_id, note_id, NOTE_VERSIONS_KEPT))
         fields.append("content = ?")
         params.append(content)
     if color is not None:
@@ -980,29 +1009,45 @@ def delete_note(note_id: str) -> None:
 TODO_STATUSES = ("todo", "in_progress", "done")
 
 
-def create_todo(text: str, due_ts: float | None = None, status: str = "todo") -> dict:
+def create_todo(text: str, due_ts: float | None = None, status: str = "todo", priority: int = 0,
+                project: str | None = None) -> dict:
     tid = str(uuid.uuid4())
     now = time.time()
     done = 1 if status == "done" else 0
+    priority = max(0, min(3, int(priority or 0)))
+    project = (project or "").strip() or None
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO todos (id, text, done, due_ts, created_at, updated_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (tid, text, done, due_ts, now, now, status),
+            "INSERT INTO todos (id, text, done, due_ts, created_at, updated_at, status, priority, project)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (tid, text, done, due_ts, now, now, status, priority, project),
         )
     return {"id": tid, "text": text, "done": done, "due_ts": due_ts, "created_at": now,
-            "updated_at": now, "status": status}
+            "updated_at": now, "status": status, "priority": priority, "project": project}
 
 
-def list_todos() -> list[dict]:
+def list_todos(q: str = "", project: str | None = None) -> list[dict]:
+    sql = "SELECT * FROM todos WHERE 1=1"
+    args: list[Any] = []
+    if q.strip():
+        sql += " AND lower(text) LIKE ?"
+        args.append(f"%{q.strip().lower()}%")
+    if project:
+        sql += " AND project = ?"
+        args.append(project)
+    sql += " ORDER BY done ASC, priority DESC, (due_ts IS NULL), due_ts ASC, created_at DESC"
     with _conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM todos ORDER BY done ASC, (due_ts IS NULL), due_ts ASC, created_at DESC"
-        ).fetchall()
-        return [dict(r) for r in rows]
+        return [dict(r) for r in conn.execute(sql, args).fetchall()]
+
+
+def todo_projects() -> list[str]:
+    with _conn() as conn:
+        return [r[0] for r in conn.execute("SELECT DISTINCT project FROM todos WHERE project IS NOT NULL ORDER BY project")]
 
 
 def update_todo(todo_id: str, text: str | None = None, done: bool | None = None,
-                 due_ts: float | str | None = "__unset__", status: str | None = None) -> None:
+                 due_ts: float | str | None = "__unset__", status: str | None = None,
+                 priority: int | None = None, project: str | None = "__unset__") -> None:
     # due_ts's default is the sentinel string "__unset__", not None, so
     # "explicitly clear the due date" (None) can be distinguished from
     # "caller didn't touch this field at all" — both app/api/chat.py and
@@ -1030,6 +1075,12 @@ def update_todo(todo_id: str, text: str | None = None, done: bool | None = None,
     if due_ts != "__unset__":
         fields.append("due_ts = ?")
         params.append(due_ts)
+    if priority is not None:
+        fields.append("priority = ?")
+        params.append(max(0, min(3, int(priority))))
+    if project != "__unset__":
+        fields.append("project = ?")
+        params.append((project or "").strip() or None)
     if not fields:
         return
     fields.append("updated_at = ?")
