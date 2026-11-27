@@ -184,6 +184,12 @@ def _has_api_key(request: Request) -> bool:
 class NetworkGuard(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
+        # Sandboxed previews and file:// pages send "Origin: null". Nothing
+        # legitimate writes to Zenith from there, so refuse any write.
+        if (request.method not in ("GET", "HEAD", "OPTIONS") and path.startswith("/api/")
+                and request.headers.get("origin", "").strip().lower() == "null"):
+            return JSONResponse({"detail": "Requests from sandboxed or file:// pages can't change anything.",
+                                 "code": "null_origin"}, status_code=403)
         if request.method == "OPTIONS" or not path.startswith("/api/") or _has_api_key(request):
             return await call_next(request)
         client = request.client.host if request.client else None

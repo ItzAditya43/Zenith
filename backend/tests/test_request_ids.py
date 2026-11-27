@@ -59,3 +59,9 @@ def test_health_has_fixes_and_single_component(client):
     assert all(c.get("fix") for c in comps.values() if not c["ok"])
     assert client.get("/api/health/mcp").json()["latency_ms"] >= 0
     assert client.get("/api/health/nope").status_code == 404
+
+
+def test_null_origin_cannot_write(client):
+    r = client.post("/api/notes", json={"content": "x"}, headers={"Origin": "null"})
+    assert r.status_code == 403 and r.json()["code"] == "null_origin"
+    assert client.get("/api/version", headers={"Origin": "null"}).status_code == 200

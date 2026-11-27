@@ -30,7 +30,25 @@ const PREVIEW_REACT_RUNTIME_URL = "/preview-runtime/react-runtime.js";
 // `<\/script>` below is deliberate: it keeps these strings safe if this code is
 // ever inlined into an HTML <script>, so the "useless escape" rule is off here.
 // oxlint-disable no-useless-escape
+/** The preview runs untrusted code. Besides the iframe sandbox (scripts
+ * only, opaque origin), this CSP blocks network calls and form posts, so a
+ * preview can't reach Zenith's API or send data anywhere. */
+function previewCsp() {
+  const self = typeof location !== "undefined" ? location.origin : "";
+  return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' ${self}; style-src 'unsafe-inline' https: data:; img-src data: blob: https:; font-src data: https:; media-src data: blob:; connect-src 'none'; form-action 'none'; frame-src 'none'; base-uri 'none'">`;
+}
+
+function withCsp(html) {
+  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => `${m}${previewCsp()}`);
+  if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => `${m}<head>${previewCsp()}</head>`);
+  return previewCsp() + html;
+}
+
 function buildPreviewDoc(text, lang, transformedJs, transformError) {
+  return withCsp(buildPreviewDocRaw(text, lang, transformedJs, transformError));
+}
+
+function buildPreviewDocRaw(text, lang, transformedJs, transformError) {
   const isFullDoc = /<!doctype html/i.test(text) || /<html[\s>]/i.test(text);
   if (isFullDoc) return text;
 
