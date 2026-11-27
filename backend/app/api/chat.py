@@ -40,6 +40,12 @@ async def list_conversations():
     return storage.list_conversations()
 
 
+@router.get("/conversations/{conversation_id}/integrity")
+async def conversation_integrity(conversation_id: str, repair: bool = False):
+    """Checks (and optionally repairs) this chat's branch tree."""
+    return storage.check_branches(conversation_id, repair)
+
+
 @router.get("/conversations/search")
 async def search_conversations(q: str = ""):
     """Full-text search across message content using SQLite FTS5. Used by

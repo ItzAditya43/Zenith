@@ -620,6 +620,54 @@ def deactivate_root(conversation_id: str) -> None:
             _deactivate_subtree(conn, r["id"])
 
 
+def check_branches(conversation_id: str, repair: bool = False) -> dict:
+    """Branch-tree integrity: messages whose parent is missing (or in another
+    chat), and levels with zero or several active siblings. With repair,
+    orphans are re-attached to the last message before them and each level
+    is left with exactly one active message (the newest on the active path)."""
+    problems: list[str] = []
+    with _conn() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT id, parent_id, active, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at",
+            (conversation_id,))]
+        ids = {r["id"] for r in rows}
+        orphans = [r for r in rows if r["parent_id"] and r["parent_id"] not in ids]
+        for o in orphans:
+            problems.append(f"message {o['id'][:8]} points at a parent that isn't in this chat")
+            if repair:
+                before = [r for r in rows if r["created_at"] < o["created_at"] and r["id"] != o["id"]]
+                conn.execute("UPDATE messages SET parent_id = ? WHERE id = ?",
+                             (before[-1]["id"] if before else None, o["id"]))
+                o["parent_id"] = before[-1]["id"] if before else None
+        by_parent: dict[str | None, list[dict]] = {}
+        for r in rows:
+            by_parent.setdefault(r["parent_id"], []).append(r)
+        # walk the active path from the root
+        level: str | None = None
+        seen: set[str] = set()
+        while True:
+            kids = by_parent.get(level) or []
+            if not kids:
+                break
+            active = [k for k in kids if k["active"]]
+            if len(active) != 1:
+                problems.append(f"{len(active)} active replies at one point in the chat (should be 1)")
+                if repair:
+                    keep = active[-1] if active else kids[-1]
+                    for k in kids:
+                        conn.execute("UPDATE messages SET active = ? WHERE id = ?", (1 if k is keep else 0, k["id"]))
+                    active = [keep]
+                else:
+                    active = active[-1:] or kids[-1:]
+            nxt = active[0]["id"]
+            if nxt in seen:
+                problems.append("the branch tree loops back on itself")
+                break
+            seen.add(nxt)
+            level = nxt
+    return {"ok": not problems, "problems": problems, "repaired": bool(problems) and repair}
+
+
 def set_active_branch(conversation_id: str, message_id: str) -> None:
     """Switches the current branch to `message_id`: activates it,
     deactivates its siblings (and their whole subtrees), then restores
