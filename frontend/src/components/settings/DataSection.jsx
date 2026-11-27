@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { useSettings } from "./SettingsContext.js";
 import ApiKeys from "./ApiKeys.jsx";
@@ -78,6 +78,7 @@ export default function DataSection() {
           <span className="setting-label">Import a file</span>
           <span className="setting-hint">
             {importStatus || "Original messages and timestamps are kept, each chat is tagged with where it came from, and chats you already imported are skipped."}
+            <ImportBatches key={importStatus} />
           </span>
         </div>
         <label className="settings-btn-primary" style={{ cursor: "pointer" }}>
@@ -105,5 +106,29 @@ export default function DataSection() {
       </p>
       <PasscodeSettings lockEnabled={lockEnabled} setLockEnabled={setLockEnabled} />
     </section>
+  );
+}
+
+
+function ImportBatches() {
+  const [batches, setBatches] = useState([]);
+  useEffect(() => { api.importBatches().then(setBatches).catch(() => {}); }, []);
+  if (!batches.length) return null;
+  const undo = async (b) => {
+    const { confirmDialog } = await import("../../lib/dialogs.js");
+    if (!(await confirmDialog({ title: "Undo this import?", message: `Deletes the ${b.conversations} chat(s) it created, including anything you've added to them since.`, confirmLabel: "Delete them", danger: true }))) return;
+    await api.undoImport(b.batch_id);
+    setBatches(await api.importBatches());
+  };
+  return (
+    <span style={{ display: "block", marginTop: "0.4rem" }}>
+      Recent imports:
+      {batches.map((b) => (
+        <span key={b.batch_id} style={{ display: "block" }}>
+          {new Date(b.imported_at * 1000).toLocaleString()} · {b.source} · {b.conversations} chat(s){" "}
+          <button className="text-btn" onClick={() => undo(b)}>Undo</button>
+        </span>
+      ))}
+    </span>
   );
 }

@@ -364,17 +364,53 @@ def _seen_fingerprints() -> set[str]:
         return {r[0] for r in conn.execute("SELECT fingerprint FROM import_fingerprints")}
 
 
+def preview(parsed: list[dict], source: str) -> dict:
+    """What an import would add, without writing anything."""
+    seen = _seen_fingerprints()
+    new = [c for c in parsed if fingerprint(c) not in seen]
+    return {
+        "source": source, "conversations": len(new), "skipped_duplicates": len(parsed) - len(new),
+        "messages": sum(len(c["messages"]) for c in new),
+        "sample": [{"title": (c["title"] or "Imported chat")[:120], "messages": len(c["messages"])} for c in new[:15]],
+    }
+
+
+def list_batches() -> list[dict]:
+    from app.db.storage import _conn
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT batch_id, source, COUNT(*) AS conversations, MIN(imported_at) AS imported_at FROM import_fingerprints"
+            " WHERE batch_id IS NOT NULL GROUP BY batch_id ORDER BY imported_at DESC LIMIT 20").fetchall()
+    return [dict(r) for r in rows]
+
+
+def undo_batch(batch_id: str) -> int:
+    """Delete every chat one import created. Chats you've added to since are
+    deleted too — the UI says so before asking."""
+    from app.db.storage import _conn
+    with _conn() as conn:
+        ids = [r[0] for r in conn.execute("SELECT conversation_id FROM import_fingerprints WHERE batch_id = ?", (batch_id,))]
+    for cid in ids:
+        storage.delete_conversation(cid)
+    with _conn() as conn:
+        conn.execute("DELETE FROM import_fingerprints WHERE batch_id = ?", (batch_id,))
+    return len(ids)
+
+
 def import_conversations(parsed: list[dict], source: str = "import") -> dict:
     """Create Zenith conversations from normalized data. Messages are chained
     linearly (each is the previous one's child) to match the branching
     model's active-chain shape. Chats already imported (same title and
     messages) are skipped; each new one is tagged "imported" and with its
     source."""
+    import uuid as _uuid
+
     from app.db.storage import _conn
 
     conversations = 0
     messages = 0
     skipped = 0
+    batch_id = _uuid.uuid4().hex[:12]
     seen = _seen_fingerprints()
     for conv in parsed:
         fp = fingerprint(conv)
@@ -386,8 +422,8 @@ def import_conversations(parsed: list[dict], source: str = "import") -> dict:
         c = storage.create_conversation(title)
         storage.set_conversation_tags(c["id"], ["imported", source])
         with _conn() as conn:
-            conn.execute("INSERT OR IGNORE INTO import_fingerprints (fingerprint, conversation_id, source, imported_at)"
-                         " VALUES (?, ?, ?, strftime('%s','now'))", (fp, c["id"], source))
+            conn.execute("INSERT OR IGNORE INTO import_fingerprints (fingerprint, conversation_id, source, imported_at, batch_id)"
+                         " VALUES (?, ?, ?, strftime('%s','now'), ?)", (fp, c["id"], source, batch_id))
         prev_id = None
         for m in conv["messages"]:
             msg = storage.add_message(
@@ -397,4 +433,5 @@ def import_conversations(parsed: list[dict], source: str = "import") -> dict:
             prev_id = msg["id"]
             messages += 1
         conversations += 1
-    return {"conversations": conversations, "messages": messages, "skipped_duplicates": skipped}
+    return {"conversations": conversations, "messages": messages, "skipped_duplicates": skipped,
+            "batch_id": batch_id if conversations else None}

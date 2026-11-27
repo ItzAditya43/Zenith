@@ -765,6 +765,21 @@ export default function SettingsPanel({
     setImporting(true);
     setImportStatus("");
     try {
+      const pv = await api.previewImport(file);
+      if (pv.conversations === 0) {
+        setImportStatus(`Nothing new: ${pv.skipped_duplicates} chat(s) in that file were already imported.`);
+        return;
+      }
+      const sample = (pv.sample || []).slice(0, 6).map((c) => `• ${c.title}`).join("\n");
+      const ok = await confirmDialog({
+        title: `Import ${pv.conversations} chat${pv.conversations === 1 ? "" : "s"}?`,
+        message: `From ${pv.source}${pv.messages != null ? `, ${pv.messages} messages` : ""}` +
+          (pv.skipped_duplicates ? `, skipping ${pv.skipped_duplicates} already imported` : "") +
+          (pv.note ? `. ${pv.note}` : "") + (sample ? `\n\n${sample}${pv.conversations > 6 ? "\n…" : ""}` : "") +
+          "\n\nYou can undo the whole import later from this page.",
+        confirmLabel: "Import",
+      });
+      if (!ok) return;
       const res = await api.importHistory(file);
       const extra = [];
       if (res.memories) extra.push(`${res.memories} memories`);

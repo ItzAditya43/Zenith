@@ -60,8 +60,20 @@ async def upload(file: UploadFile, conversation_id: str | None = Form(None)):
     }
 
 
+@router.get("/import/batches")
+async def import_batches():
+    from app.services import import_service
+    return import_service.list_batches()
+
+
+@router.delete("/import/batches/{batch_id}")
+async def undo_import(batch_id: str):
+    from app.services import import_service
+    return {"deleted_conversations": import_service.undo_batch(batch_id)}
+
+
 @router.post("/import")
-async def import_history(file: UploadFile):
+async def import_history(file: UploadFile, preview: bool = False):
     """Import a ChatGPT/Claude conversations.json, or a Zenith backup
     produced by GET /api/export/json, into this instance. Auto-detects
     which of the three it is from the JSON shape."""
@@ -79,6 +91,8 @@ async def import_history(file: UploadFile):
         normalized = import_service.parse_markdown(text, stem)
         if not normalized:
             raise HTTPException(400, "No conversation found — the file needs speaker lines like “## User” / “## Assistant” or “**You:**”.")
+        if preview:
+            return import_service.preview(normalized, "markdown")
         result = import_service.import_conversations(normalized, "markdown")
         log.info("import_completed", source="markdown", **result)
         return result
@@ -88,6 +102,9 @@ async def import_history(file: UploadFile):
         raise HTTPException(400, "That file isn't valid JSON or Markdown — upload the conversations.json from your export.") from None
 
     if import_service.is_zenith_backup(parsed_json):
+        if preview:
+            return {"source": "zenith", "conversations": len(parsed_json.get("conversations") or []),
+                    "skipped_duplicates": 0, "messages": None, "sample": [], "note": "A Zenith export; also brings memories and settings."}
         result = import_service.import_zenith_backup(parsed_json)
         log.info("import_completed", source="zenith", **result)
         return result
@@ -99,6 +116,8 @@ async def import_history(file: UploadFile):
     if not normalized:
         raise HTTPException(400, "No importable conversations found in that file.")
     source = import_service.source_of(parsed_json)
+    if preview:
+        return import_service.preview(normalized, source)
     result = import_service.import_conversations(normalized, source)
     log.info("import_completed", source=source, **result)
     return result

@@ -1082,6 +1082,13 @@ export const api = {
     return request("/api/upload", { method: "POST", body: form }).then((r) => r.json());
   },
 
+  importBatches: () => request("/api/import/batches").then((r) => r.json()),
+  undoImport: (batchId: string) => request(`/api/import/batches/${batchId}`, { method: "DELETE" }).then((r) => r.json()),
+  previewImport: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/api/import?preview=true", { method: "POST", body: form }).then((r) => r.json());
+  },
   importHistory: (file: File) => {
     const form = new FormData();
     form.append("file", file);

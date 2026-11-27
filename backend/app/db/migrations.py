@@ -1149,6 +1149,13 @@ def _todo_priority_project_note_versions(conn: sqlite3.Connection) -> None:
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_note_versions_note ON note_versions (note_id, saved_at)")
 
+
+def _import_batches(conn: sqlite3.Connection) -> None:
+    """Which import created each chat, so a whole import can be undone."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(import_fingerprints)")}
+    if "batch_id" not in cols:
+        conn.execute("ALTER TABLE import_fingerprints ADD COLUMN batch_id TEXT")
+
 MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "baseline", _baseline),
     (2, "attachments_table", _attachments_table),
@@ -1211,6 +1218,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (59, "mcp_tool_policy", _mcp_tool_policy),
     (60, "watched_folder_patterns", _watched_folder_patterns),
     (61, "todo_priority_project_note_versions", _todo_priority_project_note_versions),
+    (62, "import_batches", _import_batches),
 ]
 
 

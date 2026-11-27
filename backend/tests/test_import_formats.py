@@ -14,7 +14,8 @@ def test_openai_and_open_webui_imports_dedupe(client):
     openai = [{"role": "system", "content": "be nice"}, {"role": "user", "content": "hi there"},
               {"role": "assistant", "content": [{"type": "text", "text": "hello!"}]}]
     r = _upload(client, "chat.json", json.dumps(openai)).json()
-    assert r == {"conversations": 1, "messages": 2, "skipped_duplicates": 0}
+    assert {k: r[k] for k in ("conversations", "messages", "skipped_duplicates")} == {"conversations": 1, "messages": 2, "skipped_duplicates": 0}
+    assert r["batch_id"]
     assert _upload(client, "chat.json", json.dumps(openai)).json()["skipped_duplicates"] == 1
 
     owui = [{"chat": {"title": "Branchy", "history": {"currentId": "c", "messages": {
