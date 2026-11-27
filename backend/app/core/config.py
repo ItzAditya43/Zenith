@@ -304,6 +304,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # --- Attachment TTL (also drives the sweeper) ---
     "attachment_ttl_hours": 72,
     # --- Ambient daily digest ---
+    "council_member_timeout_seconds": 240,
     "digest_enabled": False,     # off by default — an unprompted background LLM call
     "digest_interval_hours": 24,
     "digest_time": "",           # "HH:MM" local — once a day at/after this time; "" = every digest_interval_hours

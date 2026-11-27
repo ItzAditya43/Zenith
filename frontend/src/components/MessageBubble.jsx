@@ -561,6 +561,20 @@ export default function MessageBubble({
           </div>
         ) : (
           <div className="msg-content">
+            {message.streaming && message.councilMembers && (
+              <div className="council-members" role="group" aria-label="Council members">
+                {Object.entries(message.councilMembers).map(([m, st]) => (
+                  <span key={m} className={`council-member is-${st}`}>
+                    {m}
+                    {st === "running" ? (
+                      <button className="text-btn" onClick={() => api.stopCouncilMember(message.conversationId, m)} aria-label={`Stop ${m}`}>Stop</button>
+                    ) : (
+                      <em>{st}</em>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
             {message.streaming && !message.content ? (
               <>
                 {(message.toolCalls || []).some((tc) => tc.status === "pending") || message.plan?.status === "pending" ? (

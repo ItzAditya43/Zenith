@@ -27,6 +27,22 @@ log = get_logger(__name__)
 
 _SENTINEL = object()
 
+# conversation_id -> {model: task}, so one member can be stopped on its own.
+_running: dict[str, dict[str, asyncio.Task]] = {}
+
+
+def cancel_member(conversation_id: str, model: str) -> bool:
+    task = _running.get(conversation_id, {}).get(model)
+    if task and not task.done():
+        task.cancel()
+        return True
+    return False
+
+
+def _member_timeout() -> float:
+    from app.core.config import settings
+    return float(settings.get("council_member_timeout_seconds", 240) or 240)
+
 
 async def run_council(
     conversation_id: str,
@@ -67,9 +83,15 @@ async def run_council(
         collected: list[str] = []
         try:
             client = OllamaClient()
-            async for piece in client.chat_stream(model, messages, images_b64=ctx.images_b64 or None):
-                collected.append(piece)
-                await queue.put({"type": "council_token", "model": model, "text": piece})
+            async with asyncio.timeout(_member_timeout()):
+                async for piece in client.chat_stream(model, messages, images_b64=ctx.images_b64 or None):
+                    collected.append(piece)
+                    await queue.put({"type": "council_token", "model": model, "text": piece})
+        except asyncio.CancelledError:
+            await queue.put({"type": "council_error", "model": model, "message": "Stopped."})
+        except TimeoutError:
+            await queue.put({"type": "council_error", "model": model,
+                             "message": f"Took longer than {int(_member_timeout())}s and was stopped."})
         except OllamaError as exc:
             await queue.put({"type": "council_error", "model": model, "message": str(exc)})
         except Exception as exc:
@@ -88,19 +110,26 @@ async def run_council(
                 await queue.put({"type": "council_done", "model": model, "text": "", "message_id": None})
             await queue.put(_SENTINEL)
 
-    tasks = [asyncio.create_task(_run_one(m)) for m in models]
+    tasks = {m: asyncio.create_task(_run_one(m)) for m in models}
+    _running[conversation_id] = tasks
     finished = 0
     first_persisted_id: str | None = None
-    while finished < len(models):
-        item = await queue.get()
-        if item is _SENTINEL:
-            finished += 1
-            continue
-        if item["type"] == "council_done" and item.get("message_id") and first_persisted_id is None:
-            first_persisted_id = item["message_id"]
-        yield item
-
-    await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        while finished < len(models):
+            item = await queue.get()
+            if item is _SENTINEL:
+                finished += 1
+                continue
+            if item["type"] == "council_done" and item.get("message_id") and first_persisted_id is None:
+                first_persisted_id = item["message_id"]
+            yield item
+    finally:
+        if _running.get(conversation_id) is tasks:
+            _running.pop(conversation_id, None)
+        for t in tasks.values():
+            if not t.done():
+                t.cancel()
+    await asyncio.gather(*tasks.values(), return_exceptions=True)
 
     # Exactly one sibling should end up active; default to the first
     # model in the list that actually produced a persisted answer.

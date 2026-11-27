@@ -870,6 +870,8 @@ export const api = {
     }),
   deleteWebhook: (id: string) => request(`/api/webhooks/${id}`, { method: "DELETE" }),
   listAutomationRules: () => request("/api/automation/rules").then((r) => r.json()),
+  stopCouncilMember: (conversationId: string, model: string) =>
+    request(`/api/council/${conversationId}/stop/${encodeURIComponent(model)}`, { method: "POST" }).then((r) => r.json()),
   previewAutomationRule: (rule: Record<string, unknown>) =>
     request("/api/automation/rules/preview", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rule),

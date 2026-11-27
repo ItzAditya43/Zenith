@@ -797,6 +797,13 @@ async def council(body: CouncilRequest):
     return StreamingResponse(council_guarded_gen(), media_type="text/event-stream")
 
 
+@router.post("/council/{conversation_id}/stop/{model:path}")
+async def stop_council_member(conversation_id: str, model: str):
+    """Stop one council member; the others keep going."""
+    from app.services import council_service
+    return {"stopped": council_service.cancel_member(conversation_id, model)}
+
+
 async def _agent_event_gen(body: ChatRequest, request: Request) -> AsyncIterator[str]:
     """Drives an agent-mode turn: consumes agent_service.run_agent_turn's
     structured events, forwards them as SSE, and — on `done` — persists

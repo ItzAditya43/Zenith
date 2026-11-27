@@ -940,6 +940,8 @@ export default function App() {
       streaming: true,
       model: null,
       route_role: "council",
+      councilMembers: Object.fromEntries(models.map((m) => [m, "running"])),
+      conversationId: activeId,
     };
     setMessages((m) => [...m, userMsg, assistantMsg]);
     setStatus("thinking");
@@ -961,8 +963,15 @@ export default function App() {
           setMessages((m) =>
             m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, content: renderProgress() } : msg))
           );
-        } else if (event.type === "council_error") {
-          progress[event.model] = `error: ${event.message}`;
+        } else if (event.type === "council_error" || event.type === "council_done") {
+          if (event.type === "council_error") progress[event.model] = `${event.message}`;
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantMsg.id
+                ? { ...msg, content: renderProgress(), councilMembers: { ...msg.councilMembers, [event.model]: event.type === "council_error" ? "stopped" : "done" } }
+                : msg
+            )
+          );
         } else if (event.type === "error") {
           setConnectionError(event.message);
           setStatus("idle");
