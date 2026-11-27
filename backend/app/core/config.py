@@ -199,7 +199,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # --- Agent tool use (bash/files/web) ---
     "agent_enabled": False,          # master switch — off until you opt in
     "agent_mode": "manual",          # "manual" | "semi" | "full"
-    "agent_background_concurrency": 1,  # background tasks running at once (never two in one chat)
+    "agent_background_concurrency": 1,
+    "agent_type_check": False,        # after each edit, run the project's type checker and feed errors back
+    "agent_type_check_rounds": 3,     # at most this many type-check rounds per agent run  # background tasks running at once (never two in one chat)
     "agent_max_iterations": 40,      # tool-call rounds before forcing a final answer
     "agent_command_timeout_seconds": 60,
     "agent_output_max_chars": 4000,  # cap per tool result fed back to the model

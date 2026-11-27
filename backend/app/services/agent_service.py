@@ -1599,6 +1599,7 @@ async def run_agent_turn(
     client = OllamaClient()
     final_text: str | None = None
     tool_seq: list[str] = []
+    type_check_rounds = 0
     had_failure = False
     last_failure: str | None = None
 
@@ -1783,6 +1784,36 @@ async def run_agent_turn(
             _resolve_call(check_id, "executed", check_result)
             yield {"type": "tool_result", "id": check_id, "tool": "run_checks", "result": check_result}
             loop_messages.append({"role": "user", "content": f"(automatic) {check_result}"})
+
+        # Type-check repair loop (opt-in, bounded): after an edit, run the
+        # project's own type checker and hand back the problems in the file
+        # just changed, at most `agent_type_check_rounds` times per run.
+        if (tool in ("edit_file", "write_file") and workdir
+                and settings.get("agent_type_check", False)
+                and type_check_rounds < int(settings.get("agent_type_check_rounds", 3))
+                and not str(result).startswith("Error")):
+            from pathlib import Path as _TP
+
+            from app.services import code_intel
+            type_check_rounds += 1
+            tc_id = _log_call(conversation_id, "type_check", {"path": args.get("path")}, "safe")
+            yield {"type": "tool_call", "id": tc_id, "tool": "type_check", "args": {"path": args.get("path")}, "risk": "safe", "diff": None}
+            try:
+                res = await code_intel.project_check(_TP(workdir), timeout=90)
+                edited = str(args.get("path", "")).lstrip("./")
+                mine = [p for p in res["problems"] if p["severity"] == "error" and (p["path"] == edited or p["path"].endswith("/" + edited))]
+                if mine:
+                    lines = "\n".join(f"{p['path']}:{p['line']}:{p['col']}: {p['message']}" for p in mine[:10])
+                    tc_result = f"Type check found {len(mine)} error(s) in {edited} — fix them:\n{lines}"
+                elif res["ran"]:
+                    tc_result = f"Type check passed for {edited} ({', '.join(r['tool'] for r in res['ran'])})."
+                else:
+                    tc_result = "No type checker is installed for this project; skipped."
+            except Exception as exc:  # noqa: BLE001
+                tc_result = f"Type check couldn't run: {exc}"
+            _resolve_call(tc_id, "executed", tc_result)
+            yield {"type": "tool_result", "id": tc_id, "tool": "type_check", "result": tc_result}
+            loop_messages.append({"role": "user", "content": f"(automatic) {tc_result}"})
 
     checkpointed = False
     if final_text is None:

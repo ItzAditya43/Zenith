@@ -114,6 +114,43 @@ async def write_file(conversation_id: str, body: FileWriteRequest, path: str = Q
 from app.services.agent_service import _run_checks, _run_git  # noqa: E402
 
 
+@router.get("/conversations/{conversation_id}/code/symbols")
+async def code_symbols(conversation_id: str, q: str = "", limit: int = Query(50, ge=1, le=200)):
+    """Fuzzy symbol search across the project (functions, classes, types…)."""
+    import asyncio
+
+    from app.services import code_intel
+
+    return await asyncio.to_thread(code_intel.symbols, _workdir(conversation_id), q.strip(), limit)
+
+
+@router.get("/conversations/{conversation_id}/code/definition")
+async def code_definition(conversation_id: str, name: str):
+    import asyncio
+
+    from app.services import code_intel
+
+    return await asyncio.to_thread(code_intel.definitions, _workdir(conversation_id), name.strip())
+
+
+@router.get("/conversations/{conversation_id}/code/references")
+async def code_references(conversation_id: str, name: str):
+    """Every line that mentions the name as a whole word (text match)."""
+    import asyncio
+
+    from app.services import code_intel
+
+    return await asyncio.to_thread(code_intel.references, _workdir(conversation_id), name.strip())
+
+
+@router.post("/conversations/{conversation_id}/code/check")
+async def code_check(conversation_id: str):
+    """Run the project's own type checkers and list the problems."""
+    from app.services import code_intel
+
+    return await code_intel.project_check(_workdir(conversation_id))
+
+
 @router.get("/conversations/{conversation_id}/git/status")
 async def git_status(conversation_id: str):
     root = _workdir(conversation_id)

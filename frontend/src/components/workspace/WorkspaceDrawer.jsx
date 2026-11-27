@@ -80,7 +80,7 @@ function FileTreeNode({ conversationId, entry, depth, onOpen, activePath }) {
  * chat rather than over it. Chat stays the main surface; this is a view onto
  * the same folder the agent works in.
  */
-const TABS = ["files", "changes", "terminal"];
+const TABS = ["files", "changes", "problems", "terminal"];
 
 export default function WorkspaceDrawer({ conversationId, workdir, onClose, openRequest, onAskAboutCode, onStartIssue, onOpenConversation, wide = false, onToggleWide }) {
   const [tab, setTab] = useState(() => {
@@ -100,6 +100,44 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
   const loading = useRef(new Set()); // paths being fetched
   const editorApi = useRef(null);
   const [inline, setInline] = useState(null); // { from, to, instruction, busy, result, error }
+  const [pendingLine, setPendingLine] = useState(null); // { path, line } to jump to once the file is open
+  const [navList, setNavList] = useState(null); // { title, items: [{path, line, text}] }
+  const [symQuery, setSymQuery] = useState("");
+  const [symResults, setSymResults] = useState([]);
+  const [problems, setProblems] = useState(null); // { running } | check result
+
+  const openAt = (path, line) => {
+    openFile(path);
+    setPendingLine({ path, line });
+  };
+  // Jump once the target file's editor exists (it mounts after its content loads).
+  useEffect(() => {
+    if (!pendingLine || pendingLine.path !== activePath) return;
+    const t = tabs.find((x) => x.path === activePath);
+    if (!t || t.content == null) return;
+    const id = setTimeout(() => { editorApi.current?.goToLine?.(pendingLine.line); setPendingLine(null); }, 60);
+    return () => clearTimeout(id);
+  }, [pendingLine, activePath, tabs]);
+
+  useEffect(() => {
+    if (!symQuery.trim()) return;
+    const id = setTimeout(() => api.codeSymbols(conversationId, symQuery.trim()).then(setSymResults).catch(() => setSymResults([])), 150);
+    return () => clearTimeout(id);
+  }, [symQuery, conversationId]);
+
+  const goToDefinition = async (name) => {
+    const defs = await api.codeDefinition(conversationId, name).catch(() => []);
+    if (defs.length === 1) openAt(defs[0].path, defs[0].line);
+    else setNavList({ title: defs.length ? `${defs.length} definitions of ${name}` : `No definition found for ${name}`, items: defs.map((d) => ({ ...d, text: `${d.kind} ${d.name}` })) });
+  };
+  const findReferences = async (name) => {
+    const r = await api.codeReferences(conversationId, name).catch(() => ({ results: [] }));
+    setNavList({ title: `${r.results.length}${r.truncated ? "+" : ""} places mention ${name} (text match)`, items: r.results });
+  };
+  const runCheck = async () => {
+    setProblems({ running: true });
+    try { setProblems(await api.codeCheck(conversationId)); } catch (e) { setProblems({ notes: [e.message], problems: [], ran: [] }); }
+  };
 
   // The parent keys this component by conversation + folder, so a new
   // folder is a fresh mount and there's no stale state to reset here.
@@ -272,6 +310,9 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
           <button role="tab" aria-selected={tab === "changes"} className={`ws-tab ${tab === "changes" ? "is-active" : ""}`} onClick={() => switchTab("changes")}>
             <Icon name="git-branch" size={13} /> Changes
           </button>
+          <button role="tab" aria-selected={tab === "problems"} className={`ws-tab ${tab === "problems" ? "is-active" : ""}`} onClick={() => switchTab("problems")}>
+            <Icon name="alert-triangle" size={13} /> Problems{problems?.problems?.length ? ` · ${problems.problems.length}` : ""}
+          </button>
           <button role="tab" aria-selected={tab === "terminal"} className={`ws-tab ${tab === "terminal" ? "is-active" : ""}`} onClick={() => switchTab("terminal")}>
             <Icon name="terminal" size={13} /> Terminal
           </button>
@@ -315,6 +356,20 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
             >
               <Icon name="layers" size={13} />
             </button>
+            <div className="ws-symbol-search">
+              <input placeholder="Go to symbol…" value={symQuery} aria-label="Go to symbol"
+                onChange={(e) => { setSymQuery(e.target.value); if (!e.target.value.trim()) setSymResults([]); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && symResults[0]) { openAt(symResults[0].path, symResults[0].line); setSymQuery(""); setSymResults([]); } if (e.key === "Escape") { setSymQuery(""); setSymResults([]); } }} />
+              {symQuery && symResults.length > 0 && (
+                <ul className="ws-symbol-results">
+                  {symResults.slice(0, 12).map((s, i) => (
+                    <li key={i}><button onClick={() => { openAt(s.path, s.line); setSymQuery(""); setSymResults([]); }}>
+                      <b>{s.name}</b><em>{s.kind}</em><span>{s.path}:{s.line}</span>
+                    </button></li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <div className="ws-filetabs" role="tablist" aria-label="Open files">
               {tabs.map((t) => (
                 <div key={t.path} className={`ws-filetab ${t.path === activePath ? "is-active" : ""}`} title={t.path}>
@@ -343,6 +398,8 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
                   onChange={(c) => editContent(activeTab.path, c)}
                   onSave={() => saveTab(activeTab.path)}
                   onSelectionChange={setSelection}
+                  onDefinition={goToDefinition}
+                  onReferences={findReferences}
                 />
               </Suspense>
             )
@@ -412,6 +469,22 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
             </div>
           </footer>
 
+          {navList && (
+            <div className="ws-output ws-nav">
+              <div className="ws-output-header">
+                <span>{navList.title}</span>
+                <button className="icon-btn" onClick={() => setNavList(null)} aria-label="Close list"><Icon name="x" size={12} /></button>
+              </div>
+              <ul className="ws-nav-list">
+                {navList.items.map((it, i) => (
+                  <li key={i}><button onClick={() => openAt(it.path, it.line)}>
+                    <code>{it.path}:{it.line}</code><span>{it.text}</span>{it.definition && <em>definition</em>}
+                  </button></li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {output && (
             <div className="ws-output">
               <div className="ws-output-header">
@@ -423,6 +496,26 @@ export default function WorkspaceDrawer({ conversationId, workdir, onClose, open
           )}
         </section>
       </div>
+
+      {tab === "problems" && (
+        <div className="ws-body ws-body-col ws-problems">
+          <div className="ws-problems-bar">
+            <button className="wf-btn primary" onClick={runCheck} disabled={problems?.running}>{problems?.running ? "Checking…" : "Check project"}</button>
+            <span className="setting-hint">
+              {problems?.ran?.length ? `Ran ${problems.ran.map((r) => r.tool).join(", ")}` : "Runs the project's own type checker (mypy or pyright, tsc, cargo, go vet) if it's installed."}
+            </span>
+          </div>
+          {problems?.notes?.map((n, i) => <p key={i} className="ws-problems-note">{n}</p>)}
+          {problems && !problems.running && problems.ran?.length > 0 && problems.problems.length === 0 && <p className="ws-empty">No problems found.</p>}
+          <ul className="ws-nav-list">
+            {(problems?.problems || []).map((p, i) => (
+              <li key={i} className={`sev-${p.severity}`}><button onClick={() => openAt(p.path, p.line)}>
+                <code>{p.path}:{p.line}</code><span>{p.message}</span><em>{p.source}</em>
+              </button></li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {tab === "changes" && (
         <div className="ws-body ws-body-col">

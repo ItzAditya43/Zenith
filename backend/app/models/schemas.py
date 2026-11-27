@@ -118,6 +118,8 @@ class ConfigPatch(StrictModel):
     route_to_cloud_models: bool | None = None
     setup_checklist_hidden: bool | None = None
     image_ocr: bool | None = None
+    agent_type_check: bool | None = None
+    agent_type_check_rounds: int | None = Field(default=None, ge=1, le=10)
     routing_policy: Literal["", "manual_remote", "allow_selected", "local_only"] | None = None
     routing_allowed_providers: list[str] | None = Field(default=None, max_length=50)
     router_semantic_margin: float | None = Field(default=None, ge=0, le=0.5)

@@ -6385,3 +6385,25 @@ html[data-reduce-motion] .getstarted { animation: none; }
 .msg-image-attachment { position: relative; }
 .msg-attachment-processing { display: block; margin-top: 4px; font-size: 10.5px; color: var(--text-tertiary); max-width: 260px; }
 .msg-attachment-note { font-style: normal; font-size: 10.5px; color: var(--text-tertiary); margin-left: 6px; }
+
+/* ===== Workspace code intelligence ===== */
+.ws-symbol-search { position: relative; flex: 0 0 180px; }
+.ws-symbol-search input { width: 100%; height: 26px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--border-hairline); background: var(--bg-inset); color: var(--text-primary); font-size: 11.5px; }
+.ws-symbol-search input:focus { outline: none; border-color: color-mix(in srgb, var(--signal-general) 55%, var(--border-soft)); }
+.ws-symbol-results { position: absolute; z-index: 20; top: 30px; left: 0; width: 360px; max-height: 320px; overflow: auto; list-style: none; margin: 0; padding: 4px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--bg-panel); box-shadow: 0 20px 50px -20px rgba(0,0,0,0.9); }
+.ws-symbol-results button { display: flex; gap: 8px; align-items: baseline; width: 100%; padding: 6px 8px; border-radius: 8px; text-align: left; font-size: 12px; }
+.ws-symbol-results button:hover { background: var(--bg-panel-raised); }
+.ws-symbol-results b { color: var(--text-primary); font-weight: 600; font-family: var(--font-mono); }
+.ws-symbol-results em { font-style: normal; color: var(--signal-general); font-size: 10.5px; }
+.ws-symbol-results span { margin-left: auto; color: var(--text-tertiary); font-family: var(--font-mono); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+.ws-nav-list { list-style: none; margin: 0; padding: 4px; overflow: auto; max-height: 260px; }
+.ws-problems .ws-nav-list { max-height: none; flex: 1; }
+.ws-nav-list button { display: flex; gap: 10px; align-items: baseline; width: 100%; padding: 5px 8px; border-radius: 8px; text-align: left; font-size: 12px; color: var(--text-secondary); }
+.ws-nav-list button:hover { background: var(--bg-panel-raised); color: var(--text-primary); }
+.ws-nav-list code { flex: none; color: var(--signal-reasoning); font-size: 11px; }
+.ws-nav-list span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-nav-list em { font-style: normal; font-size: 10.5px; color: var(--text-tertiary); }
+.ws-nav-list li.sev-error code { color: var(--signal-danger); }
+.ws-nav-list li.sev-warning code { color: var(--signal-voice); }
+.ws-problems-bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border-hairline); }
+.ws-problems-note { margin: 8px 12px 0; font-size: 11.5px; color: var(--signal-voice); white-space: pre-wrap; }

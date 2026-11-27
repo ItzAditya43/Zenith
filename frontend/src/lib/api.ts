@@ -478,6 +478,14 @@ export const api = {
       body: JSON.stringify({ cols, rows }),
     }).then((r) => r.json()),
   terminalClose: (sid: string) => request(`/api/terminal/${sid}`, { method: "DELETE" }).then((r) => r.json()),
+  codeSymbols: (conversationId: string, q: string) =>
+    request(`/api/conversations/${conversationId}/code/symbols?q=${encodeURIComponent(q)}`).then((r) => r.json()),
+  codeDefinition: (conversationId: string, name: string) =>
+    request(`/api/conversations/${conversationId}/code/definition?name=${encodeURIComponent(name)}`).then((r) => r.json()),
+  codeReferences: (conversationId: string, name: string) =>
+    request(`/api/conversations/${conversationId}/code/references?name=${encodeURIComponent(name)}`).then((r) => r.json()),
+  codeCheck: (conversationId: string) =>
+    request(`/api/conversations/${conversationId}/code/check`, { method: "POST" }).then((r) => r.json()),
   listWorkspaceFiles: (conversationId: string, path: string = "") =>
     request(`/api/conversations/${conversationId}/files?path=${encodeURIComponent(path)}`).then((r) => r.json()),
   readWorkspaceFile: (conversationId: string, path: string) =>

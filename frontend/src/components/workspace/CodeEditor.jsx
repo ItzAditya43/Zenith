@@ -57,11 +57,22 @@ const highlight = HighlightStyle.define([
  * through onChange. Switching files remounts (keyed by path in the parent),
  * so each tab keeps clean undo history.
  */
-export default function CodeEditor({ path, value, onChange, onSave, onSelectionChange, apiRef }) {
+// The identifier under the cursor (or the selection, if it's a name).
+function wordAt(v) {
+  const sel = v.state.selection.main;
+  if (!sel.empty) {
+    const t = v.state.sliceDoc(sel.from, sel.to).trim();
+    return /^[A-Za-z_$][\w$]*$/.test(t) ? t : null;
+  }
+  const w = v.state.wordAt(sel.head);
+  return w ? v.state.sliceDoc(w.from, w.to) : null;
+}
+
+export default function CodeEditor({ path, value, onChange, onSave, onSelectionChange, apiRef, onDefinition, onReferences }) {
   const host = useRef(null);
   const view = useRef(null);
-  const handlers = useRef({ onChange, onSave, onSelectionChange });
-  handlers.current = { onChange, onSave, onSelectionChange };
+  const handlers = useRef({ onChange, onSave, onSelectionChange, onDefinition, onReferences });
+  handlers.current = { onChange, onSave, onSelectionChange, onDefinition, onReferences };
 
   useEffect(() => {
     const language = new Compartment();
@@ -82,6 +93,8 @@ export default function CodeEditor({ path, value, onChange, onSave, onSelectionC
         language.of([]),
         keymap.of([
           { key: "Mod-s", preventDefault: true, run: () => { handlers.current.onSave?.(); return true; } },
+          { key: "F12", preventDefault: true, run: (v) => { const w = wordAt(v); if (w) handlers.current.onDefinition?.(w); return true; } },
+          { key: "Shift-F12", preventDefault: true, run: (v) => { const w = wordAt(v); if (w) handlers.current.onReferences?.(w); return true; } },
           indentWithTab,
           ...defaultKeymap,
           ...historyKeymap,
@@ -120,6 +133,14 @@ export default function CodeEditor({ path, value, onChange, onSave, onSelectionC
           return true;
         },
         text: () => v.state.doc.toString(),
+        // Put the cursor on a 1-based line and scroll it into the middle.
+        goToLine(line) {
+          const doc = v.state.doc;
+          const n = Math.max(1, Math.min(doc.lines, line || 1));
+          const pos = doc.line(n).from;
+          v.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: "center" }) });
+          v.focus();
+        },
       };
     }
 

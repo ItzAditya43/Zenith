@@ -7,7 +7,6 @@ Effort: **S** ≈ an afternoon · **M** ≈ a day or two · **L** ≈ a week or 
 
 | # | Feature | Why | Effort |
 |---|---|---|---|
-| C3 | **Type errors from language servers** | Quick checks after edits are built (syntax, undefined names). Real type errors for TypeScript, Rust and typed Python need a language server per language (tsserver, rust-analyzer, pyright). | L |
 
 ## Experience
 
@@ -46,11 +45,11 @@ and **XL** ≈ a multi-week design and implementation effort.
    and notify when it finishes. Provide run status, logs, cancellation, and a
    review step for proposed changes. Build on existing resumable streams,
    checkpoint/resume, worktrees, schedules, and notifications. **M–L**.
-2. **Language-server diagnostics** — Integrate optional TypeScript, Rust, and
+2. ~~**Language-server diagnostics**~~ — **Done (1.2.8), without language servers:** a Problems tab runs the project's own type checkers (mypy or pyright, tsc, cargo check, go vet) and lists errors you can click to; an opt-in agent setting runs the check after each edit and feeds the errors in that file back, at most N rounds per run. Original note: Integrate optional TypeScript, Rust, and
    Python language servers. Surface diagnostics after edits and let the agent
    use those errors in a bounded repair loop. Keep this in the chat-first
    workspace rather than growing a full IDE. **L** (existing roadmap item C3).
-3. **Code navigation in the workspace** — Add symbol search, go-to-definition,
+3. ~~**Code navigation in the workspace**~~ — **Done (1.2.8):** "Go to symbol" fuzzy search, F12 go-to-definition and Shift+F12 find-references in the editor (text match, labelled as such), built on the repo map's parsers. Original note: Add symbol search, go-to-definition,
    find references, and diagnostics to the existing editor. Use language-server
    support where available and retain text-search fallbacks. **M–L**.
 4. **Project code context** — Maintain a searchable project index of code,
