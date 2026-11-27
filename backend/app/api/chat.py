@@ -797,6 +797,19 @@ async def council(body: CouncilRequest):
     return StreamingResponse(council_guarded_gen(), media_type="text/event-stream")
 
 
+@router.post("/research/plan")
+async def research_plan(body: dict):
+    """Draft a research plan to review and edit before running."""
+    from app.services import research_service
+    topic = str(body.get("topic", "")).strip()
+    if not topic:
+        raise HTTPException(422, "topic is required.")
+    try:
+        return {"steps": await research_service.draft_plan(topic)}
+    except OllamaError as exc:
+        raise HTTPException(502, str(exc)) from None
+
+
 @router.post("/council/{conversation_id}/stop/{model:path}")
 async def stop_council_member(conversation_id: str, model: str):
     """Stop one council member; the others keep going."""
@@ -889,7 +902,7 @@ async def _research_event_gen(body: ChatRequest, request: Request) -> AsyncItera
     try:
         async for ev in research_service.run_deep_research(
             body.conversation_id, body.message, body.attachment_ids,
-            history_last_model=history_last_model,
+            history_last_model=history_last_model, plan=body.research_plan,
         ):
             etype = ev.get("type")
             if etype == "sources":

@@ -99,6 +99,7 @@ async def run_deep_research(
     user_text: str,
     attachment_ids: list[str],
     history_last_model: str | None = None,
+    plan: list[str] | None = None,
 ) -> AsyncIterator[dict]:
     """Same event shape as agent_service.run_agent_turn (route, tool_call,
     tool_result, token, done, error) but with tool_pending/tool_denied
@@ -135,7 +136,9 @@ async def run_deep_research(
     ]
     loop_messages: list[dict] = (
         [{"role": "system", "content": system}] + trimmed_history
-        + [{"role": "user", "content": f"Research topic: {user_text}"}]
+        + [{"role": "user", "content": f"Research topic: {user_text}" + (
+            "\n\nThe user approved this plan. Cover each point, in order, and say if one couldn't be answered:\n"
+            + "\n".join(f"{n}. {p}" for n, p in enumerate(plan, 1)) if plan else "")}]
     )
 
     client = OllamaClient()
@@ -238,3 +241,21 @@ async def run_deep_research(
 
     yield {"type": "done", "full_text": final_text, "model": decision.model,
            "role": decision.role, "reason": decision.reason, "parent_id": assistant_parent_id}
+
+
+_PLAN_PROMPT = """Break this research question into 3 to 6 short sub-questions a careful researcher
+would look up, in a sensible order. One per line, no numbering, no commentary.
+
+Question: {topic}"""
+
+
+async def draft_plan(topic: str) -> list[str]:
+    """A starting plan the user can edit before the research runs."""
+    decision = await ModelRouter().decide(text=topic)
+    raw = await OllamaClient().chat(decision.model, [{"role": "user", "content": _PLAN_PROMPT.format(topic=topic)}])
+    steps = []
+    for line in raw.splitlines():
+        line = line.strip().lstrip("-*•0123456789.) ").strip()
+        if len(line) > 3:
+            steps.append(line[:200])
+    return steps[:8] or [topic]

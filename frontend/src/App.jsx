@@ -133,6 +133,13 @@ export default function App() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
+  const [researchPlanFirst, setResearchPlanFirst] = useState(true);
+  useEffect(() => {
+    api.getConfig().then((c) => setResearchPlanFirst(c.research_plan_first !== false)).catch(() => {});
+    const on = (e) => e.detail && "research_plan_first" in e.detail && setResearchPlanFirst(e.detail.research_plan_first !== false);
+    window.addEventListener("zenith:config-changed", on);
+    return () => window.removeEventListener("zenith:config-changed", on);
+  }, []);
   const [workflowsOpen, setWorkflowsOpen] = useState(false);
   const [memoryBrowser, setMemoryBrowser] = useState(null); // null = closed, else { focusId }
   useEffect(() => {
@@ -1084,6 +1091,21 @@ export default function App() {
     if (imageMode) return handleImageSend(text);
     if (groupPersonaIds.length >= 2) return handleGroupSend(text);
     const editOf = editContext?.messageId || null;
+    let researchPlan = null;
+    if (deepResearch && !regenerateOf && researchPlanFirst) {
+      const draft = await api.draftResearchPlan(text).catch(() => null);
+      if (draft?.steps?.length) {
+        const edited = await promptDialog({
+          title: "Research plan",
+          message: "Zenith will cover these, in order. Edit, add or remove lines, then start.",
+          defaultValue: draft.steps.join("\n"),
+          multiline: true,
+          confirmLabel: "Start research",
+        });
+        if (edited == null) return;
+        researchPlan = edited.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 12);
+      }
+    }
 
     let assistantMsg;
     if (regenerateOf) {
@@ -1149,7 +1171,7 @@ export default function App() {
       );
     };
     await api.streamChat(
-      { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode, deepResearch, editOf, regenerateOf, modelOverride },
+      { conversationId: activeId, message: text, attachmentIds, webSearch, agentMode, deepResearch, researchPlan, editOf, regenerateOf, modelOverride },
       (event) => {
         if (event.type === "route") {
           genStartRef.current = Date.now();

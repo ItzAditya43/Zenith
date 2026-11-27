@@ -26,6 +26,7 @@ class ChatRequest(StrictModel):
     edit_of: str | None = None  # branching: id of the user message being replaced
     regenerate_of: str | None = None  # branching: assistant message id to regenerate
     model_override: str | None = None  # skip auto-routing, force this exact installed model
+    research_plan: list[str] | None = Field(default=None, max_length=12)  # user-edited plan for deep research
 
 
 class ConversationCreate(StrictModel):
@@ -138,6 +139,7 @@ class ConfigPatch(StrictModel):
     image_gen_size: int | None = Field(default=None, ge=128, le=2048)
     image_gen_timeout_seconds: int | None = Field(default=None, ge=10, le=1800)
     research_max_iterations: int | None = Field(default=None, ge=2, le=30)
+    research_plan_first: bool | None = None
     council_models: list[str] | None = Field(default=None, max_length=6)
     folder_scan_interval_seconds: int | None = Field(default=None, ge=60, le=86400)
     folder_recall_enabled: bool | None = None

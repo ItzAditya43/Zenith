@@ -29,6 +29,20 @@ export default function ConnectionSection() {
 
   return (
     <section className="settings-section">
+      <div className="setting-row">
+        <div className="setting-meta">
+          <span className="setting-label">Review the plan before deep research</span>
+          <span className="setting-hint">Shows the sub-questions Zenith plans to look up so you can edit them first.</span>
+        </div>
+        <button
+          className={`switch ${config?.research_plan_first !== false ? "switch-on" : ""}`}
+          role="switch"
+          aria-checked={config?.research_plan_first !== false}
+          onClick={async () => setConfig(await api.patchConfig({ research_plan_first: config?.research_plan_first === false }))}
+        >
+          <span className="switch-thumb" />
+        </button>
+      </div>
       <h3 className="settings-section-title">Ollama connection</h3>
       <p className="settings-section-desc">
         Zenith talks to a local Ollama instance. Point it at the host it's running on.

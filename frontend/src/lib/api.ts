@@ -212,6 +212,7 @@ export interface ChatTurn {
   webSearch?: boolean;
   agentMode?: boolean;
   deepResearch?: boolean;
+  researchPlan?: string[] | null;
   editOf?: string | null;
   regenerateOf?: string | null;
   modelOverride?: string | null;
@@ -870,6 +871,10 @@ export const api = {
     }),
   deleteWebhook: (id: string) => request(`/api/webhooks/${id}`, { method: "DELETE" }),
   listAutomationRules: () => request("/api/automation/rules").then((r) => r.json()),
+  draftResearchPlan: (topic: string) =>
+    request("/api/research/plan", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic }),
+    }).then((r) => r.json()),
   stopCouncilMember: (conversationId: string, model: string) =>
     request(`/api/council/${conversationId}/stop/${encodeURIComponent(model)}`, { method: "POST" }).then((r) => r.json()),
   previewAutomationRule: (rule: Record<string, unknown>) =>
@@ -1059,7 +1064,12 @@ export const api = {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
-    }).then((r) => r.json()),
+    }).then((r) => r.json()).then((cfg) => {
+      try {
+        window.dispatchEvent(new CustomEvent("zenith:config-changed", { detail: cfg }));
+      } catch { /* not in a browser (tests) */ }
+      return cfg;
+    }),
   previewRoute: (params: Record<string, unknown>) =>
     request(`/api/route/preview?${new URLSearchParams(params as Record<string, string>)}`, { method: "POST" }).then((r) =>
       r.json()
@@ -1107,6 +1117,7 @@ export const api = {
       webSearch = false,
       agentMode = false,
       deepResearch = false,
+      researchPlan = null,
       editOf = null,
       regenerateOf = null,
       modelOverride = null,
@@ -1123,6 +1134,7 @@ export const api = {
         web_search: webSearch,
         agent_mode_on: agentMode,
         deep_research: deepResearch,
+        ...(researchPlan?.length ? { research_plan: researchPlan } : {}),
         ...(editOf ? { edit_of: editOf } : {}),
         ...(regenerateOf ? { regenerate_of: regenerateOf } : {}),
         ...(modelOverride ? { model_override: modelOverride } : {}),
