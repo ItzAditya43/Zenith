@@ -290,6 +290,7 @@ export default function Sidebar({
             type="search"
             placeholder="Search chats, docs, memories…"
             aria-label="Search chats, docs, memories"
+            title="Narrow chat results with from:me, from:zenith, model:llama, after:2026-01-01, before:2026-02-01, project:name"
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
           />

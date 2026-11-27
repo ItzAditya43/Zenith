@@ -3,6 +3,7 @@ for a schema this small, keeps startup instant and the file portable."""
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import time
 import uuid
@@ -1368,31 +1369,75 @@ def dominant_override_model(role: str, days: int = 30, min_count: int = 3) -> st
     return top["override_model"]
 
 
+_FILTER = re.compile(r"\b(from|model|after|before|project):(\"[^\"]+\"|\S+)", re.I)
+
+
+def parse_search(q: str) -> tuple[str, str, list]:
+    """Split filter words out of a search: from:me|zenith, model:<name>,
+    after:/before:YYYY-MM-DD, project:<name>. Returns (text, extra SQL, args)."""
+    import datetime as _dt
+
+    sql: str = ""
+    args: list[object] = []
+    for key, val in _FILTER.findall(q or ""):
+        key, val = key.lower(), val.strip('"')
+        if key == "from":
+            role = "user" if val.lower() in ("me", "user", "you") else "assistant"
+            sql += " AND m.role = ?"
+            args.append(role)
+        elif key == "model":
+            sql += " AND lower(COALESCE(m.model, '')) LIKE ?"
+            args.append(f"%{val.lower()}%")
+        elif key in ("after", "before"):
+            try:
+                ts = _dt.datetime.fromisoformat(val).timestamp()
+            except ValueError:
+                continue
+            sql += " AND m.created_at >= ?" if key == "after" else " AND m.created_at < ?"
+            args.append(ts if key == "after" else ts + 86400)
+        elif key == "project":
+            sql += " AND c.project_id IN (SELECT id FROM projects WHERE lower(name) LIKE ?)"
+            args.append(f"%{val.lower()}%")
+    text = " ".join(_FILTER.sub(" ", q or "").split())
+    return text, sql, args
+
+
 def search_conversations(q: str) -> list[dict]:
     """Full-text search over message content. Returns distinct
     conversations with the matching snippet and message count. Uses
     SQLite FTS5 when available, falling back to a LIKE scan otherwise
-    (or when FTS5 returns no hits for a prefix/stemming mismatch)."""
+    (or when FTS5 returns no hits for a prefix/stemming mismatch).
+    Filter words narrow it down — see parse_search."""
     if not q or not q.strip():
         return []
-    term = q.strip()
+    term, fsql, fargs = parse_search(q)
+    if not term and not fsql:
+        return []
     with _conn() as conn:
+        if not term:
+            rows = conn.execute(
+                f"""SELECT m.conversation_id, c.title, substr(m.content, 1, 200) AS snip,
+                       COUNT(*) AS hits, MAX(m.created_at) AS last_at
+                FROM messages m JOIN conversations c ON c.id = m.conversation_id
+                WHERE 1=1 {fsql} GROUP BY m.conversation_id ORDER BY last_at DESC LIMIT 50""",  # noqa: S608
+                fargs).fetchall()
+            return [dict(r) for r in rows]
         # FTS5 path (prefix match so "tomato" finds "tomatoes").
         try:
             fts_query = term.replace('"', '""')
             rows = conn.execute(
-                """
+                f"""
                 SELECT m.conversation_id, c.title, snippet(messages_fts, 0, '<mark>', '</mark>', '…', 12) AS snip,
                        COUNT(*) AS hits, MAX(m.created_at) AS last_at
                 FROM messages_fts
                 JOIN messages m ON m.rowid = messages_fts.rowid
                 JOIN conversations c ON c.id = m.conversation_id
-                WHERE messages_fts MATCH ?
+                WHERE messages_fts MATCH ? {fsql}
                 GROUP BY m.conversation_id
                 ORDER BY last_at DESC
                 LIMIT 50
                 """,
-                (fts_query,),
+                (fts_query, *fargs),
             ).fetchall()
             if rows:
                 return [dict(r) for r in rows]
@@ -1401,17 +1446,17 @@ def search_conversations(q: str) -> list[dict]:
         # Fallback: LIKE scan (also covers no-FTS5 builds and zero FTS hits).
         like = f"%{term}%"
         rows = conn.execute(
-            """
+            f"""
             SELECT m.conversation_id, c.title, substr(m.content, 1, 200) AS snip,
                    COUNT(*) AS hits, MAX(m.created_at) AS last_at
             FROM messages m
             JOIN conversations c ON c.id = m.conversation_id
-            WHERE m.content LIKE ?
+            WHERE m.content LIKE ? {fsql}
             GROUP BY m.conversation_id
             ORDER BY last_at DESC
             LIMIT 50
             """,
-            (like,),
+            (like, *fargs),
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -1516,12 +1561,14 @@ def search_all(q: str) -> dict:
     """Unified search: conversations (message content), documents (filename
     + chunk text), memories, notes, to-dos, calendar events, and research
     reports — everything the sidebar search bar can jump you to, in one call."""
+    text, fsql, _ = parse_search(q)
+    other = "" if fsql else text  # filter words only narrow chats
     return {
         "conversations": search_conversations(q),
-        "documents": search_documents(q),
-        "memories": search_memories(q),
-        "notes": search_notes(q),
-        "todos": search_todos(q),
-        "calendar_events": search_calendar_events(q),
-        "research_reports": search_research_reports(q),
+        "documents": search_documents(other) if other else [],
+        "memories": search_memories(other) if other else [],
+        "notes": search_notes(other) if other else [],
+        "todos": search_todos(other) if other else [],
+        "calendar_events": search_calendar_events(other) if other else [],
+        "research_reports": search_research_reports(other) if other else [],
     }
