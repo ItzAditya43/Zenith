@@ -49,7 +49,8 @@ def _parse_dt(params: str, value: str) -> tuple[float, bool]:
 
 
 def parse_ics(text: str) -> list[dict]:
-    events, cur = [], None
+    events: list[dict] = []
+    cur: dict | None = None
     for line in _unfold(text):
         if line.upper() == "BEGIN:VEVENT":
             cur = {}

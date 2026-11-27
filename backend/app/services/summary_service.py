@@ -348,7 +348,7 @@ async def update(conversation_id: str, force: bool = False) -> bool:
                 return False
             parsed = {"facts": [{"text": re.sub(r"\s*\[(m\d+)\]", "", ln).strip(),
                                  "sources": re.findall(r"\[(m\d+)\]", ln)} for ln in lines]}
-        known = {m.get("id") for m in history if m.get("id")}
+        known = {str(m["id"]) for m in history if m.get("id")}
         state = merge_pinned(_map_sources(normalize_state(parsed), refs, known), pins)
         if state_is_empty(state):
             return False

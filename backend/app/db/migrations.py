@@ -516,6 +516,21 @@ def _provider_usage_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _api_keys_table(conn: sqlite3.Connection) -> None:
+    """Keys for scripts and other apps using Zenith's API: only a hash is kept."""
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS api_keys (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            scope TEXT NOT NULL DEFAULT 'read',
+            key_hash TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            last_used_at REAL,
+            revoked_at REAL
+        )"""
+    )
+
+
 def _conversation_workdir(conn: sqlite3.Connection) -> None:
     """A per-conversation working directory — agent mode's bash cwd and
     relative file paths resolve against it, the same way Claude Code
@@ -1096,6 +1111,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (51, "calendar_uid_column", _calendar_uid_column),
     (52, "research_workspace_columns", _research_workspace_columns),
     (53, "provider_usage_table", _provider_usage_table),
+    (54, "api_keys_table", _api_keys_table),
 ]
 
 

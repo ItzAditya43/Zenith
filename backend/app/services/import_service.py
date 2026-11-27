@@ -129,7 +129,8 @@ def parse_openai_messages(data) -> list[dict]:
             if role and text:
                 msgs.append({"role": role, "content": text, "created_at": _parse_ts(m.get("timestamp") or m.get("created_at"))})
         if msgs:
-            out.append({"title": (c.get("title") or msgs[0]["content"][:60] or "Imported chat").strip(), "messages": msgs})
+            first = str(msgs[0]["content"])[:60]
+            out.append({"title": (c.get("title") or first or "Imported chat").strip(), "messages": msgs})
     return out
 
 
@@ -192,8 +193,8 @@ def parse_markdown(text: str, fallback_title: str = "Imported chat") -> list[dic
             cur["content"] += line + "\n"
     if cur and cur["content"].strip():
         msgs.append(cur)
-    for m in msgs:
-        m["content"] = m["content"].strip()
+    for msg in msgs:
+        msg["content"] = msg["content"].strip()
     return [{"title": title, "messages": msgs}] if msgs else []
 
 

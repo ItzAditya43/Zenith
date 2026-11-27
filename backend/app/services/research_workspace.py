@@ -106,6 +106,9 @@ async def _rerun(report_id: str) -> None:
 
     report = storage.get_research_report(report_id)
     state = _reruns[report_id]
+    if report is None:
+        state.update(status="failed", error="The report was deleted.")
+        return
     try:
         cid = report.get("conversation_id")
         if not cid or not storage.get_conversation(cid):

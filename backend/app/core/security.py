@@ -146,10 +146,45 @@ def remote_gate_configured() -> bool:
     return shared_secret_active() or lock_api.is_locked()
 
 
+API_VERSION = "1"
+
+
+class ApiKeyAuth(BaseHTTPMiddleware):
+    """Requests carrying `Authorization: Bearer zk_…` are checked here: a
+    bad or revoked key is rejected, a read key can only GET, and each key
+    is rate-limited. A good key marks the request so the network guard,
+    shared-secret and passcode gates let it through. Every API response
+    carries the API version."""
+
+    async def dispatch(self, request: Request, call_next):
+        auth = request.headers.get("authorization", "")
+        token = auth[7:].strip() if auth.startswith("Bearer ") else ""
+        if request.url.path.startswith("/api/") and token.startswith("zk_"):
+            from app.services import api_keys
+
+            key = api_keys.verify(token)
+            if not key:
+                return JSONResponse({"detail": "Unknown or revoked API key.", "code": "bad_api_key"}, status_code=401)
+            if key["scope"] == "read" and request.method not in ("GET", "HEAD", "OPTIONS"):
+                return JSONResponse({"detail": "This key is read-only.", "code": "read_only_key"}, status_code=403)
+            if not api_keys.allow_rate(key["id"]):
+                return JSONResponse({"detail": "Too many requests for this key; slow down.", "code": "rate_limited"},
+                                    status_code=429, headers={"Retry-After": "60"})
+            request.state.api_key = key["id"]
+        response = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            response.headers["X-Zenith-API-Version"] = API_VERSION
+        return response
+
+
+def _has_api_key(request: Request) -> bool:
+    return bool(getattr(request.state, "api_key", None))
+
+
 class NetworkGuard(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if request.method == "OPTIONS" or not path.startswith("/api/"):
+        if request.method == "OPTIONS" or not path.startswith("/api/") or _has_api_key(request):
             return await call_next(request)
         client = request.client.host if request.client else None
         if is_local_client(client):
@@ -187,6 +222,7 @@ class SharedSecretAuth(BaseHTTPMiddleware):
         if (
             not shared_secret_active()
             or request.method == "OPTIONS"
+            or _has_api_key(request)
             or path in self._OPEN
             or path.startswith("/docs")
             or path.startswith(_ALWAYS_OPEN_PREFIXES)

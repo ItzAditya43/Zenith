@@ -103,12 +103,12 @@ def scan() -> list[dict]:
             h = hashlib.sha1(r["text"].encode()).hexdigest()
             first = seen_text.get(h)
             if first:
-                keep, drop = sorted([first, r], key=lambda x: x["indexed_at"] or 0)
-                a, b = att_service.get(keep["id"]), att_service.get(drop["id"])
-                out.append({"id": _pid("dupdoc", keep["id"], drop["id"]), "kind": "duplicate_document", "action": "Remove the later copy",
-                            "title": f"{getattr(b, 'filename', drop['id'])}",
-                            "detail": f"Same text as “{getattr(a, 'filename', keep['id'])}”, indexed earlier.",
-                            "targets": [{"kind": "document", "id": drop["id"]}], "keep": keep["id"]})
+                keep_doc, drop_doc = sorted([first, r], key=lambda x: x["indexed_at"] or 0)
+                keep_att, drop_att = att_service.get(keep_doc["id"]), att_service.get(drop_doc["id"])
+                out.append({"id": _pid("dupdoc", keep_doc["id"], drop_doc["id"]), "kind": "duplicate_document", "action": "Remove the later copy",
+                            "title": f"{getattr(drop_att, 'filename', drop_doc['id'])}",
+                            "detail": f"Same text as “{getattr(keep_att, 'filename', keep_doc['id'])}”, indexed earlier.",
+                            "targets": [{"kind": "document", "id": drop_doc["id"]}], "keep": keep_doc["id"]})
             else:
                 seen_text[h] = r
 
@@ -171,8 +171,7 @@ def apply(ids: list[str]) -> dict:
                 if text and text.strip():
                     rag.index_folder_file(path, text, "")
             elif p["kind"] == "duplicate_memory":
-                rows = [memory_service.get_memory(t["id"]) for t in p["targets"]]
-                rows = [r for r in rows if r]
+                rows = [r for r in (memory_service.get_memory(t["id"]) for t in p["targets"]) if r]
                 undo.append({"op": "restore_memories", "rows": rows})
                 merged = memory_service.merge_memories([r["id"] for r in rows], p["merged"])
                 undo.append({"op": "delete_memory", "id": merged["id"]})

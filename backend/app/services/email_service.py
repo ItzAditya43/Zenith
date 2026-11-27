@@ -478,7 +478,7 @@ async def create_draft(message_id: str, instruction: str = "") -> dict:
             " VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)",
             (did, message_id, _sender_addr(msg["from"]), subject, result["draft"].strip(), msg["from"], msg["subject"], now, now),
         )
-    return {**get_draft(did), "research_query": result.get("research_query"), "research_sources": result.get("research_sources")}  # type: ignore[arg-type]
+    return {**(get_draft(did) or {}), "research_query": result.get("research_query"), "research_sources": result.get("research_sources")}
 
 
 def update_draft(did: str, to: str | None = None, subject: str | None = None, body: str | None = None) -> dict:

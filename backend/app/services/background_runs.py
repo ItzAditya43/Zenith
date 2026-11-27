@@ -57,7 +57,8 @@ def get_run(bid: str, with_log: bool = True) -> dict | None:
 
 
 def list_runs(conversation_id: str | None = None, since: float | None = None, limit: int = 50) -> list[dict]:
-    sql, args = "SELECT * FROM background_runs WHERE 1=1", []
+    sql = "SELECT * FROM background_runs WHERE 1=1"
+    args: list[object] = []
     if conversation_id:
         sql += " AND conversation_id = ?"
         args.append(conversation_id)
@@ -163,7 +164,7 @@ async def _work_loop() -> None:
         _wakeup.clear()
         limit = max(1, int(settings.get("agent_background_concurrency", 1)))
         running = {bid for bid, t in _tasks.items() if not t.done()}
-        busy_convs = {get_run(b, with_log=False)["conversation_id"] for b in running if get_run(b, with_log=False)}
+        busy_convs = {r["conversation_id"] for r in (get_run(b, with_log=False) for b in running) if r}
         with _conn() as conn:
             queued = [dict(r) for r in conn.execute(
                 "SELECT id, conversation_id FROM background_runs WHERE status = 'queued' ORDER BY created_at ASC"

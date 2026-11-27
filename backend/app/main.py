@@ -47,7 +47,7 @@ from app.api import (
 )
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.core.security import NetworkGuard, SharedSecretAuth
+from app.core.security import ApiKeyAuth, NetworkGuard, SharedSecretAuth
 from app.db.storage import init_db
 from app.services import jobs_registry
 from app.services.attachments import sweep_orphans
@@ -308,8 +308,11 @@ class PasscodeLock(BaseHTTPMiddleware):
         from app.api import lock as lock_api
 
         path = request.url.path
+        from app.core.security import _has_api_key
+
         if (
             request.method == "OPTIONS"
+            or _has_api_key(request)
             or path in self._ALLOW
             or path.startswith("/docs")
             or path.startswith("/api/lock/")  # status/verify/set/disable stay reachable
@@ -325,6 +328,7 @@ class PasscodeLock(BaseHTTPMiddleware):
 app.add_middleware(PasscodeLock)
 app.add_middleware(SharedSecretAuth)
 app.add_middleware(NetworkGuard)
+app.add_middleware(ApiKeyAuth)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),

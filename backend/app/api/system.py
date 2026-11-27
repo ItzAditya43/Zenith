@@ -230,6 +230,55 @@ async def health(request: Request):
     return payload
 
 
+@router.get("/version")
+async def api_version():
+    from app.core.security import API_VERSION
+    return {"api_version": API_VERSION, "app_version": request_app_version()}
+
+
+def request_app_version() -> str:
+    from app.main import app as _app
+    return _app.version
+
+
+@router.get("/api-keys")
+async def list_api_keys():
+    from app.services import api_keys
+    return api_keys.list_keys()
+
+
+@router.post("/api-keys")
+async def create_api_key(body: dict, request: Request):
+    """The new key is returned once; only its hash is stored. Keys can't
+    create other keys."""
+    from app.services import api_keys
+    if getattr(request.state, "api_key", None):
+        raise HTTPException(403, "API keys can't manage API keys.")
+    try:
+        return api_keys.create(str(body.get("name") or "API key"), str(body.get("scope") or "read"))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.post("/api-keys/{kid}/rotate")
+async def rotate_api_key(kid: str, request: Request):
+    from app.services import api_keys
+    if getattr(request.state, "api_key", None):
+        raise HTTPException(403, "API keys can't manage API keys.")
+    try:
+        return api_keys.rotate(kid)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.delete("/api-keys/{kid}")
+async def revoke_api_key(kid: str, request: Request):
+    from app.services import api_keys
+    if getattr(request.state, "api_key", None):
+        raise HTTPException(403, "API keys can't manage API keys.")
+    return {"revoked": api_keys.revoke(kid)}
+
+
 @router.get("/setup/status")
 async def setup_status():
     """Readiness (with per-platform fixes) and the optional checklist's progress."""

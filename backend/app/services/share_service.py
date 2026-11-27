@@ -36,7 +36,8 @@ def _messages(conversation_id: str) -> list[dict]:
 
 
 def find_sensitive(text: str) -> list[tuple[str, str]]:
-    out, taken = [], []
+    out: list[tuple[str, str]] = []
+    taken: list[tuple[int, int]] = []
     for kind, _label, rx in PATTERNS:
         for m in rx.finditer(text or ""):
             span = m.span()
@@ -91,9 +92,9 @@ def build(conversation_id: str, redact: list[dict], exclude_ids: list[str], incl
         if include_attachments:
             names = [a.get("filename") for a in (m.get("attachments") or []) if isinstance(a, dict) and a.get("filename")]
             if names:
-                item["attachments"] = [_redact(n, redact) for n in names]
+                item["attachments"] = [_redact(str(n), redact) for n in names]
         out.append(item)
-    return {"title": _redact(conv["title"], redact), "messages": out}
+    return {"title": _redact(str(conv.get("title") or ""), redact), "messages": out}
 
 
 def create_snapshot(conversation_id: str, redact: list[dict], exclude_ids: list[str], include_attachments: bool) -> str:

@@ -119,7 +119,8 @@ def update_memory(memory_id: str, *, content: str | None = None, enabled: bool |
     row = get_memory(memory_id)
     if not row:
         return None
-    sets, args = [], []
+    sets: list[str] = []
+    args: list[object] = []
     if content is not None:
         content = " ".join(content.split()).strip().rstrip(".")
         if not content or len(content) > 300:

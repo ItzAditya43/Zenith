@@ -79,7 +79,7 @@ async def bulk_conversations(body: ConversationBulk):
         elif action in ("archive", "unarchive"):
             storage.set_conversations_archived([cid], action == "archive")
         elif action in ("tag", "untag"):
-            tag = body.tag.strip()
+            tag = (body.tag or "").strip()
             tags = [t for t in conv.get("tags", []) if t != tag]
             if action == "tag":
                 tags.append(tag)

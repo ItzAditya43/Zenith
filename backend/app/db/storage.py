@@ -1064,7 +1064,8 @@ def _research_row(row) -> dict:
 
 
 def update_research_report(report_id: str, notes: str | None = None, claims: list | None = None) -> None:
-    sets, args = ["updated_at = ?"], [time.time()]
+    sets: list[str] = ["updated_at = ?"]
+    args: list[Any] = [time.time()]
     if notes is not None:
         sets.append("notes = ?")
         args.append(notes)

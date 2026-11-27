@@ -78,7 +78,8 @@ def record(event_type: str, data: dict) -> dict:
 
 def list_notifications(q: str = "", event_type: str | None = None, since: float | None = None,
                        unread: bool = False, limit: int = 100) -> list[dict]:
-    sql, args = "SELECT * FROM notifications WHERE 1=1", []
+    sql = "SELECT * FROM notifications WHERE 1=1"
+    args: list[object] = []
     if q.strip():
         sql += " AND (lower(title) LIKE ? OR lower(body) LIKE ?)"
         args += [f"%{q.strip().lower()}%"] * 2
