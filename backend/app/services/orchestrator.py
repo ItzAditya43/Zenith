@@ -437,6 +437,7 @@ async def run_turn(
                 {
                     "kind": "document", "text": c["text"][:300], "source_id": att["name"],
                     "attachment_id": att["id"], "chunk_index": c.get("chunk_index"),
+                    "page": rag_service.page_of(c["text"]),
                 }
                 for c in chunks
             )

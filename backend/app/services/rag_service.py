@@ -276,6 +276,37 @@ def _chunk_text(text: str) -> list[str]:
     return out
 
 
+_PAGE_MARK = re.compile(r"--- page (\d+) ---")
+_PAGE_PREFIX = re.compile(r"^\(page (\d+)(?:-(\d+))?\) ")
+
+
+def _with_pages(text: str, chunks: list[str]) -> list[str]:
+    """For PDFs (text carries "--- page N ---" markers), prefix each chunk
+    with the page(s) it comes from, so answers can cite a page."""
+    marks = [(m.start(), int(m.group(1))) for m in _PAGE_MARK.finditer(text)]
+    if not marks:
+        return chunks
+    out, pos = [], 0
+    for chunk in chunks:
+        start = text.find(chunk, pos)
+        if start < 0:
+            out.append(chunk)
+            continue
+        pos = start + 1
+        end = start + len(chunk)
+        first = max((p for off, p in marks if off <= start), default=marks[0][1])
+        last = max((p for off, p in marks if off < end), default=first)
+        out.append((f"(page {first}) " if first == last else f"(page {first}-{last}) ") + chunk)
+    return out
+
+
+def page_of(chunk_text: str) -> str | None:
+    m = _PAGE_PREFIX.match(chunk_text or "")
+    if not m:
+        return None
+    return m.group(1) if not m.group(2) else f"{m.group(1)}-{m.group(2)}"
+
+
 def _hash_source(source_kind: str, source_id: str) -> str:
     return hashlib.sha1(f"{source_kind}::{source_id}".encode()).hexdigest()
 
@@ -292,7 +323,7 @@ def index_document(uuid: str, text: str, conversation_id: str | None = None,
         return 0
     _ensure_table()
 
-    chunks = _chunk_text(text)
+    chunks = _with_pages(text, _chunk_text(text))
     embed_model = _resolve_embed_model()
     vectors: list[list[float]] = []
     if embed_model:

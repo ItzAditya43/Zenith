@@ -651,7 +651,7 @@ export default function MessageBubble({
                   title={`Click to preview — used: "${s.text}"`}
                   onClick={() => setPreviewSource(s)}
                 >
-                  <Icon name="file-text" size={12} /> {s.source_id}
+                  <Icon name="file-text" size={12} /> {s.source_id}{s.page ? ` · p. ${s.page}` : ""}
                 </button>
               ) : s.kind === "code" ? (
                 <button
