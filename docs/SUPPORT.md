@@ -46,7 +46,7 @@ Everything Zenith knows is in one folder: the database (`zenith.db`), settings (
 | From source | `backend/data/` (or `$ZENITH_DATA_DIR`) |
 | Docker | the volume mounted at `/data` |
 
-`<app id>` is the `identifier` in `desktop/src-tauri/tauri.conf.json`. With `ZENITH_PROFILE=name`, each profile has its own folder under `profiles/name/`.
+`<app id>` is `dev.zenith.desktop`. With `ZENITH_PROFILE=name`, each profile has its own folder under `profiles/name/`.
 
 ## Uninstalling
 
