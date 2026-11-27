@@ -1,5 +1,18 @@
 # Zenith — feature-by-feature improvement plan
 
+> **Status (v1.2.8, 2026-11-27).** Most of this plan has shipped. See CHANGELOG
+> 1.2.5–1.2.8 and ROADMAP.md for what changed in each area. Still open, by design or
+> because they need things outside the code:
+> - **Independent sync between devices** (§31/§32, ROADMAP #20) is a separate
+>   architecture project, not started.
+> - **Signed and notarized installers** (§31) are wired into the release workflow and
+>   switch on once signing certificates are added as repository secrets. Until then,
+>   builds are labelled unsigned.
+> - **At-rest encryption** (§23) is explained in docs/SUPPORT.md, not built. Use
+>   full-disk encryption.
+> - **Hand-verifying each platform** (§31) (install, upgrade, sleep/resume, tray, hotkey)
+>   needs a real macOS and Windows machine. CI only compiles those builds.
+
 This plan audits the features documented in [`FEATURES.md`](FEATURES.md) and
 records what would make each one more dependable, understandable, and useful.
 It is a planning document, not a claim that these changes are already built.

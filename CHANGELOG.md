@@ -2,6 +2,46 @@
 
 ## [Unreleased]
 
+## [1.2.8] — 2026-11-27
+
+### Added
+- Settings → API keys: keys for your own scripts, with scopes, rotation and revocation. Example clients for Python and TypeScript, a versioned API, and docs/API.md.
+- Get started: a readiness check with copyable fixes, and a checklist you can dismiss or pick up later.
+- Routing policy: choose which providers auto-routing may use, a monthly spending limit, and a clear message when a provider is blocked.
+- Code intelligence in the workspace: symbol search, go to definition, find references, a Problems tab with your project's type checker, and an optional check-and-fix loop for the agent.
+- Project index: coding chats pull in the relevant code and docs and cite them as path:line.
+- Video and images: analysis of a time range with timestamps, and OCR.
+- Schedules: "every day at 08:00" or "Mon and Thu at 18:30" in your timezone, daylight-saving safe. Next run, missed runs while asleep, the model used, a notification after 3 failures and an automatic pause after 5. Deleting keeps the history.
+- Passcode: a recovery code, "Forgot passcode?", lock when idle, sign out other devices. Changing the passcode now needs the current one.
+- Memory contradictions: see both sides with where and when each came from, then keep one, keep both, merge or dismiss. Every choice can be undone.
+- Daily digest at a set time, with chosen sources (folders, memories, schedule runs, to-dos) and the list of items each digest was built from.
+- Phone pushes are private by default (only the kind of event, unless you allow details), with a test button, retry and a delivered/failed mark in notifications. Duplicate notifications are merged.
+- Webhooks are signed (HMAC), retried, logged and switched off after 10 failures in a row, with a test button and secret rotation.
+- Backups record version, schema and checksums; restoring shows a preview and refuses corrupt or newer backups.
+- System health says how to fix each problem, shows response times and can re-check one part. A diagnostic bundle for bug reports shows every file before you download it.
+- Every error shows an error ID that matches the log.
+- MCP servers: allow, ask or turn off each tool, see which ones only read, and when the server was last checked.
+- Watched folders: include and skip patterns with a preview, and links that point outside the folder are never followed.
+- Model downloads can be cancelled (and resume later) and stop early when the disk is too full.
+- To-dos: priority, project, due date and search. Notes: search, earlier versions with restore, and Markdown export.
+- Automation rules have a dry run that shows exactly what would happen.
+- Council: each model has its own time limit and Stop button.
+- Deep research shows its plan first so you can edit it.
+- PDF answers cite the page.
+- Chat search understands from:me, model:, after:, before: and project:.
+- Imports show a preview and can be undone as a whole.
+- Terminal: Interrupt and Restart buttons; stuck shells are force-closed.
+- Image generation: test the server connection and see its loaded model.
+- Usage export as CSV. Traces leave out your prompts unless you turn that on.
+- docs/SUPPORT.md: where data lives, what uninstalling leaves behind, and what the passcode does and doesn't protect.
+
+### Fixed
+- Restoring a crafted backup could write files outside the attachments folder.
+- Code previews could reach Zenith's API. They now have no network access, and the API refuses changes from sandboxed pages.
+- A malformed chunk from an OpenAI-compatible provider could end a reply. Dropped connections and timeouts now give a clear message.
+- The agent's type check could report errors that were already fixed.
+- Keyboard focus is visible everywhere, motion is reduced when your system asks for it, and touch targets are larger on phones.
+
 ## [1.2.7] — 2026-11-27
 
 (1.2.6 was tagged but never published — a build problem; everything it had is here.)
