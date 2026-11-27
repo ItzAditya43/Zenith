@@ -9,6 +9,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.2.8",
+    date: "2026-11-27",
+    title: "Safer, clearer, and easier to fix",
+    items: [
+      "Schedules at a time of day in your timezone, with missed-run and failure tracking. Deep research shows its plan first, and PDF answers cite the page.",
+      "A recovery code for your passcode, lock when idle, and sign out other devices. Backups are checked before restoring.",
+      "Resolve memory contradictions with keep, merge or undo. Digests at a set time, and private-by-default phone pushes with a test button.",
+      "Workspace code search, go to definition and a Problems tab. Coding chats cite path:line. API keys and docs for your own scripts.",
+      "Health checks say how to fix things, every error has an ID, and a diagnostic bundle shows exactly what it contains.",
+    ],
+  },
+  {
     version: "1.2.7",
     date: "2026-11-27",
     title: "Tasks that run while you're away, mail, and tidier knowledge",
