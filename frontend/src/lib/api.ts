@@ -489,6 +489,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cols, rows }),
     }).then((r) => r.json()),
+  usageExportUrl: () => `${BASE}/api/usage/export.csv`,
   checkImageServer: () => request("/api/images/check").then((r) => r.json()),
   terminalInterrupt: (sid: string) => request(`/api/terminal/${sid}/interrupt`, { method: "POST" }).then((r) => r.json()),
   terminalSessions: () => request("/api/terminal/sessions").then((r) => r.json()),

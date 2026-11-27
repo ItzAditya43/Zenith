@@ -33,7 +33,10 @@ class TurnTrace:
         self.id = str(uuid.uuid4())
         self.conversation_id = conversation_id
         self.mode = mode
-        self.user_text = user_text[:500]
+        from app.core.config import settings
+        # Prompts are private: kept only if the user opts in (Settings → Data).
+        self.user_text = (user_text[:500] if settings.get("trace_store_prompts", False)
+                          else f"(prompt hidden, {len(user_text)} characters)")
         self.started = time.monotonic()
         self.created_at = time.time()
         self.route: dict[str, Any] = {}
@@ -87,6 +90,9 @@ class TurnTrace:
         if self.persisted:
             return
         self.persisted = True
+        if error:
+            from app.services.support_bundle import scrub
+            error = scrub(error)[:500]
         self.status, self.error = status, (error or None)
         try:
             with _conn() as conn:

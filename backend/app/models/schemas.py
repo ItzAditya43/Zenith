@@ -140,6 +140,8 @@ class ConfigPatch(StrictModel):
     image_gen_timeout_seconds: int | None = Field(default=None, ge=10, le=1800)
     research_max_iterations: int | None = Field(default=None, ge=2, le=30)
     research_plan_first: bool | None = None
+    trace_store_prompts: bool | None = None
+    trace_retention_days: int | None = Field(default=None, ge=1, le=365)
     council_models: list[str] | None = Field(default=None, max_length=6)
     folder_scan_interval_seconds: int | None = Field(default=None, ge=60, le=86400)
     folder_recall_enabled: bool | None = None

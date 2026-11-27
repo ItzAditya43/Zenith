@@ -93,6 +93,8 @@ export default function DataSection() {
         </label>
       </div>
 
+      <TracePrivacy />
+
       <ApiKeys />
 
       <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
@@ -130,5 +132,36 @@ function ImportBatches() {
         </span>
       ))}
     </span>
+  );
+}
+
+
+function TracePrivacy() {
+  const [cfg, setCfg] = useState(null);
+  useEffect(() => { api.getConfig().then(setCfg).catch(() => {}); }, []);
+  if (!cfg) return null;
+  const set = async (patch) => setCfg(await api.patchConfig(patch));
+  return (
+    <>
+      <div className="setting-row">
+        <div className="setting-meta">
+          <span className="setting-label">Keep prompts in turn traces</span>
+          <span className="setting-hint">
+            Traces record which model answered, what was retrieved and how long it took. Your prompt text is
+            left out unless this is on. Traces older than {cfg.trace_retention_days || 30} days are deleted.
+          </span>
+        </div>
+        <button className={`switch ${cfg.trace_store_prompts ? "switch-on" : ""}`} role="switch" aria-checked={!!cfg.trace_store_prompts}
+          onClick={() => set({ trace_store_prompts: !cfg.trace_store_prompts })}>
+          <span className="switch-thumb" />
+        </button>
+      </div>
+      <div className="setting-row">
+        <div className="setting-meta"><span className="setting-label">Keep traces for</span></div>
+        <input type="number" className="settings-input" style={{ flex: "0 0 90px" }} min={1} max={365}
+          aria-label="Days to keep traces" defaultValue={cfg.trace_retention_days || 30}
+          onBlur={(e) => set({ trace_retention_days: Math.max(1, Math.min(365, Number(e.target.value) || 30)) })} />
+      </div>
+    </>
   );
 }

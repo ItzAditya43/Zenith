@@ -56,9 +56,14 @@ export default function UsageDashboard({ onClose }) {
       <div className="calendar-modal" style={{ width: "min(680px, calc(100vw - 3rem))" }} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="usage-dashboard-title">
         <div className="calendar-header">
           <span id="usage-dashboard-title">Usage & diagnostics</span>
-          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
-            <Icon name="x" size={14} />
-          </button>
+          <div style={{ display: "flex", gap: "var(--space-1)" }}>
+            <a className="icon-btn" href={api.usageExportUrl()} download title="Download usage as CSV (token counts are estimates for local models)" aria-label="Download usage as CSV">
+              <Icon name="download" size={14} />
+            </a>
+            <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">
+              <Icon name="x" size={14} />
+            </button>
+          </div>
         </div>
         <div style={{ padding: "var(--space-3) var(--space-4)", maxHeight: "75vh", overflowY: "auto" }}>
           <div className="settings-row" style={{ marginBottom: "var(--space-3)" }}>
