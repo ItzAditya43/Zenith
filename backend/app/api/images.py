@@ -19,6 +19,12 @@ async def status():
     return {"configured": image_service.is_configured()}
 
 
+@router.get("/check")
+async def check():
+    from app.services import image_service
+    return await image_service.check()
+
+
 @router.post("/generate")
 async def generate(body: dict):
     prompt = str(body.get("prompt", "")).strip()

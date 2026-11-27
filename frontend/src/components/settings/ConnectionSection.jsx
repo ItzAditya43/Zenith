@@ -89,6 +89,7 @@ export default function ConnectionSection() {
             setConfig(updated);
           }}
         />
+        <ImageCheck />
       </div>
 
       <h3 className="settings-section-title" style={{ marginTop: "1.5rem" }}>
@@ -179,5 +180,22 @@ export default function ConnectionSection() {
         )}
       </div>
     </section>
+  );
+}
+
+
+function ImageCheck() {
+  const [res, setRes] = useState(null);
+  return (
+    <>
+      <button className="settings-btn-secondary" onClick={async () => { setRes({ busy: true }); setRes(await api.checkImageServer().catch((e) => ({ ok: false, error: e.message }))); }}>
+        {res?.busy ? "Checking…" : "Test connection"}
+      </button>
+      {res && !res.busy && (
+        <span className={res.ok ? "setting-hint" : "settings-error"} role="status" style={{ flexBasis: "100%" }}>
+          {res.ok ? `Connected${res.model ? ` · model: ${res.model}` : ""}${res.models?.length ? ` · ${res.models.length} installed` : ""}` : res.error}
+        </span>
+      )}
+    </>
   );
 }

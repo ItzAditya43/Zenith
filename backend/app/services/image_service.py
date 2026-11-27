@@ -67,3 +67,25 @@ async def generate(prompt: str, negative: str = "") -> list[str]:
         if not images:
             raise ImageGenError("The image server returned no image.")
         return images
+
+
+async def check() -> dict:
+    """Is the image server reachable, and which model does it have loaded?
+    Doesn't generate anything."""
+    url = str(settings.get("image_gen_url", "")).strip().rstrip("/")
+    if not url:
+        return {"ok": False, "error": "No image server URL set."}
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            opts = await client.get(f"{url}/sdapi/v1/options")
+            if opts.status_code == 404:
+                return {"ok": False, "error": f"{url} answered but has no /sdapi API. Start it with --api."}
+            opts.raise_for_status()
+            models = await client.get(f"{url}/sdapi/v1/sd-models")
+            names = [m.get("model_name") or m.get("title") for m in (models.json() if models.status_code == 200 else [])]
+    except httpx.ConnectError:
+        return {"ok": False, "error": f"Can't reach {url}. Is the server running?"}
+    except (httpx.HTTPError, ValueError) as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:200]}
+    current = (opts.json() or {}).get("sd_model_checkpoint")
+    return {"ok": True, "model": current, "models": [n for n in names if n][:30]}
