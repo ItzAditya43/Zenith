@@ -5,10 +5,18 @@ other devices on the network — see app/core/security.py) can't open your
 chats. This is NOT at-rest encryption — the SQLite file is still readable by
 anyone with filesystem access; it's a login gate, not a vault.
 
-  GET  /api/lock/status   — {enabled} (always reachable, so the UI knows to lock)
-  POST /api/lock/verify   — {passcode} -> {ok, token}; token unlocks subsequent requests
-  POST /api/lock/set      — {passcode} set/change the passcode (must be unlocked if already set)
-  POST /api/lock/disable  — {passcode} turn the lock off
+  GET  /api/lock/status          — {enabled, auto_lock_minutes, has_recovery, retry_after}
+  POST /api/lock/verify          — {passcode} -> {ok, token}; token unlocks subsequent requests
+  POST /api/lock/set             — {passcode, current_passcode?} set/change; returns a recovery code
+                                   the first time (and whenever regenerate_recovery is true)
+  POST /api/lock/reset           — {recovery_code, passcode}: forgot-passcode path
+  POST /api/lock/revoke-sessions — sign out every other browser/device (unlocked callers only)
+  POST /api/lock/settings        — {auto_lock_minutes}
+  POST /api/lock/disable         — {passcode} turn the lock off
+
+Last-resort recovery without the code: with access to this computer's
+files, clear `lock_pass_hash` in config.json and restart Zenith. That is
+also why the lock is not protection against someone with file access.
 """
 from __future__ import annotations
 
@@ -65,12 +73,27 @@ def is_locked() -> bool:
 
 
 def _issue_token(stored_hash: str) -> str:
-    """Unlock token = HMAC(machine key, stored hash). Proves the client
-    passed the passcode check without the token being the hash itself, and
-    changing the passcode invalidates every outstanding token."""
+    """Unlock token = HMAC(machine key, stored hash + session epoch). Proves
+    the client passed the passcode check without the token being the hash
+    itself; changing the passcode or bumping the epoch ("sign out other
+    devices") invalidates every outstanding token."""
     from app.services.crypto_service import machine_key
 
-    return hmac.new(machine_key(), b"zenith-unlock:" + stored_hash.encode(), hashlib.sha256).hexdigest()
+    epoch = str(settings.get("lock_session_epoch", 0) or 0)
+    msg = b"zenith-unlock:" + stored_hash.encode() + (b":" + epoch.encode() if epoch != "0" else b"")
+    return hmac.new(machine_key(), msg, hashlib.sha256).hexdigest()
+
+
+def _new_recovery_code() -> tuple[str, str]:
+    import secrets
+
+    raw = secrets.token_hex(10).upper()
+    code = "-".join(raw[i:i + 4] for i in range(0, 20, 4))
+    return code, hash_passcode(code.replace("-", ""))
+
+
+def _norm_code(code: str) -> str:
+    return "".join(ch for ch in code.upper() if ch.isalnum())
 
 
 def token_valid(token: str) -> bool:
@@ -99,8 +122,13 @@ def _verify_or_raise(passcode: str, request: Request) -> None:
 
 
 @router.get("/status")
-async def status():
-    return {"enabled": is_locked()}
+async def status(request: Request):
+    return {
+        "enabled": is_locked(),
+        "auto_lock_minutes": int(settings.get("lock_auto_minutes", 0) or 0),
+        "has_recovery": bool(settings.get("lock_recovery_hash", "")),
+        "retry_after": int(passcode_limiter.retry_after(_client_key(request)) + 0.999),
+    }
 
 
 @router.post("/verify")
@@ -124,12 +152,65 @@ async def set_passcode(body: dict, request: Request):
     # If a lock is already active, require the caller to be unlocked before
     # changing it (the lock middleware allowlists /api/lock/*, so this is
     # the only check).
-    if is_locked() and not token_valid(request.headers.get("x-zenith-unlock", "")):
-        raise HTTPException(401, "Unlock first to change the passcode.")
+    if is_locked():
+        if not token_valid(request.headers.get("x-zenith-unlock", "")):
+            raise HTTPException(401, "Unlock first to change the passcode.")
+        _verify_or_raise(str(body.get("current_passcode", "")), request)
     new_hash = hash_passcode(passcode)
+    first = not is_locked()
     settings.set("lock_pass_hash", new_hash)
     settings.set("lock_enabled", True)
-    return {"ok": True, "token": _issue_token(new_hash)}
+    out = {"ok": True, "token": _issue_token(new_hash)}
+    if first or body.get("regenerate_recovery") or not settings.get("lock_recovery_hash", ""):
+        code, code_hash = _new_recovery_code()
+        settings.set("lock_recovery_hash", code_hash)
+        out["recovery_code"] = code
+    return out
+
+
+@router.post("/reset")
+async def reset_with_recovery(body: dict, request: Request):
+    """Forgot the passcode: a valid recovery code sets a new one. The
+    code is single-use — a fresh one is returned."""
+    _require_not_throttled(request)
+    stored = str(settings.get("lock_recovery_hash", ""))
+    code = _norm_code(str(body.get("recovery_code", "")))
+    if not is_locked() or not stored or not check_passcode(code, stored):
+        passcode_limiter.fail(_client_key(request))
+        raise HTTPException(401, "That recovery code isn't right.")
+    passcode_limiter.succeed(_client_key(request))
+    passcode = str(body.get("passcode", "")).strip()
+    if len(passcode) < 4:
+        raise HTTPException(400, "Passcode must be at least 4 characters.")
+    new_hash = hash_passcode(passcode)
+    settings.set("lock_pass_hash", new_hash)
+    settings.set("lock_session_epoch", int(settings.get("lock_session_epoch", 0) or 0) + 1)
+    new_code, code_hash = _new_recovery_code()
+    settings.set("lock_recovery_hash", code_hash)
+    log.info("lock.reset_with_recovery")
+    return {"ok": True, "token": _issue_token(new_hash), "recovery_code": new_code}
+
+
+def _require_unlocked(request: Request) -> None:
+    if is_locked() and not token_valid(request.headers.get("x-zenith-unlock", "")):
+        raise HTTPException(401, "Unlock first.")
+
+
+@router.post("/revoke-sessions")
+async def revoke_sessions(request: Request):
+    _require_unlocked(request)
+    settings.set("lock_session_epoch", int(settings.get("lock_session_epoch", 0) or 0) + 1)
+    return {"ok": True, "token": _issue_token(_current_hash()) if is_locked() else ""}
+
+
+@router.post("/settings")
+async def lock_settings(body: dict, request: Request):
+    _require_unlocked(request)
+    minutes = int(body.get("auto_lock_minutes", 0) or 0)
+    if minutes < 0 or minutes > 1440:
+        raise HTTPException(400, "auto_lock_minutes must be between 0 and 1440.")
+    settings.set("lock_auto_minutes", minutes)
+    return {"ok": True, "auto_lock_minutes": minutes}
 
 
 @router.post("/disable")
@@ -139,4 +220,5 @@ async def disable(body: dict, request: Request):
         _verify_or_raise(passcode, request)
     settings.set("lock_enabled", False)
     settings.set("lock_pass_hash", "")
+    settings.set("lock_recovery_hash", "")
     return {"ok": True}

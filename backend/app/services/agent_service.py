@@ -1799,7 +1799,7 @@ async def run_agent_turn(
             tc_id = _log_call(conversation_id, "type_check", {"path": args.get("path")}, "safe")
             yield {"type": "tool_call", "id": tc_id, "tool": "type_check", "args": {"path": args.get("path")}, "risk": "safe", "diff": None}
             try:
-                res = await code_intel.project_check(_TP(workdir), timeout=90)
+                res = await code_intel.project_check(_TP(workdir), timeout=90, fresh=True)
                 edited = str(args.get("path", "")).lstrip("./")
                 mine = [p for p in res["problems"] if p["severity"] == "error" and (p["path"] == edited or p["path"].endswith("/" + edited))]
                 if mine:

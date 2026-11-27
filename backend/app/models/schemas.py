@@ -242,8 +242,20 @@ class ScheduleCreate(StrictModel):
     name: str = Field(min_length=1, max_length=100)
     prompt: str = Field(min_length=1, max_length=4000)
     mode: Literal["chat", "research"] = "chat"
-    interval_minutes: int = Field(ge=1, le=43200)
+    interval_minutes: int = Field(default=1440, ge=1, le=43200)
     todo_mode: Literal["none", "add", "checklist"] = "none"
+    kind: Literal["interval", "daily", "weekly"] = "interval"
+    time_of_day: str | None = Field(default=None, max_length=5)
+    weekdays: list[int] | None = Field(default=None, max_length=7)
+    timezone: str | None = Field(default=None, max_length=64)
+
+
+class ScheduleTiming(StrictModel):
+    kind: Literal["interval", "daily", "weekly"]
+    interval_minutes: int = Field(default=1440, ge=1, le=43200)
+    time_of_day: str | None = Field(default=None, max_length=5)
+    weekdays: list[int] | None = Field(default=None, max_length=7)
+    timezone: str | None = Field(default=None, max_length=64)
 
 
 class ScheduleToggle(StrictModel):

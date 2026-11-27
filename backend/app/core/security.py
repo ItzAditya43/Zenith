@@ -43,7 +43,7 @@ from app.core.config import settings
 # UI can show "set" without seeing the value) and REDACTED in a PATCH means
 # "unchanged". lock_pass_hash is dropped entirely.
 SECRET_KEYS = ("email_password", "auth_shared_secret")
-HIDDEN_KEYS = ("lock_pass_hash", "providers")  # providers carry API keys: own API, never echoed
+HIDDEN_KEYS = ("lock_pass_hash", "lock_recovery_hash", "providers")  # providers carry API keys: own API, never echoed
 REDACTED = "********"
 
 # Paths a remote client may reach with no gate configured: public share

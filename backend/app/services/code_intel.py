@@ -211,8 +211,13 @@ def available_checks(root: Path) -> list[tuple[str, list[str]]]:
     return checks
 
 
-async def project_check(root: Path, timeout: float = CHECK_TIMEOUT) -> dict:
+async def project_check(root: Path, timeout: float = CHECK_TIMEOUT, fresh: bool = False) -> dict:
+    """`fresh` skips mypy's incremental cache. The agent loop needs it: mypy
+    trusts a cached file whose size and whole-second mtime are unchanged,
+    and an agent can rewrite a file twice in one second at the same length."""
     checks = available_checks(root)
+    if fresh:
+        checks = [(t, argv + ["--no-incremental"] if t == "mypy" else argv) for t, argv in checks]
     ran, problems, notes = [], [], []
     for tool, argv in checks:
         try:

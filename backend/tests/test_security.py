@@ -261,7 +261,7 @@ def test_unlock_token_is_not_the_stored_hash(client):
 
 def test_changing_passcode_invalidates_old_tokens(client):
     old = client.post("/api/lock/set", json={"passcode": "4821"}).json()["token"]
-    new = client.post("/api/lock/set", json={"passcode": "9999"}, headers={"X-Zenith-Unlock": old}).json()["token"]
+    new = client.post("/api/lock/set", json={"passcode": "9999", "current_passcode": "4821"}, headers={"X-Zenith-Unlock": old}).json()["token"]
     assert client.get("/api/config", headers={"X-Zenith-Unlock": old}).status_code == 423
     assert client.get("/api/config", headers={"X-Zenith-Unlock": new}).status_code == 200
 

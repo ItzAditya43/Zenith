@@ -140,8 +140,6 @@ export default function SettingsPanel({
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState("");
   const [lockEnabled, setLockEnabled] = useState(false);
-  const [lockInput, setLockInput] = useState("");
-  const [lockMsg, setLockMsg] = useState("");
   const [pullName, setPullName] = useState("");
   const [pullBusy, setPullBusy] = useState(false);
   const [pullStatus, setPullStatus] = useState("");
@@ -385,10 +383,10 @@ export default function SettingsPanel({
       .catch((err) => setSchedulesError(err.message));
   };
 
-  const addSchedule = async () => {
+  const addSchedule = async (timing = {}) => {
     if (!newScheduleName.trim() || !newSchedulePrompt.trim()) return;
     try {
-      await api.createSchedule(newScheduleName.trim(), newSchedulePrompt.trim(), newScheduleMode, Number(newScheduleInterval), newScheduleTodoMode);
+      await api.createSchedule(newScheduleName.trim(), newSchedulePrompt.trim(), newScheduleMode, Number(newScheduleInterval), newScheduleTodoMode, timing);
       setNewScheduleName("");
       setNewSchedulePrompt("");
       refreshSchedules();
@@ -726,40 +724,6 @@ export default function SettingsPanel({
     }
   };
 
-  const handleSetPasscode = async () => {
-    const pass = lockInput.trim();
-    if (pass.length < 4) {
-      setLockMsg("Passcode must be at least 4 characters.");
-      return;
-    }
-    try {
-      const { token } = await api.lockSet(pass);
-      sessionStorage.setItem("zenith-unlock", token || ""); // stay unlocked in this tab
-      setLockEnabled(true);
-      setLockInput("");
-      setLockMsg("Passcode set. It'll be required next time this tab is opened.");
-    } catch (err) {
-      setLockMsg(err.message || "Couldn't set passcode.");
-    }
-  };
-
-  const handleDisablePasscode = async () => {
-    const pass = lockInput.trim();
-    if (!pass) {
-      setLockMsg("Enter your current passcode to turn the lock off.");
-      return;
-    }
-    try {
-      await api.lockDisable(pass);
-      sessionStorage.removeItem("zenith-unlock");
-      setLockEnabled(false);
-      setLockInput("");
-      setLockMsg("Lock disabled.");
-    } catch (err) {
-      setLockMsg(err.message || "Couldn't disable the lock.");
-    }
-  };
-
   const handleImport = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -1051,10 +1015,6 @@ export default function SettingsPanel({
     setImportStatus,
     lockEnabled,
     setLockEnabled,
-    lockInput,
-    setLockInput,
-    lockMsg,
-    setLockMsg,
     pullName,
     setPullName,
     pullBusy,
@@ -1129,8 +1089,6 @@ export default function SettingsPanel({
     handlePull,
     handleCreate,
     handleDeleteModel,
-    handleSetPasscode,
-    handleDisablePasscode,
     handleImport,
     toggleAutoCheck,
     toggleNativeTools,

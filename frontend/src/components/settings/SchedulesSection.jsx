@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSettings } from "./SettingsContext.js";
 import Select from "../Select.jsx";
 
@@ -25,6 +26,13 @@ export default function SchedulesSection() {
     runScheduleNow,
     toggleExpandSchedule,
   } = useSettings();
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const [kind, setKind] = useState("daily");
+  const [timeOfDay, setTimeOfDay] = useState("08:00");
+  const [weekdays, setWeekdays] = useState([0]);
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const submit = () =>
+    addSchedule(kind === "interval" ? { kind } : { kind, time_of_day: timeOfDay, timezone: zone, ...(kind === "weekly" ? { weekdays } : {}) });
 
   return (
     <section className="settings-section">
@@ -34,7 +42,7 @@ export default function SchedulesSection() {
         schedule gets its own conversation that keeps a running log across runs.
         Restricted to Chat and Deep Research modes — never Agent — since an unattended
         cron job running shell commands with nobody there to approve it is a real
-        escalation, not a formality.
+        escalation, not a formality. Deleting a schedule keeps its conversation and run history.
       </p>
 
       <div className="setting-row setting-row-stack">
@@ -65,27 +73,54 @@ export default function SchedulesSection() {
           value={newSchedulePrompt}
           onChange={(e) => setNewSchedulePrompt(e.target.value)}
         />
-        <div className="settings-row">
-          <label className="setting-label" htmlFor="sched-interval" style={{ flexShrink: 0 }}>
-            Every
-          </label>
-          <Select
-            id="sched-interval"
-            className="settings-select"
-            value={newScheduleInterval}
-            onChange={(e) => setNewScheduleInterval(e.target.value)}
-          >
-            <option value={60}>hour</option>
-            <option value={360}>6 hours</option>
-            <option value={1440}>day</option>
-            <option value={10080}>week</option>
+        <div className="settings-row" style={{ flexWrap: "wrap" }}>
+          <Select className="settings-select" style={{ flex: "0 0 150px" }} value={kind} onChange={(e) => setKind(e.target.value)} aria-label="How often">
+            <option value="daily">Every day at</option>
+            <option value="weekly">Every week on</option>
+            <option value="interval">Repeat every (advanced)</option>
           </Select>
+          {kind === "weekly" && (
+            <span className="sched-days" role="group" aria-label="Weekdays">
+              {DAYS.map((d, i) => (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={weekdays.includes(i)}
+                  className={weekdays.includes(i) ? "is-on" : ""}
+                  onClick={() => setWeekdays((w) => (w.includes(i) ? w.filter((x) => x !== i) : [...w, i]))}
+                >
+                  {d}
+                </button>
+              ))}
+            </span>
+          )}
+          {kind !== "interval" ? (
+            <input type="time" className="settings-input" style={{ flex: "0 0 110px" }} value={timeOfDay}
+              onChange={(e) => setTimeOfDay(e.target.value)} aria-label="Time of day" />
+          ) : (
+            <Select
+              id="sched-interval"
+              className="settings-select"
+              value={newScheduleInterval}
+              onChange={(e) => setNewScheduleInterval(e.target.value)}
+              aria-label="Interval"
+            >
+              <option value={15}>15 minutes</option>
+              <option value={60}>hour</option>
+              <option value={360}>6 hours</option>
+              <option value={1440}>day</option>
+              <option value={10080}>week</option>
+            </Select>
+          )}
+          {kind !== "interval" && <span className="setting-hint">{zone} · follows daylight saving</span>}
+        </div>
+        <div className="settings-row">
           <Select className="settings-select" value={newScheduleTodoMode} onChange={(e) => setNewScheduleTodoMode(e.target.value)} aria-label="Turn results into to-dos">
             <option value="none">No to-dos</option>
             <option value="add">Add the result as a to-do</option>
             <option value="checklist">Add each follow-up it lists</option>
           </Select>
-          <button className="settings-btn-primary" onClick={addSchedule}>
+          <button className="settings-btn-primary" onClick={submit}>
             Add schedule
           </button>
         </div>
@@ -99,9 +134,16 @@ export default function SchedulesSection() {
               <span className="model-name" style={{ flex: 1 }}>
                 {s.name}
                 <span className="setting-hint" style={{ display: "block" }}>
-                  {s.mode} · every {s.interval_minutes} min{s.todo_mode && s.todo_mode !== "none" ? ` · ${s.todo_mode === "add" ? "adds a to-do" : "adds follow-ups as to-dos"}` : ""}
+                  {s.mode} · {s.description || `every ${s.interval_minutes} min`}{s.todo_mode && s.todo_mode !== "none" ? ` · ${s.todo_mode === "add" ? "adds a to-do" : "adds follow-ups as to-dos"}` : ""}
                   {s.last_run_at ? ` · last run ${new Date(s.last_run_at * 1000).toLocaleString()}` : " · never run"}
+                  {s.enabled && s.next_run_at ? ` · next ${new Date(s.next_run_at * 1000).toLocaleString()}` : ""}
+                  {s.missed_runs ? ` · ${s.missed_runs} missed while asleep` : ""}
                 </span>
+                {s.consecutive_failures > 0 && (
+                  <span className="settings-error" style={{ display: "block", margin: 0 }}>
+                    {s.consecutive_failures} failed run{s.consecutive_failures === 1 ? "" : "s"} in a row{!s.enabled ? " — paused" : ""}
+                  </span>
+                )}
               </span>
               <span className="settings-row" style={{ gap: "0.5rem" }}>
                 <button
@@ -126,7 +168,7 @@ export default function SchedulesSection() {
               <div className="tool-call-body" style={{ padding: "0.5rem 0 0" }}>
                 {(scheduleRuns[s.id] || []).map((r) => (
                   <pre key={r.id} className="tool-call-result" style={{ marginBottom: "0.4rem" }}>
-                    {new Date(r.started_at * 1000).toLocaleString()} — {r.status}
+                    {new Date(r.started_at * 1000).toLocaleString()} — {r.status}{r.model ? ` · ${r.model}` : ""}
                     {"\n"}
                     {r.status === "error" ? r.error : r.summary}
                   </pre>

@@ -18,6 +18,7 @@ log = get_logger(__name__)
 EVENT_TYPES = [
     "digest_generated",
     "schedule_completed",
+    "schedule_failing",
     "urgent_email",
     "memory_conflict_found",
     "folder_file_added",

@@ -539,12 +539,30 @@ export default function App() {
   useEffect(() => {
     api
       .lockStatus()
-      .then(({ enabled }) => {
+      .then(({ enabled, auto_lock_minutes }) => {
         setLocked(enabled && !sessionStorage.getItem("zenith-unlock"));
+        setAutoLockMinutes(enabled ? auto_lock_minutes || 0 : 0);
         setLockChecked(true);
       })
       .catch(() => setLockChecked(true));
   }, []);
+
+  // Auto-lock after N idle minutes (Settings → Data → Passcode lock).
+  const [autoLockMinutes, setAutoLockMinutes] = useState(0);
+  useEffect(() => {
+    if (!autoLockMinutes || locked) return;
+    let last = Date.now();
+    const bump = () => { last = Date.now(); };
+    const evs = ["pointerdown", "keydown", "wheel", "touchstart"];
+    evs.forEach((e) => window.addEventListener(e, bump, { passive: true }));
+    const t = setInterval(() => {
+      if (Date.now() - last > autoLockMinutes * 60_000) {
+        try { sessionStorage.removeItem("zenith-unlock"); } catch { /* ignore */ }
+        setLocked(true);
+      }
+    }, 15_000);
+    return () => { clearInterval(t); evs.forEach((e) => window.removeEventListener(e, bump)); };
+  }, [autoLockMinutes, locked]);
 
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [manualRetryNonce, setManualRetryNonce] = useState(0);

@@ -170,6 +170,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # anyone with filesystem access). Off until the user sets a passcode. ---
     "lock_enabled": False,
     "lock_pass_hash": "",
+    "lock_recovery_hash": "",
+    "lock_auto_minutes": 0,
+    "lock_session_epoch": 0,
     "cors_allow_origins": [
         "http://localhost:5173",
         "http://127.0.0.1:5173",

@@ -535,11 +535,11 @@ export const api = {
   scanFolderNow: (id: string) => request(`/api/folders/${id}/scan`, { method: "POST" }).then((r) => r.json()),
 
   listSchedules: () => request("/api/schedules").then((r) => r.json()),
-  createSchedule: (name: string, prompt: string, mode: string, intervalMinutes: number, todoMode = "none") =>
+  createSchedule: (name: string, prompt: string, mode: string, intervalMinutes: number, todoMode = "none", timing: Record<string, unknown> = {}) =>
     request("/api/schedules", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, prompt, mode, interval_minutes: intervalMinutes, todo_mode: todoMode }),
+      body: JSON.stringify({ name, prompt, mode, interval_minutes: intervalMinutes, todo_mode: todoMode, ...timing }),
     }).then((r) => r.json()),
   toggleSchedule: (id: string, enabled: boolean) =>
     request(`/api/schedules/${id}`, {
@@ -998,10 +998,21 @@ export const api = {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ passcode }),
     }).then((r) => r.json()),
-  lockSet: (passcode: string) =>
+  lockSet: (passcode: string, currentPasscode = "", regenerateRecovery = false) =>
     request("/api/lock/set", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ passcode }),
+      body: JSON.stringify({ passcode, current_passcode: currentPasscode, regenerate_recovery: regenerateRecovery }),
+    }).then((r) => r.json()),
+  lockReset: (recoveryCode: string, passcode: string) =>
+    request("/api/lock/reset", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recovery_code: recoveryCode, passcode }),
+    }).then((r) => r.json()),
+  lockRevokeSessions: () => request("/api/lock/revoke-sessions", { method: "POST" }).then((r) => r.json()),
+  lockSettings: (autoLockMinutes: number) =>
+    request("/api/lock/settings", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ auto_lock_minutes: autoLockMinutes }),
     }).then((r) => r.json()),
   lockDisable: (passcode: string) =>
     request("/api/lock/disable", {

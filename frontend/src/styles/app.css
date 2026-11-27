@@ -6426,3 +6426,12 @@ html[data-reduce-motion] .getstarted { animation: none; }
 .diag-tabs button { font-size: 11px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border-hairline); color: var(--text-secondary); }
 .diag-tabs button.is-active { color: var(--text-primary); border-color: var(--border-soft); }
 .diag-preview { max-height: 220px; overflow: auto; font-size: 11px; padding: 8px; border-radius: 8px; background: var(--surface-sunken, rgba(127,127,127,.06)); white-space: pre-wrap; word-break: break-all; margin-bottom: 8px; }
+
+.sched-days { display: inline-flex; gap: 3px; flex-wrap: wrap; }
+.sched-days button { font-size: 11px; padding: 4px 7px; border-radius: 6px; border: 1px solid var(--border-hairline); color: var(--text-secondary); min-width: 34px; }
+.sched-days button.is-on { color: var(--text-primary); border-color: var(--accent, var(--border-soft)); background: color-mix(in srgb, var(--accent, #f60) 14%, transparent); }
+
+.lock-link { margin-top: 8px; font-size: 12px; color: var(--text-secondary); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.lock-link:hover { color: var(--text-primary); }
+.lock-fineprint { font-size: 11px !important; color: var(--text-tertiary, var(--text-secondary)) !important; margin-top: 6px; }
+.lock-recovery-code { display: block; font-size: 15px; letter-spacing: .06em; padding: 10px 12px; border-radius: 8px; border: 1px dashed var(--border-soft); margin: 10px 0 14px; user-select: all; text-align: center; }

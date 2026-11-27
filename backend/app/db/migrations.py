@@ -1077,6 +1077,27 @@ def _webhook_delivery_tables(conn: sqlite3.Connection) -> None:
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_hook ON webhook_deliveries (webhook_id, created_at)")
 
+
+def _schedule_calendar_columns(conn: sqlite3.Connection) -> None:
+    """Daily/weekly schedules at a wall-clock time in a timezone, missed-run
+    and failure tracking, soft delete (run history is kept), and the model
+    each run used."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(schedules)")}
+    for name, ddl in (
+        ("kind", "TEXT NOT NULL DEFAULT 'interval'"),
+        ("time_of_day", "TEXT"),
+        ("weekdays", "TEXT"),
+        ("timezone", "TEXT"),
+        ("consecutive_failures", "INTEGER NOT NULL DEFAULT 0"),
+        ("missed_runs", "INTEGER NOT NULL DEFAULT 0"),
+        ("deleted_at", "REAL"),
+    ):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE schedules ADD COLUMN {name} {ddl}")
+    rcols = {r[1] for r in conn.execute("PRAGMA table_info(schedule_runs)")}
+    if "model" not in rcols:
+        conn.execute("ALTER TABLE schedule_runs ADD COLUMN model TEXT")
+
 MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "baseline", _baseline),
     (2, "attachments_table", _attachments_table),
@@ -1133,6 +1154,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (53, "provider_usage_table", _provider_usage_table),
     (54, "api_keys_table", _api_keys_table),
     (55, "webhook_delivery_tables", _webhook_delivery_tables),
+    (56, "schedule_calendar_columns", _schedule_calendar_columns),
 ]
 
 

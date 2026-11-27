@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../../lib/api";
 import { useSettings } from "./SettingsContext.js";
 import ApiKeys from "./ApiKeys.jsx";
+import PasscodeSettings from "./PasscodeSettings.jsx";
 
 /** Settings → "data" section. State lives in SettingsPanel (see SettingsContext). */
 export default function DataSection() {
@@ -9,11 +10,7 @@ export default function DataSection() {
     importing,
     importStatus,
     lockEnabled,
-    lockInput,
-    setLockInput,
-    lockMsg,
-    handleSetPasscode,
-    handleDisablePasscode,
+    setLockEnabled,
     handleImport,
   } = useSettings();
   const [mdMeta, setMdMeta] = useState(true);
@@ -102,28 +99,11 @@ export default function DataSection() {
       </h3>
       <p className="settings-section-desc">
         Require a passcode to open Zenith on this machine — useful if others use the same
-        computer. Note: this is a login gate, <strong>not</strong> at-rest encryption; the
-        database file itself is still readable by anyone with filesystem access.
+        computer or reach it over the network. It is a login gate, <strong>not</strong> encryption:
+        the database, attachments and settings on disk stay readable by anyone with access to
+        this computer's files, and they can also remove the lock.
       </p>
-      <div className="settings-row">
-        <input
-          className="settings-input"
-          type="password"
-          placeholder={lockEnabled ? "Current passcode (to change/disable)" : "Set a passcode (min 4 chars)"}
-          aria-label={lockEnabled ? "Current passcode" : "Set a passcode"}
-          value={lockInput}
-          onChange={(e) => setLockInput(e.target.value)}
-        />
-        <button className="settings-btn-primary" onClick={handleSetPasscode}>
-          {lockEnabled ? "Change" : "Enable lock"}
-        </button>
-        {lockEnabled && (
-          <button className="settings-btn-secondary" onClick={handleDisablePasscode}>
-            Disable
-          </button>
-        )}
-      </div>
-      {lockMsg && <span className="setting-hint">{lockMsg}</span>}
+      <PasscodeSettings lockEnabled={lockEnabled} setLockEnabled={setLockEnabled} />
     </section>
   );
 }
