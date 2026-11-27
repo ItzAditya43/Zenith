@@ -323,6 +323,7 @@ export default function ChatHeader({
             className="icon-btn"
             onClick={handleExtractProject}
             title="Extract this conversation's code blocks into real files and open the code editor"
+            aria-label="Extract code into files"
           >
             <Icon name="download" size={16} />
           </button>
@@ -370,6 +371,7 @@ export default function ChatHeader({
               className="icon-btn"
               onClick={() => openSettingsAt("appearance")}
               title="Change theme"
+              aria-label="Change theme"
             >
               <Icon name="sun" size={16} />
             </button>
