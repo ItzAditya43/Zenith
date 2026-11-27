@@ -137,3 +137,28 @@ jobs:
           path: |
             desktop/src-tauri/target/release/bundle/msi/*.msi
             desktop/src-tauri/target/release/bundle/nsis/*.exe
+  # The release builds macOS too, but only on a tag — this catches code
+  # that doesn't compile for macOS on every push (cheap: no freeze, no bundle).
+  desktop-macos-check:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Placeholder backend sidecar (the real one is only needed to bundle)
+        run: |
+          triple=$(rustc -vV | sed -n 's/^host: //p')
+          mkdir -p desktop/src-tauri/binaries
+          printf '#!/bin/sh\n' > "desktop/src-tauri/binaries/zenith-backend-$triple"
+          chmod +x "desktop/src-tauri/binaries/zenith-backend-$triple"
+      - name: Compile for macOS
+        working-directory: desktop/src-tauri
+        run: cargo check --locked

@@ -94,17 +94,20 @@ fn create_quickbar(app: &tauri::AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("quickbar").is_some() {
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, "quickbar", WebviewUrl::App("index.html#/quickbar".into()))
+    let builder = WebviewWindowBuilder::new(app, "quickbar", WebviewUrl::App("index.html#/quickbar".into()))
         .title("Zenith Quickbar")
         .inner_size(760.0, 460.0)
         .decorations(false)
-        .transparent(true)
         .always_on_top(true)
         .skip_taskbar(true)
         .resizable(false)
         .center()
-        .visible(on_hyprland())
-        .build()?;
+        .visible(on_hyprland());
+    // Transparent windows on macOS need Tauri's private-API feature (which
+    // also bars the App Store); there the popout simply has a solid background.
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.transparent(true);
+    builder.build()?;
     Ok(())
 }
 
