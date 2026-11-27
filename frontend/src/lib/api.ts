@@ -93,7 +93,7 @@ async function errorDetail(res: Response): Promise<string> {
     const body = (await res.json()) as ErrorBody;
     signalGate(body);
     const msg = typeof body.detail === "string" ? body.detail : res.statusText;
-    const id = (body as { error_id?: string }).error_id || (res.status >= 500 ? res.headers.get("X-Request-ID") : null);
+    const id = (body as { error_id?: string }).error_id || (res.status >= 500 ? res.headers?.get?.("X-Request-ID") ?? null : null);
     return id ? `${msg} (error ID ${id})` : msg;
   } catch {
     return res.statusText; // non-JSON error body
